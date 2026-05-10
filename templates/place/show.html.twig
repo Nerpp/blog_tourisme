@@ -1,39 +1,94 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}{{ place.name }} - Blog Tourisme{% endblock %}
+{% block title %}{{ place.seoTitle ?: place.name }} - Blog Tourisme{% endblock %}
+{% block meta_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Lieu touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
+{% block open_graph_title %}{{ place.seoTitle ?: place.name }}{% endblock %}
+{% block open_graph_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Lieu touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
 
 {% block body %}
-    <main>
-        <article>
-            <h1>{{ place.name }}</h1>
-            {% if place.shortDescription %}
-                <p>{{ place.shortDescription }}</p>
+    <main class="page-shell article-layout">
+        <article class="article-main">
+            <header class="page-header">
+                <p class="eyebrow">
+                    {% if place.category %}{{ place.category.name }}{% else %}Lieu{% endif %}
+                    {% if place.destination %} - {{ place.destination.name }}{% endif %}
+                </p>
+                <h1>{{ place.name }}</h1>
+                {% if place.shortDescription %}
+                    <p>{{ place.shortDescription }}</p>
+                {% endif %}
+            </header>
+
+            {% if place.featuredImage %}
+                <div class="featured-media">
+                    {% include 'partials/_media_card.html.twig' with { media: place.featuredImage } only %}
+                </div>
             {% endif %}
+
             {% if place.description %}
-                <div>{{ place.description|nl2br }}</div>
+                <div class="prose">{{ place.description|nl2br }}</div>
+            {% endif %}
+
+            {% if place.mediaLinks|length > 0 %}
+                <section class="section-block">
+                    <h2>Medias</h2>
+                    {% include 'partials/_media_gallery.html.twig' with { media_links: place.mediaLinks } only %}
+                </section>
             {% endif %}
         </article>
 
-        <section>
-            <h2>Commentaires</h2>
-
-            {% for comment in comments %}
-                {% include 'comment/_comment.html.twig' with { comment: comment } %}
-            {% else %}
-                <p>Aucun commentaire approuve pour le moment.</p>
-            {% endfor %}
-        </section>
-
-        {% if comment_form %}
+        <aside class="side-panel">
             <section>
-                <h2>Ajouter un commentaire</h2>
-                {{ form_start(comment_form) }}
-                    {{ form_row(comment_form.content) }}
-                    {{ form_row(comment_form.submit) }}
-                {{ form_end(comment_form) }}
+                <h2>Infos pratiques</h2>
+                <dl class="facts-list">
+                    {% if place.destination %}
+                        <div><dt>Destination</dt><dd><a href="{{ path('app_destination_show', { slug: place.destination.slug }) }}">{{ place.destination.name }}</a></dd></div>
+                    {% endif %}
+                    {% if place.category %}<div><dt>Categorie</dt><dd>{{ place.category.name }}</dd></div>{% endif %}
+                    {% if place.address %}<div><dt>Adresse</dt><dd>{{ place.address }}</dd></div>{% endif %}
+                    {% if place.visitDurationMinutes %}<div><dt>Duree</dt><dd>{{ place.visitDurationMinutes }} min</dd></div>{% endif %}
+                    {% if place.difficulty %}<div><dt>Difficulte</dt><dd>{{ place.difficulty.value }}</dd></div>{% endif %}
+                    {% if place.priceType %}<div><dt>Prix</dt><dd>{{ place.priceType.value }}</dd></div>{% endif %}
+                    {% if place.latitude is not null and place.longitude is not null %}
+                        <div>
+                            <dt>Coordonnees</dt>
+                            <dd>
+                                {{ place.latitude }}, {{ place.longitude }}
+                                <a href="https://www.openstreetmap.org/?mlat={{ place.latitude }}&mlon={{ place.longitude }}#map=15/{{ place.latitude }}/{{ place.longitude }}" rel="noopener noreferrer" target="_blank">Ouvrir la carte</a>
+                            </dd>
+                        </div>
+                    {% endif %}
+                </dl>
             </section>
-        {% else %}
-            <p><a href="{{ path('app_login') }}">Connectez-vous</a> pour commenter.</p>
-        {% endif %}
+
+            {% if place.tagLinks|length > 0 %}
+                <section>
+                    <h2>Tags</h2>
+                    <div class="badges">
+                        {% for tagLink in place.tagLinks %}
+                            <span class="badge">{{ tagLink.tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endif %}
+
+            {% if place.articleLinks|length > 0 %}
+                <section>
+                    <h2>Articles lies</h2>
+                    <div class="stacked-links">
+                        {% for articleLink in place.articleLinks %}
+                            {% if articleLink.article.status.value == 'published' %}
+                                <a href="{{ path('app_article_show', { slug: articleLink.article.slug }) }}">{{ articleLink.article.title }}</a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endif %}
+        </aside>
+
+        <div class="full-span">
+            {% include 'partials/_comments.html.twig' with { comments: comments } %}
+            {% include 'partials/_comment_form.html.twig' with { comment_form: comment_form } %}
+        </div>
     </main>
 {% endblock %}

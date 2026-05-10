@@ -1,0 +1,55 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Articles tourisme - Blog Tourisme{% endblock %}
+{% block meta_description %}Tous les articles publies : itineraires, conseils voyage et idees de decouverte pour preparer vos visites.{% endblock %}
+
+{% block body %}
+    <main class="page-shell">
+        <header class="page-header">
+            <p class="eyebrow">Articles</p>
+            <h1>Itineraires et conseils voyage</h1>
+            <p>Retrouvez les derniers contenus publies, leurs destinations associees et les lieux cites dans chaque article.</p>
+        </header>
+
+        <div class="card-grid">
+            {% for article in articles %}
+                <article class="content-card">
+                    {% if article.featuredImage %}
+                        {% include 'partials/_media_card.html.twig' with { media: article.featuredImage } only %}
+                    {% endif %}
+                    <div class="card-body">
+                        <p class="card-meta">
+                            {% if article.publishedAt %}{{ article.publishedAt|date('d/m/Y') }}{% endif %}
+                            {% if article.category %}<span>{{ article.category.name }}</span>{% endif %}
+                        </p>
+                        <h2><a href="{{ path('app_article_show', { slug: article.slug }) }}">{{ article.title }}</a></h2>
+                        {% if article.excerpt %}
+                            <p>{{ article.excerpt }}</p>
+                        {% endif %}
+
+                        {% if article.destinationLinks|length > 0 %}
+                            <div class="linked-list">
+                                <strong>Destinations</strong>
+                                {% for destinationLink in article.destinationLinks %}
+                                    <a href="{{ path('app_destination_show', { slug: destinationLink.destination.slug }) }}">{{ destinationLink.destination.name }}</a>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% if article.tagLinks|length > 0 %}
+                            <div class="badges">
+                                {% for tagLink in article.tagLinks %}
+                                    <span class="badge">{{ tagLink.tag.name }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <a class="button" href="{{ path('app_article_show', { slug: article.slug }) }}">Lire l'article</a>
+                    </div>
+                </article>
+            {% else %}
+                <p>Aucun article publie pour le moment.</p>
+            {% endfor %}
+        </div>
+    </main>
+{% endblock %}

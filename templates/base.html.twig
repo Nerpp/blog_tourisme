@@ -4,21 +4,34 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{% block title %}Blog Tourisme{% endblock %}</title>
+        <meta name="description" content="{% block meta_description %}Lieux a visiter, itineraires et conseils pour decouvrir les plus belles destinations touristiques.{% endblock %}">
+        {% block canonical %}<link rel="canonical" href="{{ app.request.uri }}">{% endblock %}
+        <meta property="og:title" content="{% block open_graph_title %}{{ block('title') }}{% endblock %}">
+        <meta property="og:description" content="{% block open_graph_description %}{{ block('meta_description') }}{% endblock %}">
+        {% block open_graph_image %}{% endblock %}
         {% block stylesheets %}
             {{ vite_entry_link_tags('app') }}
         {% endblock %}
     </head>
     <body>
-        <header>
-            <nav>
-                <a href="{{ path('app_home') }}">Accueil</a>
-                {% if app.user %}
-                    <a href="{{ path('app_profile') }}">Profil</a>
-                    <a href="{{ path('app_logout') }}">Deconnexion</a>
-                {% else %}
-                    <a href="{{ path('app_login') }}">Connexion</a>
-                    <a href="{{ path('app_register') }}">Inscription</a>
-                {% endif %}
+        <header class="site-header">
+            <nav class="site-nav" aria-label="Navigation principale">
+                <a class="brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                <div class="nav-links">
+                    <a href="{{ path('app_home') }}">Accueil</a>
+                    <a href="{{ path('app_article_index') }}">Articles</a>
+                    <a href="{{ path('app_destination_index') }}">Destinations</a>
+                    <a href="{{ path('app_place_index') }}">Lieux</a>
+                </div>
+                <div class="nav-account">
+                    {% if app.user %}
+                        <a href="{{ path('app_profile') }}">Profil</a>
+                        <a href="{{ path('app_logout') }}">Deconnexion</a>
+                    {% else %}
+                        <a href="{{ path('app_login') }}">Connexion</a>
+                        <a href="{{ path('app_register') }}">Inscription</a>
+                    {% endif %}
+                </div>
             </nav>
         </header>
 
@@ -29,6 +42,11 @@
         {% endfor %}
 
         {% block body %}{% endblock %}
+
+        <footer class="site-footer">
+            <p>Blog Tourisme - contenu de demonstration pour explorer destinations, lieux et itineraires.</p>
+        </footer>
+
         {% block javascripts %}
             {{ vite_entry_script_tags('app') }}
         {% endblock %}

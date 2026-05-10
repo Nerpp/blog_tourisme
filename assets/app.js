@@ -1,12 +1,17 @@
-import '@mdi/font/css/materialdesignicons.css';
-import 'vuetify/styles';
 import './styles/app.css';
 
-import { createApp } from 'vue';
+const vueRoot = document.querySelector('#app');
 
-import App from './vue/App.vue';
-import { vuetify } from './vue/plugins/vuetify';
-
-createApp(App)
-  .use(vuetify)
-  .mount('#app');
+if (vueRoot) {
+  Promise.all([
+    import('@mdi/font/css/materialdesignicons.css'),
+    import('vuetify/styles'),
+    import('vue'),
+    import('./vue/App.vue'),
+    import('./vue/plugins/vuetify'),
+  ]).then(([, , { createApp }, { default: App }, { vuetify }]) => {
+    createApp(App)
+      .use(vuetify)
+      .mount(vueRoot);
+  });
+}

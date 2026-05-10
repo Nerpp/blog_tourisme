@@ -1,0 +1,47 @@
+<article class="comment" id="comment-{{ comment.id }}">
+    <div class="comment-content">{{ comment.content|nl2br }}</div>
+    <footer class="comment-meta">
+        Par {{ comment.author.displayName ?: comment.author.email }}
+        {% if comment.publishedAt %}
+            le {{ comment.publishedAt|date('d/m/Y H:i') }}
+        {% endif %}
+    </footer>
+
+    {% if app.user %}
+        <div class="comment-actions">
+            {% if is_granted('COMMENT_EDIT', comment) %}
+                <a href="{{ path('app_comment_edit', { id: comment.id }) }}">Modifier</a>
+            {% endif %}
+
+            {% if is_granted('COMMENT_DELETE', comment) %}
+                <form method="post" action="{{ path('app_comment_delete', { id: comment.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delete-comment-' ~ comment.id) }}">
+                    <button type="submit">Supprimer</button>
+                </form>
+            {% endif %}
+
+            {% if is_granted('COMMENT_REPORT', comment) %}
+                <form method="post" action="{{ path('app_comment_report', { id: comment.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('report-comment-' ~ comment.id) }}">
+                    <input type="hidden" name="reason" value="inappropriate">
+                    <button type="submit">Signaler</button>
+                </form>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% set approved_children = [] %}
+    {% for child in comment.children %}
+        {% if child.status.value == 'approved' %}
+            {% set approved_children = approved_children|merge([child]) %}
+        {% endif %}
+    {% endfor %}
+
+    {% if approved_children|length > 0 %}
+        <div class="comment-children">
+            {% for child in approved_children %}
+                {% include 'partials/_comment_item.html.twig' with { comment: child } %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</article>

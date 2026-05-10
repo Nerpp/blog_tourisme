@@ -1,0 +1,17 @@
+<ul class="destination-tree">
+    {% for destination in destinations %}
+        <li>
+            <a href="{{ path('app_destination_show', { slug: destination.slug }) }}">{{ destination.name }}</a>
+            <span>{{ destination.type.value }}</span>
+            {% if destination.places is defined %}
+                <small>{{ destination.places|length }} lieux</small>
+            {% endif %}
+            {% if destination.articleLinks is defined %}
+                <small>{{ destination.articleLinks|length }} articles</small>
+            {% endif %}
+            {% if destination.children|length > 0 %}
+                {% include 'partials/_destination_tree.html.twig' with { destinations: destination.children } only %}
+            {% endif %}
+        </li>
+    {% endfor %}
+</ul>

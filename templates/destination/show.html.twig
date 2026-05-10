@@ -1,0 +1,71 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ destination.seoTitle ?: destination.name }} - Blog Tourisme{% endblock %}
+{% block meta_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
+{% block open_graph_title %}{{ destination.seoTitle ?: destination.name }}{% endblock %}
+{% block open_graph_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
+
+{% block body %}
+    <main class="page-shell">
+        <header class="page-header">
+            <p class="eyebrow">{{ destination.type.value }}</p>
+            <h1>{{ destination.name }}</h1>
+            {% if destination.description %}
+                <p>{{ destination.description }}</p>
+            {% endif %}
+        </header>
+
+        <section class="info-strip">
+            {% if destination.parent %}
+                <div>
+                    <strong>Parent</strong>
+                    <a href="{{ path('app_destination_show', { slug: destination.parent.slug }) }}">{{ destination.parent.name }}</a>
+                </div>
+            {% endif %}
+            {% if destination.code %}
+                <div><strong>Code</strong><span>{{ destination.code }}</span></div>
+            {% endif %}
+            {% if destination.latitude is not null and destination.longitude is not null %}
+                <div><strong>Coordonnees</strong><span>{{ destination.latitude }}, {{ destination.longitude }}</span></div>
+            {% endif %}
+        </section>
+
+        {% if destination.children|length > 0 %}
+            <section class="section-block">
+                <h2>Destinations enfants</h2>
+                <div class="compact-grid">
+                    {% for child in destination.children %}
+                        <a class="compact-card" href="{{ path('app_destination_show', { slug: child.slug }) }}">
+                            <strong>{{ child.name }}</strong>
+                            <span>{{ child.type.value }}</span>
+                        </a>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if destination.places|length > 0 %}
+            <section class="section-block">
+                <h2>Lieux a visiter a {{ destination.name }}</h2>
+                <div class="card-grid">
+                    {% for place in destination.places %}
+                        {% include 'partials/_place_card.html.twig' with { place: place } only %}
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if destination.articleLinks|length > 0 %}
+            <section class="section-block">
+                <h2>Articles lies</h2>
+                <div class="card-grid">
+                    {% for articleLink in destination.articleLinks %}
+                        {% if articleLink.article.status.value == 'published' %}
+                            {% include 'partials/_article_card.html.twig' with { article: articleLink.article } only %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+    </main>
+{% endblock %}

@@ -1,0 +1,28 @@
+<article class="content-card">
+    {% if place.featuredImage %}
+        {% include 'partials/_media_card.html.twig' with { media: place.featuredImage } only %}
+    {% endif %}
+    <div class="card-body">
+        <p class="card-meta">
+            {% if place.destination %}<span>{{ place.destination.name }}</span>{% endif %}
+            {% if place.category %}<span>{{ place.category.name }}</span>{% endif %}
+        </p>
+        <h3><a href="{{ path('app_place_show', { slug: place.slug }) }}">{{ place.name }}</a></h3>
+        {% if place.shortDescription %}
+            <p>{{ place.shortDescription }}</p>
+        {% endif %}
+        <dl class="mini-facts">
+            {% if place.visitDurationMinutes %}<div><dt>Duree</dt><dd>{{ place.visitDurationMinutes }} min</dd></div>{% endif %}
+            {% if place.difficulty %}<div><dt>Difficulte</dt><dd>{{ place.difficulty.value }}</dd></div>{% endif %}
+            {% if place.priceType %}<div><dt>Prix</dt><dd>{{ place.priceType.value }}</dd></div>{% endif %}
+        </dl>
+        {% if place.tagLinks|length > 0 %}
+            <div class="badges">
+                {% for tagLink in place.tagLinks %}
+                    <span class="badge">{{ tagLink.tag.name }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+        <a class="text-link" href="{{ path('app_place_show', { slug: place.slug }) }}">Voir le lieu</a>
+    </div>
+</article>

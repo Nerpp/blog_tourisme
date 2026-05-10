@@ -1,0 +1,16 @@
+<section class="comments-section">
+    <h2>Commentaires</h2>
+
+    {% set top_level_comments = [] %}
+    {% for comment in comments %}
+        {% if comment.parent is null %}
+            {% set top_level_comments = top_level_comments|merge([comment]) %}
+        {% endif %}
+    {% endfor %}
+
+    {% for comment in top_level_comments %}
+        {% include 'partials/_comment_item.html.twig' with { comment: comment } %}
+    {% else %}
+        <p>Aucun commentaire approuve pour le moment.</p>
+    {% endfor %}
+</section>

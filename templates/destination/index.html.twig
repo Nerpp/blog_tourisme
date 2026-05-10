@@ -1,0 +1,18 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Destinations - Blog Tourisme{% endblock %}
+{% block meta_description %}Explorez la hierarchie des destinations touristiques : pays, regions, departements et villes.{% endblock %}
+
+{% block body %}
+    <main class="page-shell">
+        <header class="page-header">
+            <p class="eyebrow">Destinations</p>
+            <h1>Explorer les destinations</h1>
+            <p>Une lecture simple de la hierarchie geographique pour retrouver rapidement les villes, departements et regions du blog.</p>
+        </header>
+
+        <section class="tree-panel">
+            {% include 'partials/_destination_tree.html.twig' with { destinations: root_destinations } only %}
+        </section>
+    </main>
+{% endblock %}

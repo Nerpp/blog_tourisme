@@ -1,0 +1,11 @@
+{% if comment_form %}
+    <section class="comment-form-panel">
+        <h2>Laisser un commentaire</h2>
+        {{ form_start(comment_form, { attr: { class: 'comment-form' } }) }}
+            {{ form_row(comment_form.content) }}
+            {{ form_row(comment_form.submit) }}
+        {{ form_end(comment_form) }}
+    </section>
+{% else %}
+    <p class="login-callout"><a href="{{ path('app_login') }}">Connectez-vous</a> pour laisser un commentaire.</p>
+{% endif %}

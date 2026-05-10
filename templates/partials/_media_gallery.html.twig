@@ -1,0 +1,7 @@
+{% if media_links|length > 0 %}
+    <div class="media-grid">
+        {% for media_link in media_links %}
+            {% include 'partials/_media_card.html.twig' with { media: media_link.mediaAsset } only %}
+        {% endfor %}
+    </div>
+{% endif %}

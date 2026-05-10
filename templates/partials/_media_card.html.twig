@@ -1,0 +1,51 @@
+{% set type = media.mediaType.value %}
+{% set image_type = media.imageType ? media.imageType.value : null %}
+{% set badge = type == 'video'
+    ? (media.videoType ? media.videoType.value|capitalize : 'Video')
+    : ({
+        'standard': 'Standard',
+        '360': '360°',
+        '180': '180°',
+        'panorama': 'Panorama',
+        'wide_angle': 'Grand angle'
+    }[image_type]|default('Image'))
+%}
+{% set is_demo_file = media.filePath and media.filePath starts with '/uploads/demo/' %}
+
+<article class="media-card" data-media-type="{{ type }}" {% if image_type %}data-image-type="{{ image_type }}"{% endif %}>
+    <div class="media-visual">
+        <span class="badge media-badge">{{ badge }}</span>
+
+        {% if type == 'image' %}
+            {% if media.filePath and not is_demo_file %}
+                <img src="{{ media.filePath }}" alt="{{ media.altText ?: media.title ?: 'Media touristique' }}" loading="lazy">
+            {% else %}
+                <div class="media-placeholder" role="img" aria-label="{{ media.altText ?: media.title ?: 'Image de demonstration' }}">
+                    <span>{{ badge }}</span>
+                </div>
+            {% endif %}
+        {% elseif type == 'video' %}
+            {% if media.thumbnailPath and not (media.thumbnailPath starts with '/uploads/demo/') %}
+                <img src="{{ media.thumbnailPath }}" alt="{{ media.altText ?: media.title ?: 'Video touristique' }}" loading="lazy">
+            {% else %}
+                <div class="media-placeholder media-placeholder-video" role="img" aria-label="{{ media.altText ?: media.title ?: 'Video de demonstration' }}">
+                    <span>Video</span>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <div class="media-body">
+        {% if media.title %}
+            <h3>{{ media.title }}</h3>
+        {% endif %}
+        {% if media.caption %}
+            <p>{{ media.caption }}</p>
+        {% endif %}
+        {% if type == 'video' and media.externalUrl %}
+            <a href="{{ media.externalUrl }}" rel="noopener noreferrer" target="_blank">Voir la video</a>
+        {% elseif media.filePath %}
+            <small>{{ is_demo_file ? 'Fichier de demonstration non present sur le disque' : media.filePath }}</small>
+        {% endif %}
+    </div>
+</article>

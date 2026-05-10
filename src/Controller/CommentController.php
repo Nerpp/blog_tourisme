@@ -31,7 +31,7 @@ final class CommentController extends AbstractController
         EntityManagerInterface $entityManager,
         CommentModerationService $moderationService,
     ): RedirectResponse {
-        $article = $articleRepository->findOneBy(['slug' => $slug]);
+        $article = $articleRepository->findPublishedBySlug($slug);
         if ($article === null) {
             throw $this->createNotFoundException('Article introuvable.');
         }
@@ -67,7 +67,7 @@ final class CommentController extends AbstractController
         EntityManagerInterface $entityManager,
         CommentModerationService $moderationService,
     ): RedirectResponse {
-        $place = $placeRepository->findOneBy(['slug' => $slug]);
+        $place = $placeRepository->findPublishedBySlug($slug);
         if ($place === null) {
             throw $this->createNotFoundException('Lieu introuvable.');
         }

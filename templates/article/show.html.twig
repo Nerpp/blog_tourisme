@@ -1,37 +1,79 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}{{ article.title }} - Blog Tourisme{% endblock %}
+{% block title %}{{ article.seoTitle ?: article.title }} - Blog Tourisme{% endblock %}
+{% block meta_description %}{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ article.canonicalUrl ?: app.request.uri }}">{% endblock %}
+{% block open_graph_title %}{{ article.seoTitle ?: article.title }}{% endblock %}
+{% block open_graph_description %}{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}{% endblock %}
 
 {% block body %}
-    <main>
-        <article>
-            <h1>{{ article.title }}</h1>
-            {% if article.excerpt %}
-                <p>{{ article.excerpt }}</p>
+    <main class="page-shell article-layout">
+        <article class="article-main">
+            <header class="page-header">
+                <p class="eyebrow">
+                    {% if article.category %}{{ article.category.name }}{% else %}Article{% endif %}
+                    {% if article.publishedAt %} - {{ article.publishedAt|date('d/m/Y') }}{% endif %}
+                </p>
+                <h1>{{ article.title }}</h1>
+                {% if article.excerpt %}
+                    <p>{{ article.excerpt }}</p>
+                {% endif %}
+            </header>
+
+            {% if article.featuredImage %}
+                <div class="featured-media">
+                    {% include 'partials/_media_card.html.twig' with { media: article.featuredImage } only %}
+                </div>
             {% endif %}
-            <div>{{ article.content|nl2br }}</div>
+
+            <div class="prose">{{ article.content|nl2br }}</div>
+
+            {% if article.mediaLinks|length > 0 %}
+                <section class="section-block">
+                    <h2>Medias</h2>
+                    {% include 'partials/_media_gallery.html.twig' with { media_links: article.mediaLinks } only %}
+                </section>
+            {% endif %}
         </article>
 
-        <section>
-            <h2>Commentaires</h2>
+        <aside class="side-panel">
+            {% if article.tagLinks|length > 0 %}
+                <section>
+                    <h2>Tags</h2>
+                    <div class="badges">
+                        {% for tagLink in article.tagLinks %}
+                            <span class="badge">{{ tagLink.tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endif %}
 
-            {% for comment in comments %}
-                {% include 'comment/_comment.html.twig' with { comment: comment } %}
-            {% else %}
-                <p>Aucun commentaire approuve pour le moment.</p>
-            {% endfor %}
-        </section>
+            {% if article.destinationLinks|length > 0 %}
+                <section>
+                    <h2>Destinations liees</h2>
+                    <div class="stacked-links">
+                        {% for destinationLink in article.destinationLinks %}
+                            <a href="{{ path('app_destination_show', { slug: destinationLink.destination.slug }) }}">{{ destinationLink.destination.name }}</a>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endif %}
 
-        {% if comment_form %}
-            <section>
-                <h2>Ajouter un commentaire</h2>
-                {{ form_start(comment_form) }}
-                    {{ form_row(comment_form.content) }}
-                    {{ form_row(comment_form.submit) }}
-                {{ form_end(comment_form) }}
-            </section>
-        {% else %}
-            <p><a href="{{ path('app_login') }}">Connectez-vous</a> pour commenter.</p>
-        {% endif %}
+            {% if article.placeLinks|length > 0 %}
+                <section>
+                    <h2>Lieux cites</h2>
+                    <div class="stacked-links">
+                        {% for placeLink in article.placeLinks %}
+                            <a href="{{ path('app_place_show', { slug: placeLink.place.slug }) }}">{{ placeLink.place.name }}</a>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endif %}
+        </aside>
+
+        <div class="full-span">
+            {% include 'partials/_comments.html.twig' with { comments: comments } %}
+            {% include 'partials/_comment_form.html.twig' with { comment_form: comment_form } %}
+        </div>
     </main>
 {% endblock %}

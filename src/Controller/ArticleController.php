@@ -12,10 +12,18 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class ArticleController extends AbstractController
 {
+    #[Route('/articles', name: 'app_article_index', methods: ['GET'])]
+    public function index(ArticleRepository $articleRepository): Response
+    {
+        return $this->render('article/index.html.twig', [
+            'articles' => $articleRepository->findPublished(),
+        ]);
+    }
+
     #[Route('/articles/{slug}', name: 'app_article_show', methods: ['GET'])]
     public function show(string $slug, ArticleRepository $articleRepository, CommentRepository $commentRepository): Response
     {
-        $article = $articleRepository->findOneBy(['slug' => $slug]);
+        $article = $articleRepository->findPublishedBySlug($slug);
         if ($article === null) {
             throw $this->createNotFoundException('Article introuvable.');
         }
