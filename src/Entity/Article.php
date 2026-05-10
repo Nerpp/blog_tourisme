@@ -83,12 +83,18 @@ class Article
     #[ORM\OneToMany(mappedBy: 'article', targetEntity: ArticleTag::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $tagLinks;
 
+    /** @var Collection<int, Comment> */
+    #[ORM\OneToMany(mappedBy: 'article', targetEntity: Comment::class)]
+    #[ORM\OrderBy(['publishedAt' => 'ASC', 'createdAt' => 'ASC'])]
+    private Collection $comments;
+
     public function __construct()
     {
         $this->destinationLinks = new ArrayCollection();
         $this->placeLinks = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
         $this->tagLinks = new ArrayCollection();
+        $this->comments = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -262,5 +268,11 @@ class Article
     public function getTagLinks(): Collection
     {
         return $this->tagLinks;
+    }
+
+    /** @return Collection<int, Comment> */
+    public function getComments(): Collection
+    {
+        return $this->comments;
     }
 }

@@ -9,6 +9,25 @@
         {% endblock %}
     </head>
     <body>
+        <header>
+            <nav>
+                <a href="{{ path('app_home') }}">Accueil</a>
+                {% if app.user %}
+                    <a href="{{ path('app_profile') }}">Profil</a>
+                    <a href="{{ path('app_logout') }}">Deconnexion</a>
+                {% else %}
+                    <a href="{{ path('app_login') }}">Connexion</a>
+                    <a href="{{ path('app_register') }}">Inscription</a>
+                {% endif %}
+            </nav>
+        </header>
+
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="flash flash-{{ label }}">{{ message }}</div>
+            {% endfor %}
+        {% endfor %}
+
         {% block body %}{% endblock %}
         {% block javascripts %}
             {{ vite_entry_script_tags('app') }}

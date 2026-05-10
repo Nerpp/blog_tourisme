@@ -1,0 +1,16 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Inscription - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main>
+        <h1>Inscription</h1>
+
+        {{ form_start(registration_form) }}
+            {{ form_row(registration_form.email) }}
+            {{ form_row(registration_form.displayName) }}
+            {{ form_row(registration_form.plainPassword) }}
+            {{ form_row(registration_form.submit) }}
+        {{ form_end(registration_form) }}
+    </main>
+{% endblock %}

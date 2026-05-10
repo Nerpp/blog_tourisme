@@ -1,0 +1,37 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ article.title }} - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main>
+        <article>
+            <h1>{{ article.title }}</h1>
+            {% if article.excerpt %}
+                <p>{{ article.excerpt }}</p>
+            {% endif %}
+            <div>{{ article.content|nl2br }}</div>
+        </article>
+
+        <section>
+            <h2>Commentaires</h2>
+
+            {% for comment in comments %}
+                {% include 'comment/_comment.html.twig' with { comment: comment } %}
+            {% else %}
+                <p>Aucun commentaire approuve pour le moment.</p>
+            {% endfor %}
+        </section>
+
+        {% if comment_form %}
+            <section>
+                <h2>Ajouter un commentaire</h2>
+                {{ form_start(comment_form) }}
+                    {{ form_row(comment_form.content) }}
+                    {{ form_row(comment_form.submit) }}
+                {{ form_end(comment_form) }}
+            </section>
+        {% else %}
+            <p><a href="{{ path('app_login') }}">Connectez-vous</a> pour commenter.</p>
+        {% endif %}
+    </main>
+{% endblock %}

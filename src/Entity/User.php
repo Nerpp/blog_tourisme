@@ -8,11 +8,16 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: 'app_user')]
 #[ORM\HasLifecycleCallbacks]
-class User
+#[UniqueEntity(fields: ['email'], message: 'Cet email est deja utilise.')]
+class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     use TimestampableTrait;
 
@@ -22,6 +27,8 @@ class User
     private ?int $id = null;
 
     #[ORM\Column(length: 180, unique: true)]
+    #[Assert\NotBlank]
+    #[Assert\Email]
     private ?string $email = null;
 
     #[ORM\Column(type: Types::JSON)]
@@ -33,6 +40,12 @@ class User
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $displayName = null;
 
+    #[ORM\Column]
+    private bool $trustedCommenter = false;
+
+    #[ORM\Column]
+    private int $approvedCommentsCount = 0;
+
     /** @var Collection<int, Article> */
     #[ORM\OneToMany(mappedBy: 'author', targetEntity: Article::class)]
     private Collection $articles;
@@ -41,10 +54,20 @@ class User
     #[ORM\OneToMany(mappedBy: 'uploadedBy', targetEntity: MediaAsset::class)]
     private Collection $mediaAssets;
 
+    /** @var Collection<int, Comment> */
+    #[ORM\OneToMany(mappedBy: 'author', targetEntity: Comment::class)]
+    private Collection $comments;
+
+    /** @var Collection<int, Comment> */
+    #[ORM\OneToMany(mappedBy: 'moderatedBy', targetEntity: Comment::class)]
+    private Collection $moderatedComments;
+
     public function __construct()
     {
         $this->articles = new ArrayCollection();
         $this->mediaAssets = new ArrayCollection();
+        $this->comments = new ArrayCollection();
+        $this->moderatedComments = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -66,7 +89,10 @@ class User
 
     public function getRoles(): array
     {
-        return $this->roles;
+        $roles = $this->roles;
+        $roles[] = 'ROLE_USER';
+
+        return array_values(array_unique($roles));
     }
 
     public function setRoles(array $roles): static
@@ -88,6 +114,11 @@ class User
         return $this;
     }
 
+    public function getUserIdentifier(): string
+    {
+        return (string) $this->email;
+    }
+
     public function getDisplayName(): ?string
     {
         return $this->displayName;
@@ -96,6 +127,37 @@ class User
     public function setDisplayName(?string $displayName): static
     {
         $this->displayName = $displayName;
+
+        return $this;
+    }
+
+    public function isTrustedCommenter(): bool
+    {
+        return $this->trustedCommenter;
+    }
+
+    public function setTrustedCommenter(bool $trustedCommenter): static
+    {
+        $this->trustedCommenter = $trustedCommenter;
+
+        return $this;
+    }
+
+    public function getApprovedCommentsCount(): int
+    {
+        return $this->approvedCommentsCount;
+    }
+
+    public function setApprovedCommentsCount(int $approvedCommentsCount): static
+    {
+        $this->approvedCommentsCount = max(0, $approvedCommentsCount);
+
+        return $this;
+    }
+
+    public function incrementApprovedCommentsCount(): static
+    {
+        ++$this->approvedCommentsCount;
 
         return $this;
     }
@@ -110,5 +172,17 @@ class User
     public function getMediaAssets(): Collection
     {
         return $this->mediaAssets;
+    }
+
+    /** @return Collection<int, Comment> */
+    public function getComments(): Collection
+    {
+        return $this->comments;
+    }
+
+    /** @return Collection<int, Comment> */
+    public function getModeratedComments(): Collection
+    {
+        return $this->moderatedComments;
     }
 }

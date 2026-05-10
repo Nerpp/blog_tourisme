@@ -1,0 +1,40 @@
+<article id="comment-{{ comment.id }}">
+    <p>{{ comment.content|nl2br }}</p>
+    <footer>
+        Par {{ comment.author.displayName ?: comment.author.email }}
+        {% if comment.publishedAt %}
+            le {{ comment.publishedAt|date('d/m/Y H:i') }}
+        {% endif %}
+    </footer>
+
+    {% if app.user %}
+        {% if is_granted('COMMENT_EDIT', comment) %}
+            <a href="{{ path('app_comment_edit', { id: comment.id }) }}">Modifier</a>
+        {% endif %}
+
+        {% if is_granted('COMMENT_DELETE', comment) %}
+            <form method="post" action="{{ path('app_comment_delete', { id: comment.id }) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('delete-comment-' ~ comment.id) }}">
+                <button type="submit">Supprimer</button>
+            </form>
+        {% endif %}
+
+        {% if is_granted('COMMENT_REPORT', comment) %}
+            <form method="post" action="{{ path('app_comment_report', { id: comment.id }) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('report-comment-' ~ comment.id) }}">
+                <label>
+                    Raison
+                    <select name="reason">
+                        <option value="spam">Spam</option>
+                        <option value="offensive">Offensant</option>
+                        <option value="harassment">Harcelement</option>
+                        <option value="inappropriate">Inapproprie</option>
+                        <option value="false_information">Fausse information</option>
+                        <option value="other">Autre</option>
+                    </select>
+                </label>
+                <button type="submit">Signaler</button>
+            </form>
+        {% endif %}
+    {% endif %}
+</article>

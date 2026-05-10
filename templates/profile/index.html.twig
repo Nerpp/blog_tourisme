@@ -1,0 +1,23 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Profil - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main>
+        <h1>Profil</h1>
+
+        <dl>
+            <dt>Email</dt>
+            <dd>{{ app.user.userIdentifier }}</dd>
+
+            <dt>Nom affiche</dt>
+            <dd>{{ app.user.displayName ?: 'Non renseigne' }}</dd>
+
+            <dt>Commentaires approuves</dt>
+            <dd>{{ app.user.approvedCommentsCount }}</dd>
+
+            <dt>Utilisateur de confiance</dt>
+            <dd>{{ app.user.trustedCommenter ? 'Oui' : 'Non' }}</dd>
+        </dl>
+    </main>
+{% endblock %}

@@ -95,11 +95,17 @@ class Place
     #[ORM\OneToMany(mappedBy: 'place', targetEntity: PlaceTag::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $tagLinks;
 
+    /** @var Collection<int, Comment> */
+    #[ORM\OneToMany(mappedBy: 'place', targetEntity: Comment::class)]
+    #[ORM\OrderBy(['publishedAt' => 'ASC', 'createdAt' => 'ASC'])]
+    private Collection $comments;
+
     public function __construct()
     {
         $this->articleLinks = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
         $this->tagLinks = new ArrayCollection();
+        $this->comments = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -327,5 +333,11 @@ class Place
     public function getTagLinks(): Collection
     {
         return $this->tagLinks;
+    }
+
+    /** @return Collection<int, Comment> */
+    public function getComments(): Collection
+    {
+        return $this->comments;
     }
 }

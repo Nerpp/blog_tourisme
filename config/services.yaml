@@ -17,3 +17,8 @@ services:
             $projectDir: '%kernel.project_dir%'
             $environment: '%kernel.environment%'
             $devServerUrl: '%env(default:vite_dev_server_url:VITE_DEV_SERVER_URL)%'
+
+    App\Service\CommentModerationService:
+        arguments:
+            $autoApproveAfter: '%env(int:COMMENT_AUTO_APPROVE_AFTER)%'
+            $reportThreshold: '%env(int:COMMENT_REPORT_THRESHOLD)%'
