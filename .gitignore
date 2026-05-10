@@ -1,0 +1,10 @@
+/.env.local
+/.env.local.php
+/.env.*.local
+/vendor/
+/node_modules/
+/var/
+/public/build/
+/config/reference.php
+npm-debug.log*
+yarn-error.log*

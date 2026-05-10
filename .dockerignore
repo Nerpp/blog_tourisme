@@ -1,0 +1,9 @@
+.git
+.agents
+.codex
+node_modules
+vendor
+var/cache
+var/log
+public/build
+npm-debug.log
