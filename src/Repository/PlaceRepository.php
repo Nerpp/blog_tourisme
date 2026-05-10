@@ -89,15 +89,18 @@ class PlaceRepository extends ServiceEntityRepository
     private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder
     {
         return $this->createQueryBuilder('p')
-            ->addSelect('destination', 'category', 'featuredImage', 'tagLinks', 'tags')
+            ->addSelect('destination', 'category', 'featuredImage', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags')
             ->leftJoin('p.destination', 'destination')
             ->leftJoin('p.category', 'category')
             ->leftJoin('p.featuredImage', 'featuredImage')
+            ->leftJoin('p.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
             ->leftJoin('p.tagLinks', 'tagLinks')
             ->leftJoin('tagLinks.tag', 'tags')
             ->andWhere('p.status = :status')
             ->setParameter('status', ContentStatus::Published)
             ->orderBy('p.publishedAt', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
             ->addOrderBy('p.name', 'ASC');
     }
 }

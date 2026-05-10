@@ -61,16 +61,19 @@ class ArticleRepository extends ServiceEntityRepository
     private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder
     {
         return $this->createQueryBuilder('a')
-            ->addSelect('category', 'featuredImage', 'destinationLinks', 'destinations', 'tagLinks', 'tags')
+            ->addSelect('category', 'featuredImage', 'destinationLinks', 'destinations', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags')
             ->leftJoin('a.category', 'category')
             ->leftJoin('a.featuredImage', 'featuredImage')
             ->leftJoin('a.destinationLinks', 'destinationLinks')
             ->leftJoin('destinationLinks.destination', 'destinations')
+            ->leftJoin('a.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
             ->leftJoin('a.tagLinks', 'tagLinks')
             ->leftJoin('tagLinks.tag', 'tags')
             ->andWhere('a.status = :status')
             ->setParameter('status', ContentStatus::Published)
             ->orderBy('a.publishedAt', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
             ->addOrderBy('a.id', 'DESC');
     }
 }

@@ -1,6 +1,12 @@
-{% if media_links|length > 0 %}
+{% set special_only = special_only|default(false) %}
+{% set visible_media_links = special_only
+    ? media_links|filter(link => link.mediaAsset.mediaType.value == 'video' or not link.mediaAsset.imageType or link.mediaAsset.imageType.value != 'standard')
+    : media_links
+%}
+
+{% if visible_media_links|length > 0 %}
     <div class="media-grid">
-        {% for media_link in media_links %}
+        {% for media_link in visible_media_links %}
             {% include 'partials/_media_card.html.twig' with { media: media_link.mediaAsset } only %}
         {% endfor %}
     </div>

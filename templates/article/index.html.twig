@@ -13,40 +13,7 @@
 
         <div class="card-grid">
             {% for article in articles %}
-                <article class="content-card">
-                    {% if article.featuredImage %}
-                        {% include 'partials/_media_card.html.twig' with { media: article.featuredImage } only %}
-                    {% endif %}
-                    <div class="card-body">
-                        <p class="card-meta">
-                            {% if article.publishedAt %}{{ article.publishedAt|date('d/m/Y') }}{% endif %}
-                            {% if article.category %}<span>{{ article.category.name }}</span>{% endif %}
-                        </p>
-                        <h2><a href="{{ path('app_article_show', { slug: article.slug }) }}">{{ article.title }}</a></h2>
-                        {% if article.excerpt %}
-                            <p>{{ article.excerpt }}</p>
-                        {% endif %}
-
-                        {% if article.destinationLinks|length > 0 %}
-                            <div class="linked-list">
-                                <strong>Destinations</strong>
-                                {% for destinationLink in article.destinationLinks %}
-                                    <a href="{{ path('app_destination_show', { slug: destinationLink.destination.slug }) }}">{{ destinationLink.destination.name }}</a>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-
-                        {% if article.tagLinks|length > 0 %}
-                            <div class="badges">
-                                {% for tagLink in article.tagLinks %}
-                                    <span class="badge">{{ tagLink.tag.name }}</span>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
-
-                        <a class="button" href="{{ path('app_article_show', { slug: article.slug }) }}">Lire l'article</a>
-                    </div>
-                </article>
+                {% include 'partials/_article_card.html.twig' with { article: article } only %}
             {% else %}
                 <p>Aucun article publie pour le moment.</p>
             {% endfor %}

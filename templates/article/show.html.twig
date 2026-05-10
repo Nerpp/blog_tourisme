@@ -20,18 +20,20 @@
                 {% endif %}
             </header>
 
-            {% if article.featuredImage %}
-                <div class="featured-media">
-                    {% include 'partials/_media_card.html.twig' with { media: article.featuredImage } only %}
-                </div>
-            {% endif %}
+            <div class="featured-media">
+                {% include 'partials/_cover_media.html.twig' with {
+                    featured_media: article.featuredImage,
+                    media_links: article.mediaLinks
+                } only %}
+            </div>
 
             <div class="prose">{{ article.content|nl2br }}</div>
 
-            {% if article.mediaLinks|length > 0 %}
+            {% set special_media_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'video' or not link.mediaAsset.imageType or link.mediaAsset.imageType.value != 'standard') %}
+            {% if special_media_links|length > 0 %}
                 <section class="section-block">
-                    <h2>Medias</h2>
-                    {% include 'partials/_media_gallery.html.twig' with { media_links: article.mediaLinks } only %}
+                    <h2>Photos et vidéos</h2>
+                    {% include 'partials/_media_gallery.html.twig' with { media_links: special_media_links } only %}
                 </section>
             {% endif %}
         </article>

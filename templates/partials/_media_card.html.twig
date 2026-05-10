@@ -1,7 +1,7 @@
 {% set type = media.mediaType.value %}
 {% set image_type = media.imageType ? media.imageType.value : null %}
 {% set badge = type == 'video'
-    ? (media.videoType ? media.videoType.value|capitalize : 'Video')
+    ? 'Vidéo'
     : ({
         'standard': 'Standard',
         '360': '360°',
@@ -28,8 +28,8 @@
             {% if media.thumbnailPath and not (media.thumbnailPath starts with '/uploads/demo/') %}
                 <img src="{{ media.thumbnailPath }}" alt="{{ media.altText ?: media.title ?: 'Video touristique' }}" loading="lazy">
             {% else %}
-                <div class="media-placeholder media-placeholder-video" role="img" aria-label="{{ media.altText ?: media.title ?: 'Video de demonstration' }}">
-                    <span>Video</span>
+                <div class="media-placeholder media-placeholder-video" role="img" aria-label="{{ media.altText ?: media.title ?: 'Vidéo de demonstration' }}">
+                    <span>Vidéo</span>
                 </div>
             {% endif %}
         {% endif %}

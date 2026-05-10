@@ -223,13 +223,15 @@ button {
   font-weight: 800;
 }
 
-.media-visual {
+.media-visual,
+.cover-media {
   position: relative;
   aspect-ratio: 16 / 9;
   background: #dfe7e1;
 }
 
 .media-visual img,
+.cover-media img,
 .media-placeholder {
   width: 100%;
   height: 100%;
@@ -244,7 +246,8 @@ button {
   background: rgba(255, 255, 255, 0.92);
 }
 
-.media-placeholder {
+.media-placeholder,
+.cover-placeholder {
   display: grid;
   place-items: center;
   color: #47615b;
@@ -252,6 +255,11 @@ button {
     linear-gradient(135deg, rgba(18, 97, 92, 0.14), rgba(159, 82, 45, 0.12)),
     #e7ece7;
   font-weight: 850;
+}
+
+.cover-placeholder {
+  width: 100%;
+  height: 100%;
 }
 
 .media-placeholder-video {
