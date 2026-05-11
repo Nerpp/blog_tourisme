@@ -26,6 +26,21 @@
             color: var(--body-color);
             font-weight: 600;
         }
+
+        .quick-hike-detected-location[hidden] {
+            display: none;
+        }
+
+        .quick-hike-detected-location dl {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            gap: 6px 12px;
+            margin: 0;
+        }
+
+        .quick-hike-detected-location dd {
+            margin: 0;
+        }
     </style>
 
     {% if errors is not empty %}
@@ -38,8 +53,19 @@
         </div>
     {% endif %}
 
-    <form class="quick-hike-form" method="post" action="{{ path('admin_quick_hike') }}">
+    <form
+        class="quick-hike-form"
+        method="post"
+        action="{{ path('admin_quick_hike') }}"
+        data-reverse-geocode-url="{{ path('admin_quick_hike_reverse_geocode') }}"
+    >
         <input type="hidden" name="quick_hike[_token]" value="{{ csrf_token('quick_hike_create') }}">
+        <input type="hidden" name="quick_hike[detectedCommuneName]" value="{{ form_data.detectedCommuneName }}" data-detected-commune-name-input>
+        <input type="hidden" name="quick_hike[detectedCommuneCode]" value="{{ form_data.detectedCommuneCode }}" data-detected-commune-code-input>
+        <input type="hidden" name="quick_hike[detectedDepartmentName]" value="{{ form_data.detectedDepartmentName }}" data-detected-department-name-input>
+        <input type="hidden" name="quick_hike[detectedDepartmentCode]" value="{{ form_data.detectedDepartmentCode }}" data-detected-department-code-input>
+        <input type="hidden" name="quick_hike[detectedRegionName]" value="{{ form_data.detectedRegionName }}" data-detected-region-name-input>
+        <input type="hidden" name="quick_hike[detectedRegionCode]" value="{{ form_data.detectedRegionCode }}" data-detected-region-code-input>
 
         <div class="field-group">
             <label for="quick_hike_title" class="form-label">Titre</label>
@@ -49,6 +75,7 @@
                 type="text"
                 name="quick_hike[title]"
                 value="{{ form_data.title }}"
+                data-default-title="{{ form_data.title }}"
                 required
             >
         </div>
@@ -100,6 +127,25 @@
             </div>
         </div>
 
+        <div class="quick-hike-detected-location alert alert-info" data-detected-location {% if form_data.detectedCommuneName is empty %}hidden{% endif %}>
+            <dl>
+                <dt>Commune détectée</dt>
+                <dd data-detected-commune>{{ form_data.detectedCommuneName ?: '—' }}</dd>
+                <dt>Département détecté</dt>
+                <dd data-detected-department>{{ form_data.detectedDepartmentName ?: '—' }}</dd>
+                <dt>Région détectée</dt>
+                <dd data-detected-region>{{ form_data.detectedRegionName ?: '—' }}</dd>
+                <dt>Destination associée</dt>
+                <dd data-detected-destination>
+                    {% if form_data.destinationId %}
+                        Sélectionnée dans le formulaire
+                    {% else %}
+                        Non trouvée dans la base
+                    {% endif %}
+                </dd>
+            </dl>
+        </div>
+
         <div class="field-group">
             <label for="quick_hike_destination" class="form-label">Destination</label>
             <select id="quick_hike_destination" class="form-select" name="quick_hike[destinationId]" required>
@@ -124,18 +170,133 @@
         (() => {
             const button = document.querySelector('[data-geolocate-button]');
             const status = document.querySelector('[data-geolocation-status]');
+            const form = document.querySelector('.quick-hike-form');
+            const title = document.getElementById('quick_hike_title');
             const latitude = document.getElementById('quick_hike_latitude');
             const longitude = document.getElementById('quick_hike_longitude');
             const accuracy = document.getElementById('quick_hike_accuracy');
+            const destination = document.getElementById('quick_hike_destination');
+            const detectedLocation = document.querySelector('[data-detected-location]');
+            const detectedCommune = document.querySelector('[data-detected-commune]');
+            const detectedDepartment = document.querySelector('[data-detected-department]');
+            const detectedRegion = document.querySelector('[data-detected-region]');
+            const detectedDestination = document.querySelector('[data-detected-destination]');
+            const hiddenFields = {
+                communeName: document.querySelector('[data-detected-commune-name-input]'),
+                communeCode: document.querySelector('[data-detected-commune-code-input]'),
+                departmentName: document.querySelector('[data-detected-department-name-input]'),
+                departmentCode: document.querySelector('[data-detected-department-code-input]'),
+                regionName: document.querySelector('[data-detected-region-name-input]'),
+                regionCode: document.querySelector('[data-detected-region-code-input]'),
+            };
 
-            if (!button || !status || !latitude || !longitude || !accuracy) {
+            if (!button || !status || !form || !title || !latitude || !longitude || !accuracy || !destination || !detectedLocation) {
                 return;
             }
+
+            const reverseGeocodeUrl = form.dataset.reverseGeocodeUrl;
+            const initialTitle = title.dataset.defaultTitle || title.value;
 
             const setStatus = (message, isError = false) => {
                 status.textContent = message;
                 status.classList.toggle('text-danger', isError);
                 status.classList.toggle('text-success', !isError && message !== '');
+            };
+
+            const clearDetectedLocation = () => {
+                detectedLocation.hidden = true;
+                Object.values(hiddenFields).forEach((field) => {
+                    if (field) {
+                        field.value = '';
+                    }
+                });
+            };
+
+            const formatDetectedValue = (name, code) => {
+                if (!name) {
+                    return '—';
+                }
+
+                return code ? `${name} (${code})` : name;
+            };
+
+            const setAutomaticTitle = (communeName) => {
+                const previousAutomaticTitle = title.dataset.automaticTitle || '';
+
+                if (!communeName || (title.value.trim() !== '' && title.value !== initialTitle && title.value !== previousAutomaticTitle)) {
+                    return;
+                }
+
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const automaticTitle = `Randonnée près de ${communeName} du ${day}/${month}/${year} à ${hours}h${minutes}`;
+                title.value = automaticTitle;
+                title.dataset.automaticTitle = automaticTitle;
+            };
+
+            const applyDetectedLocation = (data) => {
+                if (!data.found) {
+                    clearDetectedLocation();
+                    setStatus(data.message || 'Position GPS récupérée. Commune non détectée, choisissez la destination manuellement.');
+                    return;
+                }
+
+                detectedLocation.hidden = false;
+                detectedCommune.textContent = formatDetectedValue(data.communeName, data.communeCode);
+                detectedDepartment.textContent = formatDetectedValue(data.departmentName, data.departmentCode);
+                detectedRegion.textContent = formatDetectedValue(data.regionName, data.regionCode);
+
+                hiddenFields.communeName.value = data.communeName || '';
+                hiddenFields.communeCode.value = data.communeCode || '';
+                hiddenFields.departmentName.value = data.departmentName || '';
+                hiddenFields.departmentCode.value = data.departmentCode || '';
+                hiddenFields.regionName.value = data.regionName || '';
+                hiddenFields.regionCode.value = data.regionCode || '';
+
+                setAutomaticTitle(data.communeName);
+
+                if (data.destination) {
+                    destination.value = String(data.destination.id);
+                    detectedDestination.textContent = `${data.destination.name} sélectionnée automatiquement`;
+                    setStatus(`Position GPS récupérée. Commune détectée : ${data.communeName}. Destination préremplie.`);
+                    return;
+                }
+
+                detectedDestination.textContent = 'Non trouvée dans la base';
+                setStatus(`Position GPS récupérée. Commune détectée : ${data.communeName}, destination non trouvée dans la base.`);
+            };
+
+            const reverseGeocode = async () => {
+                if (!reverseGeocodeUrl) {
+                    return;
+                }
+
+                const url = new URL(reverseGeocodeUrl, window.location.origin);
+                url.searchParams.set('lat', latitude.value);
+                url.searchParams.set('lon', longitude.value);
+
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            Accept: 'application/json',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        clearDetectedLocation();
+                        setStatus('Position GPS récupérée. Géocodage indisponible, choisissez la destination manuellement.', true);
+                        return;
+                    }
+
+                    applyDetectedLocation(await response.json());
+                } catch (error) {
+                    clearDetectedLocation();
+                    setStatus('Position GPS récupérée. Géocodage indisponible, choisissez la destination manuellement.', true);
+                }
             };
 
             button.addEventListener('click', () => {
@@ -152,8 +313,10 @@
                         latitude.value = position.coords.latitude.toFixed(6);
                         longitude.value = position.coords.longitude.toFixed(6);
                         accuracy.value = Math.round(position.coords.accuracy).toString();
-                        button.disabled = false;
-                        setStatus('Position GPS récupérée.');
+                        setStatus('Position GPS récupérée. Recherche de la commune...');
+                        reverseGeocode().finally(() => {
+                            button.disabled = false;
+                        });
                     },
                     (error) => {
                         button.disabled = false;
