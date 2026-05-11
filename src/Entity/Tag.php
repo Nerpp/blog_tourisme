@@ -44,6 +44,11 @@ class Tag
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return $this->name ?? sprintf('Tag #%d', $this->id ?? 0);
+    }
+
     public function getName(): ?string
     {
         return $this->name;

@@ -1,0 +1,187 @@
+{% extends '@EasyAdmin/page/content.html.twig' %}
+
+{% block content_title %}Nouvelle randonnée rapide{% endblock %}
+
+{% block main %}
+    <style>
+        .quick-hike-form {
+            display: grid;
+            gap: 18px;
+            max-width: 720px;
+        }
+
+        .quick-hike-form .field-group {
+            display: grid;
+            gap: 6px;
+        }
+
+        .quick-hike-form .coordinates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .quick-hike-status {
+            min-height: 24px;
+            color: var(--body-color);
+            font-weight: 600;
+        }
+    </style>
+
+    {% if errors is not empty %}
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                {% for error in errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <form class="quick-hike-form" method="post" action="{{ path('admin_quick_hike') }}">
+        <input type="hidden" name="quick_hike[_token]" value="{{ csrf_token('quick_hike_create') }}">
+
+        <div class="field-group">
+            <label for="quick_hike_title" class="form-label">Titre</label>
+            <input
+                id="quick_hike_title"
+                class="form-control"
+                type="text"
+                name="quick_hike[title]"
+                value="{{ form_data.title }}"
+                required
+            >
+        </div>
+
+        <button type="button" class="btn btn-secondary" data-geolocate-button>
+            Récupérer ma position GPS
+        </button>
+
+        <p class="quick-hike-status" data-geolocation-status aria-live="polite"></p>
+
+        <div class="coordinates-grid">
+            <div class="field-group">
+                <label for="quick_hike_latitude" class="form-label">Latitude</label>
+                <input
+                    id="quick_hike_latitude"
+                    class="form-control"
+                    type="text"
+                    inputmode="decimal"
+                    name="quick_hike[latitude]"
+                    value="{{ form_data.latitude }}"
+                    required
+                >
+            </div>
+
+            <div class="field-group">
+                <label for="quick_hike_longitude" class="form-label">Longitude</label>
+                <input
+                    id="quick_hike_longitude"
+                    class="form-control"
+                    type="text"
+                    inputmode="decimal"
+                    name="quick_hike[longitude]"
+                    value="{{ form_data.longitude }}"
+                    required
+                >
+            </div>
+
+            <div class="field-group">
+                <label for="quick_hike_accuracy" class="form-label">Précision GPS</label>
+                <input
+                    id="quick_hike_accuracy"
+                    class="form-control"
+                    type="text"
+                    inputmode="decimal"
+                    name="quick_hike[accuracy]"
+                    value="{{ form_data.accuracy }}"
+                    readonly
+                >
+            </div>
+        </div>
+
+        <div class="field-group">
+            <label for="quick_hike_destination" class="form-label">Destination</label>
+            <select id="quick_hike_destination" class="form-select" name="quick_hike[destinationId]" required>
+                <option value="">Choisir une destination</option>
+                {% for destination in destinations %}
+                    <option value="{{ destination.id }}" {% if form_data.destinationId == destination.id %}selected{% endif %}>
+                        {{ destination.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="field-group">
+            <label for="quick_hike_note" class="form-label">Courte note</label>
+            <textarea id="quick_hike_note" class="form-control" name="quick_hike[note]" rows="4">{{ form_data.note }}</textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Créer le brouillon</button>
+    </form>
+
+    <script>
+        (() => {
+            const button = document.querySelector('[data-geolocate-button]');
+            const status = document.querySelector('[data-geolocation-status]');
+            const latitude = document.getElementById('quick_hike_latitude');
+            const longitude = document.getElementById('quick_hike_longitude');
+            const accuracy = document.getElementById('quick_hike_accuracy');
+
+            if (!button || !status || !latitude || !longitude || !accuracy) {
+                return;
+            }
+
+            const setStatus = (message, isError = false) => {
+                status.textContent = message;
+                status.classList.toggle('text-danger', isError);
+                status.classList.toggle('text-success', !isError && message !== '');
+            };
+
+            button.addEventListener('click', () => {
+                if (!navigator.geolocation) {
+                    setStatus('La géolocalisation n’est pas disponible sur ce navigateur.', true);
+                    return;
+                }
+
+                button.disabled = true;
+                setStatus('Récupération de la position GPS...');
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        latitude.value = position.coords.latitude.toFixed(6);
+                        longitude.value = position.coords.longitude.toFixed(6);
+                        accuracy.value = Math.round(position.coords.accuracy).toString();
+                        button.disabled = false;
+                        setStatus('Position GPS récupérée.');
+                    },
+                    (error) => {
+                        button.disabled = false;
+
+                        if (error.code === error.PERMISSION_DENIED) {
+                            setStatus('Vous avez refusé la géolocalisation.', true);
+                            return;
+                        }
+
+                        if (error.code === error.POSITION_UNAVAILABLE) {
+                            setStatus('Position GPS indisponible.', true);
+                            return;
+                        }
+
+                        if (error.code === error.TIMEOUT) {
+                            setStatus('Délai de géolocalisation dépassé.', true);
+                            return;
+                        }
+
+                        setStatus('Impossible de récupérer la position GPS.', true);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 0,
+                    }
+                );
+            });
+        })();
+    </script>
+{% endblock %}

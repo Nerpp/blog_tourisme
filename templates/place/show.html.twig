@@ -56,7 +56,14 @@
                             <dt>Coordonnees</dt>
                             <dd>
                                 {{ place.latitude }}, {{ place.longitude }}
-                                <a href="https://www.openstreetmap.org/?mlat={{ place.latitude }}&mlon={{ place.longitude }}#map=15/{{ place.latitude }}/{{ place.longitude }}" rel="noopener noreferrer" target="_blank">Ouvrir la carte</a>
+                                {% include 'partials/_google_maps_link.html.twig' with { place: place } only %}
+                            </dd>
+                        </div>
+                    {% elseif place.name and place.destination %}
+                        <div>
+                            <dt>Carte</dt>
+                            <dd>
+                                {% include 'partials/_google_maps_link.html.twig' with { place: place } only %}
                             </dd>
                         </div>
                     {% endif %}

@@ -60,6 +60,11 @@ class CommentReport
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return sprintf('Signalement #%d', $this->id ?? 0);
+    }
+
     public function getComment(): ?Comment
     {
         return $this->comment;

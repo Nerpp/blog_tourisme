@@ -102,6 +102,11 @@ class Article
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return $this->title ?? sprintf('Article #%d', $this->id ?? 0);
+    }
+
     public function getAuthor(): ?User
     {
         return $this->author;

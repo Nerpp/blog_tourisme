@@ -108,6 +108,15 @@ class Comment
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        $content = trim((string) $this->content);
+
+        return $content === ''
+            ? sprintf('Commentaire #%d', $this->id ?? 0)
+            : mb_substr($content, 0, 80);
+    }
+
     public function getAuthor(): ?User
     {
         return $this->author;

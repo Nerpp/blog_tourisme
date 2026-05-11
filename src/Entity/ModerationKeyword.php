@@ -36,6 +36,11 @@ class ModerationKeyword
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return $this->keyword ?? sprintf('Mot-cle #%d', $this->id ?? 0);
+    }
+
     public function getKeyword(): ?string
     {
         return $this->keyword;

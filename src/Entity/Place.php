@@ -113,6 +113,11 @@ class Place
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return $this->name ?? sprintf('Lieu #%d', $this->id ?? 0);
+    }
+
     public function getDestination(): ?Destination
     {
         return $this->destination;

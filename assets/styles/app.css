@@ -305,6 +305,13 @@ button {
   gap: 8px;
 }
 
+.google-maps-link {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 .linked-list {
   margin: 14px 0;
 }

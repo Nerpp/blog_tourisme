@@ -79,6 +79,11 @@ class Destination
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return $this->name ?? sprintf('Destination #%d', $this->id ?? 0);
+    }
+
     public function getParent(): ?self
     {
         return $this->parent;

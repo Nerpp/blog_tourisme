@@ -108,6 +108,14 @@ class MediaAsset
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return $this->title
+            ?? $this->filePath
+            ?? $this->externalUrl
+            ?? sprintf('Media #%d', $this->id ?? 0);
+    }
+
     public function getUploadedBy(): ?User
     {
         return $this->uploadedBy;

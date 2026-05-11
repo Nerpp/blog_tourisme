@@ -53,6 +53,11 @@ class Category
         return $this->id;
     }
 
+    public function __toString(): string
+    {
+        return $this->name ?? sprintf('Categorie #%d', $this->id ?? 0);
+    }
+
     public function getName(): ?string
     {
         return $this->name;
