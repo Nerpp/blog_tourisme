@@ -51,7 +51,17 @@ final class ViteAssetExtension extends AbstractExtension
     public function entryLinkTags(string $entryName): string
     {
         if ($this->useDevServer()) {
-            return '';
+            $stylesheet = $this->resolveDevStylesheetPath($entryName);
+
+            if ($stylesheet === null) {
+                return '';
+            }
+
+            return sprintf(
+                '<link rel="stylesheet" href="%s/%s?direct">',
+                $this->escapeAttribute($this->getDevServerUrl()),
+                $this->escapeAttribute($stylesheet),
+            );
         }
 
         $entry = $this->normalizeEntryName($entryName);
@@ -77,6 +87,22 @@ final class ViteAssetExtension extends AbstractExtension
         }
 
         return sprintf('assets/%s.js', $entryName);
+    }
+
+    private function resolveDevStylesheetPath(string $entryName): ?string
+    {
+        $entry = $this->normalizeEntryName($entryName);
+
+        if (str_ends_with($entry, '.css')) {
+            $stylesheet = $entry;
+        } else {
+            $stylesheet = sprintf(
+                'assets/styles/%s.css',
+                pathinfo($entry, PATHINFO_FILENAME),
+            );
+        }
+
+        return is_file($this->projectDir.'/'.$stylesheet) ? $stylesheet : null;
     }
 
     private function useDevServer(): bool
