@@ -25,6 +25,9 @@
                 </div>
                 <div class="nav-account">
                     {% if app.user %}
+                        {% if is_granted('ADMIN_ACCESS') %}
+                            <a href="{{ path('admin') }}">Administration</a>
+                        {% endif %}
                         <a href="{{ path('app_profile') }}">Profil</a>
                         <a href="{{ path('app_logout') }}">Deconnexion</a>
                     {% else %}

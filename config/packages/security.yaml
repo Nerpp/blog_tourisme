@@ -16,6 +16,7 @@ security:
         main:
             lazy: true
             provider: app_user_provider
+            access_denied_handler: App\Security\AdminAccessDeniedHandler
             form_login:
                 login_path: app_login
                 check_path: app_login
@@ -26,6 +27,6 @@ security:
 
     access_control:
         - { path: ^/admin/quick-hike, roles: ROLE_USER }
-        - { path: ^/admin, roles: ROLE_ADMIN }
+        - { path: ^/admin, roles: ADMIN_ACCESS }
         - { path: ^/profile, roles: ROLE_USER }
         - { path: ^/comments, roles: ROLE_USER }

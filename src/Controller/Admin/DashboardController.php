@@ -2,6 +2,7 @@
 
 namespace App\Controller\Admin;
 
+use App\Security\Voter\AdminAccessVoter;
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminDashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Dashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\MenuItem;
@@ -19,6 +20,16 @@ final class DashboardController extends AbstractDashboardController
 
     public function index(): Response
     {
+        if ($this->getUser() === null) {
+            return $this->redirectToRoute('app_login');
+        }
+
+        if (!$this->isGranted(AdminAccessVoter::ACCESS)) {
+            $this->addFlash('warning', 'Vous n’avez pas accès à l’administration.');
+
+            return $this->redirectToRoute('app_home');
+        }
+
         return $this->redirect($this->adminUrlGenerator
             ->setController(ArticleCrudController::class)
             ->generateUrl());
