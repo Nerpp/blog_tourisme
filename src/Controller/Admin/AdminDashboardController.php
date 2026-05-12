@@ -9,6 +9,7 @@ use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Repository\MediaAssetRepository;
 use App\Repository\PlaceRepository;
+use App\Repository\UserRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -24,6 +25,7 @@ final class AdminDashboardController extends AbstractController
         CommentRepository $commentRepository,
         HikeDraftRepository $hikeDraftRepository,
         CityVisitDraftRepository $cityVisitDraftRepository,
+        UserRepository $userRepository,
     ): Response {
         return $this->render('admin/dashboard.html.twig', [
             'counts' => [
@@ -34,6 +36,7 @@ final class AdminDashboardController extends AbstractController
                 'comments' => $commentRepository->count([]),
                 'hikes' => $hikeDraftRepository->count([]),
                 'city_visits' => $cityVisitDraftRepository->count([]),
+                'users' => $userRepository->count([]),
             ],
         ]);
     }

@@ -1,0 +1,85 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Utilisateur{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ user_account.displayName ?: user_account.email }}</h1>
+            <p class="admin-subtitle">{{ user_account.email }}</p>
+        </div>
+        <a class="admin-button admin-button--secondary" href="{{ path('admin_users_index') }}">Retour</a>
+    </header>
+
+    <section class="admin-card">
+        <div class="admin-detail-header">
+            <div>
+                <span class="admin-badge {{ user_account.banned ? 'admin-badge--danger' : '' }}">{{ user_account.banned ? 'Utilisateur banni' : 'Compte actif' }}</span>
+                <span class="admin-badge admin-badge--muted">{{ user_account.trustedCommenter ? 'Commentateur fiable' : 'Commentateur standard' }}</span>
+            </div>
+            <div class="admin-row-actions">
+                {% if user_account.banned %}
+                    <form method="post" action="{{ path('admin_users_unban', { id: user_account.id }) }}" onsubmit="return confirm('Débannir cet utilisateur ?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('admin_user_unban_' ~ user_account.id) }}">
+                        <button class="admin-button" type="submit">Débannir</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="{{ path('admin_users_ban', { id: user_account.id }) }}" onsubmit="return confirm('Bannir cet utilisateur ?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('admin_user_ban_' ~ user_account.id) }}">
+                        <input type="hidden" name="reason" value="Bannissement manuel par l’administration.">
+                        <button class="admin-button admin-button--danger" type="submit">Bannir</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="admin-grid">
+            <div><strong>Commentaires approuvés</strong><br>{{ user_account.approvedCommentsCount }}</div>
+            <div><strong>Commentaires refusés</strong><br>{{ user_account.rejectedCommentsCount }}</div>
+            <div><strong>Date de bannissement</strong><br>{{ user_account.bannedAt ? user_account.bannedAt|date('d/m/Y H:i') : '-' }}</div>
+            <div><strong>Raison</strong><br>{{ user_account.banReason ?: '-' }}</div>
+        </div>
+    </section>
+
+    <section class="admin-card">
+        <h2>Avertissements</h2>
+        <div class="admin-card-list">
+            {% for warning in warnings %}
+                <article class="admin-comment-card">
+                    <div class="admin-comment-card__header">
+                        <strong>{{ warning.reason ?: 'Avertissement' }}</strong>
+                        <span class="admin-muted">{{ warning.createdAt ? warning.createdAt|date('d/m/Y H:i') : '-' }}</span>
+                    </div>
+                    <div>
+                        Commentaire :
+                        {% if warning.comment %}
+                            #{{ warning.comment.id }} · {{ warning.comment.content|slice(0, 120) }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </div>
+                    <div class="admin-muted">Créé par : {{ warning.createdBy ?: '-' }}</div>
+                </article>
+            {% else %}
+                <p class="admin-muted">Aucun avertissement.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="admin-card">
+        <h2>Commentaires récents</h2>
+        <div class="admin-card-list">
+            {% for comment in recent_comments %}
+                <article class="admin-comment-card">
+                    <div class="admin-comment-card__header">
+                        <span class="admin-badge">{{ comment.status.value }}</span>
+                        <span class="admin-muted">{{ comment.createdAt ? comment.createdAt|date('d/m/Y H:i') : '-' }}</span>
+                    </div>
+                    <p class="admin-comment-content">{{ comment.content }}</p>
+                </article>
+            {% else %}
+                <p class="admin-muted">Aucun commentaire.</p>
+            {% endfor %}
+        </div>
+    </section>
+{% endblock %}

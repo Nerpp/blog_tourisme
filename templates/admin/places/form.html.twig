@@ -1,0 +1,90 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ title }}</h1>
+            <p class="admin-subtitle">Formulaire rapide. L’enrichissement média se fait dans le Studio.</p>
+        </div>
+        <a class="admin-button admin-button--secondary" href="{{ path('admin_places_index') }}">Retour</a>
+    </header>
+
+    <section class="admin-card">
+        <form class="admin-form" method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token(place.id ? 'admin_place_' ~ place.id : 'admin_place_form') }}">
+            <div class="admin-form-grid">
+                <div class="admin-field">
+                    <label for="place-name">Nom</label>
+                    <input id="place-name" name="name" value="{{ place.name }}" required>
+                </div>
+                <div class="admin-field">
+                    <label for="place-destination">Destination</label>
+                    <select id="place-destination" name="destination" required>
+                        <option value="">Choisir</option>
+                        {% for destination in destinations %}
+                            <option value="{{ destination.id }}" {% if place.destination and place.destination.id == destination.id %}selected{% endif %}>{{ destination.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="place-category">Catégorie</label>
+                    <select id="place-category" name="category">
+                        <option value="">Non renseignée</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}" {% if place.category and place.category.id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="place-status">Statut</label>
+                    <select id="place-status" name="status">
+                        {% for value, label in status_options %}
+                            <option value="{{ value }}" {% if place.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field admin-field--full">
+                    <label for="place-short-description">Courte description</label>
+                    <textarea id="place-short-description" name="shortDescription" rows="3">{{ place.shortDescription }}</textarea>
+                </div>
+                <div class="admin-field">
+                    <label for="place-latitude">Latitude</label>
+                    <input id="place-latitude" name="latitude" type="number" step="any" value="{{ place.latitude }}">
+                </div>
+                <div class="admin-field">
+                    <label for="place-longitude">Longitude</label>
+                    <input id="place-longitude" name="longitude" type="number" step="any" value="{{ place.longitude }}">
+                </div>
+                <div class="admin-field">
+                    <label for="place-duration">Durée de visite</label>
+                    <input id="place-duration" name="visitDurationMinutes" type="number" min="0" value="{{ place.visitDurationMinutes }}">
+                </div>
+                <div class="admin-field">
+                    <label for="place-difficulty">Difficulté</label>
+                    <select id="place-difficulty" name="difficulty">
+                        {% for value, label in difficulty_options %}
+                            <option value="{{ value }}" {% if place.difficulty and place.difficulty.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="place-price">Tarif</label>
+                    <select id="place-price" name="priceType">
+                        {% for value, label in price_options %}
+                            <option value="{{ value }}" {% if place.priceType.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button class="admin-button" type="submit">{{ submit_label }}</button>
+                {% if place.id %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir dans le Studio</a>
+                {% endif %}
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_places_index') }}">Annuler</a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

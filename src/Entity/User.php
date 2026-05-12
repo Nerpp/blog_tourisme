@@ -46,6 +46,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column]
     private int $approvedCommentsCount = 0;
 
+    #[ORM\Column]
+    private int $rejectedCommentsCount = 0;
+
+    #[ORM\Column]
+    private bool $isBanned = false;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $bannedAt = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $banReason = null;
+
     /** @var Collection<int, Article> */
     #[ORM\OneToMany(mappedBy: 'author', targetEntity: Article::class)]
     private Collection $articles;
@@ -62,12 +74,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(mappedBy: 'moderatedBy', targetEntity: Comment::class)]
     private Collection $moderatedComments;
 
+    /** @var Collection<int, UserModerationWarning> */
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: UserModerationWarning::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['createdAt' => 'DESC'])]
+    private Collection $moderationWarnings;
+
     public function __construct()
     {
         $this->articles = new ArrayCollection();
         $this->mediaAssets = new ArrayCollection();
         $this->comments = new ArrayCollection();
         $this->moderatedComments = new ArrayCollection();
+        $this->moderationWarnings = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -167,6 +185,61 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function getRejectedCommentsCount(): int
+    {
+        return $this->rejectedCommentsCount;
+    }
+
+    public function setRejectedCommentsCount(int $rejectedCommentsCount): static
+    {
+        $this->rejectedCommentsCount = max(0, $rejectedCommentsCount);
+
+        return $this;
+    }
+
+    public function incrementRejectedCommentsCount(): static
+    {
+        ++$this->rejectedCommentsCount;
+
+        return $this;
+    }
+
+    public function isBanned(): bool
+    {
+        return $this->isBanned;
+    }
+
+    public function setIsBanned(bool $isBanned): static
+    {
+        $this->isBanned = $isBanned;
+
+        return $this;
+    }
+
+    public function getBannedAt(): ?\DateTimeImmutable
+    {
+        return $this->bannedAt;
+    }
+
+    public function setBannedAt(?\DateTimeImmutable $bannedAt): static
+    {
+        $this->bannedAt = $bannedAt;
+
+        return $this;
+    }
+
+    public function getBanReason(): ?string
+    {
+        return $this->banReason;
+    }
+
+    public function setBanReason(?string $banReason): static
+    {
+        $this->banReason = $banReason === null ? null : mb_substr(trim($banReason), 0, 255);
+
+        return $this;
+    }
+
     /** @return Collection<int, Article> */
     public function getArticles(): Collection
     {
@@ -189,5 +262,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getModeratedComments(): Collection
     {
         return $this->moderatedComments;
+    }
+
+    /** @return Collection<int, UserModerationWarning> */
+    public function getModerationWarnings(): Collection
+    {
+        return $this->moderationWarnings;
     }
 }

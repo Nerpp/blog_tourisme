@@ -6,8 +6,9 @@
     <header class="admin-header">
         <div>
             <h1 class="admin-title">Lieux à visiter</h1>
-            <p class="admin-subtitle">Vue simple des lieux, destinations et médias associés.</p>
+            <p class="admin-subtitle">Administration rapide des fiches. Les médias et contenus riches restent dans le Studio.</p>
         </div>
+        <a class="admin-button" href="{{ path('admin_places_new') }}">Nouveau lieu</a>
     </header>
 
     <section class="admin-card admin-table-wrap">
@@ -16,10 +17,12 @@
                 <tr>
                     <th>Nom</th>
                     <th>Destination</th>
+                    <th>Catégorie</th>
                     <th>Statut</th>
-                    <th>Médias liés</th>
-                    <th>Mise à jour</th>
-                    <th>Studio</th>
+                    <th>Durée</th>
+                    <th>Difficulté</th>
+                    <th>Tarif</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -27,13 +30,27 @@
                     <tr>
                         <td>{{ place.name }}</td>
                         <td>{{ place.destination }}</td>
-                        <td>{{ place.status.value }}</td>
-                        <td>{{ place.mediaLinks|length }}</td>
-                        <td>{{ place.updatedAt ? place.updatedAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
-                        <td><a class="admin-button admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir</a></td>
+                        <td>{{ place.category ?: 'Non renseignée' }}</td>
+                        <td><span class="admin-badge">{{ status_labels[place.status.value] ?? place.status.value }}</span></td>
+                        <td>{{ place.visitDurationMinutes ? place.visitDurationMinutes ~ ' min' : '-' }}</td>
+                        <td>{{ place.difficulty ? difficulty_labels[place.difficulty.value] : 'Non renseignée' }}</td>
+                        <td>{{ price_labels[place.priceType.value] ?? place.priceType.value }}</td>
+                        <td>
+                            <div class="admin-row-actions">
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_places_edit', { id: place.id }) }}">Modifier</a>
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir dans le Studio</a>
+                                {% if place.status.value == 'published' %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_place_show', { slug: place.slug }) }}">Voir public</a>
+                                {% endif %}
+                                <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Archiver ce lieu ?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('admin_place_delete_' ~ place.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger" type="submit">Archiver</button>
+                                </form>
+                            </div>
+                        </td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="6">Aucun lieu.</td></tr>
+                    <tr><td colspan="8">Aucun lieu.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

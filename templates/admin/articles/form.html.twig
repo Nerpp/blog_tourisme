@@ -1,0 +1,54 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ title }}</h1>
+            <p class="admin-subtitle">Création rapide et organisation. Les médias restent gérés dans les workflows dédiés.</p>
+        </div>
+        <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Retour</a>
+    </header>
+
+    <section class="admin-card">
+        <form class="admin-form" method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token(article.id ? 'admin_article_' ~ article.id : 'admin_article_form') }}">
+            <div class="admin-form-grid">
+                <div class="admin-field">
+                    <label for="article-title">Titre</label>
+                    <input id="article-title" name="title" value="{{ article.title }}" required>
+                </div>
+                <div class="admin-field">
+                    <label for="article-status">Statut</label>
+                    <select id="article-status" name="status">
+                        {% for value, label in status_options %}
+                            <option value="{{ value }}" {% if article.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="article-category">Catégorie</label>
+                    <select id="article-category" name="category">
+                        <option value="">Non renseignée</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}" {% if article.category and article.category.id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field admin-field--full">
+                    <label for="article-excerpt">Résumé</label>
+                    <textarea id="article-excerpt" name="excerpt" rows="3">{{ article.excerpt }}</textarea>
+                </div>
+                <div class="admin-field admin-field--full">
+                    <label for="article-content">Contenu</label>
+                    <textarea id="article-content" name="content" rows="14" required>{{ article.content }}</textarea>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button class="admin-button" type="submit">{{ submit_label }}</button>
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Annuler</a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

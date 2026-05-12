@@ -6,8 +6,9 @@
     <header class="admin-header">
         <div>
             <h1 class="admin-title">Articles</h1>
-            <p class="admin-subtitle">Liste de consultation. Les formulaires métier seront ajoutés ensuite.</p>
+            <p class="admin-subtitle">Retrouvez, organisez et archivez les articles. Le Studio reste réservé aux interfaces métier dédiées.</p>
         </div>
+        <a class="admin-button" href="{{ path('admin_articles_new') }}">Nouvel article</a>
     </header>
 
     <section class="admin-card admin-table-wrap">
@@ -17,21 +18,37 @@
                     <th>Titre</th>
                     <th>Statut</th>
                     <th>Catégorie</th>
-                    <th>Médias liés</th>
-                    <th>Mise à jour</th>
+                    <th>Auteur</th>
+                    <th>Publication</th>
+                    <th>Modification</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for article in articles %}
                     <tr>
                         <td>{{ article.title }}</td>
-                        <td>{{ article.status.value }}</td>
+                        <td><span class="admin-badge">{{ status_labels[article.status.value] ?? article.status.value }}</span></td>
                         <td>{{ article.category ?: 'Non renseignée' }}</td>
-                        <td>{{ article.mediaLinks|length }}</td>
-                        <td>{{ article.updatedAt ? article.updatedAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                        <td>{{ article.author ?: '-' }}</td>
+                        <td>{{ article.publishedAt ? article.publishedAt|date('d/m/Y H:i') : '-' }}</td>
+                        <td>{{ article.updatedAt ? article.updatedAt|date('d/m/Y H:i') : '-' }}</td>
+                        <td>
+                            <div class="admin-row-actions">
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_articles_edit', { id: article.id }) }}">Modifier</a>
+                                <span class="admin-button admin-button--small admin-button--secondary" aria-disabled="true">Studio non disponible</span>
+                                {% if article.status.value == 'published' %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_article_show', { slug: article.slug }) }}">Voir public</a>
+                                {% endif %}
+                                <form method="post" action="{{ path('admin_articles_delete', { id: article.id }) }}" onsubmit="return confirm('Archiver cet article ?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('admin_article_delete_' ~ article.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger" type="submit">Archiver</button>
+                                </form>
+                            </div>
+                        </td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="5">Aucun article.</td></tr>
+                    <tr><td colspan="7">Aucun article.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

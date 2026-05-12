@@ -6,7 +6,7 @@
     <header class="admin-header">
         <div>
             <h1 class="admin-title">Utilisateurs</h1>
-            <p class="admin-subtitle">Vue de consultation des comptes.</p>
+            <p class="admin-subtitle">Suivi des comptes, avertissements et bannissements.</p>
         </div>
     </header>
 
@@ -17,8 +17,11 @@
                     <th>Email</th>
                     <th>Nom affiché</th>
                     <th>Rôles</th>
-                    <th>Commentateur fiable</th>
-                    <th>Commentaires approuvés</th>
+                    <th>Trusted</th>
+                    <th>Approuvés</th>
+                    <th>Refusés</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -29,9 +32,18 @@
                         <td>{{ user.roles|join(', ') }}</td>
                         <td>{{ user.trustedCommenter ? 'Oui' : 'Non' }}</td>
                         <td>{{ user.approvedCommentsCount }}</td>
+                        <td>{{ user.rejectedCommentsCount }}</td>
+                        <td>
+                            {% if user.banned %}
+                                <span class="admin-badge admin-badge--danger">Utilisateur banni</span>
+                            {% else %}
+                                <span class="admin-badge">Compte actif</span>
+                            {% endif %}
+                        </td>
+                        <td><a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_users_show', { id: user.id }) }}">Ouvrir</a></td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="5">Aucun utilisateur.</td></tr>
+                    <tr><td colspan="8">Aucun utilisateur.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

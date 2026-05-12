@@ -6,8 +6,9 @@
     <header class="admin-header">
         <div>
             <h1 class="admin-title">Destinations</h1>
-            <p class="admin-subtitle">Pays, régions, départements, zones et communes utilisés par le contenu.</p>
+            <p class="admin-subtitle">Pays, régions, départements, villes et zones utilisés par les contenus.</p>
         </div>
+        <a class="admin-button" href="{{ path('admin_destinations_new') }}">Nouvelle destination</a>
     </header>
 
     <section class="admin-card admin-table-wrap">
@@ -16,22 +17,39 @@
                 <tr>
                     <th>Nom</th>
                     <th>Type</th>
-                    <th>Code</th>
                     <th>Parent</th>
-                    <th>Lieux</th>
+                    <th>Code</th>
+                    <th>Coordonnées</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for destination in destinations %}
                     <tr>
                         <td>{{ destination.name }}</td>
-                        <td>{{ destination.type.value }}</td>
-                        <td>{{ destination.code ?: '-' }}</td>
+                        <td><span class="admin-badge admin-badge--info">{{ type_labels[destination.type.value] ?? destination.type.value }}</span></td>
                         <td>{{ destination.parent ?: '-' }}</td>
-                        <td>{{ destination.places|length }}</td>
+                        <td>{{ destination.code ?: '-' }}</td>
+                        <td>
+                            {% if destination.latitude is not null and destination.longitude is not null %}
+                                {{ destination.latitude|number_format(5, '.', '') }}, {{ destination.longitude|number_format(5, '.', '') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="admin-row-actions">
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_destinations_edit', { id: destination.id }) }}">Modifier</a>
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_destination_show', { slug: destination.slug }) }}">Voir public</a>
+                                <form method="post" action="{{ path('admin_destinations_delete', { id: destination.id }) }}" onsubmit="return confirm('Supprimer cette destination si elle n’est pas utilisée ?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('admin_destination_delete_' ~ destination.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer</button>
+                                </form>
+                            </div>
+                        </td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="5">Aucune destination.</td></tr>
+                    <tr><td colspan="6">Aucune destination.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

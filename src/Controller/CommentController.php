@@ -36,9 +36,16 @@ final class CommentController extends AbstractController
             throw $this->createNotFoundException('Article introuvable.');
         }
 
+        $author = $this->getAuthenticatedUser();
+        if ($this->isBannedCommenter($author)) {
+            $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+
+            return $this->redirectToRoute('app_article_show', ['slug' => $article->getSlug()]);
+        }
+
         $comment = (new Comment())
             ->setArticle($article)
-            ->setAuthor($this->getAuthenticatedUser())
+            ->setAuthor($author)
             ->setIpAddress($request->getClientIp())
             ->setUserAgent($request->headers->get('User-Agent'));
 
@@ -72,9 +79,16 @@ final class CommentController extends AbstractController
             throw $this->createNotFoundException('Lieu introuvable.');
         }
 
+        $author = $this->getAuthenticatedUser();
+        if ($this->isBannedCommenter($author)) {
+            $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+
+            return $this->redirectToRoute('app_place_show', ['slug' => $place->getSlug()]);
+        }
+
         $comment = (new Comment())
             ->setPlace($place)
-            ->setAuthor($this->getAuthenticatedUser())
+            ->setAuthor($author)
             ->setIpAddress($request->getClientIp())
             ->setUserAgent($request->headers->get('User-Agent'));
 
@@ -213,5 +227,10 @@ final class CommentController extends AbstractController
         }
 
         return $this->redirectToRoute('app_home');
+    }
+
+    private function isBannedCommenter(User $user): bool
+    {
+        return $user->isBanned() && !in_array('ROLE_ADMIN', $user->getRoles(), true);
     }
 }
