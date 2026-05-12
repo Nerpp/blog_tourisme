@@ -13,7 +13,7 @@
         {% endif %}
 
         {% if is_granted('COMMENT_DELETE', comment) %}
-            <form method="post" action="{{ path('app_comment_delete', { id: comment.id }) }}">
+            <form method="post" action="{{ path('app_comment_delete', { id: comment.id }) }}" onsubmit="return confirm('Supprimer ce commentaire ?');">
                 <input type="hidden" name="_token" value="{{ csrf_token('delete-comment-' ~ comment.id) }}">
                 <button type="submit">Supprimer</button>
             </form>

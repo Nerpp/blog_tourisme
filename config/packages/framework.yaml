@@ -18,5 +18,21 @@ framework:
     router:
         utf8: true
 
+    rate_limiter:
+        comment_create:
+            policy: sliding_window
+            limit: 6
+            interval: '15 minutes'
+        comment_report:
+            policy: sliding_window
+            limit: 10
+            interval: '15 minutes'
+        admin_upload:
+            policy: token_bucket
+            limit: 30
+            rate:
+                interval: '1 minute'
+                amount: 10
+
     mailer:
         dsn: '%env(MAILER_DSN)%'

@@ -8,6 +8,7 @@ use App\Enum\CommentStatus;
 use App\Repository\CommentRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\AdminModerationVoter;
+use App\Service\ModerationActionLogger;
 use App\Service\CommentModerationAdminService;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -24,6 +25,7 @@ final class AdminCommentModerationController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly CommentModerationAdminService $moderationService,
+        private readonly ModerationActionLogger $moderationLogger,
     ) {
     }
 
@@ -50,7 +52,9 @@ final class AdminCommentModerationController extends AbstractController
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_APPROVE, $comment);
         $this->validateCommentToken($comment, $request);
-        $this->moderationService->approve($comment, $this->getAdminUser());
+        $admin = $this->getAdminUser();
+        $this->moderationService->approve($comment, $admin);
+        $this->moderationLogger->log('comment.approve', $admin, 'comment', $comment->getId(), null, $request, $comment->getAuthor());
         $this->entityManager->flush();
         $this->addFlash('success', 'Commentaire accepté.');
 
@@ -62,15 +66,18 @@ final class AdminCommentModerationController extends AbstractController
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_REJECT, $comment);
         $this->validateCommentToken($comment, $request);
+        $admin = $this->getAdminUser();
+        $reason = $request->request->getString('reason');
 
         try {
-            $this->moderationService->reject($comment, $this->getAdminUser(), $request->request->getString('reason'));
+            $this->moderationService->reject($comment, $admin, $reason);
         } catch (InvalidArgumentException $exception) {
             $this->addFlash('error', $exception->getMessage());
 
             return $this->redirectBackToComments($request);
         }
 
+        $this->moderationLogger->log('comment.reject', $admin, 'comment', $comment->getId(), $reason, $request, $comment->getAuthor());
         $this->entityManager->flush();
         $this->addFlash('warning', 'Commentaire refusé.');
 
@@ -82,7 +89,9 @@ final class AdminCommentModerationController extends AbstractController
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_DELETE, $comment);
         $this->validateCommentToken($comment, $request);
-        $this->moderationService->softDelete($comment, $this->getAdminUser());
+        $admin = $this->getAdminUser();
+        $this->moderationService->softDelete($comment, $admin);
+        $this->moderationLogger->log('comment.delete', $admin, 'comment', $comment->getId(), null, $request, $comment->getAuthor());
         $this->entityManager->flush();
         $this->addFlash('success', 'Commentaire supprimé.');
 
@@ -94,7 +103,10 @@ final class AdminCommentModerationController extends AbstractController
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_SPAM, $comment);
         $this->validateCommentToken($comment, $request);
-        $this->moderationService->markAsSpam($comment, $this->getAdminUser(), $request->request->getString('reason'));
+        $admin = $this->getAdminUser();
+        $reason = $request->request->getString('reason');
+        $this->moderationService->markAsSpam($comment, $admin, $reason);
+        $this->moderationLogger->log('comment.spam', $admin, 'comment', $comment->getId(), $reason, $request, $comment->getAuthor());
         $this->entityManager->flush();
         $this->addFlash('warning', 'Commentaire marqué comme spam.');
 

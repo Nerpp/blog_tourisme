@@ -87,7 +87,7 @@
             </form>
         </section>
 
-        <form method="post" action="{{ path('admin_quick_city_visit_finish', { id: city_visit.id }) }}">
+        <form method="post" action="{{ path('admin_quick_city_visit_finish', { id: city_visit.id }) }}" onsubmit="return confirm('Terminer cette visite terrain ?');">
             <input type="hidden" name="_token" value="{{ csrf_token('quick_city_visit_finish_' ~ city_visit.id) }}">
             <button class="field-button field-button--danger" type="submit">Terminer</button>
         </form>

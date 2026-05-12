@@ -15,7 +15,9 @@ use App\Enum\MediaRole;
 use App\Enum\MediaType;
 use App\Enum\VideoType;
 use App\Repository\DestinationRepository;
+use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
+use App\Service\ImageUploadSecurity;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -41,6 +43,8 @@ final class CityVisitStudioController extends AbstractController
         private readonly DestinationRepository $destinationRepository,
         private readonly SluggerInterface $slugger,
         private readonly ParameterBagInterface $parameterBag,
+        private readonly ImageUploadSecurity $imageUploadSecurity,
+        private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
 
@@ -74,6 +78,10 @@ final class CityVisitStudioController extends AbstractController
         if (!$this->isCsrfTokenValid('studio_city_visit_photos_'.$cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire photo a expiré. Réessayez.');
 
+            return $this->redirectToStudio($cityVisitDraft);
+        }
+
+        if (!$this->consumeUploadRateLimit($request)) {
             return $this->redirectToStudio($cityVisitDraft);
         }
 

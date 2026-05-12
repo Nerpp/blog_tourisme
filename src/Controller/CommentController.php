@@ -10,6 +10,7 @@ use App\Form\CommentType;
 use App\Repository\ArticleRepository;
 use App\Repository\CommentReportRepository;
 use App\Repository\PlaceRepository;
+use App\Security\ActionRateLimiter;
 use App\Security\Voter\CommentVoter;
 use App\Service\CommentModerationService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -17,11 +18,17 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 final class CommentController extends AbstractController
 {
+    public function __construct(
+        private readonly ActionRateLimiter $actionRateLimiter,
+    ) {
+    }
+
     #[Route('/articles/{slug}/comments', name: 'app_article_comment_create', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function createForArticle(
@@ -40,6 +47,10 @@ final class CommentController extends AbstractController
         if ($this->isBannedCommenter($author)) {
             $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
 
+            return $this->redirectToRoute('app_article_show', ['slug' => $article->getSlug()]);
+        }
+
+        if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentCreate($request, $author))) {
             return $this->redirectToRoute('app_article_show', ['slug' => $article->getSlug()]);
         }
 
@@ -83,6 +94,10 @@ final class CommentController extends AbstractController
         if ($this->isBannedCommenter($author)) {
             $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
 
+            return $this->redirectToRoute('app_place_show', ['slug' => $place->getSlug()]);
+        }
+
+        if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentCreate($request, $author))) {
             return $this->redirectToRoute('app_place_show', ['slug' => $place->getSlug()]);
         }
 
@@ -179,6 +194,10 @@ final class CommentController extends AbstractController
         }
 
         $reporter = $this->getAuthenticatedUser();
+        if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentReport($request, $reporter))) {
+            return $this->redirectToCommentTarget($comment);
+        }
+
         if ($reportRepository->findOneByCommentAndReporter($comment, $reporter) !== null) {
             $this->addFlash('warning', 'Vous avez deja signale ce commentaire.');
 
@@ -186,12 +205,13 @@ final class CommentController extends AbstractController
         }
 
         $reason = CommentReportReason::tryFrom((string) $request->request->get('reason')) ?? CommentReportReason::Other;
+        $message = trim($request->request->getString('message'));
 
         $report = (new CommentReport())
             ->setComment($comment)
             ->setReporter($reporter)
             ->setReason($reason)
-            ->setMessage($request->request->get('message') ?: null)
+            ->setMessage($message === '' ? null : mb_substr($message, 0, 2000))
             ->setIpAddress($request->getClientIp())
             ->setUserAgent($request->headers->get('User-Agent'));
 
@@ -232,5 +252,19 @@ final class CommentController extends AbstractController
     private function isBannedCommenter(User $user): bool
     {
         return $user->isBanned() && !in_array('ROLE_ADMIN', $user->getRoles(), true);
+    }
+
+    private function acceptRateLimit(RateLimit $limit): bool
+    {
+        if ($limit->isAccepted()) {
+            return true;
+        }
+
+        $this->addFlash('warning', sprintf(
+            'Trop de tentatives. Réessayez à partir de %s.',
+            $limit->getRetryAfter()->format('H:i'),
+        ));
+
+        return false;
     }
 }

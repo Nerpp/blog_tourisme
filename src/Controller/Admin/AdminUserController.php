@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Repository\UserRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Service\CommentModerationAdminService;
+use App\Service\ModerationActionLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -20,6 +21,7 @@ final class AdminUserController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly CommentModerationAdminService $moderationService,
+        private readonly ModerationActionLogger $moderationLogger,
     ) {
     }
 
@@ -56,6 +58,7 @@ final class AdminUserController extends AbstractController
         }
 
         $this->moderationService->banUser($user, $reason);
+        $this->moderationLogger->log('user.ban', $this->getAdminUser(), 'user', $user->getId(), $reason, $request, $user);
         $this->entityManager->flush();
         $this->addFlash('warning', 'Utilisateur banni.');
 
@@ -70,9 +73,17 @@ final class AdminUserController extends AbstractController
         }
 
         $this->moderationService->unbanUser($user);
+        $this->moderationLogger->log('user.unban', $this->getAdminUser(), 'user', $user->getId(), null, $request, $user);
         $this->entityManager->flush();
         $this->addFlash('success', 'Utilisateur débanni.');
 
         return $this->redirectToRoute('admin_users_show', ['id' => $user->getId()]);
+    }
+
+    private function getAdminUser(): ?User
+    {
+        $admin = $this->getUser();
+
+        return $admin instanceof User ? $admin : null;
     }
 }

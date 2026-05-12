@@ -16,7 +16,9 @@ use App\Enum\MediaRole;
 use App\Enum\MediaType;
 use App\Enum\VideoType;
 use App\Repository\DestinationRepository;
+use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
+use App\Service\ImageUploadSecurity;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -42,6 +44,8 @@ final class HikeStudioController extends AbstractController
         private readonly DestinationRepository $destinationRepository,
         private readonly SluggerInterface $slugger,
         private readonly ParameterBagInterface $parameterBag,
+        private readonly ImageUploadSecurity $imageUploadSecurity,
+        private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
 
@@ -75,6 +79,10 @@ final class HikeStudioController extends AbstractController
         if (!$this->isCsrfTokenValid('studio_hike_photos_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire photo a expiré. Réessayez.');
 
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        if (!$this->consumeUploadRateLimit($request)) {
             return $this->redirectToStudio($hikeDraft);
         }
 

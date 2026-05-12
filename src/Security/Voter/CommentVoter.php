@@ -36,6 +36,10 @@ class CommentVoter extends Voter
             return $this->isAdmin($user);
         }
 
+        if ($user->isBanned() && !$this->isAdmin($user)) {
+            return false;
+        }
+
         if (!$subject instanceof Comment) {
             return false;
         }

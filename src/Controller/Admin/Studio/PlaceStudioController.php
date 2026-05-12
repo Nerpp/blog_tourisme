@@ -18,15 +18,19 @@ use App\Enum\PriceType;
 use App\Enum\VideoType;
 use App\Repository\CategoryRepository;
 use App\Repository\DestinationRepository;
+use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
+use App\Service\ImageUploadSecurity;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
@@ -45,6 +49,8 @@ final class PlaceStudioController extends AbstractController
         private readonly DestinationRepository $destinationRepository,
         private readonly SluggerInterface $slugger,
         private readonly ParameterBagInterface $parameterBag,
+        private readonly ImageUploadSecurity $imageUploadSecurity,
+        private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
 
@@ -82,6 +88,10 @@ final class PlaceStudioController extends AbstractController
             return $this->redirectToStudio($place);
         }
 
+        if (!$this->consumeUploadRateLimit($request)) {
+            return $this->redirectToStudio($place);
+        }
+
         $files = $this->normalizeUploadedFiles($request->files->get('photos', []));
         if ($files === []) {
             $this->addFlash('error', 'Aucune photo valide n’a été reçue.');
@@ -98,13 +108,16 @@ final class PlaceStudioController extends AbstractController
             $associations = $this->requestArray($request, 'photoUsages');
         }
         foreach ($files as $index => $file) {
-            if (!str_starts_with((string) $file->getMimeType(), 'image/')) {
+            try {
+                $storedFile = $this->storeUploadedImage($file);
+            } catch (InvalidArgumentException $exception) {
+                $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
+
                 continue;
             }
 
             $role = $this->mediaRoleForUsage($this->resolvePhotoUsage($associations[$index] ?? null));
             $position = $nextPosition;
-            $storedFile = $this->storeUploadedImage($file);
             $media = (new MediaAsset())
                 ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
                 ->setTitle($this->truncate($storedFile['title'], 180))
@@ -424,7 +437,7 @@ final class PlaceStudioController extends AbstractController
             return [];
         }
 
-        return array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile && $file->isValid()));
+        return array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile));
     }
 
     /**
@@ -434,28 +447,48 @@ final class PlaceStudioController extends AbstractController
     {
         $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) ?: 'photo';
         $safeName = strtolower((string) $this->slugger->slug($originalName));
-        $extension = $file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'bin';
+        $inspection = $this->imageUploadSecurity->inspect($file);
+        $extension = $inspection['extension'];
         $filename = sprintf('%s-%s.%s', $safeName, bin2hex(random_bytes(6)), $extension);
         $targetDirectory = $this->parameterBag->get('kernel.project_dir').'/public/'.self::UPLOAD_DIRECTORY;
         if (!is_dir($targetDirectory)) {
             mkdir($targetDirectory, 0775, true);
         }
 
-        $mimeType = $file->getMimeType();
-        $fileSize = $file->getSize();
         $file->move($targetDirectory, $filename);
-
-        $absolutePath = $targetDirectory.'/'.$filename;
-        $imageSize = @getimagesize($absolutePath);
 
         return [
             'title' => $originalName,
             'path' => '/'.self::UPLOAD_DIRECTORY.'/'.$filename,
-            'mimeType' => $mimeType,
-            'fileSize' => $fileSize,
-            'width' => is_array($imageSize) ? (int) $imageSize[0] : null,
-            'height' => is_array($imageSize) ? (int) $imageSize[1] : null,
+            'mimeType' => $inspection['mimeType'],
+            'fileSize' => $inspection['fileSize'],
+            'width' => $inspection['width'],
+            'height' => $inspection['height'],
         ];
+    }
+
+    private function consumeUploadRateLimit(Request $request): bool
+    {
+        $limit = $this->actionRateLimiter->consumeAdminUpload(
+            $request,
+            $this->getUser() instanceof User ? $this->getUser() : null,
+        );
+
+        if ($limit->isAccepted()) {
+            return true;
+        }
+
+        $this->addUploadRateLimitFlash($limit);
+
+        return false;
+    }
+
+    private function addUploadRateLimitFlash(RateLimit $limit): void
+    {
+        $this->addFlash('warning', sprintf(
+            'Trop d’envois de médias. Réessayez à partir de %s.',
+            $limit->getRetryAfter()->format('H:i'),
+        ));
     }
 
     /** @return list<PlaceMedia> */

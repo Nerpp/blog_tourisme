@@ -102,7 +102,7 @@
             </form>
         </section>
 
-        <form method="post" action="{{ path('admin_quick_hike_finish', { id: hike.id }) }}">
+        <form method="post" action="{{ path('admin_quick_hike_finish', { id: hike.id }) }}" onsubmit="return confirm('Terminer cette randonnée terrain ?');">
             <input type="hidden" name="_token" value="{{ csrf_token('quick_hike_finish_' ~ hike.id) }}">
             <button class="field-button field-button--danger" type="submit">Terminer</button>
         </form>

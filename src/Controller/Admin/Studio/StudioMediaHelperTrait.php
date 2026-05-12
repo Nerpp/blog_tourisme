@@ -7,8 +7,10 @@ use App\Entity\User;
 use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Enum\VideoType;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\RateLimiter\RateLimit;
 
 trait StudioMediaHelperTrait
 {
@@ -32,16 +34,18 @@ trait StudioMediaHelperTrait
             return [];
         }
 
-        return array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile && $file->isValid()));
+        return array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile));
     }
 
     private function createImageAssetFromUpload(UploadedFile $file, ?string $caption = null, ?ImageType $imageType = null): ?MediaAsset
     {
-        if (!str_starts_with((string) $file->getMimeType(), 'image/')) {
+        try {
+            $storedFile = $this->storeUploadedImage($file);
+        } catch (InvalidArgumentException $exception) {
+            $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
+
             return null;
         }
-
-        $storedFile = $this->storeUploadedImage($file);
 
         return (new MediaAsset())
             ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
@@ -84,28 +88,48 @@ trait StudioMediaHelperTrait
     {
         $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) ?: 'photo';
         $safeName = strtolower((string) $this->slugger->slug($originalName));
-        $extension = $file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'bin';
+        $inspection = $this->imageUploadSecurity->inspect($file);
+        $extension = $inspection['extension'];
         $filename = sprintf('%s-%s.%s', $safeName, bin2hex(random_bytes(6)), $extension);
         $targetDirectory = $this->parameterBag->get('kernel.project_dir').'/public/'.self::UPLOAD_DIRECTORY;
         if (!is_dir($targetDirectory)) {
             mkdir($targetDirectory, 0775, true);
         }
 
-        $mimeType = $file->getMimeType();
-        $fileSize = $file->getSize();
         $file->move($targetDirectory, $filename);
-
-        $absolutePath = $targetDirectory.'/'.$filename;
-        $imageSize = @getimagesize($absolutePath);
 
         return [
             'title' => $originalName,
             'path' => '/'.self::UPLOAD_DIRECTORY.'/'.$filename,
-            'mimeType' => $mimeType,
-            'fileSize' => $fileSize,
-            'width' => is_array($imageSize) ? (int) $imageSize[0] : null,
-            'height' => is_array($imageSize) ? (int) $imageSize[1] : null,
+            'mimeType' => $inspection['mimeType'],
+            'fileSize' => $inspection['fileSize'],
+            'width' => $inspection['width'],
+            'height' => $inspection['height'],
         ];
+    }
+
+    private function consumeUploadRateLimit(Request $request): bool
+    {
+        $limit = $this->actionRateLimiter->consumeAdminUpload(
+            $request,
+            $this->getUser() instanceof User ? $this->getUser() : null,
+        );
+
+        if ($limit->isAccepted()) {
+            return true;
+        }
+
+        $this->addUploadRateLimitFlash($limit);
+
+        return false;
+    }
+
+    private function addUploadRateLimitFlash(RateLimit $limit): void
+    {
+        $this->addFlash('warning', sprintf(
+            'Trop d’envois de médias. Réessayez à partir de %s.',
+            $limit->getRetryAfter()->format('H:i'),
+        ));
     }
 
     private function nullableInt(mixed $value): ?int
