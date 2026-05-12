@@ -63,6 +63,13 @@
                     <textarea form="{{ main_form_id }}" id="city-visit-notes" name="notes" rows="8">{{ city_visit.notes }}</textarea>
                 </div>
             </div>
+            {% include 'admin/_quick_destination_form.html.twig' with {
+                ui_context: 'studio',
+                current_destination: city_visit.destination,
+                destination_quick_create: destination_quick_create,
+                destination_type_options: destination_type_options,
+                destination_parent_options: destination_parent_options
+            } only %}
         </section>
 
         <section class="studio-section">

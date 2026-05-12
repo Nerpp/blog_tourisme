@@ -19,4 +19,12 @@
             <button class="field-button" type="submit">Démarrer une visite de ville</button>
         </form>
     </section>
+
+    {% include 'admin/_quick_destination_form.html.twig' with {
+        ui_context: 'field',
+        current_destination: null,
+        destination_quick_create: destination_quick_create,
+        destination_type_options: destination_type_options,
+        destination_parent_options: destination_parent_options
+    } only %}
 {% endblock %}

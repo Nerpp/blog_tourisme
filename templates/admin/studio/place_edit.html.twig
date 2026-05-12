@@ -288,6 +288,55 @@
             color: #8c1d18;
         }
 
+        .quick-destination {
+            display: grid;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fbfcfb;
+        }
+
+        .quick-destination__title {
+            margin: 0;
+            font-size: 1.05rem;
+        }
+
+        .quick-destination__text {
+            margin: 4px 0 0;
+            color: var(--admin-muted);
+        }
+
+        .quick-destination__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .quick-destination__form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .quick-destination__form[hidden],
+        .quick-destination__actions[hidden],
+        .quick-destination__status[hidden] {
+            display: none;
+        }
+
+        .quick-destination__status {
+            min-height: 22px;
+            margin: 0;
+            color: var(--admin-muted);
+            font-weight: 700;
+        }
+
+        .quick-destination__grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 10px;
+        }
+
         @media (max-width: 760px) {
             .studio-hero {
                 grid-template-columns: 1fr;
@@ -431,6 +480,13 @@
                     <input form="{{ main_form_id }}" id="place-longitude" name="longitude" type="number" step="any" value="{{ place.longitude }}" data-gps-longitude>
                 </div>
             </div>
+            {% include 'admin/_quick_destination_form.html.twig' with {
+                ui_context: 'studio',
+                current_destination: place.destination,
+                destination_quick_create: destination_quick_create,
+                destination_type_options: destination_type_options,
+                destination_parent_options: destination_parent_options
+            } only %}
             <div class="studio-inline-actions">
                 {% if google_maps_url %}
                     <a class="studio-link" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Voir sur Google Maps</a>

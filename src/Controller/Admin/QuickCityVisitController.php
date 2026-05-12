@@ -8,7 +8,9 @@ use App\Entity\Destination;
 use App\Entity\User;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\CityVisitPointType;
+use App\Enum\DestinationType;
 use App\Repository\CityVisitDraftRepository;
+use App\Repository\DestinationRepository;
 use App\Security\Voter\QuickCityVisitVoter;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
@@ -27,6 +29,7 @@ final class QuickCityVisitController extends AbstractController
 {
     public function __construct(
         private readonly CityVisitDraftRepository $cityVisitDraftRepository,
+        private readonly DestinationRepository $destinationRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly SluggerInterface $slugger,
@@ -47,6 +50,9 @@ final class QuickCityVisitController extends AbstractController
 
         return $this->render('admin/quick_city_visit/index.html.twig', [
             'default_title' => $this->defaultVisitTitle(),
+            'destination_type_options' => $this->destinationTypeOptions(),
+            'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'destination_quick_create' => $this->emptyDestinationQuickCreateData(),
         ]);
     }
 
@@ -181,6 +187,9 @@ final class QuickCityVisitController extends AbstractController
             'errors' => $errors,
             'point_types' => $this->pointTypeChoices(CityVisitPointType::cases()),
             'point_count' => $cityVisitDraft->getPoints()->count(),
+            'destination_type_options' => $this->destinationTypeOptions(),
+            'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'destination_quick_create' => $this->destinationQuickCreateData($cityVisitDraft),
             'admin_back_url' => $this->generateUrl('admin_field_tools_index'),
         ], new Response(status: $status));
     }
@@ -266,6 +275,75 @@ final class QuickCityVisitController extends AbstractController
         if (null === $draft->getDestination() && $destination instanceof Destination) {
             $draft->setDestination($destination);
         }
+    }
+
+    /** @return array<string, string> */
+    private function destinationTypeOptions(): array
+    {
+        return [
+            DestinationType::Country->value => 'Pays',
+            DestinationType::Region->value => 'Région',
+            DestinationType::Department->value => 'Département / province',
+            DestinationType::City->value => 'Ville',
+            DestinationType::Area->value => 'Zone / lieu',
+        ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function emptyDestinationQuickCreateData(): array
+    {
+        return [
+            'contextType' => '',
+            'contextId' => null,
+            'targetType' => '',
+            'targetId' => null,
+            'name' => '',
+            'countryName' => '',
+            'regionName' => '',
+            'departmentName' => '',
+            'cityName' => '',
+            'parent' => null,
+            'type' => DestinationType::Area->value,
+            'code' => '',
+            'latitude' => null,
+            'longitude' => null,
+        ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function destinationQuickCreateData(CityVisitDraft $draft): array
+    {
+        $point = $this->latestPoint($draft);
+        $cityName = $draft->getDetectedCommuneName() ?? '';
+
+        return [
+            'contextType' => 'city_visit',
+            'contextId' => $draft->getId(),
+            'targetType' => 'city_visit',
+            'targetId' => $draft->getId(),
+            'name' => $cityName,
+            'countryName' => $cityName !== '' ? 'France' : '',
+            'regionName' => $draft->getDetectedRegionName() ?? '',
+            'departmentName' => $draft->getDetectedDepartmentName() ?? '',
+            'cityName' => $cityName,
+            'parent' => null,
+            'type' => $cityName !== '' ? DestinationType::City->value : DestinationType::Area->value,
+            'code' => $draft->getDetectedCommuneCode() ?? '',
+            'latitude' => $point?->getLatitude(),
+            'longitude' => $point?->getLongitude(),
+        ];
+    }
+
+    private function latestPoint(CityVisitDraft $draft): ?CityVisitPoint
+    {
+        $point = null;
+        foreach ($draft->getPoints() as $candidate) {
+            if (!$point instanceof CityVisitPoint || $candidate->getPosition() >= $point->getPosition()) {
+                $point = $candidate;
+            }
+        }
+
+        return $point;
     }
 
     private function nextPointPosition(CityVisitDraft $draft): int

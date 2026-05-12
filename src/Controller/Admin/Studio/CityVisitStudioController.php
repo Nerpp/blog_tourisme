@@ -9,6 +9,7 @@ use App\Entity\CityVisitPointMedia;
 use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\CityVisitPointType;
+use App\Enum\DestinationType;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use App\Enum\MediaType;
@@ -227,6 +228,7 @@ final class CityVisitStudioController extends AbstractController
         $pointMediaEnabled = $this->databaseTableExists('city_visit_point_media');
         $pointTargetOptions = $this->pointTargetOptions($cityVisitDraft);
         $mediaPointTargets = $pointMediaEnabled ? $this->mediaPointTargetMap($cityVisitDraft) : [];
+        $destinations = $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']);
         $generalMediaLinks = array_values(array_filter($mediaLinks, static function (CityVisitDraftMedia $link) use ($mediaPointTargets): bool {
             $mediaId = $link->getMediaAsset()?->getId();
 
@@ -236,7 +238,10 @@ final class CityVisitStudioController extends AbstractController
 
         return $this->render('admin/studio/city_visit_edit.html.twig', [
             'city_visit' => $cityVisitDraft,
-            'destinations' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'destinations' => $destinations,
+            'destination_type_options' => $this->destinationTypeOptions(),
+            'destination_parent_options' => $destinations,
+            'destination_quick_create' => $this->destinationQuickCreateData($cityVisitDraft),
             'google_maps_url' => $this->generateGoogleMapsUrl($cityVisitDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
@@ -273,6 +278,49 @@ final class CityVisitStudioController extends AbstractController
             ->setStatus(CityVisitDraftStatus::tryFrom($request->request->getString('status')) ?? $cityVisitDraft->getStatus())
             ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
             ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+    }
+
+    /** @return array<string, string> */
+    private function destinationTypeOptions(): array
+    {
+        return [
+            DestinationType::Country->value => 'Pays',
+            DestinationType::Region->value => 'Région',
+            DestinationType::Department->value => 'Département / province',
+            DestinationType::City->value => 'Ville',
+            DestinationType::Area->value => 'Zone / lieu',
+        ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function destinationQuickCreateData(CityVisitDraft $cityVisitDraft): array
+    {
+        $point = $this->latestPoint($cityVisitDraft);
+        $cityName = $cityVisitDraft->getDetectedCommuneName() ?? '';
+
+        return [
+            'contextType' => 'city_visit',
+            'contextId' => $cityVisitDraft->getId(),
+            'targetType' => 'city_visit',
+            'targetId' => $cityVisitDraft->getId(),
+            'name' => $cityName,
+            'countryName' => $cityName !== '' ? 'France' : '',
+            'regionName' => $cityVisitDraft->getDetectedRegionName() ?? '',
+            'departmentName' => $cityVisitDraft->getDetectedDepartmentName() ?? '',
+            'cityName' => $cityName,
+            'parent' => null,
+            'type' => $cityName !== '' ? DestinationType::City->value : DestinationType::Area->value,
+            'code' => $cityVisitDraft->getDetectedCommuneCode() ?? '',
+            'latitude' => $point?->getLatitude(),
+            'longitude' => $point?->getLongitude(),
+        ];
+    }
+
+    private function latestPoint(CityVisitDraft $cityVisitDraft): ?CityVisitPoint
+    {
+        $points = $this->sortedPoints($cityVisitDraft);
+
+        return $points === [] ? null : $points[array_key_last($points)];
     }
 
     private function updateMediaFromRequest(CityVisitDraftMedia $mediaLink, Request $request): void

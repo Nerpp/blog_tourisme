@@ -1,0 +1,186 @@
+{% set ui_context = ui_context|default('studio') %}
+{% set is_field = ui_context == 'field' %}
+{% set container_class = is_field ? 'field-card quick-destination' : 'quick-destination' %}
+{% set row_class = is_field ? 'field-row' : 'studio-field' %}
+{% set full_row_class = row_class ~ (is_field ? '' : ' studio-field--full') %}
+{% set input_class = is_field ? 'field-input' : '' %}
+{% set select_class = is_field ? 'field-select' : '' %}
+{% set primary_button = is_field ? 'field-button' : 'admin-button' %}
+{% set secondary_button = is_field ? 'field-button field-button--secondary' : 'admin-button admin-button--secondary' %}
+{% set neutral_button = is_field ? 'field-button field-button--neutral' : 'admin-button admin-button--secondary' %}
+{% set destination_quick_create = destination_quick_create|default({}) %}
+{% set destination_type_options = destination_type_options|default({}) %}
+{% set current_destination = current_destination|default(null) %}
+{% set context_type = destination_quick_create.contextType|default(destination_quick_create.targetType|default('')) %}
+{% set context_id = destination_quick_create.contextId|default(destination_quick_create.targetId|default('')) %}
+
+<section class="{{ container_class }}" data-quick-destination>
+    <div class="quick-destination__header">
+        <div>
+            <h2 class="quick-destination__title">Destination</h2>
+            {% if current_destination %}
+                <p class="quick-destination__text">Destination associée : <strong>{{ current_destination.name }}</strong></p>
+            {% else %}
+                <p class="quick-destination__text">Aucune destination associée</p>
+                <p class="quick-destination__text">Si vous êtes hors France ou sans réseau, renseignez la destination manuellement. Vous pourrez compléter les coordonnées plus tard.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="quick-destination__actions" data-quick-destination-actions>
+        <button class="{{ primary_button }}" type="button" data-quick-destination-toggle>{{ current_destination ? 'Modifier la destination' : 'Renseigner manuellement' }}</button>
+        {% if not current_destination %}
+            <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>Enregistrer sans destination pour l’instant</button>
+        {% endif %}
+    </div>
+
+    <form class="quick-destination__form" method="post" action="{{ path('admin_studio_destination_quick_create') }}" data-quick-destination-form hidden>
+        <input type="hidden" name="_token" value="{{ csrf_token('studio_destination_quick_create') }}">
+        <input type="hidden" name="contextType" value="{{ context_type }}">
+        <input type="hidden" name="contextId" value="{{ context_id }}">
+        <input type="hidden" name="targetType" value="{{ context_type }}">
+        <input type="hidden" name="targetId" value="{{ context_id }}">
+        <input type="hidden" name="name" value="{{ destination_quick_create.name|default('') }}">
+        <input type="hidden" name="parent" value="{{ destination_quick_create.parent|default('') }}">
+        <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
+
+        <div class="quick-destination__grid">
+            <div class="{{ row_class }}">
+                <label for="quick-destination-country">Pays</label>
+                <input class="{{ input_class }}" id="quick-destination-country" name="countryName" value="{{ destination_quick_create.countryName|default('') }}" autocomplete="country-name">
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-region">Région / zone</label>
+                <input class="{{ input_class }}" id="quick-destination-region" name="regionName" value="{{ destination_quick_create.regionName|default('') }}">
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-department">Département / province</label>
+                <input class="{{ input_class }}" id="quick-destination-department" name="departmentName" value="{{ destination_quick_create.departmentName|default('') }}">
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-city">Ville / lieu</label>
+                <input class="{{ input_class }}" id="quick-destination-city" name="cityName" value="{{ destination_quick_create.cityName|default('') }}">
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-type">Type de destination</label>
+                <select class="{{ select_class }}" id="quick-destination-type" name="type">
+                    {% for value, label in destination_type_options %}
+                        <option value="{{ value }}" {% if destination_quick_create.type|default('area') == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-code">Code optionnel</label>
+                <input class="{{ input_class }}" id="quick-destination-code" name="code" value="{{ destination_quick_create.code|default('') }}">
+            </div>
+
+            <div class="{{ full_row_class }}">
+                <span class="quick-destination__text">Coordonnées optionnelles</span>
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-latitude">Latitude optionnelle</label>
+                <input class="{{ input_class }}" id="quick-destination-latitude" name="latitude" type="number" step="any" value="{{ destination_quick_create.latitude|default('') }}" data-quick-destination-latitude>
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-longitude">Longitude optionnelle</label>
+                <input class="{{ input_class }}" id="quick-destination-longitude" name="longitude" type="number" step="any" value="{{ destination_quick_create.longitude|default('') }}" data-quick-destination-longitude>
+            </div>
+        </div>
+
+        <p class="quick-destination__status" data-quick-destination-status aria-live="polite"></p>
+        <div class="quick-destination__actions">
+            <button class="{{ neutral_button }}" type="button" data-quick-destination-gps>Utiliser ma position actuelle</button>
+            <button class="{{ secondary_button }}" type="submit">{{ context_type and context_id ? 'Créer et associer' : 'Créer la destination' }}</button>
+        </div>
+    </form>
+
+    <p class="quick-destination__status" data-quick-destination-skip-status hidden>Destination à compléter plus tard.</p>
+</section>
+
+<script>
+    (() => {
+        document.querySelectorAll('[data-quick-destination]').forEach((container) => {
+            const toggle = container.querySelector('[data-quick-destination-toggle]');
+            const skipButton = container.querySelector('[data-quick-destination-skip]');
+            const actions = container.querySelector('[data-quick-destination-actions]');
+            const gpsButton = container.querySelector('[data-quick-destination-gps]');
+            const form = container.querySelector('[data-quick-destination-form]');
+            const latitude = container.querySelector('[data-quick-destination-latitude]');
+            const longitude = container.querySelector('[data-quick-destination-longitude]');
+            const status = container.querySelector('[data-quick-destination-status]');
+            const skipStatus = container.querySelector('[data-quick-destination-skip-status]');
+
+            if (toggle && form) {
+                toggle.addEventListener('click', () => {
+                    form.hidden = false;
+                    toggle.hidden = true;
+                    if (skipStatus) {
+                        skipStatus.hidden = true;
+                    }
+                });
+            }
+
+            if (skipButton) {
+                skipButton.addEventListener('click', () => {
+                    if (form) {
+                        form.hidden = true;
+                    }
+
+                    if (actions) {
+                        actions.hidden = true;
+                    }
+
+                    if (skipStatus) {
+                        skipStatus.hidden = false;
+                    }
+                });
+            }
+
+            if (gpsButton && latitude && longitude) {
+                gpsButton.addEventListener('click', () => {
+                    if (!navigator.geolocation) {
+                        if (status) {
+                            status.textContent = 'La géolocalisation n’est pas disponible sur cet appareil.';
+                        }
+
+                        return;
+                    }
+
+                    gpsButton.disabled = true;
+                    if (status) {
+                        status.textContent = 'Récupération de la position GPS...';
+                    }
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            latitude.value = position.coords.latitude.toFixed(6);
+                            longitude.value = position.coords.longitude.toFixed(6);
+                            gpsButton.disabled = false;
+                            if (status) {
+                                status.textContent = 'Position récupérée.';
+                            }
+                        },
+                        () => {
+                            gpsButton.disabled = false;
+                            if (status) {
+                                status.textContent = 'Impossible de récupérer la position GPS.';
+                            }
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 15000,
+                            maximumAge: 0,
+                        }
+                    );
+                });
+            }
+        });
+    })();
+</script>

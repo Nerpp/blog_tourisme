@@ -9,6 +9,7 @@ use App\Entity\Place;
 use App\Entity\PlaceMedia;
 use App\Entity\User;
 use App\Enum\ContentStatus;
+use App\Enum\DestinationType;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use App\Enum\MediaType;
@@ -279,11 +280,15 @@ final class PlaceStudioController extends AbstractController
     private function renderStudio(Place $place): Response
     {
         $mediaLinks = $this->sortedMediaLinks($place);
+        $destinations = $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']);
 
         return $this->render('admin/studio/place_edit.html.twig', [
             'place' => $place,
             'categories' => $this->categoryRepository->findBy([], ['name' => 'ASC']),
-            'destinations' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'destinations' => $destinations,
+            'destination_type_options' => $this->destinationTypeOptions(),
+            'destination_parent_options' => $destinations,
+            'destination_quick_create' => $this->destinationQuickCreateData($place),
             'media_links' => $mediaLinks,
             'photo_links' => array_values(array_filter($mediaLinks, fn (PlaceMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image)),
             'video_links' => array_values(array_filter($mediaLinks, fn (PlaceMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Video)),
@@ -367,6 +372,39 @@ final class PlaceStudioController extends AbstractController
             ->setPriceType(PriceType::tryFrom($request->request->getString('priceType')) ?? PriceType::Unknown)
             ->setSeoTitle($this->nullIfBlank($request->request->getString('seoTitle')))
             ->setSeoDescription($this->nullIfBlank($request->request->getString('seoDescription')));
+    }
+
+    /** @return array<string, string> */
+    private function destinationTypeOptions(): array
+    {
+        return [
+            DestinationType::Country->value => 'Pays',
+            DestinationType::Region->value => 'Région',
+            DestinationType::Department->value => 'Département / province',
+            DestinationType::City->value => 'Ville',
+            DestinationType::Area->value => 'Zone / lieu',
+        ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function destinationQuickCreateData(Place $place): array
+    {
+        return [
+            'contextType' => 'place',
+            'contextId' => $place->getId(),
+            'targetType' => 'place',
+            'targetId' => $place->getId(),
+            'name' => '',
+            'countryName' => '',
+            'regionName' => '',
+            'departmentName' => '',
+            'cityName' => '',
+            'parent' => null,
+            'type' => DestinationType::Area->value,
+            'code' => '',
+            'latitude' => $place->getLatitude(),
+            'longitude' => $place->getLongitude(),
+        ];
     }
 
     /**

@@ -6,8 +6,10 @@ use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\HikePoint;
 use App\Entity\User;
+use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
+use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\QuickHikeVoter;
 use App\Service\TerrainLocationResolver;
@@ -27,6 +29,7 @@ final class QuickHikeController extends AbstractController
 {
     public function __construct(
         private readonly HikeDraftRepository $hikeDraftRepository,
+        private readonly DestinationRepository $destinationRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly SluggerInterface $slugger,
@@ -47,6 +50,9 @@ final class QuickHikeController extends AbstractController
 
         return $this->render('admin/quick_hike/index.html.twig', [
             'default_title' => $this->defaultHikeTitle(),
+            'destination_type_options' => $this->destinationTypeOptions(),
+            'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'destination_quick_create' => $this->emptyDestinationQuickCreateData(),
         ]);
     }
 
@@ -187,6 +193,9 @@ final class QuickHikeController extends AbstractController
             'hike' => $hikeDraft,
             'errors' => $errors,
             'has_start_point' => $this->hasStartPoint($hikeDraft),
+            'destination_type_options' => $this->destinationTypeOptions(),
+            'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'destination_quick_create' => $this->destinationQuickCreateData($hikeDraft),
             'interest_point_types' => $this->pointTypeChoices([
                 HikePointType::Interest,
                 HikePointType::Viewpoint,
@@ -282,6 +291,75 @@ final class QuickHikeController extends AbstractController
         if (null === $draft->getDestination() && $destination instanceof Destination) {
             $draft->setDestination($destination);
         }
+    }
+
+    /** @return array<string, string> */
+    private function destinationTypeOptions(): array
+    {
+        return [
+            DestinationType::Country->value => 'Pays',
+            DestinationType::Region->value => 'Région',
+            DestinationType::Department->value => 'Département / province',
+            DestinationType::City->value => 'Ville',
+            DestinationType::Area->value => 'Zone / lieu',
+        ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function emptyDestinationQuickCreateData(): array
+    {
+        return [
+            'contextType' => '',
+            'contextId' => null,
+            'targetType' => '',
+            'targetId' => null,
+            'name' => '',
+            'countryName' => '',
+            'regionName' => '',
+            'departmentName' => '',
+            'cityName' => '',
+            'parent' => null,
+            'type' => DestinationType::Area->value,
+            'code' => '',
+            'latitude' => null,
+            'longitude' => null,
+        ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function destinationQuickCreateData(HikeDraft $draft): array
+    {
+        $point = $this->latestPoint($draft);
+        $cityName = $draft->getDetectedCommuneName() ?? '';
+
+        return [
+            'contextType' => 'hike',
+            'contextId' => $draft->getId(),
+            'targetType' => 'hike',
+            'targetId' => $draft->getId(),
+            'name' => $cityName,
+            'countryName' => $cityName !== '' ? 'France' : '',
+            'regionName' => $draft->getDetectedRegionName() ?? '',
+            'departmentName' => $draft->getDetectedDepartmentName() ?? '',
+            'cityName' => $cityName,
+            'parent' => null,
+            'type' => $cityName !== '' ? DestinationType::City->value : DestinationType::Area->value,
+            'code' => $draft->getDetectedCommuneCode() ?? '',
+            'latitude' => $point?->getLatitude(),
+            'longitude' => $point?->getLongitude(),
+        ];
+    }
+
+    private function latestPoint(HikeDraft $draft): ?HikePoint
+    {
+        $point = null;
+        foreach ($draft->getPoints() as $candidate) {
+            if (!$point instanceof HikePoint || $candidate->getPosition() >= $point->getPosition()) {
+                $point = $candidate;
+            }
+        }
+
+        return $point;
     }
 
     private function hasStartPoint(HikeDraft $draft): bool

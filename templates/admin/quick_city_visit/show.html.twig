@@ -39,6 +39,14 @@
         {% endif %}
     </section>
 
+    {% include 'admin/_quick_destination_form.html.twig' with {
+        ui_context: 'field',
+        current_destination: city_visit.destination,
+        destination_quick_create: destination_quick_create,
+        destination_type_options: destination_type_options,
+        destination_parent_options: destination_parent_options
+    } only %}
+
     {% if errors is not empty %}
         <div class="field-alert">
             {% for error in errors %}

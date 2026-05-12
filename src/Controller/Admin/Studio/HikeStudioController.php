@@ -8,6 +8,7 @@ use App\Entity\HikeDraftMedia;
 use App\Entity\HikePoint;
 use App\Entity\HikePointMedia;
 use App\Entity\MediaAsset;
+use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
 use App\Enum\ImageType;
@@ -228,6 +229,7 @@ final class HikeStudioController extends AbstractController
         $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
         $pointTargetOptions = $this->pointTargetOptions($hikeDraft);
         $mediaPointTargets = $pointMediaEnabled ? $this->mediaPointTargetMap($hikeDraft) : [];
+        $destinations = $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']);
         $generalMediaLinks = array_values(array_filter($mediaLinks, static function (HikeDraftMedia $link) use ($mediaPointTargets): bool {
             $mediaId = $link->getMediaAsset()?->getId();
 
@@ -237,7 +239,10 @@ final class HikeStudioController extends AbstractController
 
         return $this->render('admin/studio/hike_edit.html.twig', [
             'hike' => $hikeDraft,
-            'destinations' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'destinations' => $destinations,
+            'destination_type_options' => $this->destinationTypeOptions(),
+            'destination_parent_options' => $destinations,
+            'destination_quick_create' => $this->destinationQuickCreateData($hikeDraft),
             'google_maps_url' => $this->generateGoogleMapsUrl($hikeDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
@@ -274,6 +279,49 @@ final class HikeStudioController extends AbstractController
             ->setStatus(HikeDraftStatus::tryFrom($request->request->getString('status')) ?? $hikeDraft->getStatus())
             ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
             ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+    }
+
+    /** @return array<string, string> */
+    private function destinationTypeOptions(): array
+    {
+        return [
+            DestinationType::Country->value => 'Pays',
+            DestinationType::Region->value => 'Région',
+            DestinationType::Department->value => 'Département / province',
+            DestinationType::City->value => 'Ville',
+            DestinationType::Area->value => 'Zone / lieu',
+        ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function destinationQuickCreateData(HikeDraft $hikeDraft): array
+    {
+        $point = $this->latestPoint($hikeDraft);
+        $cityName = $hikeDraft->getDetectedCommuneName() ?? '';
+
+        return [
+            'contextType' => 'hike',
+            'contextId' => $hikeDraft->getId(),
+            'targetType' => 'hike',
+            'targetId' => $hikeDraft->getId(),
+            'name' => $cityName,
+            'countryName' => $cityName !== '' ? 'France' : '',
+            'regionName' => $hikeDraft->getDetectedRegionName() ?? '',
+            'departmentName' => $hikeDraft->getDetectedDepartmentName() ?? '',
+            'cityName' => $cityName,
+            'parent' => null,
+            'type' => $cityName !== '' ? DestinationType::City->value : DestinationType::Area->value,
+            'code' => $hikeDraft->getDetectedCommuneCode() ?? '',
+            'latitude' => $point?->getLatitude(),
+            'longitude' => $point?->getLongitude(),
+        ];
+    }
+
+    private function latestPoint(HikeDraft $hikeDraft): ?HikePoint
+    {
+        $points = $this->sortedPoints($hikeDraft);
+
+        return $points === [] ? null : $points[array_key_last($points)];
     }
 
     private function updateMediaFromRequest(HikeDraftMedia $mediaLink, Request $request): void
