@@ -1,0 +1,37 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Tableau de bord{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Tableau de bord</h1>
+            <p class="admin-subtitle">Base d’administration custom, prête pour les workflows métier.</p>
+        </div>
+        <div class="admin-actions">
+            <a class="admin-button" href="{{ path('admin_quick_hike_index') }}">Nouvelle rando rapide</a>
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_quick_city_visit_index') }}">Nouvelle visite de ville rapide</a>
+        </div>
+    </header>
+
+    <section class="admin-grid" aria-label="Indicateurs">
+        <a class="admin-stat" href="{{ path('admin_articles_index') }}"><strong>{{ counts.articles }}</strong><span>Articles</span></a>
+        <a class="admin-stat" href="{{ path('admin_places_index') }}"><strong>{{ counts.places }}</strong><span>Lieux</span></a>
+        <a class="admin-stat" href="{{ path('admin_destinations_index') }}"><strong>{{ counts.destinations }}</strong><span>Destinations</span></a>
+        <a class="admin-stat" href="{{ path('admin_media_index') }}"><strong>{{ counts.media }}</strong><span>Médias</span></a>
+        <a class="admin-stat" href="{{ path('admin_comments_index') }}"><strong>{{ counts.comments }}</strong><span>Commentaires</span></a>
+        <a class="admin-stat" href="{{ path('admin_field_tools_hikes') }}"><strong>{{ counts.hikes }}</strong><span>Randonnées rapides</span></a>
+        <a class="admin-stat" href="{{ path('admin_field_tools_city_visits') }}"><strong>{{ counts.city_visits }}</strong><span>Visites de ville</span></a>
+    </section>
+
+    <section class="admin-card">
+        <h2>Studio terrain</h2>
+        <p class="admin-muted">
+            Les sorties créées depuis le smartphone peuvent maintenant être enrichies au calme avec photos, vidéos et médias immersifs.
+        </p>
+        <div class="admin-actions">
+            <a class="admin-button" href="{{ path('admin_field_tools_hikes') }}">Studio randonnées</a>
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_field_tools_city_visits') }}">Studio visites de ville</a>
+        </div>
+    </section>
+{% endblock %}

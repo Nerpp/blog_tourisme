@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block title %}Outil terrain{% endblock %}</title>
+        <style>
+            :root {
+                color-scheme: light;
+                --field-bg: #f7f5ef;
+                --field-surface: #ffffff;
+                --field-text: #18201b;
+                --field-muted: #69746d;
+                --field-line: #d8ddd8;
+                --field-primary: #146c43;
+                --field-primary-strong: #0f5132;
+                --field-secondary: #2f5f98;
+                --field-danger: #9f2f2f;
+                --field-radius: 8px;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                min-height: 100vh;
+                color: var(--field-text);
+                background: var(--field-bg);
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                line-height: 1.4;
+            }
+
+            a {
+                color: inherit;
+            }
+
+            .field-shell {
+                display: grid;
+                gap: 18px;
+                width: min(100%, 760px);
+                min-height: 100vh;
+                margin: 0 auto;
+                padding: 16px;
+            }
+
+            .field-topbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+
+            .field-back {
+                color: var(--field-muted);
+                font-size: 0.9rem;
+                text-decoration: none;
+            }
+
+            .field-card {
+                display: grid;
+                gap: 14px;
+                padding: 16px;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                background: var(--field-surface);
+            }
+
+            .field-title {
+                margin: 0;
+                font-size: clamp(1.5rem, 7vw, 2.4rem);
+                line-height: 1.05;
+            }
+
+            .field-subtitle {
+                margin: 0;
+                color: var(--field-muted);
+            }
+
+            .field-meta {
+                display: grid;
+                grid-template-columns: max-content minmax(0, 1fr);
+                gap: 8px 12px;
+                margin: 0;
+                font-size: 0.95rem;
+            }
+
+            .field-meta dd {
+                margin: 0;
+                color: var(--field-muted);
+            }
+
+            .field-stack {
+                display: grid;
+                gap: 10px;
+            }
+
+            .field-row {
+                display: grid;
+                gap: 6px;
+            }
+
+            .field-label {
+                font-weight: 700;
+            }
+
+            .field-input,
+            .field-select,
+            .field-textarea {
+                width: 100%;
+                min-height: 46px;
+                padding: 10px 12px;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                background: #fff;
+                color: var(--field-text);
+                font: inherit;
+            }
+
+            .field-textarea {
+                min-height: 86px;
+                resize: vertical;
+            }
+
+            .field-actions {
+                display: grid;
+                gap: 10px;
+            }
+
+            .field-button {
+                width: 100%;
+                min-height: 54px;
+                padding: 12px 16px;
+                border: 0;
+                border-radius: var(--field-radius);
+                background: var(--field-primary);
+                color: #fff;
+                font: inherit;
+                font-weight: 800;
+                cursor: pointer;
+                text-align: center;
+                text-decoration: none;
+            }
+
+            .field-button:disabled {
+                opacity: 0.65;
+                cursor: wait;
+            }
+
+            .field-button--secondary {
+                background: var(--field-secondary);
+            }
+
+            .field-button--neutral {
+                border: 1px solid var(--field-line);
+                background: #fff;
+                color: var(--field-text);
+            }
+
+            .field-button--danger {
+                background: var(--field-danger);
+            }
+
+            .field-status {
+                min-height: 24px;
+                margin: 0;
+                color: var(--field-muted);
+                font-weight: 700;
+            }
+
+            .field-status.is-error {
+                color: var(--field-danger);
+            }
+
+            .field-status.is-success {
+                color: var(--field-primary-strong);
+            }
+
+            .field-alert {
+                padding: 12px;
+                border-radius: var(--field-radius);
+                background: #fff3cd;
+                color: #664d03;
+            }
+
+            .field-points {
+                display: grid;
+                gap: 10px;
+                padding: 0;
+                margin: 0;
+                list-style: none;
+            }
+
+            .field-point {
+                display: grid;
+                gap: 6px;
+                padding: 12px;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                background: var(--field-surface);
+            }
+
+            .field-point__header {
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+                font-weight: 800;
+            }
+
+            .field-point__meta {
+                color: var(--field-muted);
+                font-size: 0.9rem;
+            }
+
+            @media (min-width: 680px) {
+                .field-actions {
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main class="field-shell">
+            <div class="field-topbar">
+                <a class="field-back" href="{{ path('admin') }}">Administration</a>
+                {% block topbar_action %}{% endblock %}
+            </div>
+
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="field-alert">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+
+            {% block body %}{% endblock %}
+        </main>
+
+        <script>
+            (() => {
+                const forms = document.querySelectorAll('[data-gps-form]');
+
+                const setStatus = (status, message, kind = '') => {
+                    if (!status) {
+                        return;
+                    }
+
+                    status.textContent = message;
+                    status.classList.toggle('is-error', kind === 'error');
+                    status.classList.toggle('is-success', kind === 'success');
+                };
+
+                const submitWithGps = (form, button) => {
+                    const status = form.querySelector('[data-gps-status]');
+                    const latitude = form.querySelector('[data-gps-latitude]');
+                    const longitude = form.querySelector('[data-gps-longitude]');
+                    const accuracy = form.querySelector('[data-gps-accuracy]');
+                    const type = form.querySelector('[data-gps-type]');
+
+                    if (button.dataset.pointType && type) {
+                        type.value = button.dataset.pointType;
+                    }
+
+                    if (!navigator.geolocation) {
+                        setStatus(status, 'La géolocalisation n’est pas disponible sur ce navigateur.', 'error');
+                        return;
+                    }
+
+                    button.disabled = true;
+                    setStatus(status, 'Récupération de la position GPS...');
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            latitude.value = position.coords.latitude.toFixed(6);
+                            longitude.value = position.coords.longitude.toFixed(6);
+                            accuracy.value = Math.round(position.coords.accuracy).toString();
+                            setStatus(status, 'Position GPS récupérée. Enregistrement...');
+
+                            fetch(form.action, {
+                                method: 'POST',
+                                body: new FormData(form),
+                                headers: {
+                                    Accept: 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                            }).then(async (response) => {
+                                const data = await response.json().catch(() => ({}));
+
+                                if (!response.ok || data.ok === false) {
+                                    throw new Error(data.message || 'Impossible d’enregistrer le point.');
+                                }
+
+                                setStatus(status, data.message || 'Point enregistré.', 'success');
+                                window.location.assign(data.redirect || window.location.href);
+                            }).catch((error) => {
+                                button.disabled = false;
+                                setStatus(status, error.message || 'Impossible d’enregistrer le point.', 'error');
+                            });
+                        },
+                        (error) => {
+                            button.disabled = false;
+
+                            if (error.code === error.PERMISSION_DENIED) {
+                                setStatus(status, 'Vous avez refusé la géolocalisation.', 'error');
+                                return;
+                            }
+
+                            if (error.code === error.POSITION_UNAVAILABLE) {
+                                setStatus(status, 'Position GPS indisponible.', 'error');
+                                return;
+                            }
+
+                            if (error.code === error.TIMEOUT) {
+                                setStatus(status, 'Délai de géolocalisation dépassé.', 'error');
+                                return;
+                            }
+
+                            setStatus(status, 'Impossible de récupérer la position GPS.', 'error');
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 15000,
+                            maximumAge: 0,
+                        }
+                    );
+                };
+
+                forms.forEach((form) => {
+                    form.querySelectorAll('[data-gps-submit]').forEach((button) => {
+                        button.addEventListener('click', () => submitWithGps(form, button));
+                    });
+                });
+            })();
+        </script>
+        {% block scripts %}{% endblock %}
+    </body>
+</html>

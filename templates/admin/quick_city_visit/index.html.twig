@@ -1,0 +1,22 @@
+{% extends 'admin/field_tool/base.html.twig' %}
+
+{% block title %}Nouvelle visite de ville rapide{% endblock %}
+
+{% block body %}
+    <section class="field-card">
+        <h1 class="field-title">Nouvelle visite de ville rapide</h1>
+        <p class="field-subtitle">Démarrez une visite, puis ajoutez les lieux à visiter depuis votre position GPS.</p>
+
+        <form class="field-stack" method="post" action="{{ path('admin_quick_city_visit_start') }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('quick_city_visit_start') }}">
+            <input type="hidden" name="title" value="{{ default_title }}">
+
+            <div class="field-row">
+                <label class="field-label" for="quick_city_visit_notes">Note de visite</label>
+                <textarea id="quick_city_visit_notes" class="field-textarea" name="notes" placeholder="Optionnel"></textarea>
+            </div>
+
+            <button class="field-button" type="submit">Démarrer une visite de ville</button>
+        </form>
+    </section>
+{% endblock %}

@@ -1,0 +1,234 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Studio randonnée rapide{% endblock %}
+
+{% set main_form_id = 'studio-hike-main-form' %}
+
+{% block stylesheets %}
+    <style>
+        .studio-page { display: grid; gap: 18px; max-width: 1320px; width: 100%; }
+        .studio-hero, .studio-section { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: var(--admin-surface); }
+        .studio-hero { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+        .studio-eyebrow { margin: 0 0 4px; color: var(--admin-muted); font-size: .82rem; font-weight: 800; text-transform: uppercase; }
+        .studio-title { margin: 0; font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.1; }
+        .studio-meta, .studio-actions, .studio-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .studio-actions { justify-content: flex-end; }
+        .studio-badge { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 9px; border-radius: 999px; background: var(--admin-primary-soft); color: var(--admin-primary); font-size: .85rem; font-weight: 800; }
+        .studio-badge--muted { background: #eef0ee; color: var(--admin-muted); }
+        .studio-section__header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px; }
+        .studio-section h2 { margin: 0; font-size: 1.25rem; }
+        .studio-subtitle { margin: 6px 0 0; font-size: 1rem; }
+        .studio-section p { margin: 4px 0 0; color: var(--admin-muted); }
+        .studio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+        .studio-field { display: grid; gap: 6px; }
+        .studio-field--full { grid-column: 1 / -1; }
+        .studio-field label, .studio-label { color: #2d352f; font-weight: 800; }
+        .studio-field input, .studio-field select, .studio-field textarea, .studio-preview input, .studio-preview select, .studio-preview textarea, .studio-media-card input, .studio-media-card select, .studio-media-card textarea, .studio-video-form input, .studio-video-form select, .studio-video-form textarea { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fff; color: var(--admin-text); font: inherit; }
+        .studio-field textarea, .studio-preview textarea, .studio-media-card textarea, .studio-video-form textarea { min-height: 110px; resize: vertical; }
+        .studio-help { color: var(--admin-muted); font-size: .9rem; }
+        .studio-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        .studio-upload-form { display: grid; gap: 12px; }
+        .studio-file-input { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+        .studio-preview-list, .studio-media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+        .studio-preview, .studio-media-card, .studio-point { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fbfcfb; }
+        .studio-preview__name { color: var(--admin-text); font-weight: 800; word-break: break-word; }
+        .studio-preview img, .studio-media-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
+        .studio-point-media { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+        .studio-point-media-card { display: grid; gap: 6px; }
+        .studio-point-media-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
+        .studio-point-media-label { color: #2d352f; font-size: .85rem; font-weight: 800; }
+        .studio-media-card__body, .studio-video-form { display: grid; gap: 10px; }
+        .studio-media-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .studio-link { color: var(--admin-primary); font-weight: 800; }
+        .studio-hidden { display: none; }
+        .studio-button-danger { border: 1px solid #dba0a0; background: #fff5f5; color: #8c1d18; }
+        @media (max-width: 760px) { .studio-hero, .studio-media-row { grid-template-columns: 1fr; } .studio-actions { justify-content: flex-start; } .admin-button, .studio-upload label { width: 100%; justify-content: center; } }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_hike_edit', { id: hike.id }) }}"></form>
+    <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_hike_edit_' ~ hike.id) }}">
+
+    <div class="studio-page">
+        <section class="studio-hero">
+            <div>
+                <p class="studio-eyebrow">Studio randonnée rapide</p>
+                <h1 class="studio-title">{{ hike.title }}</h1>
+                <div class="studio-meta">
+                    <span class="studio-badge">{{ status_options[hike.status.value] ?? hike.status.value }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ hike.detectedCommuneName ?: 'Commune non détectée' }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ hike.detectedDepartmentName ?: 'Département non détecté' }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ hike.detectedRegionName ?: 'Région non détectée' }}</span>
+                </div>
+            </div>
+            <div class="studio-actions">
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
+                {% endif %}
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_field_tools_hikes') }}">Retour aux randonnées</a>
+                <button class="admin-button" form="{{ main_form_id }}" type="submit">Enregistrer</button>
+            </div>
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Préparation publication</h2>
+                    <p>Le brouillon terrain reste éditable avant conversion en contenu public.</p>
+                </div>
+            </div>
+            <div class="studio-grid">
+                <div class="studio-field">
+                    <label for="hike-title">Titre</label>
+                    <input form="{{ main_form_id }}" id="hike-title" name="title" value="{{ hike.title }}" required>
+                </div>
+                <div class="studio-field">
+                    <label for="hike-status">Statut</label>
+                    <select form="{{ main_form_id }}" id="hike-status" name="status">
+                        {% for value, label in status_options %}
+                            <option value="{{ value }}" {% if hike.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field">
+                    <label for="hike-destination">Destination associée</label>
+                    <select form="{{ main_form_id }}" id="hike-destination" name="destination">
+                        <option value="">Non associée</option>
+                        {% for destination in destinations %}
+                            <option value="{{ destination.id }}" {% if hike.destination and hike.destination.id == destination.id %}selected{% endif %}>{{ destination.name }} · {{ destination.type.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field studio-field--full">
+                    <label for="hike-notes">Notes</label>
+                    <textarea form="{{ main_form_id }}" id="hike-notes" name="notes" rows="8">{{ hike.notes }}</textarea>
+                </div>
+            </div>
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Points GPS</h2>
+                    <p>{{ hike.points|length }} point{{ hike.points|length > 1 ? 's' : '' }} relevé{{ hike.points|length > 1 ? 's' : '' }} sur le terrain.</p>
+                </div>
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Ouvrir l’itinéraire</a>
+                {% endif %}
+            </div>
+            <div class="studio-media-grid">
+                {% for point in hike.points %}
+                    <article class="studio-point">
+                        <strong>{{ point_labels[point.id] ?? (point.title ?: 'Point à visiter') }}</strong>
+                        <span>{{ point.latitude }}, {{ point.longitude }}</span>
+                        <span class="admin-muted">{{ point.detectedCommuneName ?: hike.detectedCommuneName ?: 'Commune non détectée' }}</span>
+                        {% if point.note %}<p>{{ point.note }}</p>{% endif %}
+                        {% if point_media_enabled and point.mediaLinks|length > 0 %}
+                            <div class="studio-point-media">
+                                {% for point_media in point.mediaLinks %}
+                                    {% set linked_media = point_media.mediaAsset %}
+                                    {% set linked_image_src = linked_media.filePath ? (linked_media.filePath starts with '/' ? linked_media.filePath : asset(linked_media.filePath)) : null %}
+                                    <article class="studio-point-media-card">
+                                        <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
+                                        {% if linked_media.mediaType.value == 'image' and linked_image_src %}
+                                            <img src="{{ linked_image_src }}" alt="{{ linked_media.altText ?: linked_media.title ?: (point_labels[point.id] ?? 'Point à visiter') }}">
+                                        {% elseif linked_media.externalUrl %}
+                                            <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
+                                        {% endif %}
+                                    </article>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </article>
+                {% else %}
+                    <p class="admin-muted">Aucun point GPS.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Photos</h2>
+                    <p>Associez chaque image à la couverture, à la galerie générale ou à un point GPS.</p>
+                </div>
+            </div>
+            {% include 'admin/studio/_photo_upload_form.html.twig' with {
+                action: path('admin_studio_hike_media_photos', { id: hike.id }),
+                csrf_token_id: 'studio_hike_photos_' ~ hike.id,
+                input_id: 'studio-hike-photo-input',
+                image_type_options: image_type_options,
+                association_options: photo_association_options,
+                point_target_options: point_target_options
+            } only %}
+            <h3 class="studio-subtitle">Image principale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: hike,
+                subject_label: hike.title,
+                media_links: cover_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_hike_media_update',
+                delete_route: 'admin_studio_hike_media_delete',
+                update_token_prefix: 'studio_hike_media_update_',
+                delete_token_prefix: 'studio_hike_media_delete_',
+                empty_label: 'Aucune image principale pour le moment.'
+            } only %}
+            <h3 class="studio-subtitle">Galerie générale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: hike,
+                subject_label: hike.title,
+                media_links: gallery_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_hike_media_update',
+                delete_route: 'admin_studio_hike_media_delete',
+                update_token_prefix: 'studio_hike_media_update_',
+                delete_token_prefix: 'studio_hike_media_delete_',
+                empty_label: 'Aucune photo liée pour le moment.'
+            } only %}
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Galerie générale - vidéos</h2>
+                    <p>Vidéos non associées à un point GPS.</p>
+                </div>
+                <button class="admin-button" type="button" data-video-toggle>Ajouter une vidéo</button>
+            </div>
+            <form class="studio-video-form studio-hidden" method="post" action="{{ path('admin_studio_hike_media_video', { id: hike.id }) }}" data-video-form>
+                <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_video_' ~ hike.id) }}">
+                {% include 'admin/studio/_video_form_fields.html.twig' with { video_type_options: video_type_options, association_options: video_association_options } only %}
+            </form>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: hike,
+                subject_label: hike.title,
+                media_links: video_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: video_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_hike_media_update',
+                delete_route: 'admin_studio_hike_media_delete',
+                update_token_prefix: 'studio_hike_media_update_',
+                delete_token_prefix: 'studio_hike_media_delete_',
+                empty_label: 'Aucune vidéo liée pour le moment.'
+            } only %}
+        </section>
+
+        <section class="studio-section">
+            <h2>Images 360° / 180°</h2>
+            {% include 'admin/studio/_immersive_cards.html.twig' with { media_links: immersive_links, image_type_options: image_type_options, subject_label: hike.title } only %}
+        </section>
+    </div>
+{% endblock %}
+
+{% block javascripts %}
+    {% include 'admin/studio/_studio_media_javascript.html.twig' %}
+{% endblock %}

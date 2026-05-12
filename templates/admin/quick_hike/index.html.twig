@@ -1,0 +1,22 @@
+{% extends 'admin/field_tool/base.html.twig' %}
+
+{% block title %}Nouvelle rando rapide{% endblock %}
+
+{% block body %}
+    <section class="field-card">
+        <h1 class="field-title">Nouvelle rando rapide</h1>
+        <p class="field-subtitle">Créez un brouillon terrain, puis enregistrez le départ et les points utiles depuis votre position GPS.</p>
+
+        <form class="field-stack" method="post" action="{{ path('admin_quick_hike_start') }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('quick_hike_start') }}">
+            <input type="hidden" name="title" value="{{ default_title }}">
+
+            <div class="field-row">
+                <label class="field-label" for="quick_hike_notes">Note de départ</label>
+                <textarea id="quick_hike_notes" class="field-textarea" name="notes" placeholder="Optionnel"></textarea>
+            </div>
+
+            <button class="field-button" type="submit">Démarrer une rando rapide</button>
+        </form>
+    </section>
+{% endblock %}

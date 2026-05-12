@@ -1,0 +1,39 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Articles{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Articles</h1>
+            <p class="admin-subtitle">Liste de consultation. Les formulaires métier seront ajoutés ensuite.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Titre</th>
+                    <th>Statut</th>
+                    <th>Catégorie</th>
+                    <th>Médias liés</th>
+                    <th>Mise à jour</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for article in articles %}
+                    <tr>
+                        <td>{{ article.title }}</td>
+                        <td>{{ article.status.value }}</td>
+                        <td>{{ article.category ?: 'Non renseignée' }}</td>
+                        <td>{{ article.mediaLinks|length }}</td>
+                        <td>{{ article.updatedAt ? article.updatedAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">Aucun article.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

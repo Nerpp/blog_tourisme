@@ -1,0 +1,126 @@
+<script>
+    (() => {
+        const videoToggle = document.querySelector('[data-video-toggle]');
+        const videoForm = document.querySelector('[data-video-form]');
+
+        const buildOptions = (options, selected) => Object.entries(options)
+            .map(([value, label]) => `<option value="${value}"${value === selected ? ' selected' : ''}>${label}</option>`)
+            .join('');
+
+        document.querySelectorAll('[data-photo-upload-form]').forEach((form) => {
+            const fileInput = form.querySelector('[data-photo-input]');
+            const preview = form.querySelector('[data-photo-preview]');
+            const submitButton = form.querySelector('[data-photo-submit]');
+            if (!fileInput || !preview || !submitButton) {
+                return;
+            }
+
+            const imageTypeOptions = JSON.parse(preview.dataset.imageTypes || '{}');
+            const associationOptions = JSON.parse(preview.dataset.associations || '{"gallery":"Galerie générale"}');
+            const selectedFiles = [];
+
+            const syncInputFiles = () => {
+                const transfer = new DataTransfer();
+                selectedFiles.forEach((item) => transfer.items.add(item.file));
+                fileInput.files = transfer.files;
+                submitButton.disabled = selectedFiles.length === 0;
+            };
+
+            const renderPreview = () => {
+                preview.innerHTML = '';
+                selectedFiles.forEach((item, index) => {
+                    const card = document.createElement('article');
+                    card.className = 'studio-preview';
+
+                    const image = document.createElement('img');
+                    const url = URL.createObjectURL(item.file);
+                    image.src = url;
+                    image.alt = item.file.name;
+                    image.onload = () => URL.revokeObjectURL(url);
+                    card.appendChild(image);
+
+                    const name = document.createElement('span');
+                    name.className = 'studio-preview__name';
+                    name.textContent = item.file.name;
+                    card.appendChild(name);
+
+                    const captionField = document.createElement('label');
+                    captionField.className = 'studio-field';
+                    const captionLabel = document.createElement('span');
+                    captionLabel.textContent = 'Commentaire photo';
+                    const captionInput = document.createElement('textarea');
+                    captionInput.name = 'photoCaptions[]';
+                    captionInput.rows = 3;
+                    captionInput.value = item.caption;
+                    const captionHelp = document.createElement('span');
+                    captionHelp.className = 'studio-help';
+                    captionHelp.textContent = 'Cette légende pourra être affichée sous la photo.';
+                    captionField.append(captionLabel, captionInput, captionHelp);
+                    captionInput.addEventListener('input', () => {
+                        item.caption = captionInput.value;
+                    });
+                    card.appendChild(captionField);
+
+                    const row = document.createElement('div');
+                    row.className = 'studio-media-row';
+                    row.innerHTML = `
+                        <label class="studio-field">
+                            <span>Type d’image</span>
+                            <select name="photoImageTypes[]">${buildOptions(imageTypeOptions, item.imageType)}</select>
+                        </label>
+                        <label class="studio-field">
+                            <span>Associer à</span>
+                            <select name="photoAssociations[]">${buildOptions(associationOptions, item.association)}</select>
+                        </label>
+                    `;
+                    const imageTypeSelect = row.querySelector('select[name="photoImageTypes[]"]');
+                    const associationSelect = row.querySelector('select[name="photoAssociations[]"]');
+
+                    imageTypeSelect.addEventListener('change', () => {
+                        item.imageType = imageTypeSelect.value;
+                    });
+                    associationSelect.addEventListener('change', () => {
+                        item.association = associationSelect.value;
+                    });
+                    card.appendChild(row);
+
+                    const removeButton = document.createElement('button');
+                    removeButton.className = 'admin-button admin-button--secondary studio-button-danger';
+                    removeButton.type = 'button';
+                    removeButton.textContent = 'Retirer';
+                    removeButton.addEventListener('click', () => {
+                        selectedFiles.splice(index, 1);
+                        syncInputFiles();
+                        renderPreview();
+                    });
+                    card.appendChild(removeButton);
+
+                    preview.appendChild(card);
+                });
+            };
+
+            fileInput.addEventListener('change', () => {
+                Array.from(fileInput.files || []).forEach((file) => {
+                    if (!file.type.startsWith('image/')) {
+                        return;
+                    }
+
+                    selectedFiles.push({
+                        file,
+                        caption: '',
+                        imageType: 'standard',
+                        association: 'gallery',
+                    });
+                });
+                syncInputFiles();
+                renderPreview();
+            });
+        });
+
+        if (videoToggle && videoForm) {
+            videoToggle.addEventListener('click', () => {
+                videoForm.classList.toggle('studio-hidden');
+            });
+        }
+    })();
+</script>

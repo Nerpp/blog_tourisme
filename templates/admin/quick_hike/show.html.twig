@@ -1,0 +1,134 @@
+{% extends 'admin/field_tool/base.html.twig' %}
+
+{% block title %}{{ hike.title }}{% endblock %}
+
+{% block topbar_action %}
+    <a class="field-back" href="{{ admin_back_url }}">Retour outils terrain</a>
+{% endblock %}
+
+{% block body %}
+    <section class="field-card">
+        <h1 class="field-title">{{ hike.title }}</h1>
+        <dl class="field-meta">
+            <dt>Commune</dt>
+            <dd>
+                {% if hike.detectedCommuneName %}
+                    {{ hike.detectedCommuneName }}{% if hike.detectedCommuneCode %} ({{ hike.detectedCommuneCode }}){% endif %}
+                {% else %}
+                    Non détectée
+                {% endif %}
+            </dd>
+            <dt>Destination</dt>
+            <dd>
+                {% if hike.destination %}
+                    {{ hike.destination.name }}
+                {% elseif hike.detectedCommuneName %}
+                    Commune détectée : {{ hike.detectedCommuneName }}, destination non trouvée dans la base.
+                {% else %}
+                    Non déterminée
+                {% endif %}
+            </dd>
+            <dt>Statut</dt>
+            <dd>{{ hike.status.value }}</dd>
+        </dl>
+    </section>
+
+    {% if errors is not empty %}
+        <div class="field-alert">
+            {% for error in errors %}
+                <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if hike.status.value == 'draft' %}
+        {% if not has_start_point %}
+            <section class="field-card">
+                <form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form>
+                    <input type="hidden" name="quick_hike_point[_token]" value="{{ csrf_token('quick_hike_point_' ~ hike.id) }}">
+                    <input type="hidden" name="quick_hike_point[type]" value="start" data-gps-type>
+                    <input type="hidden" name="quick_hike_point[titlePoint]" value="Départ">
+                    <input type="hidden" name="quick_hike_point[latitude]" data-gps-latitude>
+                    <input type="hidden" name="quick_hike_point[longitude]" data-gps-longitude>
+                    <input type="hidden" name="quick_hike_point[accuracy]" data-gps-accuracy>
+
+                    <div class="field-row">
+                        <label class="field-label" for="quick_hike_start_note">Note rapide</label>
+                        <textarea id="quick_hike_start_note" class="field-textarea" name="quick_hike_point[note]" placeholder="Optionnel"></textarea>
+                    </div>
+
+                    <p class="field-status" data-gps-status aria-live="polite"></p>
+                    <button class="field-button" type="button" data-gps-submit data-point-type="start">Enregistrer le point de départ</button>
+                </form>
+            </section>
+        {% endif %}
+
+        <section class="field-card">
+            <form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form>
+                <input type="hidden" name="quick_hike_point[_token]" value="{{ csrf_token('quick_hike_point_' ~ hike.id) }}">
+                <input type="hidden" name="quick_hike_point[latitude]" data-gps-latitude>
+                <input type="hidden" name="quick_hike_point[longitude]" data-gps-longitude>
+                <input type="hidden" name="quick_hike_point[accuracy]" data-gps-accuracy>
+
+                <div class="field-row">
+                    <label class="field-label" for="quick_hike_point_type">Type de point</label>
+                    <select id="quick_hike_point_type" class="field-select" name="quick_hike_point[type]" data-gps-type>
+                        {% for value, label in interest_point_types %}
+                            <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="field-row">
+                    <label class="field-label" for="quick_hike_point_title">Nom du point</label>
+                    <input id="quick_hike_point_title" class="field-input" type="text" name="quick_hike_point[titlePoint]" placeholder="Optionnel">
+                </div>
+
+                <div class="field-row">
+                    <label class="field-label" for="quick_hike_point_note">Note rapide</label>
+                    <textarea id="quick_hike_point_note" class="field-textarea" name="quick_hike_point[note]" placeholder="Optionnel"></textarea>
+                </div>
+
+                <p class="field-status" data-gps-status aria-live="polite"></p>
+                <button class="field-button field-button--secondary" type="button" data-gps-submit>Ajouter un point d’intérêt</button>
+            </form>
+        </section>
+
+        <form method="post" action="{{ path('admin_quick_hike_finish', { id: hike.id }) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('quick_hike_finish_' ~ hike.id) }}">
+            <button class="field-button field-button--danger" type="submit">Terminer</button>
+        </form>
+    {% endif %}
+
+    <section class="field-card">
+        <h2 class="field-subtitle">Points enregistrés</h2>
+        {% if hike.points is empty %}
+            <p class="field-subtitle">Aucun point GPS enregistré.</p>
+        {% else %}
+            <ol class="field-points">
+                {% for point in hike.points %}
+                    <li class="field-point">
+                        <div class="field-point__header">
+                            <span>{{ point.position }}. {{ point.title ?: point.type.value }}</span>
+                            <span>{{ point.type.value }}</span>
+                        </div>
+                        <div class="field-point__meta">
+                            {{ point.latitude|number_format(6, '.', '') }}, {{ point.longitude|number_format(6, '.', '') }}
+                            {% if point.accuracy is not null %}
+                                · précision {{ point.accuracy|round }} m
+                            {% endif %}
+                        </div>
+                        {% if point.detectedCommuneName %}
+                            <div class="field-point__meta">
+                                {{ point.detectedCommuneName }}{% if point.detectedDepartmentName %} · {{ point.detectedDepartmentName }}{% endif %}{% if point.detectedRegionName %} · {{ point.detectedRegionName }}{% endif %}
+                            </div>
+                        {% endif %}
+                        {% if point.note %}
+                            <div>{{ point.note|nl2br }}</div>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ol>
+        {% endif %}
+    </section>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Utilisateurs{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Utilisateurs</h1>
+            <p class="admin-subtitle">Vue de consultation des comptes.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Nom affiché</th>
+                    <th>Rôles</th>
+                    <th>Commentateur fiable</th>
+                    <th>Commentaires approuvés</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                    <tr>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.displayName ?: '-' }}</td>
+                        <td>{{ user.roles|join(', ') }}</td>
+                        <td>{{ user.trustedCommenter ? 'Oui' : 'Non' }}</td>
+                        <td>{{ user.approvedCommentsCount }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">Aucun utilisateur.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Visites de ville rapides{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Visites de ville rapides</h1>
+            <p class="admin-subtitle">Parcours urbains rapides avec points GPS et lien Google Maps.</p>
+        </div>
+        <a class="admin-button" href="{{ path('admin_quick_city_visit_index') }}">Nouvelle visite de ville rapide</a>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Titre</th>
+                    <th>Statut</th>
+                    <th>Commune</th>
+                    <th>Destination</th>
+                    <th>Points</th>
+                    <th>Google Maps</th>
+                    <th>Création</th>
+                    <th>Studio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for city_visit in city_visits %}
+                    <tr>
+                        <td>{{ city_visit.title }}</td>
+                        <td>{{ city_visit.status.value }}</td>
+                        <td>{{ city_visit.detectedCommuneName ?: '-' }}</td>
+                        <td>{{ city_visit.destination ?: '-' }}</td>
+                        <td>{{ city_visit.points|length }}</td>
+                        <td>
+                            {% if city_visit.googleMapsUrl %}
+                                <a href="{{ city_visit.googleMapsUrl }}" target="_blank" rel="noopener noreferrer">Ouvrir</a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ city_visit.createdAt ? city_visit.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                        <td><a class="admin-button admin-button--secondary" href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}">Ouvrir</a></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8">Aucune visite de ville rapide.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

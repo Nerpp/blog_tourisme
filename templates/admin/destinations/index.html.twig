@@ -1,0 +1,39 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Destinations{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Destinations</h1>
+            <p class="admin-subtitle">Pays, régions, départements, zones et communes utilisés par le contenu.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Type</th>
+                    <th>Code</th>
+                    <th>Parent</th>
+                    <th>Lieux</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for destination in destinations %}
+                    <tr>
+                        <td>{{ destination.name }}</td>
+                        <td>{{ destination.type.value }}</td>
+                        <td>{{ destination.code ?: '-' }}</td>
+                        <td>{{ destination.parent ?: '-' }}</td>
+                        <td>{{ destination.places|length }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">Aucune destination.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Lieux à visiter{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Lieux à visiter</h1>
+            <p class="admin-subtitle">Vue simple des lieux, destinations et médias associés.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Destination</th>
+                    <th>Statut</th>
+                    <th>Médias liés</th>
+                    <th>Mise à jour</th>
+                    <th>Studio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for place in places %}
+                    <tr>
+                        <td>{{ place.name }}</td>
+                        <td>{{ place.destination }}</td>
+                        <td>{{ place.status.value }}</td>
+                        <td>{{ place.mediaLinks|length }}</td>
+                        <td>{{ place.updatedAt ? place.updatedAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                        <td><a class="admin-button admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir</a></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="6">Aucun lieu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

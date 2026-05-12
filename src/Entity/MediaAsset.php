@@ -95,12 +95,32 @@ class MediaAsset
     #[ORM\OneToMany(mappedBy: 'mediaAsset', targetEntity: PlaceMedia::class)]
     private Collection $placeLinks;
 
+    /** @var Collection<int, HikeDraftMedia> */
+    #[ORM\OneToMany(mappedBy: 'mediaAsset', targetEntity: HikeDraftMedia::class)]
+    private Collection $hikeDraftLinks;
+
+    /** @var Collection<int, CityVisitDraftMedia> */
+    #[ORM\OneToMany(mappedBy: 'mediaAsset', targetEntity: CityVisitDraftMedia::class)]
+    private Collection $cityVisitDraftLinks;
+
+    /** @var Collection<int, HikePointMedia> */
+    #[ORM\OneToMany(mappedBy: 'mediaAsset', targetEntity: HikePointMedia::class)]
+    private Collection $hikePointLinks;
+
+    /** @var Collection<int, CityVisitPointMedia> */
+    #[ORM\OneToMany(mappedBy: 'mediaAsset', targetEntity: CityVisitPointMedia::class)]
+    private Collection $cityVisitPointLinks;
+
     public function __construct()
     {
         $this->featuredArticles = new ArrayCollection();
         $this->featuredPlaces = new ArrayCollection();
         $this->articleLinks = new ArrayCollection();
         $this->placeLinks = new ArrayCollection();
+        $this->hikeDraftLinks = new ArrayCollection();
+        $this->cityVisitDraftLinks = new ArrayCollection();
+        $this->hikePointLinks = new ArrayCollection();
+        $this->cityVisitPointLinks = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -342,5 +362,29 @@ class MediaAsset
     public function getPlaceLinks(): Collection
     {
         return $this->placeLinks;
+    }
+
+    /** @return Collection<int, HikeDraftMedia> */
+    public function getHikeDraftLinks(): Collection
+    {
+        return $this->hikeDraftLinks;
+    }
+
+    /** @return Collection<int, CityVisitDraftMedia> */
+    public function getCityVisitDraftLinks(): Collection
+    {
+        return $this->cityVisitDraftLinks;
+    }
+
+    /** @return Collection<int, HikePointMedia> */
+    public function getHikePointLinks(): Collection
+    {
+        return $this->hikePointLinks;
+    }
+
+    /** @return Collection<int, CityVisitPointMedia> */
+    public function getCityVisitPointLinks(): Collection
+    {
+        return $this->cityVisitPointLinks;
     }
 }

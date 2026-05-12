@@ -1,0 +1,34 @@
+<div class="studio-grid">
+    {% set association_options = association_options|default({ 'gallery': 'Galerie générale' }) %}
+    <div class="studio-field">
+        <label for="video-title">Titre</label>
+        <input id="video-title" name="title">
+    </div>
+    <div class="studio-field">
+        <label for="video-url">URL vidéo</label>
+        <input id="video-url" name="externalUrl" type="url" required>
+    </div>
+    <div class="studio-field">
+        <label for="video-type">Type</label>
+        <select id="video-type" name="videoType">
+            {% for value, label in video_type_options %}
+                <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="studio-field">
+        <label for="video-point-target">Associer à</label>
+        <select id="video-point-target" name="association">
+            {% for value, label in association_options %}
+                <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="studio-field studio-field--full">
+        <label for="video-caption">Légende</label>
+        <textarea id="video-caption" name="caption" rows="3"></textarea>
+    </div>
+</div>
+<div class="studio-inline-actions">
+    <button class="admin-button" type="submit">Enregistrer la vidéo</button>
+</div>

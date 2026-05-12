@@ -1,0 +1,188 @@
+{% extends 'admin/studio/hike_edit.html.twig' %}
+
+{% block title %}Studio visite de ville rapide{% endblock %}
+
+{% set main_form_id = 'studio-city-visit-main-form' %}
+{% set hike = city_visit %}
+
+{% block body %}
+    <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}"></form>
+    <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_edit_' ~ city_visit.id) }}">
+
+    <div class="studio-page">
+        <section class="studio-hero">
+            <div>
+                <p class="studio-eyebrow">Studio visite de ville rapide</p>
+                <h1 class="studio-title">{{ city_visit.title }}</h1>
+                <div class="studio-meta">
+                    <span class="studio-badge">{{ status_options[city_visit.status.value] ?? city_visit.status.value }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ city_visit.detectedCommuneName ?: 'Commune non détectée' }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ city_visit.destination ? city_visit.destination.name : 'Destination non associée' }}</span>
+                </div>
+            </div>
+            <div class="studio-actions">
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
+                {% endif %}
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_field_tools_city_visits') }}">Retour aux visites</a>
+                <button class="admin-button" form="{{ main_form_id }}" type="submit">Enregistrer</button>
+            </div>
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Préparation visite</h2>
+                    <p>Les points terrain servent à construire ensuite le parcours publié.</p>
+                </div>
+            </div>
+            <div class="studio-grid">
+                <div class="studio-field">
+                    <label for="city-visit-title">Titre</label>
+                    <input form="{{ main_form_id }}" id="city-visit-title" name="title" value="{{ city_visit.title }}" required>
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-status">Statut</label>
+                    <select form="{{ main_form_id }}" id="city-visit-status" name="status">
+                        {% for value, label in status_options %}
+                            <option value="{{ value }}" {% if city_visit.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-destination">Destination associée</label>
+                    <select form="{{ main_form_id }}" id="city-visit-destination" name="destination">
+                        <option value="">Non associée</option>
+                        {% for destination in destinations %}
+                            <option value="{{ destination.id }}" {% if city_visit.destination and city_visit.destination.id == destination.id %}selected{% endif %}>{{ destination.name }} · {{ destination.type.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field studio-field--full">
+                    <label for="city-visit-notes">Notes</label>
+                    <textarea form="{{ main_form_id }}" id="city-visit-notes" name="notes" rows="8">{{ city_visit.notes }}</textarea>
+                </div>
+            </div>
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Points à visiter</h2>
+                    <p>{{ city_visit.points|length }} point{{ city_visit.points|length > 1 ? 's' : '' }} dans le parcours.</p>
+                </div>
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Ouvrir avec étapes</a>
+                {% endif %}
+            </div>
+            <div class="studio-media-grid">
+                {% for point in city_visit.points %}
+                    <article class="studio-point">
+                        <strong>{{ point_labels[point.id] ?? (point.title ?: 'Point à visiter') }}</strong>
+                        <span>{{ point.latitude }}, {{ point.longitude }}</span>
+                        <span class="admin-muted">{{ point.detectedCommuneName ?: city_visit.detectedCommuneName ?: 'Commune non détectée' }}</span>
+                        {% if point.note %}<p>{{ point.note }}</p>{% endif %}
+                        {% if point_media_enabled and point.mediaLinks|length > 0 %}
+                            <div class="studio-point-media">
+                                {% for point_media in point.mediaLinks %}
+                                    {% set linked_media = point_media.mediaAsset %}
+                                    {% set linked_image_src = linked_media.filePath ? (linked_media.filePath starts with '/' ? linked_media.filePath : asset(linked_media.filePath)) : null %}
+                                    <article class="studio-point-media-card">
+                                        <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
+                                        {% if linked_media.mediaType.value == 'image' and linked_image_src %}
+                                            <img src="{{ linked_image_src }}" alt="{{ linked_media.altText ?: linked_media.title ?: (point_labels[point.id] ?? 'Point à visiter') }}">
+                                        {% elseif linked_media.externalUrl %}
+                                            <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
+                                        {% endif %}
+                                    </article>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </article>
+                {% else %}
+                    <p class="admin-muted">Aucun point à visiter.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Photos</h2>
+                    <p>Associez chaque image à la couverture, à la galerie générale ou à un point à visiter.</p>
+                </div>
+            </div>
+            {% include 'admin/studio/_photo_upload_form.html.twig' with {
+                action: path('admin_studio_city_visit_media_photos', { id: city_visit.id }),
+                csrf_token_id: 'studio_city_visit_photos_' ~ city_visit.id,
+                input_id: 'studio-city-visit-photo-input',
+                image_type_options: image_type_options,
+                association_options: photo_association_options,
+                point_target_options: point_target_options
+            } only %}
+            <h3 class="studio-subtitle">Image principale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: city_visit,
+                subject_label: city_visit.title,
+                media_links: cover_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_city_visit_media_update',
+                delete_route: 'admin_studio_city_visit_media_delete',
+                update_token_prefix: 'studio_city_visit_media_update_',
+                delete_token_prefix: 'studio_city_visit_media_delete_',
+                empty_label: 'Aucune image principale pour le moment.'
+            } only %}
+            <h3 class="studio-subtitle">Galerie générale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: city_visit,
+                subject_label: city_visit.title,
+                media_links: gallery_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_city_visit_media_update',
+                delete_route: 'admin_studio_city_visit_media_delete',
+                update_token_prefix: 'studio_city_visit_media_update_',
+                delete_token_prefix: 'studio_city_visit_media_delete_',
+                empty_label: 'Aucune photo liée pour le moment.'
+            } only %}
+        </section>
+
+        <section class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Galerie générale - vidéos</h2>
+                    <p>Vidéos non associées à un point à visiter.</p>
+                </div>
+                <button class="admin-button" type="button" data-video-toggle>Ajouter une vidéo</button>
+            </div>
+            <form class="studio-video-form studio-hidden" method="post" action="{{ path('admin_studio_city_visit_media_video', { id: city_visit.id }) }}" data-video-form>
+                <input type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_video_' ~ city_visit.id) }}">
+                {% include 'admin/studio/_video_form_fields.html.twig' with { video_type_options: video_type_options, association_options: video_association_options } only %}
+            </form>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: city_visit,
+                subject_label: city_visit.title,
+                media_links: video_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: video_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_city_visit_media_update',
+                delete_route: 'admin_studio_city_visit_media_delete',
+                update_token_prefix: 'studio_city_visit_media_update_',
+                delete_token_prefix: 'studio_city_visit_media_delete_',
+                empty_label: 'Aucune vidéo liée pour le moment.'
+            } only %}
+        </section>
+
+        <section class="studio-section">
+            <h2>Images 360° / 180°</h2>
+            {% include 'admin/studio/_immersive_cards.html.twig' with { media_links: immersive_links, image_type_options: image_type_options, subject_label: city_visit.title } only %}
+        </section>
+    </div>
+{% endblock %}

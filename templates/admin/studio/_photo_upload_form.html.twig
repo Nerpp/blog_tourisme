@@ -1,0 +1,18 @@
+<form class="studio-upload-form" method="post" action="{{ action }}" enctype="multipart/form-data" data-photo-upload-form>
+    {% set point_target_options = point_target_options|default({}) %}
+    {% set association_options = association_options|default(photo_usage_options|default({ 'gallery': 'Galerie générale' })) %}
+    <input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
+    <div class="studio-upload">
+        <label class="admin-button" for="{{ input_id }}">Ajouter des photos</label>
+        <input class="studio-file-input" id="{{ input_id }}" data-photo-input type="file" name="photos[]" accept="image/*" multiple>
+        <button class="admin-button admin-button--secondary" type="submit" data-photo-submit disabled>Importer</button>
+    </div>
+    <p class="studio-help">Ajoutez un commentaire, choisissez le type d’image et associez chaque photo à l’image principale, à la galerie générale ou à un point GPS.</p>
+    <div
+        class="studio-preview-list"
+        data-photo-preview
+        data-image-types="{{ image_type_options|json_encode|e('html_attr') }}"
+        data-associations="{{ association_options|json_encode|e('html_attr') }}"
+        data-point-targets="{{ point_target_options|json_encode|e('html_attr') }}"
+    ></div>
+</form>

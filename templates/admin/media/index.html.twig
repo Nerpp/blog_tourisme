@@ -1,0 +1,41 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Médias{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Médias</h1>
+            <p class="admin-subtitle">Inventaire des photos, vidéos et médias immersifs. Le workflow d’ajout sera développé dans l’admin custom.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Titre</th>
+                    <th>Type</th>
+                    <th>Image</th>
+                    <th>Vidéo</th>
+                    <th>Fichier ou URL</th>
+                    <th>Création</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for media in media_assets %}
+                    <tr>
+                        <td>{{ media.title ?: 'Sans titre' }}</td>
+                        <td>{{ media.mediaType.value }}</td>
+                        <td>{{ media.imageType ? media.imageType.value : '-' }}</td>
+                        <td>{{ media.videoType ? media.videoType.value : '-' }}</td>
+                        <td>{{ media.filePath ?: media.externalUrl ?: '-' }}</td>
+                        <td>{{ media.createdAt ? media.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="6">Aucun média.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

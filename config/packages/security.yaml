@@ -26,7 +26,6 @@ security:
                 target: app_home
 
     access_control:
-        - { path: ^/admin/quick-hike, roles: ROLE_USER }
         - { path: ^/admin, roles: ADMIN_ACCESS }
         - { path: ^/profile, roles: ROLE_USER }
         - { path: ^/comments, roles: ROLE_USER }

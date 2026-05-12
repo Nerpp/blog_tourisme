@@ -2,14 +2,14 @@
 
 namespace App\Controller\Admin;
 
+use App\Entity\CityVisitDraft;
+use App\Entity\CityVisitPoint;
 use App\Entity\Destination;
-use App\Entity\HikeDraft;
-use App\Entity\HikePoint;
 use App\Entity\User;
-use App\Enum\HikeDraftStatus;
-use App\Enum\HikePointType;
-use App\Repository\HikeDraftRepository;
-use App\Security\Voter\QuickHikeVoter;
+use App\Enum\CityVisitDraftStatus;
+use App\Enum\CityVisitPointType;
+use App\Repository\CityVisitDraftRepository;
+use App\Security\Voter\QuickCityVisitVoter;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -22,11 +22,11 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
-#[Route('/admin/quick-hike', name: 'admin_quick_hike_')]
-final class QuickHikeController extends AbstractController
+#[Route('/admin/quick-city-visit', name: 'admin_quick_city_visit_')]
+final class QuickCityVisitController extends AbstractController
 {
     public function __construct(
-        private readonly HikeDraftRepository $hikeDraftRepository,
+        private readonly CityVisitDraftRepository $cityVisitDraftRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly SluggerInterface $slugger,
@@ -41,12 +41,12 @@ final class QuickHikeController extends AbstractController
         }
 
         $user = $this->getUser();
-        if ($user instanceof User && ($draft = $this->hikeDraftRepository->findCurrentDraftForUser($user)) instanceof HikeDraft) {
-            return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
+        if ($user instanceof User && ($draft = $this->cityVisitDraftRepository->findCurrentDraftForUser($user)) instanceof CityVisitDraft) {
+            return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $draft->getId()]);
         }
 
-        return $this->render('admin/quick_hike/index.html.twig', [
-            'default_title' => $this->defaultHikeTitle(),
+        return $this->render('admin/quick_city_visit/index.html.twig', [
+            'default_title' => $this->defaultVisitTitle(),
         ]);
     }
 
@@ -57,18 +57,18 @@ final class QuickHikeController extends AbstractController
             return $redirect;
         }
 
-        if (!$this->isCsrfTokenValid('quick_hike_start', (string) $request->request->get('_token', ''))) {
+        if (!$this->isCsrfTokenValid('quick_city_visit_start', (string) $request->request->get('_token', ''))) {
             $this->addFlash('warning', 'Le formulaire a expiré. Merci de réessayer.');
 
-            return $this->redirectToRoute('admin_quick_hike_index');
+            return $this->redirectToRoute('admin_quick_city_visit_index');
         }
 
-        $title = trim((string) $request->request->get('title', '')) ?: $this->defaultHikeTitle();
+        $title = trim((string) $request->request->get('title', '')) ?: $this->defaultVisitTitle();
         $notes = trim((string) $request->request->get('notes', ''));
-        $draft = (new HikeDraft())
+        $draft = (new CityVisitDraft())
             ->setTitle($title)
             ->setSlug($this->createUniqueSlug($title))
-            ->setStatus(HikeDraftStatus::Draft)
+            ->setStatus(CityVisitDraftStatus::Draft)
             ->setNotes($notes !== '' ? $notes : null);
 
         $user = $this->getUser();
@@ -79,90 +79,83 @@ final class QuickHikeController extends AbstractController
         $this->entityManager->persist($draft);
         $this->entityManager->flush();
 
-        return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
+        return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $draft->getId()]);
     }
 
     #[Route('/{id}', name: 'show', requirements: ['id' => '\d+'], methods: ['GET'])]
-    public function show(HikeDraft $hikeDraft): Response
+    public function show(CityVisitDraft $cityVisitDraft): Response
     {
         if ($redirect = $this->denyUnlessAdmin()) {
             return $redirect;
         }
 
-        return $this->renderShow($hikeDraft);
+        return $this->renderShow($cityVisitDraft);
     }
 
     #[Route('/{id}/point', name: 'point', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function point(Request $request, HikeDraft $hikeDraft): Response
+    public function point(Request $request, CityVisitDraft $cityVisitDraft): Response
     {
         if ($redirect = $this->denyUnlessAdmin()) {
             return $redirect;
         }
 
-        if ($hikeDraft->getStatus() !== HikeDraftStatus::Draft) {
-            return $this->pointError($request, 'Cette randonnée n’est plus en brouillon.', $hikeDraft);
+        if ($cityVisitDraft->getStatus() !== CityVisitDraftStatus::Draft) {
+            return $this->pointError($request, 'Cette visite n’est plus en brouillon.', $cityVisitDraft);
         }
 
         $formData = $this->submittedPointFormData($request);
         $errors = $this->validatePointCoordinates($formData);
 
-        if (!$this->isCsrfTokenValid(sprintf('quick_hike_point_%d', $hikeDraft->getId()), $formData['_token'])) {
+        if (!$this->isCsrfTokenValid(sprintf('quick_city_visit_point_%d', $cityVisitDraft->getId()), $formData['_token'])) {
             $errors[] = 'Le formulaire a expiré. Merci de réessayer.';
         }
 
         if ($errors !== []) {
-            return $this->pointError($request, $errors[0], $hikeDraft, Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->pointError($request, $errors[0], $cityVisitDraft, Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $pointType = HikePointType::tryFrom($formData['type']) ?? HikePointType::Interest;
-        if (!$this->hasStartPoint($hikeDraft)) {
-            $pointType = HikePointType::Start;
-        }
-
+        $pointType = CityVisitPointType::tryFrom($formData['type']) ?? CityVisitPointType::Other;
         $location = $this->terrainLocationResolver->resolve((float) $formData['latitude'], (float) $formData['longitude']);
-        $this->applyDraftLocation($hikeDraft, $location['geocoding'], $location['destination']);
+        $this->applyDraftLocation($cityVisitDraft, $location['geocoding'], $location['destination']);
 
         $point = $this->createPoint(
-            $hikeDraft,
+            $cityVisitDraft,
             $formData,
             $pointType,
-            $this->nextPointPosition($hikeDraft),
+            $this->nextPointPosition($cityVisitDraft),
             $location['geocoding'],
         );
 
-        $hikeDraft->addPoint($point);
+        $cityVisitDraft->addPoint($point);
+        $cityVisitDraft->setGoogleMapsUrl($this->generateGoogleMapsUrl($cityVisitDraft));
+
         $this->entityManager->flush();
 
-        return $this->pointSuccess($request, 'Point GPS enregistré.', $hikeDraft);
+        return $this->pointSuccess($request, 'Point GPS enregistré.', $cityVisitDraft);
     }
 
     #[Route('/{id}/finish', name: 'finish', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function finish(Request $request, HikeDraft $hikeDraft): Response
+    public function finish(Request $request, CityVisitDraft $cityVisitDraft): Response
     {
         if ($redirect = $this->denyUnlessAdmin()) {
             return $redirect;
         }
 
-        if (!$this->isCsrfTokenValid(sprintf('quick_hike_finish_%d', $hikeDraft->getId()), (string) $request->request->get('_token', ''))) {
+        if (!$this->isCsrfTokenValid(sprintf('quick_city_visit_finish_%d', $cityVisitDraft->getId()), (string) $request->request->get('_token', ''))) {
             $this->addFlash('warning', 'Le formulaire a expiré. Merci de réessayer.');
 
-            return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
+            return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $cityVisitDraft->getId()]);
         }
 
-        if (!$this->hasStartPoint($hikeDraft)) {
-            $this->addFlash('warning', 'Enregistrez le point de départ avant de terminer.');
-
-            return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
-        }
-
-        $hikeDraft
-            ->setStatus(HikeDraftStatus::Finished)
-            ->setFinishedAt(new DateTimeImmutable());
+        $cityVisitDraft
+            ->setStatus(CityVisitDraftStatus::Finished)
+            ->setFinishedAt(new DateTimeImmutable())
+            ->setGoogleMapsUrl($this->generateGoogleMapsUrl($cityVisitDraft));
 
         $this->entityManager->flush();
-        $this->addFlash('success', 'Randonnée rapide terminée.');
+        $this->addFlash('success', 'Visite de ville terminée.');
 
-        return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
+        return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $cityVisitDraft->getId()]);
     }
 
     private function denyUnlessAdmin(): ?RedirectResponse
@@ -171,7 +164,7 @@ final class QuickHikeController extends AbstractController
             return $this->redirectToRoute('app_login');
         }
 
-        if (!$this->isGranted(QuickHikeVoter::CREATE)) {
+        if (!$this->isGranted(QuickCityVisitVoter::CREATE)) {
             $this->addFlash('warning', 'Vous n’avez pas accès à cet outil terrain.');
 
             return $this->redirectToRoute('app_home');
@@ -181,22 +174,13 @@ final class QuickHikeController extends AbstractController
     }
 
     /** @param list<string> $errors */
-    private function renderShow(HikeDraft $hikeDraft, array $errors = [], int $status = Response::HTTP_OK): Response
+    private function renderShow(CityVisitDraft $cityVisitDraft, array $errors = [], int $status = Response::HTTP_OK): Response
     {
-        return $this->render('admin/quick_hike/show.html.twig', [
-            'hike' => $hikeDraft,
+        return $this->render('admin/quick_city_visit/show.html.twig', [
+            'city_visit' => $cityVisitDraft,
             'errors' => $errors,
-            'has_start_point' => $this->hasStartPoint($hikeDraft),
-            'interest_point_types' => $this->pointTypeChoices([
-                HikePointType::Interest,
-                HikePointType::Viewpoint,
-                HikePointType::Photo,
-                HikePointType::Water,
-                HikePointType::Danger,
-                HikePointType::Rest,
-                HikePointType::End,
-                HikePointType::Other,
-            ]),
+            'point_types' => $this->pointTypeChoices(CityVisitPointType::cases()),
+            'point_count' => $cityVisitDraft->getPoints()->count(),
             'admin_back_url' => $this->generateUrl('admin_field_tools_index'),
         ], new Response(status: $status));
     }
@@ -204,11 +188,11 @@ final class QuickHikeController extends AbstractController
     /** @return array<string, string> */
     private function submittedPointFormData(Request $request): array
     {
-        $data = $request->request->all('quick_hike_point');
+        $data = $request->request->all('quick_city_visit_point');
 
         return [
             '_token' => trim((string) ($data['_token'] ?? '')),
-            'type' => trim((string) ($data['type'] ?? HikePointType::Interest->value)),
+            'type' => trim((string) ($data['type'] ?? CityVisitPointType::Other->value)),
             'titlePoint' => trim((string) ($data['titlePoint'] ?? '')),
             'latitude' => $this->normalizeDecimal((string) ($data['latitude'] ?? '')),
             'longitude' => $this->normalizeDecimal((string) ($data['longitude'] ?? '')),
@@ -245,10 +229,10 @@ final class QuickHikeController extends AbstractController
      * @param array<string, string>      $formData
      * @param array<string, string>|null $geocoding
      */
-    private function createPoint(HikeDraft $draft, array $formData, HikePointType $type, int $position, ?array $geocoding): HikePoint
+    private function createPoint(CityVisitDraft $draft, array $formData, CityVisitPointType $type, int $position, ?array $geocoding): CityVisitPoint
     {
-        $point = (new HikePoint())
-            ->setHikeDraft($draft)
+        $point = (new CityVisitPoint())
+            ->setCityVisitDraft($draft)
             ->setType($type)
             ->setTitle($formData['titlePoint'] !== '' ? $formData['titlePoint'] : null)
             ->setNote($formData['note'] !== '' ? $formData['note'] : null)
@@ -269,7 +253,7 @@ final class QuickHikeController extends AbstractController
     }
 
     /** @param array<string, string>|null $geocoding */
-    private function applyDraftLocation(HikeDraft $draft, ?array $geocoding, ?Destination $destination): void
+    private function applyDraftLocation(CityVisitDraft $draft, ?array $geocoding, ?Destination $destination): void
     {
         if (null !== $geocoding && null === $draft->getDetectedCommuneName()) {
             $draft
@@ -284,18 +268,7 @@ final class QuickHikeController extends AbstractController
         }
     }
 
-    private function hasStartPoint(HikeDraft $draft): bool
-    {
-        foreach ($draft->getPoints() as $point) {
-            if ($point->getType() === HikePointType::Start) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function nextPointPosition(HikeDraft $draft): int
+    private function nextPointPosition(CityVisitDraft $draft): int
     {
         $position = 0;
         foreach ($draft->getPoints() as $point) {
@@ -305,22 +278,57 @@ final class QuickHikeController extends AbstractController
         return $position + 1;
     }
 
-    private function pointSuccess(Request $request, string $message, HikeDraft $draft): Response
+    private function generateGoogleMapsUrl(CityVisitDraft $draft): ?string
+    {
+        $points = $draft->getPoints()->toArray();
+        usort($points, static fn (CityVisitPoint $a, CityVisitPoint $b): int => $a->getPosition() <=> $b->getPosition());
+
+        if (\count($points) < 2) {
+            return null;
+        }
+
+        $origin = $points[0];
+        $destination = $points[\count($points) - 1];
+        $waypoints = [];
+
+        foreach (\array_slice($points, 1, -1) as $point) {
+            $waypoints[] = $this->formatCoordinates($point);
+        }
+
+        $url = sprintf(
+            'https://www.google.com/maps/dir/?api=1&origin=%s&destination=%s',
+            $this->formatCoordinates($origin),
+            $this->formatCoordinates($destination),
+        );
+
+        if ($waypoints !== []) {
+            $url .= '&waypoints='.implode('|', $waypoints);
+        }
+
+        return $url.'&travelmode=walking';
+    }
+
+    private function formatCoordinates(CityVisitPoint $point): string
+    {
+        return sprintf('%.6F,%.6F', $point->getLatitude(), $point->getLongitude());
+    }
+
+    private function pointSuccess(Request $request, string $message, CityVisitDraft $draft): Response
     {
         if ($this->wantsJson($request)) {
             return new JsonResponse([
                 'ok' => true,
                 'message' => $message,
-                'redirect' => $this->generateUrl('admin_quick_hike_show', ['id' => $draft->getId()]),
+                'redirect' => $this->generateUrl('admin_quick_city_visit_show', ['id' => $draft->getId()]),
             ]);
         }
 
         $this->addFlash('success', $message);
 
-        return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
+        return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $draft->getId()]);
     }
 
-    private function pointError(Request $request, string $message, HikeDraft $draft, int $status = Response::HTTP_BAD_REQUEST): Response
+    private function pointError(Request $request, string $message, CityVisitDraft $draft, int $status = Response::HTTP_BAD_REQUEST): Response
     {
         if ($this->wantsJson($request)) {
             return new JsonResponse([
@@ -339,7 +347,7 @@ final class QuickHikeController extends AbstractController
     }
 
     /**
-     * @param list<HikePointType> $types
+     * @param list<CityVisitPointType> $types
      *
      * @return array<string, string>
      */
@@ -353,24 +361,26 @@ final class QuickHikeController extends AbstractController
         return $choices;
     }
 
-    private function pointTypeLabel(HikePointType $type): string
+    private function pointTypeLabel(CityVisitPointType $type): string
     {
         return match ($type) {
-            HikePointType::Start => 'Départ',
-            HikePointType::Interest => 'Point d’intérêt',
-            HikePointType::Viewpoint => 'Point de vue',
-            HikePointType::Photo => 'Photo',
-            HikePointType::Water => 'Eau',
-            HikePointType::Danger => 'Danger',
-            HikePointType::Rest => 'Pause',
-            HikePointType::End => 'Arrivée',
-            HikePointType::Other => 'Autre',
+            CityVisitPointType::Start => 'Départ',
+            CityVisitPointType::Monument => 'Monument',
+            CityVisitPointType::Viewpoint => 'Point de vue',
+            CityVisitPointType::Museum => 'Musée',
+            CityVisitPointType::Church => 'Église',
+            CityVisitPointType::Square => 'Place',
+            CityVisitPointType::Restaurant => 'Restaurant',
+            CityVisitPointType::Photo => 'Photo',
+            CityVisitPointType::Parking => 'Parking',
+            CityVisitPointType::End => 'Arrivée',
+            CityVisitPointType::Other => 'Autre',
         };
     }
 
-    private function defaultHikeTitle(): string
+    private function defaultVisitTitle(): string
     {
-        return sprintf('Randonnée du %s', (new DateTimeImmutable('now', new DateTimeZone('Europe/Paris')))->format('d/m/Y à H\hi'));
+        return sprintf('Visite de ville du %s', (new DateTimeImmutable('now', new DateTimeZone('Europe/Paris')))->format('d/m/Y à H\hi'));
     }
 
     private function normalizeDecimal(string $value): string
@@ -392,11 +402,11 @@ final class QuickHikeController extends AbstractController
     private function createUniqueSlug(string $title): string
     {
         $baseSlug = strtolower((string) $this->slugger->slug($title));
-        $baseSlug = trim($baseSlug, '-') ?: 'randonnee-rapide';
+        $baseSlug = trim($baseSlug, '-') ?: 'visite-ville';
         $slug = $baseSlug;
         $suffix = 2;
 
-        while ($this->hikeDraftRepository->findOneBy(['slug' => $slug]) instanceof HikeDraft) {
+        while ($this->cityVisitDraftRepository->findOneBy(['slug' => $slug]) instanceof CityVisitDraft) {
             $slug = sprintf('%s-%d', $baseSlug, $suffix);
             ++$suffix;
         }

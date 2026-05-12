@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block title %}Administration{% endblock %} - Blog Tourisme</title>
+        <style>
+            :root {
+                --admin-bg: #f6f7f5;
+                --admin-surface: #ffffff;
+                --admin-text: #1b211d;
+                --admin-muted: #657067;
+                --admin-line: #d9dfda;
+                --admin-primary: #155e42;
+                --admin-primary-soft: #e4f1ea;
+                --admin-radius: 8px;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                min-height: 100vh;
+                color: var(--admin-text);
+                background: var(--admin-bg);
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                line-height: 1.4;
+            }
+
+            a {
+                color: inherit;
+            }
+
+            .admin-shell {
+                display: grid;
+                grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+                min-height: 100vh;
+            }
+
+            .admin-sidebar {
+                padding: 20px;
+                border-right: 1px solid var(--admin-line);
+                background: var(--admin-surface);
+            }
+
+            .admin-brand {
+                display: block;
+                margin-bottom: 22px;
+                color: var(--admin-primary);
+                font-size: 1.2rem;
+                font-weight: 800;
+                text-decoration: none;
+            }
+
+            .admin-nav {
+                display: grid;
+                gap: 18px;
+            }
+
+            .admin-nav h2 {
+                margin: 0 0 8px;
+                color: var(--admin-muted);
+                font-size: 0.75rem;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+
+            .admin-nav a {
+                display: block;
+                padding: 8px 10px;
+                border-radius: var(--admin-radius);
+                color: var(--admin-text);
+                text-decoration: none;
+            }
+
+            .admin-nav a:hover,
+            .admin-nav a.is-active {
+                background: var(--admin-primary-soft);
+                color: var(--admin-primary);
+            }
+
+            .admin-main {
+                display: grid;
+                align-content: start;
+                gap: 18px;
+                padding: 24px;
+            }
+
+            .admin-header {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: end;
+                justify-content: space-between;
+                gap: 12px;
+            }
+
+            .admin-title {
+                margin: 0;
+                font-size: clamp(1.6rem, 4vw, 2.4rem);
+            }
+
+            .admin-subtitle {
+                margin: 6px 0 0;
+                color: var(--admin-muted);
+            }
+
+            .admin-card {
+                padding: 16px;
+                border: 1px solid var(--admin-line);
+                border-radius: var(--admin-radius);
+                background: var(--admin-surface);
+            }
+
+            .admin-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 12px;
+            }
+
+            .admin-stat {
+                display: grid;
+                gap: 4px;
+                padding: 14px;
+                border: 1px solid var(--admin-line);
+                border-radius: var(--admin-radius);
+                background: var(--admin-surface);
+                text-decoration: none;
+            }
+
+            .admin-stat strong {
+                color: var(--admin-primary);
+                font-size: 1.8rem;
+            }
+
+            .admin-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .admin-button {
+                display: inline-flex;
+                align-items: center;
+                min-height: 42px;
+                padding: 9px 12px;
+                border: 0;
+                border-radius: var(--admin-radius);
+                background: var(--admin-primary);
+                color: #fff;
+                cursor: pointer;
+                font: inherit;
+                font-weight: 700;
+                text-decoration: none;
+            }
+
+            .admin-button--secondary {
+                border: 1px solid var(--admin-line);
+                background: var(--admin-surface);
+                color: var(--admin-text);
+            }
+
+            .admin-table-wrap {
+                overflow-x: auto;
+            }
+
+            .admin-table {
+                width: 100%;
+                border-collapse: collapse;
+                background: var(--admin-surface);
+            }
+
+            .admin-table th,
+            .admin-table td {
+                padding: 10px;
+                border-bottom: 1px solid var(--admin-line);
+                text-align: left;
+                vertical-align: top;
+            }
+
+            .admin-table th {
+                color: var(--admin-muted);
+                font-size: 0.85rem;
+                font-weight: 700;
+            }
+
+            .admin-muted {
+                color: var(--admin-muted);
+            }
+
+            .flash {
+                padding: 12px;
+                border-radius: var(--admin-radius);
+                background: #fff3cd;
+                color: #664d03;
+            }
+
+            @media (max-width: 820px) {
+                .admin-shell {
+                    grid-template-columns: 1fr;
+                }
+
+                .admin-sidebar {
+                    border-right: 0;
+                    border-bottom: 1px solid var(--admin-line);
+                }
+
+                .admin-nav {
+                    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                }
+
+                .admin-main {
+                    padding: 16px;
+                }
+            }
+        </style>
+        {% block stylesheets %}{% endblock %}
+    </head>
+    <body>
+        {% set route = app.request.attributes.get('_route') %}
+        <div class="admin-shell">
+            <aside class="admin-sidebar">
+                <a class="admin-brand" href="{{ path('admin') }}">Administration</a>
+                <nav class="admin-nav" aria-label="Navigation admin">
+                    <section>
+                        <h2>Contenu</h2>
+                        <a href="{{ path('admin_articles_index') }}" class="{{ route starts with 'admin_articles' ? 'is-active' }}">Articles</a>
+                        <a href="{{ path('admin_places_index') }}" class="{{ route starts with 'admin_places' or route starts with 'admin_studio_place' ? 'is-active' }}">Lieux à visiter</a>
+                        <a href="{{ path('admin_destinations_index') }}" class="{{ route starts with 'admin_destinations' ? 'is-active' }}">Destinations</a>
+                        <a href="{{ path('admin_media_index') }}" class="{{ route starts with 'admin_media' ? 'is-active' }}">Médias</a>
+                    </section>
+                    <section>
+                        <h2>Modération</h2>
+                        <a href="{{ path('admin_comments_index') }}" class="{{ route starts with 'admin_comments' ? 'is-active' }}">Commentaires</a>
+                        <a href="{{ path('admin_comment_reports_index') }}" class="{{ route starts with 'admin_comment_reports' ? 'is-active' }}">Signalements</a>
+                        <a href="{{ path('admin_moderation_keywords_index') }}" class="{{ route starts with 'admin_moderation_keywords' ? 'is-active' }}">Mots-clés de modération</a>
+                    </section>
+                    <section>
+                        <h2>Outils terrain</h2>
+                        <a href="{{ path('admin_quick_hike_index') }}">Nouvelle rando rapide</a>
+                        <a href="{{ path('admin_quick_city_visit_index') }}">Nouvelle visite de ville rapide</a>
+                        <a href="{{ path('admin_field_tools_hikes') }}" class="{{ route == 'admin_field_tools_hikes' or route starts with 'admin_studio_hike' ? 'is-active' }}">Studio randonnées</a>
+                        <a href="{{ path('admin_field_tools_city_visits') }}" class="{{ route == 'admin_field_tools_city_visits' or route starts with 'admin_studio_city_visit' ? 'is-active' }}">Studio visites de ville</a>
+                    </section>
+                    <section>
+                        <h2>Système</h2>
+                        <a href="{{ path('admin_users_index') }}" class="{{ route starts with 'admin_users' ? 'is-active' }}">Utilisateurs</a>
+                        <a href="{{ path('app_home') }}">Retour au site public</a>
+                    </section>
+                </nav>
+            </aside>
+
+            <main class="admin-main">
+                {% for label, messages in app.flashes %}
+                    {% for message in messages %}
+                        <div class="flash flash-{{ label }}">{{ message }}</div>
+                    {% endfor %}
+                {% endfor %}
+
+                {% block body %}{% endblock %}
+            </main>
+        </div>
+        {% block javascripts %}{% endblock %}
+    </body>
+</html>

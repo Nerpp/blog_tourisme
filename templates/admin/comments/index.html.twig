@@ -1,0 +1,41 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Commentaires{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Commentaires</h1>
+            <p class="admin-subtitle">Consultation de la modération. Les actions métier seront recréées dans l’admin custom.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Auteur</th>
+                    <th>Statut</th>
+                    <th>Support</th>
+                    <th>Extrait</th>
+                    <th>Signalements</th>
+                    <th>Création</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for comment in comments %}
+                    <tr>
+                        <td>{{ comment.author }}</td>
+                        <td>{{ comment.status.value }}</td>
+                        <td>{{ comment.article ?: comment.place ?: '-' }}</td>
+                        <td>{{ comment.content|striptags|slice(0, 120) }}</td>
+                        <td>{{ comment.reportedCount }}</td>
+                        <td>{{ comment.createdAt ? comment.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="6">Aucun commentaire.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

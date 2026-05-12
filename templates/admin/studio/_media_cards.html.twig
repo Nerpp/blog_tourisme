@@ -1,0 +1,79 @@
+{% if media_links %}
+    {% set point_target_options = point_target_options|default({}) %}
+    {% set association_options = association_options|default({ 'gallery': 'Galerie générale' }) %}
+    {% set media_point_targets = media_point_targets|default({}) %}
+    <div class="studio-media-grid">
+        {% for media_link in media_links %}
+            {% set media = media_link.mediaAsset %}
+            {% set image_src = media.filePath ? (media.filePath starts with '/' ? media.filePath : asset(media.filePath)) : null %}
+            {% set current_point_target = media.id and media_point_targets[media.id] is defined ? media_point_targets[media.id] : null %}
+            {% set current_association = current_point_target ? 'point:' ~ current_point_target : (media_link.role.value == 'cover' ? 'main' : 'gallery') %}
+            <article class="studio-media-card">
+                {% if media.mediaType.value == 'image' and image_src %}
+                    <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: subject_label }}">
+                {% elseif media.externalUrl %}
+                    <a class="studio-link" href="{{ media.externalUrl }}" target="_blank" rel="noopener noreferrer">Ouvrir la vidéo</a>
+                {% endif %}
+                <form class="studio-media-card__body" method="post" action="{{ path(update_route, { id: media_link.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token(update_token_prefix ~ media_link.id) }}">
+                    <div class="studio-field">
+                        <label for="media-title-{{ media_link.id }}">Titre</label>
+                        <input id="media-title-{{ media_link.id }}" name="title" value="{{ media.title }}">
+                    </div>
+                    {% if media.mediaType.value == 'image' %}
+                        <div class="studio-field">
+                            <label for="media-alt-{{ media_link.id }}">Texte alternatif</label>
+                            <input id="media-alt-{{ media_link.id }}" name="altText" value="{{ media.altText }}">
+                        </div>
+                    {% else %}
+                        <div class="studio-field">
+                            <label for="media-url-{{ media_link.id }}">URL vidéo</label>
+                            <input id="media-url-{{ media_link.id }}" name="externalUrl" type="url" value="{{ media.externalUrl }}">
+                        </div>
+                    {% endif %}
+                    <div class="studio-field">
+                        <label for="media-caption-{{ media_link.id }}">Légende</label>
+                        <textarea id="media-caption-{{ media_link.id }}" name="caption" rows="3">{{ media.caption }}</textarea>
+                        <span class="studio-help">Cette légende pourra être affichée sous la photo.</span>
+                    </div>
+                    <div class="studio-media-row">
+                        {% if media.mediaType.value == 'image' %}
+                            <div class="studio-field">
+                                <label for="media-type-{{ media_link.id }}">Type d’image</label>
+                                <select id="media-type-{{ media_link.id }}" name="imageType">
+                                    {% for value, label in image_type_options %}
+                                        <option value="{{ value }}" {% if media.imageType and media.imageType.value == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        {% else %}
+                            <div class="studio-field">
+                                <label for="media-video-type-{{ media_link.id }}">Type</label>
+                                <select id="media-video-type-{{ media_link.id }}" name="videoType">
+                                    {% for value, label in video_type_options %}
+                                        <option value="{{ value }}" {% if media.videoType and media.videoType.value == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        {% endif %}
+                        <div class="studio-field">
+                            <label for="media-point-target-{{ media_link.id }}">Associer à</label>
+                            <select id="media-point-target-{{ media_link.id }}" name="association">
+                                {% for value, label in association_options %}
+                                    <option value="{{ value }}" {% if current_association == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <button class="admin-button" type="submit">Mettre à jour</button>
+                </form>
+                <form method="post" action="{{ path(delete_route, { id: media_link.id }) }}" onsubmit="return confirm('Retirer ce média ?');">
+                    <input type="hidden" name="_token" value="{{ csrf_token(delete_token_prefix ~ media_link.id) }}">
+                    <button class="admin-button admin-button--secondary studio-button-danger" type="submit">Retirer de cette fiche</button>
+                </form>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="admin-muted">{{ empty_label }}</p>
+{% endif %}

@@ -1,0 +1,573 @@
+<?php
+
+namespace App\Controller\Admin\Studio;
+
+use App\Entity\Destination;
+use App\Entity\HikeDraft;
+use App\Entity\HikeDraftMedia;
+use App\Entity\HikePoint;
+use App\Entity\HikePointMedia;
+use App\Entity\MediaAsset;
+use App\Enum\HikeDraftStatus;
+use App\Enum\HikePointType;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
+use App\Enum\MediaType;
+use App\Enum\VideoType;
+use App\Repository\DestinationRepository;
+use App\Security\Voter\AdminAccessVoter;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\String\Slugger\SluggerInterface;
+
+#[Route('/admin/studio')]
+final class HikeStudioController extends AbstractController
+{
+    use StudioMediaHelperTrait;
+
+    private const MEDIA_ASSOCIATION_MAIN = 'main';
+    private const MEDIA_ASSOCIATION_GALLERY = 'gallery';
+    private const MEDIA_ASSOCIATION_POINT_PREFIX = 'point:';
+
+    public function __construct(
+        private readonly EntityManagerInterface $entityManager,
+        private readonly DestinationRepository $destinationRepository,
+        private readonly SluggerInterface $slugger,
+        private readonly ParameterBagInterface $parameterBag,
+    ) {
+    }
+
+    #[Route('/hikes/{id}/edit', name: 'admin_studio_hike_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
+    public function edit(HikeDraft $hikeDraft, Request $request): Response
+    {
+        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+
+        if ($request->isMethod('POST')) {
+            if (!$this->isCsrfTokenValid('studio_hike_edit_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+                $this->addFlash('error', 'Le formulaire a expiré. Réessayez.');
+
+                return $this->redirectToStudio($hikeDraft);
+            }
+
+            $this->updateDraftFromRequest($hikeDraft, $request);
+            $this->entityManager->flush();
+            $this->addFlash('success', 'La randonnée rapide a été enregistrée.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        return $this->renderStudio($hikeDraft);
+    }
+
+    #[Route('/hikes/{id}/media/photos', name: 'admin_studio_hike_media_photos', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function uploadPhotos(HikeDraft $hikeDraft, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+
+        if (!$this->isCsrfTokenValid('studio_hike_photos_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le formulaire photo a expiré. Réessayez.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $createdCount = 0;
+        $nextPosition = $this->nextMediaPosition($hikeDraft);
+        $captions = $this->requestArray($request, 'photoCaptions');
+        $imageTypes = $this->requestArray($request, 'photoImageTypes');
+        $associations = $this->requestArray($request, 'photoAssociations');
+        $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
+        foreach ($this->normalizeUploadedFiles($request->files->get('photos', [])) as $index => $file) {
+            $association = (string) ($associations[$index] ?? self::MEDIA_ASSOCIATION_GALLERY);
+            $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
+            if ($targetPoint instanceof HikePoint && !$pointMediaEnabled) {
+                $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
+                continue;
+            }
+
+            $media = $this->createImageAssetFromUpload(
+                $file,
+                (string) ($captions[$index] ?? ''),
+                ImageType::tryFrom((string) ($imageTypes[$index] ?? '')) ?? ImageType::Standard,
+            );
+            if (!$media instanceof MediaAsset) {
+                continue;
+            }
+
+            $this->entityManager->persist($media);
+            if ($targetPoint instanceof HikePoint) {
+                $this->entityManager->persist((new HikePointMedia())->setHikePoint($targetPoint)->setMediaAsset($media));
+            } else {
+                $link = (new HikeDraftMedia())
+                    ->setHikeDraft($hikeDraft)
+                    ->setMediaAsset($media)
+                    ->setRole($this->mediaRoleForPhotoAssociation($association))
+                    ->setPosition($nextPosition);
+
+                $this->entityManager->persist($link);
+                ++$nextPosition;
+            }
+            ++$createdCount;
+        }
+
+        if ($createdCount === 0) {
+            $this->addFlash('error', 'Aucune image n’a pu être ajoutée.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $this->entityManager->flush();
+        $this->addFlash('success', sprintf('%d photo%s ajoutée%s.', $createdCount, $createdCount > 1 ? 's' : '', $createdCount > 1 ? 's' : ''));
+
+        return $this->redirectToStudio($hikeDraft);
+    }
+
+    #[Route('/hikes/{id}/media/video', name: 'admin_studio_hike_media_video', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function addVideo(HikeDraft $hikeDraft, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+
+        if (!$this->isCsrfTokenValid('studio_hike_video_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le formulaire vidéo a expiré. Réessayez.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $media = $this->createVideoAssetFromRequest($request);
+        if (!$media instanceof MediaAsset) {
+            $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
+        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
+        $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
+        if ($targetPoint instanceof HikePoint && !$pointMediaEnabled) {
+            $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $this->entityManager->persist($media);
+        if ($targetPoint instanceof HikePoint) {
+            $this->entityManager->persist((new HikePointMedia())->setHikePoint($targetPoint)->setMediaAsset($media));
+        } else {
+            $link = (new HikeDraftMedia())
+                ->setHikeDraft($hikeDraft)
+                ->setMediaAsset($media)
+                ->setRole(MediaRole::Gallery)
+                ->setPosition($this->nextMediaPosition($hikeDraft));
+
+            $this->entityManager->persist($link);
+        }
+        $this->entityManager->flush();
+        $this->addFlash('success', 'La vidéo a été ajoutée à la randonnée.');
+
+        return $this->redirectToStudio($hikeDraft);
+    }
+
+    #[Route('/hike-media/{id}/update', name: 'admin_studio_hike_media_update', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updateMedia(HikeDraftMedia $mediaLink, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+
+        $hikeDraft = $mediaLink->getHikeDraft();
+        if (!$hikeDraft instanceof HikeDraft) {
+            throw $this->createNotFoundException('Randonnée introuvable.');
+        }
+
+        if (!$this->isCsrfTokenValid('studio_hike_media_update_'.$mediaLink->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le formulaire média a expiré. Réessayez.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $this->updateMediaFromRequest($mediaLink, $request);
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Le média a été mis à jour.');
+
+        return $this->redirectToStudio($hikeDraft);
+    }
+
+    #[Route('/hike-media/{id}/delete', name: 'admin_studio_hike_media_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function deleteMedia(HikeDraftMedia $mediaLink, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+
+        $hikeDraft = $mediaLink->getHikeDraft();
+        if (!$hikeDraft instanceof HikeDraft) {
+            throw $this->createNotFoundException('Randonnée introuvable.');
+        }
+
+        if (!$this->isCsrfTokenValid('studio_hike_media_delete_'.$mediaLink->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'La suppression a expiré. Réessayez.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $media = $mediaLink->getMediaAsset();
+        if ($media instanceof MediaAsset && $this->databaseTableExists('hike_point_media')) {
+            $this->syncPointMedia($hikeDraft, $media, null);
+        }
+
+        $this->entityManager->remove($mediaLink);
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Le média a été retiré de cette fiche. Le fichier reste disponible dans la médiathèque.');
+
+        return $this->redirectToStudio($hikeDraft);
+    }
+
+    private function renderStudio(HikeDraft $hikeDraft): Response
+    {
+        $mediaLinks = $this->sortedMediaLinks($hikeDraft);
+        $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
+        $pointTargetOptions = $this->pointTargetOptions($hikeDraft);
+        $mediaPointTargets = $pointMediaEnabled ? $this->mediaPointTargetMap($hikeDraft) : [];
+        $generalMediaLinks = array_values(array_filter($mediaLinks, static function (HikeDraftMedia $link) use ($mediaPointTargets): bool {
+            $mediaId = $link->getMediaAsset()?->getId();
+
+            return $mediaId === null || !isset($mediaPointTargets[$mediaId]);
+        }));
+        $photoLinks = array_values(array_filter($generalMediaLinks, fn (HikeDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image));
+
+        return $this->render('admin/studio/hike_edit.html.twig', [
+            'hike' => $hikeDraft,
+            'destinations' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
+            'google_maps_url' => $this->generateGoogleMapsUrl($hikeDraft),
+            'media_links' => $generalMediaLinks,
+            'photo_links' => $photoLinks,
+            'cover_photo_links' => array_values(array_filter($photoLinks, static fn (HikeDraftMedia $link): bool => $link->getRole() === MediaRole::Cover)),
+            'gallery_photo_links' => array_values(array_filter($photoLinks, static fn (HikeDraftMedia $link): bool => $link->getRole() !== MediaRole::Cover)),
+            'video_links' => array_values(array_filter($generalMediaLinks, fn (HikeDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Video)),
+            'immersive_links' => array_values(array_filter($generalMediaLinks, $this->isImmersiveLink(...))),
+            'status_options' => $this->enumChoices(HikeDraftStatus::cases(), [
+                'draft' => 'Brouillon',
+                'finished' => 'Terminé terrain',
+                'converted' => 'Converti',
+                'archived' => 'Archivé',
+            ]),
+            'image_type_options' => $this->imageTypeOptions(),
+            'video_type_options' => $this->videoTypeOptions(),
+            'photo_association_options' => $this->photoAssociationOptions($pointTargetOptions),
+            'video_association_options' => $this->videoAssociationOptions($pointTargetOptions),
+            'point_target_options' => $pointTargetOptions,
+            'point_labels' => $pointTargetOptions,
+            'point_media_enabled' => $pointMediaEnabled,
+            'media_point_targets' => $mediaPointTargets,
+        ]);
+    }
+
+    private function updateDraftFromRequest(HikeDraft $hikeDraft, Request $request): void
+    {
+        $title = $this->truncate($request->request->getString('title'), 180);
+        if ($title !== '') {
+            $hikeDraft->setTitle($title);
+        }
+
+        $destinationId = $this->nullableInt($request->request->get('destination'));
+        $hikeDraft
+            ->setStatus(HikeDraftStatus::tryFrom($request->request->getString('status')) ?? $hikeDraft->getStatus())
+            ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
+            ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+    }
+
+    private function updateMediaFromRequest(HikeDraftMedia $mediaLink, Request $request): void
+    {
+        $media = $mediaLink->getMediaAsset();
+        if (!$media instanceof MediaAsset) {
+            throw $this->createNotFoundException('Média introuvable.');
+        }
+
+        $media
+            ->setTitle($this->nullIfBlank($request->request->getString('title')))
+            ->setAltText($this->nullIfBlank($request->request->getString('altText')))
+            ->setCaption($this->nullIfBlank($request->request->getString('caption')));
+
+        if ($media->getMediaType() === MediaType::Image) {
+            $media->setImageType(ImageType::tryFrom($request->request->getString('imageType')) ?? ImageType::Standard);
+        }
+
+        if ($media->getMediaType() === MediaType::Video) {
+            $videoType = VideoType::tryFrom($request->request->getString('videoType')) ?? $media->getVideoType() ?? VideoType::External;
+            $media
+                ->setVideoType($videoType === VideoType::Local ? VideoType::External : $videoType)
+                ->setExternalUrl($this->nullIfBlank($request->request->getString('externalUrl')));
+        }
+
+        $hikeDraft = $mediaLink->getHikeDraft();
+        if (!$hikeDraft instanceof HikeDraft) {
+            throw $this->createNotFoundException('Randonnée introuvable.');
+        }
+
+        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
+        if ($this->databaseTableExists('hike_point_media')) {
+            $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
+            $this->syncPointMedia($hikeDraft, $media, $targetPoint);
+            if ($targetPoint instanceof HikePoint) {
+                $this->entityManager->remove($mediaLink);
+
+                return;
+            }
+        } elseif ($this->isPointAssociation($association)) {
+            $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
+        }
+
+        $mediaLink->setRole(
+            $media->getMediaType() === MediaType::Image
+                ? $this->mediaRoleForPhotoAssociation($association)
+                : MediaRole::Gallery
+        );
+    }
+
+    /** @return list<HikeDraftMedia> */
+    private function sortedMediaLinks(HikeDraft $hikeDraft): array
+    {
+        $mediaLinks = $hikeDraft->getMediaLinks()->toArray();
+        usort($mediaLinks, static fn (HikeDraftMedia $a, HikeDraftMedia $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+
+        return $mediaLinks;
+    }
+
+    private function isImmersiveLink(HikeDraftMedia $mediaLink): bool
+    {
+        $media = $mediaLink->getMediaAsset();
+
+        return $media instanceof MediaAsset
+            && $media->getMediaType() === MediaType::Image
+            && in_array($media->getImageType(), [ImageType::Degree360, ImageType::Degree180], true);
+    }
+
+    private function nextMediaPosition(HikeDraft $hikeDraft): int
+    {
+        $maxPosition = -1;
+        foreach ($hikeDraft->getMediaLinks() as $mediaLink) {
+            $maxPosition = max($maxPosition, $mediaLink->getPosition());
+        }
+
+        return $maxPosition + 1;
+    }
+
+    private function generateGoogleMapsUrl(HikeDraft $hikeDraft): ?string
+    {
+        $points = $this->sortedPoints($hikeDraft);
+
+        if ($points === []) {
+            return null;
+        }
+
+        $coordinates = array_map(static fn (HikePoint $point): string => $point->getLatitude().','.$point->getLongitude(), $points);
+        if (count($coordinates) === 1) {
+            return 'https://www.google.com/maps/search/?api=1&query='.$coordinates[0];
+        }
+
+        $origin = array_shift($coordinates);
+        $destination = array_pop($coordinates);
+        $url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin='.rawurlencode((string) $origin).'&destination='.rawurlencode((string) $destination);
+
+        if ($coordinates !== []) {
+            $url .= '&waypoints='.rawurlencode(implode('|', $coordinates));
+        }
+
+        return $url;
+    }
+
+    /** @return array<string, string> */
+    private function imageTypeOptions(): array
+    {
+        return $this->enumChoices(ImageType::cases(), [
+            'standard' => 'Image classique',
+            '360' => 'Image 360°',
+            '180' => 'Image 180°',
+            'panorama' => 'Panorama',
+            'wide_angle' => 'Grand angle',
+        ]);
+    }
+
+    /** @return list<HikePoint> */
+    private function sortedPoints(HikeDraft $hikeDraft): array
+    {
+        $points = $hikeDraft->getPoints()->toArray();
+        usort($points, static fn (HikePoint $a, HikePoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+
+        return $points;
+    }
+
+    /** @return array<int, string> */
+    private function pointTargetOptions(HikeDraft $hikeDraft): array
+    {
+        $options = [];
+        foreach ($this->sortedPoints($hikeDraft) as $point) {
+            if ($point->getId() === null) {
+                continue;
+            }
+
+            $options[$point->getId()] = $this->pointLabel($point);
+        }
+
+        return $options;
+    }
+
+    /** @param array<int, string> $pointTargetOptions */
+    private function photoAssociationOptions(array $pointTargetOptions): array
+    {
+        return [
+            self::MEDIA_ASSOCIATION_MAIN => 'Image principale',
+            self::MEDIA_ASSOCIATION_GALLERY => 'Galerie générale',
+        ] + $this->pointAssociationOptions($pointTargetOptions);
+    }
+
+    /** @param array<int, string> $pointTargetOptions */
+    private function videoAssociationOptions(array $pointTargetOptions): array
+    {
+        return [
+            self::MEDIA_ASSOCIATION_GALLERY => 'Galerie générale',
+        ] + $this->pointAssociationOptions($pointTargetOptions);
+    }
+
+    /** @param array<int, string> $pointTargetOptions */
+    private function pointAssociationOptions(array $pointTargetOptions): array
+    {
+        $options = [];
+        foreach ($pointTargetOptions as $pointId => $label) {
+            $options[self::MEDIA_ASSOCIATION_POINT_PREFIX.$pointId] = $label;
+        }
+
+        return $options;
+    }
+
+    /** @return array<int, int> */
+    private function mediaPointTargetMap(HikeDraft $hikeDraft): array
+    {
+        $map = [];
+        foreach ($this->sortedPoints($hikeDraft) as $point) {
+            if ($point->getId() === null) {
+                continue;
+            }
+
+            foreach ($point->getMediaLinks() as $pointMedia) {
+                $mediaId = $pointMedia->getMediaAsset()?->getId();
+                if ($mediaId !== null) {
+                    $map[$mediaId] = $point->getId();
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    private function findPointFromAssociation(HikeDraft $hikeDraft, mixed $association): ?HikePoint
+    {
+        $pointId = $this->pointIdFromAssociation($association);
+
+        return $pointId !== null ? $this->findPointById($hikeDraft, $pointId) : null;
+    }
+
+    private function pointIdFromAssociation(mixed $association): ?int
+    {
+        $association = trim((string) $association);
+        if (!str_starts_with($association, self::MEDIA_ASSOCIATION_POINT_PREFIX)) {
+            return null;
+        }
+
+        return $this->nullableInt(substr($association, strlen(self::MEDIA_ASSOCIATION_POINT_PREFIX)));
+    }
+
+    private function isPointAssociation(mixed $association): bool
+    {
+        return str_starts_with(trim((string) $association), self::MEDIA_ASSOCIATION_POINT_PREFIX);
+    }
+
+    private function mediaRoleForPhotoAssociation(mixed $association): MediaRole
+    {
+        return (string) $association === self::MEDIA_ASSOCIATION_MAIN
+            ? MediaRole::Cover
+            : MediaRole::Gallery;
+    }
+
+    private function findPointById(HikeDraft $hikeDraft, mixed $pointId): ?HikePoint
+    {
+        $pointId = $this->nullableInt($pointId);
+        if ($pointId === null) {
+            return null;
+        }
+
+        foreach ($hikeDraft->getPoints() as $point) {
+            if ($point->getId() === $pointId) {
+                return $point;
+            }
+        }
+
+        return null;
+    }
+
+    private function syncPointMedia(HikeDraft $hikeDraft, MediaAsset $media, ?HikePoint $targetPoint): void
+    {
+        $existingTarget = false;
+        foreach ($this->sortedPoints($hikeDraft) as $point) {
+            foreach ($point->getMediaLinks()->toArray() as $pointMedia) {
+                $linkedMedia = $pointMedia->getMediaAsset();
+                $isSameMedia = $linkedMedia === $media
+                    || ($linkedMedia?->getId() !== null && $media->getId() !== null && $linkedMedia->getId() === $media->getId());
+                if (!$isSameMedia) {
+                    continue;
+                }
+
+                if ($targetPoint instanceof HikePoint && $point === $targetPoint) {
+                    $existingTarget = true;
+                    continue;
+                }
+
+                $point->removeMediaLink($pointMedia);
+                $this->entityManager->remove($pointMedia);
+            }
+        }
+
+        if ($targetPoint instanceof HikePoint && !$existingTarget) {
+            $pointMedia = (new HikePointMedia())
+                ->setHikePoint($targetPoint)
+                ->setMediaAsset($media);
+            $targetPoint->addMediaLink($pointMedia);
+            $this->entityManager->persist($pointMedia);
+        }
+    }
+
+    private function pointLabel(HikePoint $point): string
+    {
+        $typeLabel = match ($point->getType()) {
+            HikePointType::Start => 'Départ',
+            HikePointType::Interest => 'Point d’intérêt',
+            HikePointType::Viewpoint => 'Point de vue',
+            HikePointType::Photo => 'Spot photo',
+            HikePointType::Water => 'Point d’eau',
+            HikePointType::Danger => 'Zone de vigilance',
+            HikePointType::Rest => 'Pause',
+            HikePointType::End => 'Arrivée',
+            HikePointType::Other => 'Autre point',
+        };
+        $title = $this->nullIfBlank($point->getTitle());
+        $label = $title ?? $typeLabel;
+
+        return sprintf('Point %d — %s', $point->getPosition(), $label);
+    }
+
+    /** @return array<string, string> */
+    private function videoTypeOptions(): array
+    {
+        return $this->enumChoices([VideoType::Youtube, VideoType::Vimeo, VideoType::Dailymotion, VideoType::External], [
+            'youtube' => 'YouTube',
+            'vimeo' => 'Vimeo',
+            'dailymotion' => 'Dailymotion',
+            'external' => 'Externe',
+        ]);
+    }
+
+    private function redirectToStudio(HikeDraft $hikeDraft): RedirectResponse
+    {
+        return $this->redirectToRoute('admin_studio_hike_edit', ['id' => $hikeDraft->getId()]);
+    }
+}

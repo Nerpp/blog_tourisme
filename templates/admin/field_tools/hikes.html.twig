@@ -1,0 +1,44 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Randonnées rapides{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Randonnées rapides</h1>
+            <p class="admin-subtitle">Brouillons et sorties terrain créés depuis le smartphone.</p>
+        </div>
+        <a class="admin-button" href="{{ path('admin_quick_hike_index') }}">Nouvelle rando rapide</a>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Titre</th>
+                    <th>Statut</th>
+                    <th>Commune</th>
+                    <th>Destination</th>
+                    <th>Points</th>
+                    <th>Création</th>
+                    <th>Studio</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for hike in hikes %}
+                    <tr>
+                        <td>{{ hike.title }}</td>
+                        <td>{{ hike.status.value }}</td>
+                        <td>{{ hike.detectedCommuneName ?: '-' }}</td>
+                        <td>{{ hike.destination ?: '-' }}</td>
+                        <td>{{ hike.points|length }}</td>
+                        <td>{{ hike.createdAt ? hike.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                        <td><a class="admin-button admin-button--secondary" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir</a></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7">Aucune randonnée rapide.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}
