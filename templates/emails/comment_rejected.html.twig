@@ -1,0 +1,19 @@
+<p>Bonjour {{ author.displayName ?: author.email }},</p>
+
+<p>Votre commentaire publié sur notre blog tourisme n’a pas été accepté par la modération.</p>
+
+<p><strong>Raison :</strong> {{ reason }}</p>
+
+<p>Nombre de commentaires refusés : {{ rejected_count }}/3.</p>
+
+<p>Ce refus constitue un avertissement sur votre compte.</p>
+
+{% if auto_banned %}
+<p>Votre compte est suspendu automatiquement après 3 commentaires refusés.</p>
+{% else %}
+<p>Après 3 commentaires refusés, le compte peut être suspendu automatiquement.</p>
+{% endif %}
+
+<p>Merci de respecter les règles de publication du site.</p>
+
+<p>L’équipe Blog Tourisme</p>

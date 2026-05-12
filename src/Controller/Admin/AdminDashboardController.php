@@ -10,10 +10,13 @@ use App\Repository\HikeDraftRepository;
 use App\Repository\MediaAssetRepository;
 use App\Repository\PlaceRepository;
 use App\Repository\UserRepository;
+use App\Security\Voter\AdminAccessVoter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[IsGranted(AdminAccessVoter::ACCESS)]
 final class AdminDashboardController extends AbstractController
 {
     #[Route('/admin', name: 'admin', methods: ['GET'])]

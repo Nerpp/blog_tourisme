@@ -11,6 +11,7 @@ use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
 use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
+use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickHikeVoter;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
@@ -22,9 +23,11 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 #[Route('/admin/quick-hike', name: 'admin_quick_hike_')]
+#[IsGranted(AdminAccessVoter::ACCESS)]
 final class QuickHikeController extends AbstractController
 {
     public function __construct(

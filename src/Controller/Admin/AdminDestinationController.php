@@ -5,14 +5,17 @@ namespace App\Controller\Admin;
 use App\Entity\Destination;
 use App\Enum\DestinationType;
 use App\Repository\DestinationRepository;
+use App\Security\Voter\AdminAccessVoter;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
+#[IsGranted(AdminAccessVoter::ACCESS)]
 final class AdminDestinationController extends AbstractController
 {
     public function __construct(

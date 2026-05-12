@@ -4,18 +4,15 @@ namespace App\Service;
 
 use App\Entity\Comment;
 use App\Entity\User;
-use App\Entity\UserModerationWarning;
 use App\Enum\CommentStatus;
 use App\Enum\ModerationKeywordType;
 use App\Repository\ModerationKeywordRepository;
 use DateTimeImmutable;
-use Doctrine\ORM\EntityManagerInterface;
 
 class CommentModerationService
 {
     private const MEDIUM_SPAM_SCORE = 25;
     private const HIGH_SPAM_SCORE = 70;
-    private const AUTO_BAN_REJECTED_COMMENTS = 3;
 
     /** @var list<string> */
     private const BUILT_IN_SPAM_KEYWORDS = [
@@ -32,7 +29,6 @@ class CommentModerationService
 
     public function __construct(
         private readonly ModerationKeywordRepository $keywordRepository,
-        private readonly EntityManagerInterface $entityManager,
         private readonly int $autoApproveAfter = 3,
         private readonly int $reportThreshold = 3,
     ) {
@@ -81,63 +77,6 @@ class CommentModerationService
             ->setStatus(CommentStatus::Pending)
             ->setModerationReason('Seuil de signalements atteint.')
             ->setModeratedAt(new DateTimeImmutable());
-    }
-
-    public function approve(Comment $comment, ?User $moderator = null): void
-    {
-        $this->applyModeration($comment, CommentStatus::Approved, $comment->getSpamScore(), [], $moderator);
-    }
-
-    public function reject(Comment $comment, ?User $moderator = null): void
-    {
-        $wasRejected = $comment->getStatus() === CommentStatus::Rejected;
-        $comment
-            ->setContent('Commentaire refusé par la modération.')
-            ->setStatus(CommentStatus::Rejected)
-            ->setModerationReason('Commentaire refusé par la modération.')
-            ->setModeratedAt(new DateTimeImmutable())
-            ->setModeratedBy($moderator);
-
-        if (!$wasRejected) {
-            $this->warnAuthor($comment, $moderator, 'Commentaire refusé par la modération.', true);
-        }
-    }
-
-    public function markSpam(Comment $comment, ?User $moderator = null): void
-    {
-        $comment
-            ->setStatus(CommentStatus::Spam)
-            ->setModerationReason('Commentaire marqué comme spam.')
-            ->setModeratedAt(new DateTimeImmutable())
-            ->setModeratedBy($moderator);
-
-        $this->warnAuthor($comment, $moderator, 'Commentaire marqué comme spam.', false);
-    }
-
-    public function deleteByModeration(Comment $comment, ?User $moderator = null): void
-    {
-        $comment
-            ->setContent('Commentaire supprimé par la modération.')
-            ->setStatus(CommentStatus::Deleted)
-            ->setModerationReason('Commentaire supprimé par la modération.')
-            ->setModeratedAt(new DateTimeImmutable())
-            ->setModeratedBy($moderator);
-    }
-
-    public function banUser(User $user, string $reason): void
-    {
-        $user
-            ->setIsBanned(true)
-            ->setBannedAt(new DateTimeImmutable())
-            ->setBanReason($reason);
-    }
-
-    public function unbanUser(User $user): void
-    {
-        $user
-            ->setIsBanned(false)
-            ->setBannedAt(null)
-            ->setBanReason(null);
     }
 
     /** @return array{0:int, 1:list<string>} */
@@ -242,36 +181,5 @@ class CommentModerationService
     private function sameUser(?User $left, User $right): bool
     {
         return $left?->getId() !== null && $left->getId() === $right->getId();
-    }
-
-    private function warnAuthor(Comment $comment, ?User $moderator, string $reason, bool $countsAsRejected): void
-    {
-        $author = $comment->getAuthor();
-        if (!$author instanceof User) {
-            return;
-        }
-
-        $warning = (new UserModerationWarning())
-            ->setUser($author)
-            ->setComment($comment)
-            ->setReason($reason)
-            ->setCreatedBy($moderator);
-
-        $this->entityManager->persist($warning);
-
-        if (!$countsAsRejected) {
-            return;
-        }
-
-        $author->incrementRejectedCommentsCount();
-
-        if ($author->getRejectedCommentsCount() >= self::AUTO_BAN_REJECTED_COMMENTS && !$this->isAdmin($author)) {
-            $this->banUser($author, 'Bannissement automatique après 3 commentaires refusés.');
-        }
-    }
-
-    private function isAdmin(User $user): bool
-    {
-        return in_array('ROLE_ADMIN', $user->getRoles(), true);
     }
 }

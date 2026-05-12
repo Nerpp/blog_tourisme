@@ -11,6 +11,7 @@ use App\Enum\CityVisitPointType;
 use App\Enum\DestinationType;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
+use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickCityVisitVoter;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
@@ -22,9 +23,11 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 #[Route('/admin/quick-city-visit', name: 'admin_quick_city_visit_')]
+#[IsGranted(AdminAccessVoter::ACCESS)]
 final class QuickCityVisitController extends AbstractController
 {
     public function __construct(

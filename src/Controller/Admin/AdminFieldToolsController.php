@@ -4,10 +4,13 @@ namespace App\Controller\Admin;
 
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
+use App\Security\Voter\AdminAccessVoter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[IsGranted(AdminAccessVoter::ACCESS)]
 final class AdminFieldToolsController extends AbstractController
 {
     #[Route('/admin/field-tools', name: 'admin_field_tools_index', methods: ['GET'])]

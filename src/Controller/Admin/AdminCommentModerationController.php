@@ -6,19 +6,24 @@ use App\Entity\Comment;
 use App\Entity\User;
 use App\Enum\CommentStatus;
 use App\Repository\CommentRepository;
-use App\Service\CommentModerationService;
+use App\Security\Voter\AdminAccessVoter;
+use App\Security\Voter\AdminModerationVoter;
+use App\Service\CommentModerationAdminService;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+#[IsGranted(AdminAccessVoter::ACCESS)]
 final class AdminCommentModerationController extends AbstractController
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly CommentModerationService $moderationService,
+        private readonly CommentModerationAdminService $moderationService,
     ) {
     }
 
@@ -43,6 +48,7 @@ final class AdminCommentModerationController extends AbstractController
     #[Route('/admin/comments/{id}/approve', name: 'admin_comments_approve', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function approve(Comment $comment, Request $request): RedirectResponse
     {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_APPROVE, $comment);
         $this->validateCommentToken($comment, $request);
         $this->moderationService->approve($comment, $this->getAdminUser());
         $this->entityManager->flush();
@@ -54,8 +60,17 @@ final class AdminCommentModerationController extends AbstractController
     #[Route('/admin/comments/{id}/reject', name: 'admin_comments_reject', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function reject(Comment $comment, Request $request): RedirectResponse
     {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_REJECT, $comment);
         $this->validateCommentToken($comment, $request);
-        $this->moderationService->reject($comment, $this->getAdminUser());
+
+        try {
+            $this->moderationService->reject($comment, $this->getAdminUser(), $request->request->getString('reason'));
+        } catch (InvalidArgumentException $exception) {
+            $this->addFlash('error', $exception->getMessage());
+
+            return $this->redirectBackToComments($request);
+        }
+
         $this->entityManager->flush();
         $this->addFlash('warning', 'Commentaire refusé.');
 
@@ -65,8 +80,9 @@ final class AdminCommentModerationController extends AbstractController
     #[Route('/admin/comments/{id}/delete', name: 'admin_comments_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function delete(Comment $comment, Request $request): RedirectResponse
     {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_DELETE, $comment);
         $this->validateCommentToken($comment, $request);
-        $this->moderationService->deleteByModeration($comment, $this->getAdminUser());
+        $this->moderationService->softDelete($comment, $this->getAdminUser());
         $this->entityManager->flush();
         $this->addFlash('success', 'Commentaire supprimé.');
 
@@ -76,8 +92,9 @@ final class AdminCommentModerationController extends AbstractController
     #[Route('/admin/comments/{id}/spam', name: 'admin_comments_spam', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function spam(Comment $comment, Request $request): RedirectResponse
     {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_SPAM, $comment);
         $this->validateCommentToken($comment, $request);
-        $this->moderationService->markSpam($comment, $this->getAdminUser());
+        $this->moderationService->markAsSpam($comment, $this->getAdminUser(), $request->request->getString('reason'));
         $this->entityManager->flush();
         $this->addFlash('warning', 'Commentaire marqué comme spam.');
 
@@ -86,6 +103,8 @@ final class AdminCommentModerationController extends AbstractController
 
     private function renderComments(CommentRepository $commentRepository, string $filter): Response
     {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_MODERATE);
+
         $filter = in_array($filter, ['all', 'pending', 'approved', 'reported', 'spam', 'deleted'], true) ? $filter : 'all';
 
         $comments = match ($filter) {
