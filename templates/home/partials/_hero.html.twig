@@ -26,24 +26,33 @@
             </div>
         </div>
 
-        <aside class="home-latest-card">
-            <div class="home-latest-card__overlay">
-                <p>Dernière randonnée</p>
+        {% set latest_article = latest_articles|first %}
 
-                {% set latest_article = latest_articles|first %}
+        {% if latest_article %}
+            <a
+                class="home-latest-card"
+                href="{{ path('app_article_show', { slug: latest_article.slug }) }}"
+                aria-label="Lire l’article : {{ latest_article.title }}"
+            >
+                <div class="home-latest-card__overlay">
+                    <p>Dernière randonnée</p>
 
-                {% if latest_article %}
                     <h2>{{ latest_article.title }}</h2>
 
-                    <a href="{{ path('app_article_show', { slug: latest_article.slug }) }}">
+                    <span class="home-latest-card__cta">
                         Lire l’article
-                    </a>
-                {% else %}
+                    </span>
+                </div>
+            </a>
+        {% else %}
+            <aside class="home-latest-card">
+                <div class="home-latest-card__overlay">
+                    <p>Dernière randonnée</p>
                     <h2>Massif du Canigou</h2>
                     <span>🥾 14 km • boucle</span>
                     <span>📍 Occitanie</span>
-                {% endif %}
-            </div>
-        </aside>
+                </div>
+            </aside>
+        {% endif %}
     </div>
 </section>
