@@ -1,0 +1,49 @@
+<section class="home-hero">
+    <div class="home-hero__overlay"></div>
+
+    <div class="home-container home-hero__container">
+        <div class="home-hero__content">
+            <p class="home-kicker">Carnet d’exploration</p>
+
+            <h1>
+                Voyager entre mer, montagne et lumière méditerranéenne.
+            </h1>
+
+            <p class="home-hero__text">
+                Découvrez des randonnées, villages et paysages méditerranéens
+                à travers une approche immersive mêlant drone, photographie
+                et exploration.
+            </p>
+
+            <div class="home-hero__actions">
+                <a class="home-primary-btn" href="{{ path('app_article_index') }}">
+                    Explorer les articles
+                </a>
+
+                <a class="home-secondary-btn" href="{{ path('app_destination_index') }}">
+                    Voir les destinations
+                </a>
+            </div>
+        </div>
+
+        <aside class="home-latest-card">
+            <div class="home-latest-card__overlay">
+                <p>Dernière randonnée</p>
+
+                {% set latest_article = latest_articles|first %}
+
+                {% if latest_article %}
+                    <h2>{{ latest_article.title }}</h2>
+
+                    <a href="{{ path('app_article_show', { slug: latest_article.slug }) }}">
+                        Lire l’article
+                    </a>
+                {% else %}
+                    <h2>Massif du Canigou</h2>
+                    <span>🥾 14 km • boucle</span>
+                    <span>📍 Occitanie</span>
+                {% endif %}
+            </div>
+        </aside>
+    </div>
+</section>

@@ -1,64 +1,42 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Blog tourisme - lieux a visiter, itineraires et decouvertes{% endblock %}
-{% block meta_description %}Explorez des destinations, lieux a visiter, itineraires et conseils pour preparer vos prochaines escapades.{% endblock %}
+{% block title %}Blog tourisme - randonnées, villes et destinations méditerranéennes{% endblock %}
+
+{% block meta_description %}
+Découvrez des randonnées, villages, villes et paysages méditerranéens à travers un blog tourisme immersif.
+{% endblock %}
 
 {% block body %}
-    <main class="page-shell">
-        <section class="hero">
-            <p class="eyebrow">Tourisme local et idees de visite</p>
-            <h1>Blog tourisme - lieux a visiter, itineraires et decouvertes</h1>
-            <p class="intro">Des pages claires pour decouvrir une destination, reperer les lieux a voir et preparer un itineraire simple, du littoral catalan aux lacs de montagne.</p>
-            <div class="actions">
-                <a class="button" href="{{ path('app_article_index') }}">Tous les articles</a>
-                <a class="button button-secondary" href="{{ path('app_destination_index') }}">Toutes les destinations</a>
-                <a class="button button-secondary" href="{{ path('app_place_index') }}">Tous les lieux</a>
-            </div>
-        </section>
+    <main class="travel-home">
+        {% include 'home/partials/_hero.html.twig' with {
+            latest_articles: latest_articles
+        } only %}
 
-        <section class="section-block">
-            <div class="section-heading">
-                <h2>Derniers articles</h2>
-                <a href="{{ path('app_article_index') }}">Voir tout</a>
-            </div>
-            <div class="card-grid">
-                {% for article in latest_articles %}
-                    {% include 'partials/_article_card.html.twig' with { article: article } only %}
-                {% else %}
-                    <p>Aucun article publie pour le moment.</p>
-                {% endfor %}
-            </div>
-        </section>
+        <section class="home-destinations-section">
+            <div class="home-container">
+                <div class="home-section-header">
+                    <div>
+                        <p class="home-section-kicker">Destinations populaires</p>
+                        <h2>Explorer les derniers lieux visités</h2>
+                    </div>
 
-        <section class="section-block">
-            <div class="section-heading">
-                <h2>Destinations à découvrir</h2>
-                <a href="{{ path('app_destination_index') }}">Explorer</a>
-            </div>
-            <div class="compact-grid">
-                {% for destination in discoverable_destinations %}
-                    <a class="compact-card" href="{{ path('app_destination_show', { slug: destination.slug }) }}">
-                        <strong>{{ destination.name }}</strong>
-                        <span>{{ destination.type.value }}</span>
+                    <a class="home-outline-btn" href="{{ path('app_destination_index') }}">
+                        Voir tout
                     </a>
-                {% else %}
-                    <p>Aucune destination disponible.</p>
-                {% endfor %}
+                </div>
+
+                <div class="home-destination-grid">
+                    {% for destination in discoverable_destinations|slice(0, 3) %}
+                        {% include 'home/partials/_destination_card.html.twig' with {
+                            destination: destination
+                        } only %}
+                    {% else %}
+                        <p class="home-empty">Aucune destination disponible pour le moment.</p>
+                    {% endfor %}
+                </div>
             </div>
         </section>
 
-        <section class="section-block">
-            <div class="section-heading">
-                <h2>Lieux a visiter</h2>
-                <a href="{{ path('app_place_index') }}">Voir les lieux</a>
-            </div>
-            <div class="card-grid">
-                {% for place in featured_places %}
-                    {% include 'partials/_place_card.html.twig' with { place: place } only %}
-                {% else %}
-                    <p>Aucun lieu publie pour le moment.</p>
-                {% endfor %}
-            </div>
-        </section>
+        {% include 'home/partials/_newsletter.html.twig' only %}
     </main>
 {% endblock %}

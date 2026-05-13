@@ -1,0 +1,15 @@
+<a class="home-destination-card" href="{{ path('app_destination_show', { slug: destination.slug }) }}">
+    <div class="home-destination-card__image">
+        <div class="home-destination-card__overlay">
+            <span class="home-destination-card__chip">
+                {{ destination.type.value }}
+            </span>
+
+            <h3>{{ destination.name }}</h3>
+
+            <p>
+                Découvrez cette destination et ses lieux à visiter.
+            </p>
+        </div>
+    </div>
+</a>

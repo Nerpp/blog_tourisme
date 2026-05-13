@@ -1,4 +1,5 @@
 import './styles/app.css';
+import './styles/home.css';
 
 const vueRoot = document.querySelector('#app');
 
