@@ -1,0 +1,55 @@
+<header class="site-header">
+    <nav class="navbar navbar-expand-lg" aria-label="Navigation principale">
+        <div class="navbar-container">
+            <a class="navbar-brand" href="{{ path('app_home') }}">
+                <span class="navbar-brand__title">Blog Tourisme</span>
+                <span class="navbar-brand__subtitle">Carnet d'exploration</span>
+            </a>
+
+            <button
+                class="navbar-toggler js-navbar-toggler"
+                type="button"
+                aria-controls="main-navbar"
+                aria-expanded="false"
+                aria-label="Ouvrir le menu"
+            >
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div id="main-navbar" class="navbar-collapse js-navbar-collapse">
+                <div class="navbar-nav">
+                    <a class="nav-link" href="{{ path('app_home') }}">Accueil</a>
+                    <a class="nav-link" href="{{ path('app_article_index') }}">Articles</a>
+                    <a class="nav-link" href="{{ path('app_destination_index') }}">Destinations</a>
+                    <a class="nav-link" href="{{ path('app_place_index') }}">Lieux</a>
+                </div>
+
+                <div class="navbar-account">
+                    {% if app.user %}
+                        <span class="user-chip">
+                            {% if app.user.avatarPath %}
+                                <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
+                            {% else %}
+                                <span class="avatar avatar--header avatar--initials" aria-hidden="true">
+                                    {{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}
+                                </span>
+                            {% endif %}
+
+                            <span>{{ app.user.displayName ?: app.user.userIdentifier }}</span>
+                        </span>
+
+                        {% if is_granted('ADMIN_ACCESS') %}
+                            <a class="nav-link" href="{{ path('admin') }}">Administration</a>
+                        {% endif %}
+
+                        <a class="nav-link" href="{{ path('app_profile') }}">Profil</a>
+                        <a class="nav-link" href="{{ path('app_logout') }}">Déconnexion</a>
+                    {% else %}
+                        <a class="nav-link" href="{{ path('app_login') }}">Connexion</a>
+                        <a class="nav-link nav-link--register" href="{{ path('app_register') }}">Inscription</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>

@@ -1,5 +1,10 @@
 import './styles/app.css';
 import './styles/home.css';
+import './styles/navbar.css';
+
+import { initNavbar } from './js/navbar.js';
+
+initNavbar();
 
 const vueRoot = document.querySelector('#app');
 

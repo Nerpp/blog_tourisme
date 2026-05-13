@@ -14,37 +14,7 @@
         {% endblock %}
     </head>
     <body>
-        <header class="site-header">
-            <nav class="site-nav" aria-label="Navigation principale">
-                <a class="brand" href="{{ path('app_home') }}">Blog Tourisme</a>
-                <div class="nav-links">
-                    <a href="{{ path('app_home') }}">Accueil</a>
-                    <a href="{{ path('app_article_index') }}">Articles</a>
-                    <a href="{{ path('app_destination_index') }}">Destinations</a>
-                    <a href="{{ path('app_place_index') }}">Lieux</a>
-                </div>
-                <div class="nav-account">
-                    {% if app.user %}
-                        <span class="user-chip">
-                            {% if app.user.avatarPath %}
-                                <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
-                            {% else %}
-                                <span class="avatar avatar--header avatar--initials" aria-hidden="true">{{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}</span>
-                            {% endif %}
-                            <span>{{ app.user.displayName ?: app.user.userIdentifier }}</span>
-                        </span>
-                        {% if is_granted('ADMIN_ACCESS') %}
-                            <a href="{{ path('admin') }}">Administration</a>
-                        {% endif %}
-                        <a href="{{ path('app_profile') }}">Profil</a>
-                        <a href="{{ path('app_logout') }}">Deconnexion</a>
-                    {% else %}
-                        <a href="{{ path('app_login') }}">Connexion</a>
-                        <a href="{{ path('app_register') }}">Inscription</a>
-                    {% endif %}
-                </div>
-            </nav>
-        </header>
+        {% include 'partials/nav/_navbar.html.twig' %}
 
         {% for label, messages in app.flashes %}
             {% for message in messages %}
