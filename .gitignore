@@ -6,5 +6,7 @@
 /var/
 /public/build/
 /config/reference.php
+public/uploads/avatars/*
+!public/uploads/avatars/.gitkeep
 npm-debug.log*
 yarn-error.log*

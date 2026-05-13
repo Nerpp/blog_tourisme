@@ -25,6 +25,14 @@
                 </div>
                 <div class="nav-account">
                     {% if app.user %}
+                        <span class="user-chip">
+                            {% if app.user.avatarPath %}
+                                <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
+                            {% else %}
+                                <span class="avatar avatar--header avatar--initials" aria-hidden="true">{{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}</span>
+                            {% endif %}
+                            <span>{{ app.user.displayName ?: app.user.userIdentifier }}</span>
+                        </span>
                         {% if is_granted('ADMIN_ACCESS') %}
                             <a href="{{ path('admin') }}">Administration</a>
                         {% endif %}

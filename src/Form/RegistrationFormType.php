@@ -5,12 +5,14 @@ namespace App\Form;
 use App\Entity\User;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\PasswordType;
 use Symfony\Component\Form\Extension\Core\Type\RepeatedType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 
@@ -20,11 +22,28 @@ class RegistrationFormType extends AbstractType
     {
         $builder
             ->add('email', EmailType::class, [
-                'label' => 'Email',
+                'label' => 'Adresse email',
             ])
             ->add('displayName', TextType::class, [
-                'label' => 'Nom affiche',
+                'label' => 'Nom affiché',
                 'required' => false,
+            ])
+            ->add('avatarFile', FileType::class, [
+                'label' => 'Image de profil',
+                'mapped' => false,
+                'required' => false,
+                'constraints' => [
+                    new File(
+                        maxSize: '2M',
+                        mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+                        maxSizeMessage: 'L’image de profil ne doit pas dépasser 2 Mo.',
+                        mimeTypesMessage: 'Formats acceptés : JPG, PNG ou WebP.',
+                    ),
+                ],
+                'attr' => [
+                    'accept' => 'image/jpeg,image/png,image/webp',
+                    'data-avatar-input' => 'true',
+                ],
             ])
             ->add('plainPassword', RepeatedType::class, [
                 'type' => PasswordType::class,
@@ -42,7 +61,7 @@ class RegistrationFormType extends AbstractType
                 ],
             ])
             ->add('submit', SubmitType::class, [
-                'label' => 'Creer mon compte',
+                'label' => 'Créer mon compte',
             ]);
     }
 

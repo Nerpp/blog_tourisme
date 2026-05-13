@@ -4,9 +4,16 @@
 
 {% block body %}
     <header class="admin-header">
-        <div>
-            <h1 class="admin-title">{{ user_account.displayName ?: user_account.email }}</h1>
-            <p class="admin-subtitle">{{ user_account.email }}</p>
+        <div class="admin-user-heading">
+            {% if user_account.avatarPath %}
+                <img class="admin-avatar admin-avatar--large" src="{{ asset(user_account.avatarPath) }}" alt="">
+            {% else %}
+                <span class="admin-avatar admin-avatar--large admin-avatar--initials" aria-hidden="true">{{ (user_account.displayName ?: user_account.email)|first|upper }}</span>
+            {% endif %}
+            <div>
+                <h1 class="admin-title">{{ user_account.displayName ?: user_account.email }}</h1>
+                <p class="admin-subtitle">{{ user_account.email }}</p>
+            </div>
         </div>
         <a class="admin-button admin-button--secondary" href="{{ path('admin_users_index') }}">Retour</a>
     </header>

@@ -3,17 +3,28 @@
 {% block title %}Profil - Blog Tourisme{% endblock %}
 
 {% block body %}
-    <main>
-        <h1>Profil</h1>
+    <main class="page-shell profile-page">
+        <header class="profile-header">
+            {% if app.user.avatarPath %}
+                <img class="avatar avatar--profile" src="{{ asset(app.user.avatarPath) }}" alt="">
+            {% else %}
+                <span class="avatar avatar--profile avatar--initials" aria-hidden="true">{{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}</span>
+            {% endif %}
+            <div>
+                <p class="eyebrow">Espace personnel</p>
+                <h1>Profil</h1>
+                <p class="intro">{{ app.user.displayName ?: app.user.userIdentifier }}</p>
+            </div>
+        </header>
 
-        <dl>
+        <dl class="profile-details">
             <dt>Email</dt>
             <dd>{{ app.user.userIdentifier }}</dd>
 
-            <dt>Nom affiche</dt>
-            <dd>{{ app.user.displayName ?: 'Non renseigne' }}</dd>
+            <dt>Nom affiché</dt>
+            <dd>{{ app.user.displayName ?: 'Non renseigné' }}</dd>
 
-            <dt>Commentaires approuves</dt>
+            <dt>Commentaires approuvés</dt>
             <dd>{{ app.user.approvedCommentsCount }}</dd>
 
             <dt>Utilisateur de confiance</dt>

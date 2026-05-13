@@ -7,11 +7,15 @@ RUN apt-get update \
         default-mysql-client \
         git \
         libicu-dev \
+        libjpeg62-turbo-dev \
         libonig-dev \
+        libpng-dev \
+        libwebp-dev \
         libzip-dev \
         unzip \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-configure intl \
-    && docker-php-ext-install -j"$(nproc)" intl mbstring opcache pdo_mysql zip \
+    && docker-php-ext-install -j"$(nproc)" gd intl mbstring opcache pdo_mysql zip \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

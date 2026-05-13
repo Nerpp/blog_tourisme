@@ -1,10 +1,17 @@
 <article id="comment-{{ comment.id }}">
     <p>{{ comment.content|nl2br }}</p>
-    <footer>
-        Par {{ comment.author.displayName ?: comment.author.email }}
-        {% if comment.publishedAt %}
-            le {{ comment.publishedAt|date('d/m/Y H:i') }}
+    <footer class="comment-meta">
+        {% if comment.author.avatarPath %}
+            <img class="avatar avatar--comment" src="{{ asset(comment.author.avatarPath) }}" alt="">
+        {% else %}
+            <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ (comment.author.displayName ?: comment.author.email)|first|upper }}</span>
         {% endif %}
+        <span>
+            Par {{ comment.author.displayName ?: comment.author.email }}
+            {% if comment.publishedAt %}
+                le {{ comment.publishedAt|date('d/m/Y H:i') }}
+            {% endif %}
+        </span>
     </footer>
 
     {% if app.user %}

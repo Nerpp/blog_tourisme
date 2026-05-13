@@ -102,6 +102,30 @@
                 gap: 12px;
             }
 
+            .admin-user-heading {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+            }
+
+            .admin-avatar {
+                display: inline-grid;
+                place-items: center;
+                overflow: hidden;
+                flex: 0 0 auto;
+                border-radius: 50%;
+                background: var(--admin-primary-soft);
+                color: var(--admin-primary);
+                font-weight: 850;
+                object-fit: cover;
+            }
+
+            .admin-avatar--large {
+                width: 72px;
+                height: 72px;
+                font-size: 1.35rem;
+            }
+
             .admin-title {
                 margin: 0;
                 font-size: clamp(1.6rem, 4vw, 2.4rem);

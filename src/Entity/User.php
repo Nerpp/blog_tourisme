@@ -40,6 +40,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $displayName = null;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $avatarPath = null;
+
     #[ORM\Column]
     private bool $trustedCommenter = false;
 
@@ -150,6 +153,19 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setDisplayName(?string $displayName): static
     {
         $this->displayName = $displayName;
+
+        return $this;
+    }
+
+    public function getAvatarPath(): ?string
+    {
+        return $this->avatarPath;
+    }
+
+    public function setAvatarPath(?string $avatarPath): static
+    {
+        $avatarPath = trim((string) $avatarPath);
+        $this->avatarPath = $avatarPath === '' ? null : mb_substr($avatarPath, 0, 255);
 
         return $this;
     }

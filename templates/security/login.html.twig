@@ -3,23 +3,92 @@
 {% block title %}Connexion - Blog Tourisme{% endblock %}
 
 {% block body %}
-    <main>
-        <h1>Connexion</h1>
+    <main class="login-page">
+        <section class="login-shell" aria-labelledby="login-title">
+            <aside class="login-hero" aria-label="Présentation Blog Tourisme">
+                <div class="login-hero__content">
+                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <p class="login-eyebrow">Carnet de voyage intelligent</p>
+                    <h1 id="login-title">Votre carnet de voyage intelligent</h1>
+                    <p class="login-hero__text">
+                        Centralisez vos articles, lieux à visiter, randonnées, visites de ville, photos, vidéos et médias immersifs.
+                    </p>
 
-        {% if error %}
-            <div class="flash flash-error">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
-        {% endif %}
+                    <div class="login-badges" aria-label="Fonctionnalités">
+                        <span>Points GPS</span>
+                        <span>Photos 360°</span>
+                        <span>Visites de ville</span>
+                        <span>Blog tourisme</span>
+                    </div>
+                </div>
 
-        <form method="post" action="{{ path('app_login') }}">
-            <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+                <div class="login-map" aria-hidden="true">
+                    <div class="login-map__route"></div>
+                    <span class="login-map__pin login-map__pin--one"></span>
+                    <span class="login-map__pin login-map__pin--two"></span>
+                    <span class="login-map__pin login-map__pin--three"></span>
+                    <div class="login-compass">
+                        <span>N</span>
+                    </div>
+                    <div class="login-landscape">
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            </aside>
 
-            <label for="username">Email</label>
-            <input type="email" id="username" name="_username" value="{{ last_username }}" autocomplete="email" required autofocus>
+            <section class="login-panel" aria-label="Formulaire de connexion">
+                <div class="login-card">
+                    <div class="login-card__header">
+                        <p class="login-card__kicker">Espace sécurisé</p>
+                        <h2>Connexion</h2>
+                        <p>Connectez-vous pour gérer vos contenus touristiques.</p>
+                    </div>
 
-            <label for="password">Mot de passe</label>
-            <input type="password" id="password" name="_password" autocomplete="current-password" required>
+                    {% if error %}
+                        <div class="login-error" role="alert">
+                            {{ error.messageKey|trans(error.messageData, 'security') }}
+                        </div>
+                    {% endif %}
 
-            <button type="submit">Se connecter</button>
-        </form>
+                    <form class="login-form" method="post" action="{{ path('app_login') }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+                        <div class="login-field">
+                            <label for="username">Adresse email</label>
+                            <input
+                                class="login-input"
+                                type="email"
+                                id="username"
+                                name="_username"
+                                value="{{ last_username }}"
+                                autocomplete="email"
+                                required
+                                autofocus
+                            >
+                        </div>
+
+                        <div class="login-field">
+                            <label for="password">Mot de passe</label>
+                            <input
+                                class="login-input"
+                                type="password"
+                                id="password"
+                                name="_password"
+                                autocomplete="current-password"
+                                required
+                            >
+                        </div>
+
+                        <button class="login-button" type="submit">Se connecter</button>
+                    </form>
+
+                    <div class="login-links" aria-label="Liens utiles">
+                        <a href="{{ path('app_home') }}">Retour à l’accueil</a>
+                        <a href="{{ path('app_register') }}">Créer un compte</a>
+                    </div>
+                </div>
+            </section>
+        </section>
     </main>
 {% endblock %}
