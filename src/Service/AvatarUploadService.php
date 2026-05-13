@@ -9,8 +9,9 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class AvatarUploadService
 {
-    private const MAX_BYTES = 2_097_152;
-    private const MAX_PIXELS = 20_000_000;
+    private const MAX_BYTES = 5_242_880;
+    private const MAX_WIDTH = 4000;
+    private const MAX_HEIGHT = 4000;
     private const AVATAR_SIZE = 256;
     private const UPLOAD_DIRECTORY = 'public/uploads/avatars';
     private const PUBLIC_DIRECTORY = '/uploads/avatars';
@@ -108,7 +109,7 @@ final class AvatarUploadService
         }
 
         if ($size > self::MAX_BYTES) {
-            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 2 Mo.');
+            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 5 Mo.');
         }
 
         $extension = strtolower((string) $file->getClientOriginalExtension());
@@ -137,8 +138,8 @@ final class AvatarUploadService
             throw new InvalidArgumentException('L’image de profil doit mesurer au moins 64 px de côté.');
         }
 
-        if (($width * $height) > self::MAX_PIXELS) {
-            throw new InvalidArgumentException('Les dimensions de l’image sont trop grandes.');
+        if ($width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) {
+            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 4000 x 4000 px.');
         }
 
         return [
