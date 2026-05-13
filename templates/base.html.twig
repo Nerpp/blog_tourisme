@@ -1,35 +1,40 @@
 <!doctype html>
 <html lang="fr">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{% block title %}Blog Tourisme{% endblock %}</title>
-        <meta name="description" content="{% block meta_description %}Lieux a visiter, itineraires et conseils pour decouvrir les plus belles destinations touristiques.{% endblock %}">
-        {% block canonical %}<link rel="canonical" href="{{ app.request.uri }}">{% endblock %}
-        <meta property="og:title" content="{% block open_graph_title %}{{ block('title') }}{% endblock %}">
-        <meta property="og:description" content="{% block open_graph_description %}{{ block('meta_description') }}{% endblock %}">
-        {% block open_graph_image %}{% endblock %}
-        {% block stylesheets %}
-            {{ vite_entry_link_tags('app') }}
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>
+			{% block title %}Blog Tourisme
+			{% endblock %}
+		</title>
+		<meta name="description" content="{% block meta_description %}Lieux a visiter, itineraires et conseils pour decouvrir les plus belles destinations touristiques.{% endblock %}">
+		{% block canonical %}<link rel="canonical" href="{{ app.request.uri }}">
+		{% endblock %}
+		<meta property="og:title" content="{% block open_graph_title %}{{ block('title') }}{% endblock %}">
+		<meta property="og:description" content="{% block open_graph_description %}{{ block('meta_description') }}{% endblock %}"> {% block open_graph_image %}{% endblock %}
+		{% block stylesheets %}
+			{{ vite_entry_link_tags('app') }}
+		{% endblock %}
+	</head>
+	<body>
+		{% block site_header %}
+			{% include 'partials/nav/_navbar.html.twig' %}
+		{% endblock %}
+
+		{% for label, messages in app.flashes %}
+			{% for message in messages %}
+				<div class="flash flash-{{ label }}">{{ message }}</div>
+			{% endfor %}
+		{% endfor %}
+
+		{% block body %}{% endblock %}
+
+		{% block site_footer %}
+            {% include 'partials/footer/_footer.html.twig' %}
         {% endblock %}
-    </head>
-    <body>
-        {% include 'partials/nav/_navbar.html.twig' %}
 
-        {% for label, messages in app.flashes %}
-            {% for message in messages %}
-                <div class="flash flash-{{ label }}">{{ message }}</div>
-            {% endfor %}
-        {% endfor %}
-
-        {% block body %}{% endblock %}
-
-        <footer class="site-footer">
-            <p>Blog Tourisme - contenu de demonstration pour explorer destinations, lieux et itineraires.</p>
-        </footer>
-
-        {% block javascripts %}
-            {{ vite_entry_script_tags('app') }}
-        {% endblock %}
-    </body>
+		{% block javascripts %}
+			{{ vite_entry_script_tags('app') }}
+		{% endblock %}
+	</body>
 </html>

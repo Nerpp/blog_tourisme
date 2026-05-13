@@ -6,6 +6,23 @@
                 <span class="navbar-brand__subtitle">Carnet d'exploration</span>
             </a>
 
+            <div class="navbar-mobile-account">
+                {% if app.user %}
+                    <a class="navbar-avatar-link" href="{{ path('app_profile') }}" aria-label="Voir mon profil">
+                        {% if app.user.avatarPath %}
+                            <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
+                        {% else %}
+                            <span class="avatar avatar--header avatar--initials" aria-hidden="true">
+                                {{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}
+                            </span>
+                        {% endif %}
+                    </a>
+                {% else %}
+                    <a class="nav-auth-link nav-auth-link--login" href="{{ path('app_login') }}">Connexion</a>
+                    <a class="nav-auth-link nav-auth-link--register" href="{{ path('app_register') }}">Inscription</a>
+                {% endif %}
+            </div>
+
             <button
                 class="navbar-toggler js-navbar-toggler"
                 type="button"
@@ -24,8 +41,8 @@
                     <a class="nav-link" href="{{ path('app_place_index') }}">Lieux</a>
                 </div>
 
-                <div class="navbar-account">
-                    {% if app.user %}
+                {% if app.user %}
+                    <div class="navbar-account">
                         <span class="user-chip">
                             {% if app.user.avatarPath %}
                                 <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
@@ -44,11 +61,8 @@
 
                         <a class="nav-link" href="{{ path('app_profile') }}">Profil</a>
                         <a class="nav-link" href="{{ path('app_logout') }}">Déconnexion</a>
-                    {% else %}
-                        <a class="nav-link" href="{{ path('app_login') }}">Connexion</a>
-                        <a class="nav-link nav-link--register" href="{{ path('app_register') }}">Inscription</a>
-                    {% endif %}
-                </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </nav>
