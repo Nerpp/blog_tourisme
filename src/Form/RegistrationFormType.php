@@ -15,6 +15,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Constraints\Regex;
 
 class RegistrationFormType extends AbstractType
 {
@@ -49,14 +50,27 @@ class RegistrationFormType extends AbstractType
                 'type' => PasswordType::class,
                 'mapped' => false,
                 'invalid_message' => 'Les mots de passe ne correspondent pas.',
-                'first_options' => ['label' => 'Mot de passe'],
-                'second_options' => ['label' => 'Confirmer le mot de passe'],
+                'first_options' => [
+                    'label' => 'Mot de passe',
+                    'help' => 'Utilisez au moins 12 caractères, avec des lettres et des chiffres. Évitez les mots de passe simples comme 12345678.',
+                ],
+                'second_options' => [
+                    'label' => 'Confirmer le mot de passe',
+                ],
                 'constraints' => [
                     new NotBlank(message: 'Veuillez saisir un mot de passe.'),
                     new Length(
-                        min: 8,
+                        min: 12,
                         max: 4096,
-                        minMessage: 'Le mot de passe doit contenir au moins {{ limit }} caracteres.',
+                        minMessage: 'Le mot de passe doit contenir au moins {{ limit }} caractères.',
+                    ),
+                    new Regex(
+                        pattern: '/^(?=.*[A-Za-zÀ-ÿ])(?=.*\d).+$/u',
+                        message: 'Le mot de passe doit contenir au moins une lettre et un chiffre.',
+                    ),
+                    new Regex(
+                        pattern: '/^(?!.*(?:123456|12345678|123456789|password|azerty|qwerty|motdepasse)).*$/i',
+                        message: 'Ce mot de passe est trop courant. Choisissez un mot de passe plus difficile à deviner.',
                     ),
                 ],
             ])
