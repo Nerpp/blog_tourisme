@@ -43,17 +43,20 @@
 
                 {% if app.user %}
                     <div class="navbar-account">
-                        <span class="user-chip">
-                            {% if app.user.avatarPath %}
-                                <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
-                            {% else %}
-                                <span class="avatar avatar--header avatar--initials" aria-hidden="true">
-                                    {{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}
-                                </span>
-                            {% endif %}
-
-                            <span>{{ app.user.displayName ?: app.user.userIdentifier }}</span>
-                        </span>
+                       <a
+    class="navbar-profile-chip"
+    href="{{ path('app_profile') }}"
+    aria-label="Voir mon profil"
+    title="{{ app.user.displayName ?: app.user.userIdentifier }}"
+>
+    {% if app.user.avatarPath %}
+        <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
+    {% else %}
+        <span class="avatar avatar--header avatar--initials" aria-hidden="true">
+            {{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}
+        </span>
+    {% endif %}
+</a>
 
                         {% if is_granted('ADMIN_ACCESS') %}
                             <a class="nav-link" href="{{ path('admin') }}">Administration</a>

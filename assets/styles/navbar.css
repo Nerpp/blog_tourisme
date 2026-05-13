@@ -65,6 +65,7 @@
   align-items: center;
   justify-content: center;
   gap: 24px;
+  min-width: 0;
 }
 
 .navbar-nav {
@@ -73,13 +74,15 @@
   justify-content: center;
   gap: 10px;
   flex: 1;
+  min-width: 0;
 }
 
 .navbar-account {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .nav-link {
@@ -146,14 +149,51 @@
   color: #fff;
 }
 
-.navbar-avatar-link {
+/* AVATAR / PROFIL */
+
+.navbar-avatar-link,
+.navbar-profile-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
 }
 
+.navbar-profile-chip {
+  min-width: 42px;
+  min-height: 42px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(229, 240, 237, 0.72);
+}
+
+.navbar-profile-chip:hover {
+  background: rgba(229, 240, 237, 0.95);
+  text-decoration: none;
+}
+
 /* Compatibilité si ancienne classe encore présente */
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 190px;
+  min-height: 42px;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: rgba(229, 240, 237, 0.72);
+  color: #33413e;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.user-chip span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .nav-link--register {
   padding-inline: 18px;
@@ -228,29 +268,41 @@
   transform: rotate(-45deg);
 }
 
-/* USER */
-
-.user-chip {
-  display: inline-flex;
-  align-items: center;
-  max-width: 260px;
-  gap: 8px;
-  color: #33413e;
-  font-size: 0.92rem;
-  font-weight: 750;
-}
-
-.user-chip span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Sur desktop, si utilisateur connecté, on évite le doublon avatar + user-chip */
+/* DESKTOP : connecté */
 
 @media (min-width: 992px) {
   .navbar-mobile-account .navbar-avatar-link {
     display: none;
+  }
+}
+
+/* TABLETTES DESKTOP : éviter que ça se tasse */
+
+@media (min-width: 992px) and (max-width: 1200px) {
+  .navbar-container {
+    gap: 14px;
+  }
+
+  .navbar-collapse {
+    gap: 14px;
+  }
+
+  .navbar-nav {
+    gap: 6px;
+  }
+
+  .nav-link {
+    padding-inline: 9px;
+    font-size: 0.88rem;
+  }
+
+  .navbar-account {
+    gap: 6px;
+  }
+
+  .navbar-profile-chip {
+    min-width: 40px;
+    min-height: 40px;
   }
 }
 
@@ -325,6 +377,10 @@
 
   .navbar-nav {
     flex: initial;
+  }
+
+  .navbar-account .navbar-profile-chip {
+    display: none;
   }
 
   .nav-link {
