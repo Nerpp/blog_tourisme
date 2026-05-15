@@ -7,8 +7,6 @@ use App\Entity\User;
 use App\Enum\HikeDraftStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
-use App\Entity\HikeDraftMedia;
-use App\Entity\MediaAsset;
 
 /** @extends ServiceEntityRepository<HikeDraft> */
 class HikeDraftRepository extends ServiceEntityRepository

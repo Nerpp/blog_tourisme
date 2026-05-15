@@ -9,8 +9,7 @@ use App\Entity\MediaAsset;
 use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
-use DateTimeImmutable;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+
 
 final readonly class HomepageLatestContentProvider
 {
@@ -28,7 +27,7 @@ final readonly class HomepageLatestContentProvider
      *     title: string,
      *     url: string,
      *     image: ?string,
-     *     date: DateTimeImmutable
+     *     date: \DateTimeImmutable
      * }|null
      */
     public function getLatest(): ?array
