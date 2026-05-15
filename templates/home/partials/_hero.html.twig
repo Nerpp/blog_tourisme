@@ -26,31 +26,33 @@
             </div>
         </div>
 
-        {% set latest_article = latest_articles|first %}
-
-        {% if latest_article %}
+        {% if latest_homepage_item %}
             <a
                 class="home-latest-card"
-                href="{{ path('app_article_show', { slug: latest_article.slug }) }}"
-                aria-label="Lire l’article : {{ latest_article.title }}"
+                href="{{ latest_homepage_item.url }}"
+                aria-label="Voir : {{ latest_homepage_item.title }}"
+                {% if latest_homepage_item.image %}
+                    style="--latest-card-image: url('{{ asset(latest_homepage_item.image)|e('html_attr') }}');"
+                {% endif %}
             >
                 <div class="home-latest-card__overlay">
-                    <p>Dernière randonnée</p>
+                    <p>{{ latest_homepage_item.label }}</p>
 
-                    <h2>{{ latest_article.title }}</h2>
+                    <h2>{{ latest_homepage_item.title }}</h2>
 
                     <span class="home-latest-card__cta">
-                        Lire l’article
+                        Découvrir
                     </span>
                 </div>
             </a>
         {% else %}
             <aside class="home-latest-card">
                 <div class="home-latest-card__overlay">
-                    <p>Dernière randonnée</p>
-                    <h2>Massif du Canigou</h2>
-                    <span>🥾 14 km • boucle</span>
-                    <span>📍 Occitanie</span>
+                    <p>Dernière publication</p>
+
+                    <h2>Explorer les Pyrénées-Orientales</h2>
+
+                    <span>Mer, montagne et villages méditerranéens</span>
                 </div>
             </aside>
         {% endif %}

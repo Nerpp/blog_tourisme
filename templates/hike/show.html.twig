@@ -1,0 +1,54 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ hike.title }} - Randonnée{% endblock %}
+
+{% block body %}
+    <main class="public-detail-page">
+        <section class="public-detail-hero">
+            <div class="public-detail-container">
+                <p class="public-detail-kicker">Randonnée</p>
+                <h1>{{ hike.title }}</h1>
+
+                {% if hike.notes %}
+                    <p class="public-detail-intro">{{ hike.notes|nl2br }}</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="public-detail-section">
+            <div class="public-detail-container">
+                {% if hike.mediaLinks|length > 0 %}
+                    <div class="public-media-grid">
+                        {% for mediaLink in hike.mediaLinks %}
+                            {% set media = mediaLink.mediaAsset %}
+                            {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                            {% if image %}
+                                <figure class="public-media-card">
+                                    <img src="{{ asset(image) }}" alt="{{ media.altText ?: hike.title }}">
+                                </figure>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <h2>Étapes de la randonnée</h2>
+
+                <div class="public-point-list">
+                    {% for point in hike.points %}
+                        <article class="public-point-card">
+                            <p class="public-point-position">Étape {{ point.position }}</p>
+                            <h3>{{ point.title ?: point.type.value }}</h3>
+
+                            {% if point.note %}
+                                <p>{{ point.note|nl2br }}</p>
+                            {% endif %}
+                        </article>
+                    {% else %}
+                        <p>Aucune étape détaillée pour le moment.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    </main>
+{% endblock %}

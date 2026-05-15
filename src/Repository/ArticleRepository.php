@@ -76,4 +76,34 @@ class ArticleRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->addOrderBy('a.id', 'DESC');
     }
+
+    public function findLatestPublishedForHomepage(): ?Article
+    {
+        $latestArticleRow = $this->createQueryBuilder('a')
+            ->select('a.id')
+            ->andWhere('a.status = :status')
+            ->andWhere('a.publishedAt IS NOT NULL')
+            ->setParameter('status', ContentStatus::Published)
+            ->orderBy('a.publishedAt', 'DESC')
+            ->addOrderBy('a.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($latestArticleRow === null) {
+            return null;
+        }
+
+        return $this->createQueryBuilder('a')
+            ->addSelect('featuredImage', 'mediaLinks', 'mediaAssets')
+            ->leftJoin('a.featuredImage', 'featuredImage')
+            ->leftJoin('a.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('a.id = :id')
+            ->setParameter('id', $latestArticleRow['id'])
+            ->orderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('mediaLinks.id', 'ASC')
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }

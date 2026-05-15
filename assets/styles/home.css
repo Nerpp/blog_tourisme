@@ -136,8 +136,8 @@
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 36px;
   background-image:
-    linear-gradient(to top, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0.16)),
-    url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=1400&auto=format&fit=crop');
+  linear-gradient(to top, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0.16)),
+  var(--latest-card-image, url('/images/home/hero-sea-mountain.webp'));
   background-size: cover;
   background-position: center;
   box-shadow: 0 36px 90px rgba(0, 0, 0, 0.46);

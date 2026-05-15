@@ -28,4 +28,54 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    public function findLatestFinishedForHomepage(): ?CityVisitDraft
+    {
+        $latestCityVisitRow = $this->createQueryBuilder('c')
+            ->select('c.id')
+            ->andWhere('c.status = :status')
+            ->andWhere('c.finishedAt IS NOT NULL')
+            ->setParameter('status', CityVisitDraftStatus::Finished)
+            ->orderBy('c.finishedAt', 'DESC')
+            ->addOrderBy('c.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($latestCityVisitRow === null) {
+            return null;
+        }
+
+        return $this->createQueryBuilder('c')
+            ->addSelect('mediaLinks', 'mediaAssets')
+            ->leftJoin('c.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('c.id = :id')
+            ->setParameter('id', $latestCityVisitRow['id'])
+            ->orderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('mediaLinks.id', 'ASC')
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    public function findPublicBySlug(string $slug): ?CityVisitDraft
+    {
+        return $this->createQueryBuilder('c')
+            ->addSelect('destination', 'points', 'mediaLinks', 'mediaAssets')
+            ->leftJoin('c.destination', 'destination')
+            ->leftJoin('c.points', 'points')
+            ->leftJoin('c.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('c.slug = :slug')
+            ->andWhere('c.status IN (:statuses)')
+            ->setParameter('slug', $slug)
+            ->setParameter('statuses', [
+                CityVisitDraftStatus::Finished,
+                CityVisitDraftStatus::Converted,
+            ])
+            ->orderBy('points.position', 'ASC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }
