@@ -49,15 +49,6 @@ class ArticleRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
-    /** @return list<Article> */
-    public function findLatestPublished(int $limit): array
-    {
-        return $this->createPublishedQueryBuilder()
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
-    }
-
     private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder
     {
         return $this->createQueryBuilder('a')

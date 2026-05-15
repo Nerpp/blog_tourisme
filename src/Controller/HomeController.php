@@ -2,7 +2,6 @@
 
 namespace App\Controller;
 
-//use App\Repository\ArticleRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\PlaceRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;

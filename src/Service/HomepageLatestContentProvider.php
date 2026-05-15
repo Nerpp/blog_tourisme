@@ -10,7 +10,6 @@ use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
 
-
 final readonly class HomepageLatestContentProvider
 {
     public function __construct(
