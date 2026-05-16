@@ -1,6 +1,7 @@
 import './styles/app.css';
 import './styles/home.css';
 import './styles/navbar.css';
+import './styles/public-detail.css';
 
 import { initNavbar } from './js/navbar.js';
 

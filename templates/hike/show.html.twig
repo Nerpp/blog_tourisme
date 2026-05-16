@@ -3,51 +3,315 @@
 {% block title %}{{ hike.title }} - Randonnée{% endblock %}
 
 {% block body %}
+    {% set standard_media_links = [] %}
+    {% set video_media_links = [] %}
+    {% set immersive_media_links = [] %}
+    {% set panorama_media_links = [] %}
+    {% set cover_media = null %}
+
+    {% for mediaLink in hike.mediaLinks %}
+        {% set media = mediaLink.mediaAsset %}
+
+        {% if cover_media is null %}
+            {% set cover_media = media %}
+        {% endif %}
+
+        {% if media.mediaType.value == 'video' %}
+            {% set video_media_links = video_media_links|merge([mediaLink]) %}
+        {% elseif media.imageType and media.imageType.value in ['360', '180'] %}
+            {% set immersive_media_links = immersive_media_links|merge([mediaLink]) %}
+        {% elseif media.imageType and media.imageType.value == 'panorama' %}
+            {% set panorama_media_links = panorama_media_links|merge([mediaLink]) %}
+        {% else %}
+            {% set standard_media_links = standard_media_links|merge([mediaLink]) %}
+        {% endif %}
+    {% endfor %}
+
+    {% set cover_image = null %}
+
+    {% if cover_media %}
+        {% set cover_image = cover_media.thumbnailPath ?: cover_media.filePath ?: cover_media.externalUrl %}
+    {% endif %}
+
     <main class="public-detail-page">
         <section class="public-detail-hero">
-            <div class="public-detail-container">
-                <p class="public-detail-kicker">Randonnée</p>
-                <h1>{{ hike.title }}</h1>
+            <div class="public-detail-container public-detail-hero-grid">
+                <div>
+                    <p class="public-detail-kicker">Randonnée</p>
 
-                {% if hike.notes %}
-                    <p class="public-detail-intro">{{ hike.notes|nl2br }}</p>
-                {% endif %}
+                    <h1 class="public-detail-title">{{ hike.title }}</h1>
+
+                    {% if hike.notes %}
+                        <p class="public-detail-intro">{{ hike.notes|nl2br }}</p>
+                    {% endif %}
+
+                    <div class="public-detail-meta">
+                        {% if hike.detectedCommuneName %}
+                            <span>{{ hike.detectedCommuneName }}</span>
+                        {% elseif hike.destination %}
+                            <span>{{ hike.destination.name }}</span>
+                        {% endif %}
+
+                        {% if hike.detectedDepartmentName %}
+                            <span>{{ hike.detectedDepartmentName }}</span>
+                        {% endif %}
+
+                        {% if hike.detectedRegionName %}
+                            <span>{{ hike.detectedRegionName }}</span>
+                        {% endif %}
+
+                        <span>{{ hike.points|length }} étape{{ hike.points|length > 1 ? 's' : '' }}</span>
+                    </div>
+                </div>
+
+                <div
+                    class="public-detail-cover"
+                    {% if cover_image %}
+                        style="--public-cover-image: url('{{ (cover_image starts with 'http' ? cover_image : asset(cover_image))|e('html_attr') }}');"
+                    {% endif %}
+                    aria-label="Image principale de la randonnée"
+                ></div>
             </div>
         </section>
 
-        <section class="public-detail-section">
+        <section class="public-detail-content">
             <div class="public-detail-container">
-                {% if hike.mediaLinks|length > 0 %}
-                    <div class="public-media-grid">
-                        {% for mediaLink in hike.mediaLinks %}
-                            {% set media = mediaLink.mediaAsset %}
-                            {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                {% if standard_media_links|length > 0 %}
+                    <section class="media-section">
+                        <div class="media-header">
+                            <div>
+                                <p class="media-kicker">Parcours</p>
+                                <h2 class="media-title">Photos du parcours</h2>
+                                <p class="media-description">
+                                    Les images classiques du lieu, utiles pour ressentir l’ambiance générale de la balade.
+                                </p>
+                            </div>
 
-                            {% if image %}
-                                <figure class="public-media-card">
-                                    <img src="{{ asset(image) }}" alt="{{ media.altText ?: hike.title }}">
-                                </figure>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+                            <span class="media-count">{{ standard_media_links|length }}</span>
+                        </div>
+
+                        <div class="journey-gallery">
+                            {% for mediaLink in standard_media_links %}
+                                {% set media = mediaLink.mediaAsset %}
+                                {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                                {% if image %}
+                                    <figure class="journey-gallery-card {{ loop.first ? 'journey-gallery-card--large' : '' }}">
+                                        <span class="media-badge">Photo</span>
+
+                                        <img
+                                            src="{{ image starts with 'http' ? image : asset(image) }}"
+                                            alt="{{ media.altText ?: media.title ?: hike.title }}"
+                                        >
+
+                                        {% if media.caption or media.title %}
+                                            <figcaption class="media-comment">
+                                                <strong>{{ media.title ?: 'Commentaire' }}</strong>
+                                                {{ media.caption ?: media.title }}
+                                            </figcaption>
+                                        {% endif %}
+                                    </figure>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </section>
                 {% endif %}
 
-                <h2>Étapes de la randonnée</h2>
+                {% if video_media_links|length > 0 %}
+                    <section class="media-section media-section--dark">
+                        <div class="media-header">
+                            <div>
+                                <p class="media-kicker">Drone</p>
+                                <h2 class="media-title">Vidéos aériennes</h2>
+                                <p class="media-description">
+                                    Les vidéos prises pendant l’exploration permettent de visualiser le relief, les accès et l’ambiance du site.
+                                </p>
+                            </div>
 
-                <div class="public-point-list">
-                    {% for point in hike.points %}
-                        <article class="public-point-card">
-                            <p class="public-point-position">Étape {{ point.position }}</p>
-                            <h3>{{ point.title ?: point.type.value }}</h3>
+                            <span class="media-count">{{ video_media_links|length }}</span>
+                        </div>
 
-                            {% if point.note %}
-                                <p>{{ point.note|nl2br }}</p>
-                            {% endif %}
-                        </article>
-                    {% else %}
-                        <p>Aucune étape détaillée pour le moment.</p>
-                    {% endfor %}
-                </div>
+                        <div class="drone-video-grid">
+                            {% for mediaLink in video_media_links %}
+                                {% set media = mediaLink.mediaAsset %}
+                                {% set video = media.filePath ?: media.externalUrl %}
+                                {% set poster = media.thumbnailPath %}
+
+                                {% if video %}
+                                    <article class="video-card">
+                                        <div class="video-frame">
+                                            <span class="media-badge">Vidéo</span>
+
+                                            {% if media.videoType and media.videoType.value in ['youtube', 'vimeo', 'dailymotion', 'external'] and video starts with 'http' %}
+                                                <iframe
+                                                    src="{{ video }}"
+                                                    title="{{ media.title ?: hike.title }}"
+                                                    loading="lazy"
+                                                    allowfullscreen
+                                                ></iframe>
+                                            {% else %}
+                                                <video
+                                                    controls
+                                                    preload="metadata"
+                                                    {% if poster %}
+                                                        poster="{{ poster starts with 'http' ? poster : asset(poster) }}"
+                                                    {% endif %}
+                                                >
+                                                    <source src="{{ video starts with 'http' ? video : asset(video) }}" type="{{ media.mimeType ?: 'video/mp4' }}">
+                                                    Votre navigateur ne supporte pas la lecture vidéo.
+                                                </video>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="video-content">
+                                            <h3>{{ media.title ?: 'Vidéo du parcours' }}</h3>
+
+                                            {% if media.caption %}
+                                                <p>{{ media.caption }}</p>
+                                            {% endif %}
+                                        </div>
+                                    </article>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endif %}
+
+                {% if immersive_media_links|length > 0 %}
+                    <section class="media-section">
+                        <div class="media-header">
+                            <div>
+                                <p class="media-kicker">Immersion</p>
+                                <h2 class="media-title">Photos 360° et 180°</h2>
+                                <p class="media-description">
+                                    Ces vues immersives permettent de mieux comprendre l’environnement et les points de vue du parcours.
+                                </p>
+                            </div>
+
+                            <span class="media-count">{{ immersive_media_links|length }}</span>
+                        </div>
+
+                        <div class="immersive-grid">
+                            {% for mediaLink in immersive_media_links %}
+                                {% set media = mediaLink.mediaAsset %}
+                                {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                                {% if image %}
+                                    <a
+                                        class="immersive-card"
+                                        href="{{ image starts with 'http' ? image : asset(image) }}"
+                                        style="--immersive-image: url('{{ (image starts with 'http' ? image : asset(image))|e('html_attr') }}');"
+                                    >
+                                        <span class="immersive-card__tag">
+                                            {{ media.imageType.value == '360' ? '360°' : '180°' }}
+                                        </span>
+
+                                        <h3>{{ media.title ?: 'Vue immersive' }}</h3>
+
+                                        <p>{{ media.caption ?: 'Ouvrir l’image immersive.' }}</p>
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endif %}
+
+                {% if panorama_media_links|length > 0 %}
+                    <section class="media-section">
+                        <div class="media-header">
+                            <div>
+                                <p class="media-kicker">Panorama</p>
+                                <h2 class="media-title">Images panoramiques</h2>
+                                <p class="media-description">
+                                    Les panoramas sont affichés en très large pour profiter de leur format horizontal.
+                                </p>
+                            </div>
+
+                            <span class="media-count">{{ panorama_media_links|length }}</span>
+                        </div>
+
+                        <div class="panorama-strip">
+                            {% for mediaLink in panorama_media_links %}
+                                {% set media = mediaLink.mediaAsset %}
+                                {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                                {% if image %}
+                                    <article
+                                        class="panorama-card"
+                                        style="--panorama-image: url('{{ (image starts with 'http' ? image : asset(image))|e('html_attr') }}');"
+                                    >
+                                        <span class="media-badge">Panorama</span>
+
+                                        <div class="panorama-card__content">
+                                            <h3>{{ media.title ?: 'Vue panoramique' }}</h3>
+
+                                            {% if media.caption %}
+                                                <p>{{ media.caption }}</p>
+                                            {% endif %}
+                                        </div>
+                                    </article>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endif %}
+
+                <section class="media-section public-point-section">
+                    <div class="media-header">
+                        <div>
+                            <p class="media-kicker">Itinéraire</p>
+                            <h2 class="media-title">Étapes de la randonnée</h2>
+                        </div>
+
+                        <span class="media-count">{{ hike.points|length }}</span>
+                    </div>
+
+                    <div class="public-point-list">
+                        {% for point in hike.points %}
+                            <article class="public-point-card">
+                                <div>
+                                    <span class="public-point-number">
+                                        {{ '%02d'|format(loop.index) }}
+                                    </span>
+                                </div>
+
+                                <div>
+                                    <p class="public-point-type">{{ point.type.value }}</p>
+
+                                    <h3>{{ point.title ?: 'Étape ' ~ loop.index }}</h3>
+
+                                    {% if point.note %}
+                                        <p>{{ point.note|nl2br }}</p>
+                                    {% endif %}
+
+                                    {% if point.mediaLinks|length > 0 %}
+                                        <div class="point-media-grid">
+                                            {% for pointMediaLink in point.mediaLinks %}
+                                                {% set media = pointMediaLink.mediaAsset %}
+                                                {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                                                {% if image and media.mediaType.value == 'image' %}
+                                                    <figure class="point-media-card">
+                                                        <img
+                                                            src="{{ image starts with 'http' ? image : asset(image) }}"
+                                                            alt="{{ media.altText ?: media.title ?: point.title ?: hike.title }}"
+                                                        >
+
+                                                        {% if media.caption or media.title %}
+                                                            <figcaption>{{ media.caption ?: media.title }}</figcaption>
+                                                        {% endif %}
+                                                    </figure>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </article>
+                        {% else %}
+                            <p class="empty-media-note">Aucune étape détaillée pour le moment.</p>
+                        {% endfor %}
+                    </div>
+                </section>
             </div>
         </section>
     </main>
