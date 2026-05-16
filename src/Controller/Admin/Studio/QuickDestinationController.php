@@ -39,42 +39,14 @@ final class QuickDestinationController extends AbstractController
             return $this->errorResponse($request, 'Le formulaire a expiré. Réessayez.', Response::HTTP_BAD_REQUEST);
         }
 
-        $type = DestinationType::tryFrom($request->request->getString('type')) ?? DestinationType::Area;
-        $name = $this->destinationName($request, $type);
-        if ($name === '') {
-            return $this->errorResponse($request, 'Renseignez au moins le pays, la région ou le lieu.', Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
+        $requestedType = DestinationType::tryFrom($request->request->getString('type')) ?? DestinationType::Area;
         $parent = $this->findParentDestination($request);
-        if (!$parent instanceof Destination && $type !== DestinationType::Country) {
-            $parent = $this->findOrCreateCountry($request);
-        }
+        $destination = $parent instanceof Destination
+            ? $this->resolveManualDestination($request, $requestedType, $parent)
+            : $this->resolveDestinationHierarchy($request, $requestedType);
 
-        $code = $this->nullIfBlank($request->request->getString('code'));
-        $latitude = $this->nullableFloat($request->request->get('latitude'));
-        $longitude = $this->nullableFloat($request->request->get('longitude'));
-
-        $destination = $this->findReusableDestination($name, $type, $code);
         if (!$destination instanceof Destination) {
-            $destination = (new Destination())
-                ->setName($name)
-                ->setSlug($this->createUniqueSlug($name))
-                ->setType($type)
-                ->setCode($code);
-
-            $this->entityManager->persist($destination);
-        }
-
-        if (!$destination->getParent() instanceof Destination && $parent instanceof Destination) {
-            $destination->setParent($parent);
-        }
-
-        if ($latitude !== null || $destination->getLatitude() === null) {
-            $destination->setLatitude($latitude);
-        }
-
-        if ($longitude !== null || $destination->getLongitude() === null) {
-            $destination->setLongitude($longitude);
+            return $this->errorResponse($request, 'Renseignez au moins le pays, la région ou le lieu.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $target = $this->findTarget($request);
@@ -124,6 +96,118 @@ final class QuickDestinationController extends AbstractController
         };
     }
 
+    private function resolveManualDestination(Request $request, DestinationType $requestedType, Destination $parent): ?Destination
+    {
+        $name = $this->destinationName($request, $requestedType);
+        if ($name === '') {
+            return null;
+        }
+
+        return $this->findOrCreateDestinationNode(
+            $name,
+            $requestedType,
+            $parent,
+            $this->codeForType($requestedType, $this->nullIfBlank($request->request->getString('code'))),
+            $this->nullableFloat($request->request->get('latitude')),
+            $this->nullableFloat($request->request->get('longitude')),
+        );
+    }
+
+    private function resolveDestinationHierarchy(Request $request, DestinationType $requestedType): ?Destination
+    {
+        $countryName = $this->truncate($request->request->getString('countryName'), 150);
+        $regionName = $this->truncate($request->request->getString('regionName'), 150);
+        $departmentName = $this->truncate($request->request->getString('departmentName'), 150);
+        $cityName = $this->truncate($request->request->getString('cityName'), 150);
+        $fallbackName = $this->truncate($request->request->getString('name'), 150);
+
+        if ($fallbackName !== '') {
+            match ($requestedType) {
+                DestinationType::Country => $countryName = $countryName ?: $fallbackName,
+                DestinationType::Region => $regionName = $regionName ?: $fallbackName,
+                DestinationType::Department => $departmentName = $departmentName ?: $fallbackName,
+                DestinationType::City => $cityName = $cityName ?: $fallbackName,
+                DestinationType::Area => $cityName = ($countryName === '' && $regionName === '' && $departmentName === '' && $cityName === '')
+                    ? $fallbackName
+                    : $cityName,
+            };
+        }
+
+        if ($countryName === '' && $regionName === '' && $departmentName === '' && $cityName === '') {
+            return null;
+        }
+
+        $code = $this->nullIfBlank($request->request->getString('code'));
+        $latitude = $this->nullableFloat($request->request->get('latitude'));
+        $longitude = $this->nullableFloat($request->request->get('longitude'));
+        $coordinatesType = $this->mostPreciseType($countryName, $regionName, $departmentName, $cityName);
+
+        $country = null;
+        $region = null;
+        $department = null;
+        $city = null;
+        $parent = null;
+
+        if ($countryName !== '') {
+            [$nodeLatitude, $nodeLongitude] = $this->coordinatesForType(DestinationType::Country, $coordinatesType, $latitude, $longitude);
+            $country = $this->findOrCreateDestinationNode(
+                $countryName,
+                DestinationType::Country,
+                null,
+                null,
+                $nodeLatitude,
+                $nodeLongitude,
+            );
+            $parent = $country;
+        }
+
+        if ($regionName !== '') {
+            [$nodeLatitude, $nodeLongitude] = $this->coordinatesForType(DestinationType::Region, $coordinatesType, $latitude, $longitude);
+            $region = $this->findOrCreateDestinationNode(
+                $regionName,
+                DestinationType::Region,
+                $parent,
+                null,
+                $nodeLatitude,
+                $nodeLongitude,
+            );
+            $parent = $region;
+        }
+
+        if ($departmentName !== '') {
+            [$nodeLatitude, $nodeLongitude] = $this->coordinatesForType(DestinationType::Department, $coordinatesType, $latitude, $longitude);
+            $department = $this->findOrCreateDestinationNode(
+                $departmentName,
+                DestinationType::Department,
+                $parent,
+                null,
+                $nodeLatitude,
+                $nodeLongitude,
+            );
+            $parent = $department;
+        }
+
+        if ($cityName !== '') {
+            [$nodeLatitude, $nodeLongitude] = $this->coordinatesForType(DestinationType::City, $coordinatesType, $latitude, $longitude);
+            $city = $this->findOrCreateDestinationNode(
+                $cityName,
+                DestinationType::City,
+                $parent,
+                $this->codeForType(DestinationType::City, $code),
+                $nodeLatitude,
+                $nodeLongitude,
+            );
+        }
+
+        return match ($requestedType) {
+            DestinationType::Country => $country,
+            DestinationType::Region => $region,
+            DestinationType::Department => $department,
+            DestinationType::City => $city,
+            DestinationType::Area => $city ?? $department ?? $region ?? $country,
+        };
+    }
+
     private function destinationName(Request $request, DestinationType $type): string
     {
         $name = $this->truncate($request->request->getString('name'), 150);
@@ -143,26 +227,45 @@ final class QuickDestinationController extends AbstractController
         return $candidate !== '' ? $candidate : $name;
     }
 
-    private function findOrCreateCountry(Request $request): ?Destination
+    private function findOrCreateDestinationNode(
+        string $name,
+        DestinationType $type,
+        ?Destination $parent,
+        ?string $code,
+        ?float $latitude,
+        ?float $longitude,
+    ): Destination
     {
-        $countryName = $this->truncate($request->request->getString('countryName'), 150);
-        if ($countryName === '') {
-            return null;
+        $destination = $this->findReusableDestination($name, $type, $code);
+        if (!$destination instanceof Destination) {
+            $destination = (new Destination())
+                ->setName($name)
+                ->setSlug($this->createUniqueSlug($name))
+                ->setType($type)
+                ->setCode($code);
+
+            $this->entityManager->persist($destination);
+        } elseif ($code !== null && $destination->getCode() === null) {
+            $destination->setCode($code);
         }
 
-        $country = $this->findReusableDestination($countryName, DestinationType::Country, null);
-        if ($country instanceof Destination) {
-            return $country;
+        if ($parent instanceof Destination && !$this->sameDestination($destination, $parent) && !$this->sameDestination($destination->getParent(), $parent)) {
+            $destination->setParent($parent);
         }
 
-        $country = (new Destination())
-            ->setName($countryName)
-            ->setSlug($this->createUniqueSlug($countryName))
-            ->setType(DestinationType::Country);
+        if (!$parent instanceof Destination && $type === DestinationType::Country && $destination->getParent() instanceof Destination) {
+            $destination->setParent(null);
+        }
 
-        $this->entityManager->persist($country);
+        if ($latitude !== null && $destination->getLatitude() === null) {
+            $destination->setLatitude($latitude);
+        }
 
-        return $country;
+        if ($longitude !== null && $destination->getLongitude() === null) {
+            $destination->setLongitude($longitude);
+        }
+
+        return $destination;
     }
 
     private function findReusableDestination(string $name, DestinationType $type, ?string $code): ?Destination
@@ -182,6 +285,53 @@ final class QuickDestinationController extends AbstractController
             'name' => $name,
             'type' => $type,
         ]);
+    }
+
+    private function codeForType(DestinationType $type, ?string $code): ?string
+    {
+        return match ($type) {
+            DestinationType::City,
+            DestinationType::Area => $code,
+            DestinationType::Country,
+            DestinationType::Region,
+            DestinationType::Department => null,
+        };
+    }
+
+    private function mostPreciseType(string $countryName, string $regionName, string $departmentName, string $cityName): DestinationType
+    {
+        if ($cityName !== '') {
+            return DestinationType::City;
+        }
+
+        if ($departmentName !== '') {
+            return DestinationType::Department;
+        }
+
+        if ($regionName !== '') {
+            return DestinationType::Region;
+        }
+
+        return DestinationType::Country;
+    }
+
+    /** @return array{0: ?float, 1: ?float} */
+    private function coordinatesForType(DestinationType $type, DestinationType $coordinatesType, ?float $latitude, ?float $longitude): array
+    {
+        return $type === $coordinatesType ? [$latitude, $longitude] : [null, null];
+    }
+
+    private function sameDestination(?Destination $first, ?Destination $second): bool
+    {
+        if (!$first instanceof Destination || !$second instanceof Destination) {
+            return $first === $second;
+        }
+
+        if ($first === $second) {
+            return true;
+        }
+
+        return $first->getId() !== null && $first->getId() === $second->getId();
     }
 
     private function createUniqueSlug(string $name): string
