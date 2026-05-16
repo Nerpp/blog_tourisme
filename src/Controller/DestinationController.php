@@ -12,8 +12,11 @@ final class DestinationController extends AbstractController
     #[Route('/destinations', name: 'app_destination_index', methods: ['GET'])]
     public function index(DestinationRepository $destinationRepository): Response
     {
+        $rootDestinations = $destinationRepository->findRootDestinations();
+
         return $this->render('destination/index.html.twig', [
-            'root_destinations' => $destinationRepository->findRootDestinations(),
+            'root_destinations' => $rootDestinations,
+            'destination_counts' => $destinationRepository->findCumulativeContentCountsForTree($rootDestinations),
         ]);
     }
 

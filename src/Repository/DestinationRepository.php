@@ -3,7 +3,10 @@
 namespace App\Repository;
 
 use App\Entity\Destination;
+use App\Enum\CityVisitDraftStatus;
 use App\Enum\ContentStatus;
+use App\Enum\HikeDraftStatus;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -30,6 +33,58 @@ class DestinationRepository extends ServiceEntityRepository
             ->addOrderBy('greatGrandchildren.name', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * @param list<Destination> $rootDestinations
+     *
+     * @return array<int, array{
+     *     places: int,
+     *     articles: int,
+     *     hikes: int,
+     *     city_visits: int,
+     *     total: int
+     * }>
+     */
+    public function findCumulativeContentCountsForTree(array $rootDestinations): array
+    {
+        $destinations = $this->flattenDestinationTree($rootDestinations);
+        $destinationIds = array_values(array_unique(array_filter(
+            array_map(static fn (Destination $destination): ?int => $destination->getId(), $destinations),
+            static fn (?int $id): bool => $id !== null,
+        )));
+
+        if ($destinationIds === []) {
+            return [];
+        }
+
+        $childrenMap = $this->buildChildrenMap($destinations);
+        $directCounts = [];
+        $places = $this->countPublishedPlacesByDestinationIds($destinationIds);
+        $articles = $this->countPublishedArticlesByDestinationIds($destinationIds);
+        $hikes = $this->countPublicHikesByDestinationIds($destinationIds);
+        $cityVisits = $this->countPublicCityVisitsByDestinationIds($destinationIds);
+
+        foreach ($destinationIds as $destinationId) {
+            $directCounts[$destinationId] = [
+                'places' => $places[$destinationId] ?? 0,
+                'articles' => $articles[$destinationId] ?? 0,
+                'hikes' => $hikes[$destinationId] ?? 0,
+                'city_visits' => $cityVisits[$destinationId] ?? 0,
+                'total' => 0,
+            ];
+            $directCounts[$destinationId]['total'] = $directCounts[$destinationId]['places']
+                + $directCounts[$destinationId]['articles']
+                + $directCounts[$destinationId]['hikes']
+                + $directCounts[$destinationId]['city_visits'];
+        }
+
+        $memo = [];
+        foreach ($destinationIds as $destinationId) {
+            $this->computeCumulativeCounts($destinationId, $childrenMap, $directCounts, $memo);
+        }
+
+        return $memo;
     }
 
     public function findBySlug(string $slug): ?Destination
@@ -74,5 +129,242 @@ class DestinationRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * @param list<Destination> $destinations
+     *
+     * @return list<Destination>
+     */
+    private function flattenDestinationTree(array $destinations): array
+    {
+        $flattened = [];
+        $seenIds = [];
+
+        $append = function (Destination $destination) use (&$append, &$flattened, &$seenIds): void {
+            $id = $destination->getId();
+            if ($id !== null) {
+                if (isset($seenIds[$id])) {
+                    return;
+                }
+
+                $seenIds[$id] = true;
+            }
+
+            $flattened[] = $destination;
+
+            foreach ($destination->getChildren() as $child) {
+                $append($child);
+            }
+        };
+
+        foreach ($destinations as $destination) {
+            $append($destination);
+        }
+
+        return $flattened;
+    }
+
+    /**
+     * @param list<Destination> $destinations
+     *
+     * @return array<int, list<int>>
+     */
+    private function buildChildrenMap(array $destinations): array
+    {
+        $childrenMap = [];
+        $knownIds = [];
+
+        foreach ($destinations as $destination) {
+            $id = $destination->getId();
+            if ($id !== null) {
+                $knownIds[$id] = true;
+                $childrenMap[$id] = [];
+            }
+        }
+
+        foreach ($destinations as $destination) {
+            $id = $destination->getId();
+            if ($id === null) {
+                continue;
+            }
+
+            foreach ($destination->getChildren() as $child) {
+                $childId = $child->getId();
+                if ($childId !== null && isset($knownIds[$childId])) {
+                    $childrenMap[$id][] = $childId;
+                }
+            }
+        }
+
+        return $childrenMap;
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return array<int, int>
+     */
+    private function countPublishedPlacesByDestinationIds(array $destinationIds): array
+    {
+        $rows = $this->getEntityManager()->getConnection()->executeQuery(
+            <<<'SQL'
+                SELECT p.destination_id, COUNT(p.id) AS content_count
+                FROM place p
+                WHERE p.destination_id IN (:destinationIds)
+                AND p.status = :status
+                GROUP BY p.destination_id
+            SQL,
+            [
+                'destinationIds' => $destinationIds,
+                'status' => ContentStatus::Published->value,
+            ],
+            [
+                'destinationIds' => ArrayParameterType::INTEGER,
+            ],
+        )->fetchAllAssociative();
+
+        return $this->mapCountRowsByDestinationId($rows);
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return array<int, int>
+     */
+    private function countPublishedArticlesByDestinationIds(array $destinationIds): array
+    {
+        $rows = $this->getEntityManager()->getConnection()->executeQuery(
+            <<<'SQL'
+                SELECT ad.destination_id, COUNT(DISTINCT a.id) AS content_count
+                FROM article_destination ad
+                INNER JOIN article a ON a.id = ad.article_id
+                WHERE ad.destination_id IN (:destinationIds)
+                AND a.status = :status
+                GROUP BY ad.destination_id
+            SQL,
+            [
+                'destinationIds' => $destinationIds,
+                'status' => ContentStatus::Published->value,
+            ],
+            [
+                'destinationIds' => ArrayParameterType::INTEGER,
+            ],
+        )->fetchAllAssociative();
+
+        return $this->mapCountRowsByDestinationId($rows);
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return array<int, int>
+     */
+    private function countPublicHikesByDestinationIds(array $destinationIds): array
+    {
+        $rows = $this->getEntityManager()->getConnection()->executeQuery(
+            <<<'SQL'
+                SELECT h.destination_id, COUNT(h.id) AS content_count
+                FROM hike_draft h
+                WHERE h.destination_id IN (:destinationIds)
+                AND h.status IN (:statuses)
+                GROUP BY h.destination_id
+            SQL,
+            [
+                'destinationIds' => $destinationIds,
+                'statuses' => [
+                    HikeDraftStatus::Finished->value,
+                    HikeDraftStatus::Converted->value,
+                ],
+            ],
+            [
+                'destinationIds' => ArrayParameterType::INTEGER,
+                'statuses' => ArrayParameterType::STRING,
+            ],
+        )->fetchAllAssociative();
+
+        return $this->mapCountRowsByDestinationId($rows);
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return array<int, int>
+     */
+    private function countPublicCityVisitsByDestinationIds(array $destinationIds): array
+    {
+        $rows = $this->getEntityManager()->getConnection()->executeQuery(
+            <<<'SQL'
+                SELECT c.destination_id, COUNT(c.id) AS content_count
+                FROM city_visit_draft c
+                WHERE c.destination_id IN (:destinationIds)
+                AND c.status IN (:statuses)
+                GROUP BY c.destination_id
+            SQL,
+            [
+                'destinationIds' => $destinationIds,
+                'statuses' => [
+                    CityVisitDraftStatus::Finished->value,
+                    CityVisitDraftStatus::Converted->value,
+                ],
+            ],
+            [
+                'destinationIds' => ArrayParameterType::INTEGER,
+                'statuses' => ArrayParameterType::STRING,
+            ],
+        )->fetchAllAssociative();
+
+        return $this->mapCountRowsByDestinationId($rows);
+    }
+
+    /**
+     * @param array<int, array{destination_id: int|string, content_count: int|string}> $rows
+     *
+     * @return array<int, int>
+     */
+    private function mapCountRowsByDestinationId(array $rows): array
+    {
+        $counts = [];
+
+        foreach ($rows as $row) {
+            $counts[(int) $row['destination_id']] = (int) $row['content_count'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param array<int, list<int>> $childrenMap
+     * @param array<int, array{places: int, articles: int, hikes: int, city_visits: int, total: int}> $directCounts
+     * @param array<int, array{places: int, articles: int, hikes: int, city_visits: int, total: int}> $memo
+     *
+     * @return array{places: int, articles: int, hikes: int, city_visits: int, total: int}
+     */
+    private function computeCumulativeCounts(int $destinationId, array $childrenMap, array $directCounts, array &$memo): array
+    {
+        if (isset($memo[$destinationId])) {
+            return $memo[$destinationId];
+        }
+
+        $counts = $directCounts[$destinationId] ?? [
+            'places' => 0,
+            'articles' => 0,
+            'hikes' => 0,
+            'city_visits' => 0,
+            'total' => 0,
+        ];
+
+        foreach ($childrenMap[$destinationId] ?? [] as $childId) {
+            $childCounts = $this->computeCumulativeCounts($childId, $childrenMap, $directCounts, $memo);
+            $counts['places'] += $childCounts['places'];
+            $counts['articles'] += $childCounts['articles'];
+            $counts['hikes'] += $childCounts['hikes'];
+            $counts['city_visits'] += $childCounts['city_visits'];
+        }
+
+        $counts['total'] = $counts['places'] + $counts['articles'] + $counts['hikes'] + $counts['city_visits'];
+        $memo[$destinationId] = $counts;
+
+        return $counts;
     }
 }

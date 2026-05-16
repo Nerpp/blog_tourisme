@@ -12,7 +12,10 @@
         </header>
 
         <section class="tree-panel">
-            {% include 'partials/_destination_tree.html.twig' with { destinations: root_destinations } only %}
+            {% include 'partials/_destination_tree.html.twig' with {
+                destinations: root_destinations,
+                destination_counts: destination_counts
+            } only %}
         </section>
     </main>
 {% endblock %}
