@@ -1,0 +1,404 @@
+{% set standard_media_links = [] %}
+{% set video_media_links = [] %}
+{% set immersive_media_links = [] %}
+{% set panorama_media_links = [] %}
+
+{% for mediaLink in item.mediaLinks %}
+    {% set media = mediaLink.mediaAsset %}
+
+    {% if media %}
+        {% if media.mediaType.value == 'video' %}
+            {% set video_media_links = video_media_links|merge([mediaLink]) %}
+        {% elseif media.imageType and media.imageType.value in ['360', '180'] %}
+            {% set immersive_media_links = immersive_media_links|merge([mediaLink]) %}
+        {% elseif media.imageType and media.imageType.value == 'panorama' %}
+            {% set panorama_media_links = panorama_media_links|merge([mediaLink]) %}
+        {% else %}
+            {% set standard_media_links = standard_media_links|merge([mediaLink]) %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+{% if standard_media_links|length > 0 %}
+    <section class="media-section">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">Parcours</p>
+                <h2 class="media-title">{{ photos_title }}</h2>
+                <p class="media-description">
+                    {{ photos_description }}
+                </p>
+            </div>
+
+            <div class="media-actions">
+                <span class="media-count">{{ standard_media_links|length }}</span>
+
+                <button
+                    type="button"
+                    class="media-visualize-btn"
+                    data-gallery-target="#{{ gallery_id }}"
+                    data-gallery-index="0"
+                >
+                    Visualiser
+                </button>
+            </div>
+        </div>
+
+        <div class="journey-gallery">
+            {% for mediaLink in standard_media_links|slice(0, 5) %}
+                {% set media = mediaLink.mediaAsset %}
+
+                {% if media %}
+                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                    {% if image %}
+                        {% set image_url = image starts with 'http' ? image : asset(image) %}
+
+                        <figure class="journey-gallery-card {{ loop.first ? 'journey-gallery-card--large' : '' }}">
+                            <button
+                                type="button"
+                                class="media-badge"
+                                data-gallery-target="#{{ gallery_id }}"
+                                data-gallery-index="{{ loop.index0 }}"
+                            >
+                                Photo
+                            </button>
+
+                            <img
+                                src="{{ image_url }}"
+                                alt="{{ media.altText ?: media.title ?: item_title }}"
+                            >
+
+                            {% if loop.index == 5 and standard_media_links|length > 5 %}
+                                <span class="journey-gallery-card__more">
+                                    +{{ standard_media_links|length - 5 }} photo{{ standard_media_links|length - 5 > 1 ? 's' : '' }}
+                                </span>
+                            {% endif %}
+                        </figure>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div
+            id="{{ gallery_id }}"
+            class="gallery-modal js-gallery-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="{{ gallery_id }}-title"
+            hidden
+        >
+            <div class="gallery-modal__dialog" role="document">
+                <header class="gallery-modal__header">
+                    <div>
+                        <h2 id="{{ gallery_id }}-title" class="gallery-modal__title">
+                            {{ photos_title }}
+                        </h2>
+
+                        <div class="gallery-modal__counter js-gallery-counter">
+                            1 / {{ standard_media_links|length }}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__close js-gallery-close"
+                        aria-label="Fermer la galerie"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <div class="gallery-modal__body">
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--prev js-gallery-prev"
+                        aria-label="Photo précédente"
+                    >
+                        ‹
+                    </button>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--next js-gallery-next"
+                        aria-label="Photo suivante"
+                    >
+                        ›
+                    </button>
+
+                    {% for mediaLink in standard_media_links %}
+                        {% set media = mediaLink.mediaAsset %}
+
+                        {% if media %}
+                            {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                            {% if image %}
+                                {% set image_url = image starts with 'http' ? image : asset(image) %}
+
+                                <article class="gallery-modal__slide js-gallery-slide {{ loop.first ? 'is-active' : '' }}">
+                                    <figure class="gallery-modal__media">
+                                        <img
+                                            src="{{ image_url }}"
+                                            alt="{{ media.altText ?: media.title ?: item_title }}"
+                                        >
+                                    </figure>
+
+                                    <div class="gallery-modal__caption">
+                                        {% if media.caption %}
+                                            <p>{{ media.caption|nl2br }}</p>
+                                        {% else %}
+                                            <p class="empty-media-note">
+                                                Aucun commentaire renseigné pour cette photo.
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </article>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <footer class="gallery-modal__footer" aria-label="Navigation galerie">
+                    {% for mediaLink in standard_media_links %}
+                        <button
+                            type="button"
+                            class="gallery-modal__dot js-gallery-dot {{ loop.first ? 'is-active' : '' }}"
+                            aria-label="Afficher la photo {{ loop.index }}"
+                            aria-current="{{ loop.first ? 'true' : 'false' }}"
+                        ></button>
+                    {% endfor %}
+                </footer>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+{% if video_media_links|length > 0 %}
+    <section class="media-section media-section--dark">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">{{ video_kicker }}</p>
+                <h2 class="media-title">{{ videos_title }}</h2>
+                <p class="media-description">
+                    {{ videos_description }}
+                </p>
+            </div>
+
+            <span class="media-count">{{ video_media_links|length }}</span>
+        </div>
+
+        <div class="drone-video-grid">
+            {% for mediaLink in video_media_links %}
+                {% set media = mediaLink.mediaAsset %}
+
+                {% if media %}
+                    {% set local_video = media.filePath %}
+                    {% set embed_url = media|video_embed_url %}
+                    {% set external_video = media.externalUrl %}
+                    {% set poster = media.thumbnailPath %}
+
+                    {% if embed_url or local_video or external_video %}
+                        <article class="video-card">
+                            <div class="video-frame">
+                                <span class="media-badge">Vidéo</span>
+
+                                {% if embed_url %}
+                                    <iframe
+                                        src="{{ embed_url }}"
+                                        title="{{ media.title ?: item_title }}"
+                                        loading="lazy"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        referrerpolicy="strict-origin-when-cross-origin"
+                                        allowfullscreen
+                                    ></iframe>
+                                {% elseif local_video %}
+                                    <video
+                                        controls
+                                        preload="metadata"
+                                        {% if poster %}
+                                            {% set poster_url = poster starts with 'http' ? poster : asset(poster) %}
+                                            poster="{{ poster_url }}"
+                                        {% endif %}
+                                    >
+                                        {% set local_video_url = local_video starts with 'http' ? local_video : asset(local_video) %}
+                                        <source src="{{ local_video_url }}" type="{{ media.mimeType ?: 'video/mp4' }}">
+                                        Votre navigateur ne supporte pas la lecture vidéo.
+                                    </video>
+                                {% elseif external_video %}
+                                    <a
+                                        class="video-external-link"
+                                        href="{{ external_video }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        Ouvrir la vidéo
+                                    </a>
+                                {% endif %}
+                            </div>
+
+                            <div class="video-content">
+                                <h3>{{ media.title ?: video_fallback_title }}</h3>
+
+                                {% if media.caption %}
+                                    <p>{{ media.caption }}</p>
+                                {% endif %}
+                            </div>
+                        </article>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
+
+{% if immersive_media_links|length > 0 %}
+    <section class="media-section">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">Immersion</p>
+                <h2 class="media-title">Photos 360° et 180°</h2>
+                <p class="media-description">
+                    Ces vues immersives permettent de mieux comprendre l’environnement et les points de vue du parcours.
+                </p>
+            </div>
+
+            <span class="media-count">{{ immersive_media_links|length }}</span>
+        </div>
+
+        <div class="immersive-grid">
+            {% for mediaLink in immersive_media_links %}
+                {% set media = mediaLink.mediaAsset %}
+
+                {% if media %}
+                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                    {% if image %}
+                        {% set image_url = image starts with 'http' ? image : asset(image) %}
+
+                        <a
+                            class="immersive-card"
+                            href="{{ image_url }}"
+                            style="--immersive-image: url('{{ image_url|e('html_attr') }}');"
+                        >
+                            <span class="immersive-card__tag">
+                                {{ media.imageType and media.imageType.value == '360' ? '360°' : '180°' }}
+                            </span>
+
+                            <h3>{{ media.title ?: 'Vue immersive' }}</h3>
+
+                            <p>{{ media.caption ?: 'Ouvrir l’image immersive.' }}</p>
+                        </a>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
+
+{% if panorama_media_links|length > 0 %}
+    <section class="media-section">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">Panorama</p>
+                <h2 class="media-title">Images panoramiques</h2>
+                <p class="media-description">
+                    Les panoramas sont affichés en très large pour profiter de leur format horizontal.
+                </p>
+            </div>
+
+            <span class="media-count">{{ panorama_media_links|length }}</span>
+        </div>
+
+        <div class="panorama-strip">
+            {% for mediaLink in panorama_media_links %}
+                {% set media = mediaLink.mediaAsset %}
+
+                {% if media %}
+                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                    {% if image %}
+                        {% set image_url = image starts with 'http' ? image : asset(image) %}
+
+                        <article
+                            class="panorama-card"
+                            style="--panorama-image: url('{{ image_url|e('html_attr') }}');"
+                        >
+                            <span class="media-badge">Panorama</span>
+
+                            <div class="panorama-card__content">
+                                <h3>{{ media.title ?: 'Vue panoramique' }}</h3>
+
+                                {% if media.caption %}
+                                    <p>{{ media.caption }}</p>
+                                {% endif %}
+                            </div>
+                        </article>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
+
+<section class="media-section public-point-section">
+    <div class="media-header">
+        <div>
+            <p class="media-kicker">Itinéraire</p>
+            <h2 class="media-title">{{ points_title }}</h2>
+        </div>
+
+        <span class="media-count">{{ item.points|length }}</span>
+    </div>
+
+    <div class="public-point-list">
+        {% for point in item.points %}
+            <article class="public-point-card">
+                <div>
+                    <span class="public-point-number">
+                        {{ '%02d'|format(loop.index) }}
+                    </span>
+                </div>
+
+                <div>
+                    <p class="public-point-type">{{ point.type.value }}</p>
+
+                    <h3>{{ point.title ?: 'Étape ' ~ loop.index }}</h3>
+
+                    {% if point.note %}
+                        <p>{{ point.note|nl2br }}</p>
+                    {% endif %}
+
+                    {% if point.mediaLinks|length > 0 %}
+                        <div class="point-media-grid">
+                            {% for pointMediaLink in point.mediaLinks %}
+                                {% set media = pointMediaLink.mediaAsset %}
+
+                                {% if media %}
+                                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+
+                                    {% if image and media.mediaType.value == 'image' %}
+                                        {% set image_url = image starts with 'http' ? image : asset(image) %}
+
+                                        <figure class="point-media-card">
+                                            <img
+                                                src="{{ image_url }}"
+                                                alt="{{ media.altText ?: media.title ?: point.title ?: item_title }}"
+                                            >
+
+                                            {% if media.caption or media.title %}
+                                                <figcaption>{{ media.caption ?: media.title }}</figcaption>
+                                            {% endif %}
+                                        </figure>
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </article>
+        {% else %}
+            <p class="empty-media-note">Aucune étape détaillée pour le moment.</p>
+        {% endfor %}
+    </div>
+</section>

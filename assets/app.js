@@ -4,9 +4,10 @@ import './styles/navbar.css';
 import './styles/public-detail.css';
 
 import { initNavbar } from './js/navbar.js';
+import { initPublicDetailGallery } from './js/public-detail-gallery.js';
 
 initNavbar();
-
+initPublicDetailGallery();
 const vueRoot = document.querySelector('#app');
 
 if (vueRoot) {
