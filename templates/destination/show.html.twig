@@ -1,21 +1,32 @@
 {% extends 'base.html.twig' %}
 
+{% set destination_type_labels = {
+    country: 'Pays',
+    region: 'Région',
+    department: 'Département',
+    city: 'Ville',
+    area: 'Zone'
+} %}
+{% set destination_type_label = destination_type_labels[destination.type.value]|default(destination.type.value) %}
+
 {% block title %}{{ destination.seoTitle ?: destination.name }} - Blog Tourisme{% endblock %}
 {% block meta_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
 {% block open_graph_title %}{{ destination.seoTitle ?: destination.name }}{% endblock %}
 {% block open_graph_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
 
 {% block body %}
-    <main class="page-shell">
-        <header class="page-header">
-            <p class="eyebrow">{{ destination.type.value }}</p>
+    <main class="page-shell destination-show-page">
+        <header class="page-header destination-show-hero">
+            <p class="eyebrow">{{ destination_type_label }}</p>
             <h1>{{ destination.name }}</h1>
             {% if destination.description %}
                 <p>{{ destination.description }}</p>
+            {% else %}
+                <p>Retrouvez les contenus publics associes a cette destination et a ses destinations enfants.</p>
             {% endif %}
         </header>
 
-        <section class="info-strip">
+        <section class="info-strip destination-show-info">
             {% if destination.parent %}
                 <div>
                     <strong>Parent</strong>
@@ -30,42 +41,91 @@
             {% endif %}
         </section>
 
+        <nav class="destination-show-nav" aria-label="Sections de contenu">
+            <a href="#lieux">{{ places|length }} lieu{{ places|length > 1 ? 'x' : '' }}</a>
+            <a href="#articles">{{ articles|length }} article{{ articles|length > 1 ? 's' : '' }}</a>
+            <a href="#randonnees">{{ hikes|length }} randonnée{{ hikes|length > 1 ? 's' : '' }}</a>
+            <a href="#visites">{{ city_visits|length }} visite{{ city_visits|length > 1 ? 's' : '' }}</a>
+        </nav>
+
         {% if destination.children|length > 0 %}
             <section class="section-block">
-                <h2>Destinations enfants</h2>
+                <div class="destination-section-heading">
+                    <h2>Destinations enfants</h2>
+                </div>
                 <div class="compact-grid">
                     {% for child in destination.children %}
                         <a class="compact-card" href="{{ path('app_destination_show', { slug: child.slug }) }}">
                             <strong>{{ child.name }}</strong>
-                            <span>{{ child.type.value }}</span>
+                            <span>{{ destination_type_labels[child.type.value]|default(child.type.value) }}</span>
                         </a>
                     {% endfor %}
                 </div>
             </section>
         {% endif %}
 
-        {% if destination.places|length > 0 %}
-            <section class="section-block">
-                <h2>Lieux a visiter a {{ destination.name }}</h2>
+        <section id="lieux" class="section-block destination-content-section">
+            <div class="destination-section-heading">
+                <h2>Lieux a visiter</h2>
+                <span>{{ places|length }} resultat{{ places|length > 1 ? 's' : '' }}</span>
+            </div>
+            {% if places|length > 0 %}
                 <div class="card-grid">
-                    {% for place in destination.places %}
+                    {% for place in places %}
                         {% include 'partials/_place_card.html.twig' with { place: place } only %}
                     {% endfor %}
                 </div>
-            </section>
-        {% endif %}
+            {% else %}
+                <p class="destination-empty-content">Aucun lieu publie pour cette destination pour le moment.</p>
+            {% endif %}
+        </section>
 
-        {% if destination.articleLinks|length > 0 %}
-            <section class="section-block">
+        <section id="articles" class="section-block destination-content-section">
+            <div class="destination-section-heading">
                 <h2>Articles lies</h2>
+                <span>{{ articles|length }} resultat{{ articles|length > 1 ? 's' : '' }}</span>
+            </div>
+            {% if articles|length > 0 %}
                 <div class="card-grid">
-                    {% for articleLink in destination.articleLinks %}
-                        {% if articleLink.article.status.value == 'published' %}
-                            {% include 'partials/_article_card.html.twig' with { article: articleLink.article } only %}
-                        {% endif %}
+                    {% for article in articles %}
+                        {% include 'partials/_article_card.html.twig' with { article: article } only %}
                     {% endfor %}
                 </div>
-            </section>
-        {% endif %}
+            {% else %}
+                <p class="destination-empty-content">Aucun article publie pour cette destination pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section id="randonnees" class="section-block destination-content-section">
+            <div class="destination-section-heading">
+                <h2>Randonnées</h2>
+                <span>{{ hikes|length }} resultat{{ hikes|length > 1 ? 's' : '' }}</span>
+            </div>
+            {% if hikes|length > 0 %}
+                <div class="card-grid">
+                    {% for hike in hikes %}
+                        {% include 'partials/_hike_card.html.twig' with { hike: hike } only %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="destination-empty-content">Aucune randonnée publique pour cette destination pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section id="visites" class="section-block destination-content-section">
+            <div class="destination-section-heading">
+                <h2>Visites de ville</h2>
+                <span>{{ city_visits|length }} resultat{{ city_visits|length > 1 ? 's' : '' }}</span>
+            </div>
+            {% if city_visits|length > 0 %}
+                <div class="card-grid">
+                    {% for city_visit in city_visits %}
+                        {% include 'partials/_city_visit_card.html.twig' with { city_visit: city_visit } only %}
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="destination-empty-content">Aucune visite de ville publique pour cette destination pour le moment.</p>
+            {% endif %}
+        </section>
     </main>
 {% endblock %}

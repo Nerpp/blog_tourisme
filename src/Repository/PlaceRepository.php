@@ -7,6 +7,7 @@ use App\Entity\Destination;
 use App\Entity\Place;
 use App\Entity\Tag;
 use App\Enum\ContentStatus;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -75,6 +76,24 @@ class PlaceRepository extends ServiceEntityRepository
     public function findByDestination(Destination $destination, int $limit = 12): array
     {
         return $this->findPublished(destination: $destination, limit: $limit);
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return list<Place>
+     */
+    public function findPublishedByDestinationIds(array $destinationIds): array
+    {
+        if ($destinationIds === []) {
+            return [];
+        }
+
+        return $this->createPublishedQueryBuilder()
+            ->andWhere('destination.id IN (:destinationIds)')
+            ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
+            ->getQuery()
+            ->getResult();
     }
 
     /** @return list<Place> */

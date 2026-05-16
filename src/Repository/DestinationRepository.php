@@ -87,6 +87,56 @@ class DestinationRepository extends ServiceEntityRepository
         return $memo;
     }
 
+    /**
+     * @param list<Destination> $rootDestinations
+     *
+     * @return list<Destination>
+     */
+    public function findDestinationSuggestionsForTree(array $rootDestinations): array
+    {
+        $destinations = $this->flattenDestinationTree($rootDestinations);
+        usort($destinations, static fn (Destination $first, Destination $second): int => strcasecmp(
+            $first->getName() ?? '',
+            $second->getName() ?? '',
+        ));
+
+        return $destinations;
+    }
+
+    /** @return list<int> */
+    public function findDestinationAndDescendantIds(Destination $destination): array
+    {
+        $rootId = $destination->getId();
+        if ($rootId === null) {
+            return [];
+        }
+
+        $destinationIds = [$rootId];
+        $parentIds = [$rootId];
+        $connection = $this->getEntityManager()->getConnection();
+
+        while ($parentIds !== []) {
+            $childIds = array_map(
+                'intval',
+                $connection->executeQuery(
+                    'SELECT id FROM destination WHERE parent_id IN (:parentIds)',
+                    ['parentIds' => $parentIds],
+                    ['parentIds' => ArrayParameterType::INTEGER],
+                )->fetchFirstColumn(),
+            );
+
+            $childIds = array_values(array_diff($childIds, $destinationIds));
+            if ($childIds === []) {
+                break;
+            }
+
+            $destinationIds = array_values(array_unique([...$destinationIds, ...$childIds]));
+            $parentIds = $childIds;
+        }
+
+        return $destinationIds;
+    }
+
     public function findBySlug(string $slug): ?Destination
     {
         return $this->createQueryBuilder('d')

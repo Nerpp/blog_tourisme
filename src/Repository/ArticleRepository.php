@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Article;
 use App\Enum\ContentStatus;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -47,6 +48,24 @@ class ArticleRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return list<Article>
+     */
+    public function findPublishedByDestinationIds(array $destinationIds): array
+    {
+        if ($destinationIds === []) {
+            return [];
+        }
+
+        return $this->createPublishedQueryBuilder()
+            ->andWhere('destinations.id IN (:destinationIds)')
+            ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
+            ->getQuery()
+            ->getResult();
     }
 
     private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder

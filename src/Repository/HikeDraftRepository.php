@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\HikeDraft;
 use App\Entity\User;
 use App\Enum\HikeDraftStatus;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -77,5 +78,35 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return list<HikeDraft>
+     */
+    public function findPublicByDestinationIds(array $destinationIds): array
+    {
+        if ($destinationIds === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('h')
+            ->addSelect('destination', 'mediaLinks', 'mediaAssets')
+            ->leftJoin('h.destination', 'destination')
+            ->leftJoin('h.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('destination.id IN (:destinationIds)')
+            ->andWhere('h.status IN (:statuses)')
+            ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
+            ->setParameter('statuses', [
+                HikeDraftStatus::Finished->value,
+                HikeDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->orderBy('h.finishedAt', 'DESC')
+            ->addOrderBy('h.id', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 }

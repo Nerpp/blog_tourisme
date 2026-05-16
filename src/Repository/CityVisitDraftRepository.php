@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\CityVisitDraft;
 use App\Entity\User;
 use App\Enum\CityVisitDraftStatus;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -77,5 +78,35 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return list<CityVisitDraft>
+     */
+    public function findPublicByDestinationIds(array $destinationIds): array
+    {
+        if ($destinationIds === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('c')
+            ->addSelect('destination', 'mediaLinks', 'mediaAssets')
+            ->leftJoin('c.destination', 'destination')
+            ->leftJoin('c.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('destination.id IN (:destinationIds)')
+            ->andWhere('c.status IN (:statuses)')
+            ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
+            ->setParameter('statuses', [
+                CityVisitDraftStatus::Finished->value,
+                CityVisitDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->orderBy('c.finishedAt', 'DESC')
+            ->addOrderBy('c.id', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 }
