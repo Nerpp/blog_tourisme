@@ -1,6 +1,6 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Studio lieu touristique{% endblock %}
+{% block title %}Studio repérage{% endblock %}
 
 {% set main_form_id = 'studio-place-main-form' %}
 {% set public_url = path('app_place_show', { slug: place.slug }) %}
@@ -366,7 +366,7 @@
     <div class="studio-page">
         <section class="studio-hero" aria-labelledby="studio-title">
             <div>
-                <p class="studio-eyebrow">Studio lieu touristique</p>
+                <p class="studio-eyebrow">Studio repérage</p>
                 <h1 id="studio-title" class="studio-title">{{ place.name }}</h1>
                 <div class="studio-meta">
                     <span class="studio-badge">{{ status_options[place.status.value] ?? place.status.value }}</span>
@@ -376,7 +376,7 @@
                 </div>
             </div>
             <div class="studio-actions">
-                <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Voir la page publique</a>
+                <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Voir la fiche privée</a>
                 <a class="admin-button admin-button--secondary" href="{{ path('admin') }}">Retour au tableau de bord</a>
                 <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="save">Enregistrer</button>
             </div>
@@ -386,7 +386,7 @@
             <div class="studio-section__header">
                 <div>
                     <h2 id="main-info-title">Informations principales</h2>
-                    <p>Les éléments visibles sur la fiche touristique.</p>
+                    <p>Les éléments utiles au repérage et à la préparation des contenus publics.</p>
                 </div>
             </div>
 
@@ -398,7 +398,7 @@
                 <div class="studio-field">
                     <label for="place-slug">URL</label>
                     <input form="{{ main_form_id }}" id="place-slug" name="slug" value="{{ place.slug }}" required>
-                    <span class="studio-help">Segment utilisé dans l’adresse publique.</span>
+                    <span class="studio-help">Segment utilisé dans l’adresse de la fiche privée.</span>
                 </div>
                 <div class="studio-field">
                     <label for="place-category">Catégorie</label>
@@ -418,20 +418,20 @@
                     </select>
                 </div>
                 <div class="studio-field studio-field--full">
-                    <label for="place-short-description">Résumé court</label>
+                    <label for="place-short-description">Note courte</label>
                     <textarea form="{{ main_form_id }}" id="place-short-description" name="shortDescription" rows="3">{{ place.shortDescription }}</textarea>
                 </div>
                 <div class="studio-field studio-field--full">
-                    <label for="place-description">Description</label>
+                    <label for="place-description">Notes terrain</label>
                     <textarea form="{{ main_form_id }}" id="place-description" name="description" rows="10">{{ place.description }}</textarea>
                 </div>
                 <div class="studio-field">
-                    <label for="place-duration">Durée de visite</label>
+                    <label for="place-duration">Temps estimé sur place</label>
                     <input form="{{ main_form_id }}" id="place-duration" name="visitDurationMinutes" type="number" min="0" step="5" value="{{ place.visitDurationMinutes }}">
                     <span class="studio-help">En minutes.</span>
                 </div>
                 <div class="studio-field">
-                    <label for="place-difficulty">Difficulté</label>
+                    <label for="place-difficulty">Accès / difficulté terrain</label>
                     <select form="{{ main_form_id }}" id="place-difficulty" name="difficulty">
                         {% for value, label in difficulty_options %}
                             <option value="{{ value }}" {% if place.difficulty and place.difficulty.value == value %}selected{% endif %}>{{ label }}</option>
@@ -439,7 +439,7 @@
                     </select>
                 </div>
                 <div class="studio-field">
-                    <label for="place-price-type">Tarif</label>
+                    <label for="place-price-type">Coût éventuel</label>
                     <select form="{{ main_form_id }}" id="place-price-type" name="priceType">
                         {% for value, label in price_type_options %}
                             <option value="{{ value }}" {% if place.priceType.value == value %}selected{% endif %}>{{ label }}</option>
@@ -499,7 +499,7 @@
             <div class="studio-section__header">
                 <div>
                     <h2 id="photos-title">Photos</h2>
-                    <p>Ajoutez les images puis choisissez leur utilisation dans la fiche.</p>
+                    <p>Ajoutez les images puis choisissez leur utilisation dans la fiche de repérage.</p>
                 </div>
             </div>
 
@@ -558,7 +558,7 @@
                                     <button class="admin-button" type="submit">Mettre à jour</button>
                                 </div>
                             </form>
-                            <form method="post" action="{{ path('admin_studio_place_media_delete', { id: media_link.id }) }}" onsubmit="return confirm('Retirer ce média du lieu ?');">
+                            <form method="post" action="{{ path('admin_studio_place_media_delete', { id: media_link.id }) }}" onsubmit="return confirm('Retirer ce média du repérage ?');">
                                 <input type="hidden" name="_token" value="{{ csrf_token('studio_place_media_delete_' ~ media_link.id) }}">
                                 <button class="admin-button admin-button--secondary studio-button-danger" type="submit">Retirer de cette fiche</button>
                             </form>
@@ -663,7 +663,7 @@
                                     <button class="admin-button" type="submit">Mettre à jour</button>
                                 </div>
                             </form>
-                            <form method="post" action="{{ path('admin_studio_place_media_delete', { id: media_link.id }) }}" onsubmit="return confirm('Retirer cette vidéo du lieu ?');">
+                            <form method="post" action="{{ path('admin_studio_place_media_delete', { id: media_link.id }) }}" onsubmit="return confirm('Retirer cette vidéo du repérage ?');">
                                 <input type="hidden" name="_token" value="{{ csrf_token('studio_place_media_delete_' ~ media_link.id) }}">
                                 <button class="admin-button admin-button--secondary studio-button-danger" type="submit">Retirer de cette fiche</button>
                             </form>
@@ -741,14 +741,14 @@
             <div class="studio-section__header">
                 <div>
                     <h2 id="actions-title">Actions</h2>
-                    <p>Enregistrez la fiche ou changez son état de publication.</p>
+                    <p>Enregistrez la fiche privée ou changez son état.</p>
                 </div>
             </div>
             <div class="studio-actions">
                 <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="save">Enregistrer</button>
                 <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="publish">Publier</button>
                 <button class="admin-button admin-button--secondary" form="{{ main_form_id }}" type="submit" name="action" value="draft">Repasser en brouillon</button>
-                <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Voir la page publique</a>
+                <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Voir la fiche privée</a>
                 <a class="admin-button admin-button--secondary" href="{{ path('admin') }}">Retour au tableau de bord</a>
             </div>
         </section>

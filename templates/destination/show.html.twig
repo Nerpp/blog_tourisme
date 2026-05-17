@@ -42,7 +42,6 @@
         </section>
 
         <nav class="destination-show-nav" aria-label="Sections de contenu">
-            <a href="#lieux">{{ places|length }} lieu{{ places|length > 1 ? 'x' : '' }}</a>
             <a href="#articles">{{ articles|length }} article{{ articles|length > 1 ? 's' : '' }}</a>
             <a href="#randonnees">{{ hikes|length }} randonnée{{ hikes|length > 1 ? 's' : '' }}</a>
             <a href="#visites">{{ city_visits|length }} visite{{ city_visits|length > 1 ? 's' : '' }}</a>
@@ -63,22 +62,6 @@
                 </div>
             </section>
         {% endif %}
-
-        <section id="lieux" class="section-block destination-content-section">
-            <div class="destination-section-heading">
-                <h2>Lieux a visiter</h2>
-                <span>{{ places|length }} resultat{{ places|length > 1 ? 's' : '' }}</span>
-            </div>
-            {% if places|length > 0 %}
-                <div class="card-grid">
-                    {% for place in places %}
-                        {% include 'partials/_place_card.html.twig' with { place: place } only %}
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="destination-empty-content">Aucun lieu publie pour cette destination pour le moment.</p>
-            {% endif %}
-        </section>
 
         <section id="articles" class="section-block destination-content-section">
             <div class="destination-section-heading">

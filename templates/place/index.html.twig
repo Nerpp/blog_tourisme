@@ -1,14 +1,14 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Lieux a visiter - Blog Tourisme{% endblock %}
-{% block meta_description %}Tous les lieux publies : monuments, plages, sites nature et points de vue a decouvrir.{% endblock %}
+{% block title %}Carnet de lieux - Blog Tourisme{% endblock %}
+{% block meta_description %}Repérages prives, notes terrain et points utiles pour preparer les contenus publics.{% endblock %}
 
 {% block body %}
     <main class="page-shell">
         <header class="page-header">
-            <p class="eyebrow">Lieux</p>
-            <h1>Lieux a visiter</h1>
-            <p>Filtrez les lieux publies par destination, categorie ou tag pour preparer votre prochaine visite.</p>
+            <p class="eyebrow">Repérages</p>
+            <h1>Carnet de lieux</h1>
+            <p>Filtrez les repérages par destination, categorie ou tag pour preparer les articles, randonnées et visites de ville.</p>
         </header>
 
         <form class="filters" method="get" action="{{ path('app_place_index') }}">
@@ -47,7 +47,7 @@
             {% for place in places %}
                 {% include 'partials/_place_card.html.twig' with { place: place } only %}
             {% else %}
-                <p>Aucun lieu publie ne correspond a ces filtres.</p>
+                <p>Aucun repérage ne correspond a ces filtres.</p>
             {% endfor %}
         </div>
     </main>

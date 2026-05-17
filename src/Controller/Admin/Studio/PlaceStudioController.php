@@ -69,7 +69,7 @@ final class PlaceStudioController extends AbstractController
             $this->updatePlaceFromRequest($place, $request);
             $this->entityManager->flush();
 
-            $this->addFlash('success', 'Le lieu a été enregistré.');
+            $this->addFlash('success', 'Le repérage a été enregistré.');
 
             return $this->redirectToStudio($place);
         }
@@ -200,7 +200,7 @@ final class PlaceStudioController extends AbstractController
         $this->entityManager->persist($placeMedia);
         $this->entityManager->flush();
 
-        $this->addFlash('success', 'La vidéo a été ajoutée au lieu.');
+        $this->addFlash('success', 'La vidéo a été ajoutée au repérage.');
 
         return $this->redirectToStudio($place);
     }
@@ -212,7 +212,7 @@ final class PlaceStudioController extends AbstractController
 
         $place = $placeMedia->getPlace();
         if (!$place instanceof Place) {
-            throw $this->createNotFoundException('Lieu introuvable.');
+            throw $this->createNotFoundException('Repérage introuvable.');
         }
 
         if (!$this->isCsrfTokenValid('studio_place_media_update_'.$placeMedia->getId(), (string) $request->request->get('_token'))) {
@@ -271,7 +271,7 @@ final class PlaceStudioController extends AbstractController
 
         $place = $placeMedia->getPlace();
         if (!$place instanceof Place) {
-            throw $this->createNotFoundException('Lieu introuvable.');
+            throw $this->createNotFoundException('Repérage introuvable.');
         }
 
         if (!$this->isCsrfTokenValid('studio_place_media_delete_'.$placeMedia->getId(), (string) $request->request->get('_token'))) {
@@ -353,7 +353,7 @@ final class PlaceStudioController extends AbstractController
 
         $slug = $this->truncate($request->request->getString('slug'), 180);
         if ($slug === '') {
-            $slug = strtolower((string) $this->slugger->slug($place->getName() ?? 'lieu'));
+            $slug = strtolower((string) $this->slugger->slug($place->getName() ?? 'reperage'));
         }
         $place->setSlug($slug);
 
@@ -397,7 +397,7 @@ final class PlaceStudioController extends AbstractController
             DestinationType::Region->value => 'Région',
             DestinationType::Department->value => 'Département / province',
             DestinationType::City->value => 'Ville',
-            DestinationType::Area->value => 'Zone / lieu',
+            DestinationType::Area->value => 'Zone / repérage',
         ];
     }
 

@@ -53,16 +53,16 @@ final class AdminPlaceController extends AbstractController
             }
 
             if ($this->updatePlaceFromRequest($place, $request)) {
-                $place->setSlug($this->createUniqueSlug($place->getName() ?? 'lieu'));
+                $place->setSlug($this->createUniqueSlug($place->getName() ?? 'reperage'));
                 $this->entityManager->persist($place);
                 $this->entityManager->flush();
-                $this->addFlash('success', 'Lieu créé.');
+                $this->addFlash('success', 'Repérage créé.');
 
                 return $this->redirectToRoute('admin_places_index');
             }
         }
 
-        return $this->renderPlaceForm($place, $destinationRepository, $categoryRepository, 'Nouveau lieu', 'Créer le lieu');
+        return $this->renderPlaceForm($place, $destinationRepository, $categoryRepository, 'Nouveau repérage', 'Créer le repérage');
     }
 
     #[Route('/admin/places/{id}/edit', name: 'admin_places_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -75,13 +75,13 @@ final class AdminPlaceController extends AbstractController
 
             if ($this->updatePlaceFromRequest($place, $request)) {
                 $this->entityManager->flush();
-                $this->addFlash('success', 'Lieu enregistré.');
+                $this->addFlash('success', 'Repérage enregistré.');
 
                 return $this->redirectToRoute('admin_places_index');
             }
         }
 
-        return $this->renderPlaceForm($place, $destinationRepository, $categoryRepository, 'Modifier le lieu', 'Enregistrer');
+        return $this->renderPlaceForm($place, $destinationRepository, $categoryRepository, 'Modifier le repérage', 'Enregistrer');
     }
 
     #[Route('/admin/places/{id}/delete', name: 'admin_places_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -93,7 +93,7 @@ final class AdminPlaceController extends AbstractController
 
         $place->setStatus(ContentStatus::Archived);
         $this->entityManager->flush();
-        $this->addFlash('success', 'Lieu archivé.');
+        $this->addFlash('success', 'Repérage archivé.');
 
         return $this->redirectToRoute('admin_places_index');
     }
@@ -184,7 +184,7 @@ final class AdminPlaceController extends AbstractController
     private function createUniqueSlug(string $name): string
     {
         $baseSlug = strtolower((string) $this->slugger->slug($name));
-        $baseSlug = trim($baseSlug, '-') ?: 'lieu';
+        $baseSlug = trim($baseSlug, '-') ?: 'reperage';
         $slug = $baseSlug;
         $suffix = 2;
 

@@ -6,7 +6,6 @@ use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
-use App\Repository\PlaceRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -31,7 +30,6 @@ final class DestinationController extends AbstractController
     public function show(
         string $slug,
         DestinationRepository $destinationRepository,
-        PlaceRepository $placeRepository,
         ArticleRepository $articleRepository,
         HikeDraftRepository $hikeDraftRepository,
         CityVisitDraftRepository $cityVisitDraftRepository,
@@ -45,7 +43,6 @@ final class DestinationController extends AbstractController
 
         return $this->render('destination/show.html.twig', [
             'destination' => $destination,
-            'places' => $placeRepository->findPublishedByDestinationIds($destinationIds),
             'articles' => $articleRepository->findPublishedByDestinationIds($destinationIds),
             'hikes' => $hikeDraftRepository->findPublicByDestinationIds($destinationIds),
             'city_visits' => $cityVisitDraftRepository->findPublicByDestinationIds($destinationIds),
@@ -80,7 +77,7 @@ final class DestinationController extends AbstractController
             $summary['city_visits'] += $destinationCounts[$id]['city_visits'];
         }
 
-        $summary['total'] = $summary['places'] + $summary['articles'] + $summary['hikes'] + $summary['city_visits'];
+        $summary['total'] = $summary['articles'] + $summary['hikes'] + $summary['city_visits'];
 
         return $summary;
     }

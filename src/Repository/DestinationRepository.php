@@ -73,8 +73,7 @@ class DestinationRepository extends ServiceEntityRepository
                 'city_visits' => $cityVisits[$destinationId] ?? 0,
                 'total' => 0,
             ];
-            $directCounts[$destinationId]['total'] = $directCounts[$destinationId]['places']
-                + $directCounts[$destinationId]['articles']
+            $directCounts[$destinationId]['total'] = $directCounts[$destinationId]['articles']
                 + $directCounts[$destinationId]['hikes']
                 + $directCounts[$destinationId]['city_visits'];
         }
@@ -412,7 +411,7 @@ class DestinationRepository extends ServiceEntityRepository
             $counts['city_visits'] += $childCounts['city_visits'];
         }
 
-        $counts['total'] = $counts['places'] + $counts['articles'] + $counts['hikes'] + $counts['city_visits'];
+        $counts['total'] = $counts['articles'] + $counts['hikes'] + $counts['city_visits'];
         $memo[$destinationId] = $counts;
 
         return $counts;

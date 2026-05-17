@@ -1,14 +1,14 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Lieux à visiter{% endblock %}
+{% block title %}Carnet de lieux{% endblock %}
 
 {% block body %}
     <header class="admin-header">
         <div>
-            <h1 class="admin-title">Lieux à visiter</h1>
-            <p class="admin-subtitle">Administration rapide des fiches. Les médias et contenus riches restent dans le Studio.</p>
+            <h1 class="admin-title">Carnet de lieux</h1>
+            <p class="admin-subtitle">Repérages, notes terrain et points utiles pour préparer les contenus publics.</p>
         </div>
-        <a class="admin-button" href="{{ path('admin_places_new') }}">Nouveau lieu</a>
+        <a class="admin-button" href="{{ path('admin_places_new') }}">Nouveau repérage</a>
     </header>
 
     <section class="admin-card admin-table-wrap">
@@ -19,9 +19,9 @@
                     <th>Destination</th>
                     <th>Catégorie</th>
                     <th>Statut</th>
-                    <th>Durée</th>
-                    <th>Difficulté</th>
-                    <th>Tarif</th>
+                    <th>Temps terrain</th>
+                    <th>Accès</th>
+                    <th>Coût</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -40,9 +40,9 @@
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_places_edit', { id: place.id }) }}">Modifier</a>
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir dans le Studio</a>
                                 {% if place.status.value == 'published' %}
-                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_place_show', { slug: place.slug }) }}">Voir public</a>
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_place_show', { slug: place.slug }) }}">Voir fiche privée</a>
                                 {% endif %}
-                                <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Archiver ce lieu ?');">
+                                <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Archiver ce repérage ?');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('admin_place_delete_' ~ place.id) }}">
                                     <button class="admin-button admin-button--small admin-button--danger" type="submit">Archiver</button>
                                 </form>
@@ -50,7 +50,7 @@
                         </td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="8">Aucun lieu.</td></tr>
+                    <tr><td colspan="8">Aucun repérage.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

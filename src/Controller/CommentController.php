@@ -11,6 +11,7 @@ use App\Repository\ArticleRepository;
 use App\Repository\CommentReportRepository;
 use App\Repository\PlaceRepository;
 use App\Security\ActionRateLimiter;
+use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\CommentVoter;
 use App\Service\CommentModerationService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -78,6 +79,7 @@ final class CommentController extends AbstractController
 
     #[Route('/places/{slug}/comments', name: 'app_place_comment_create', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
+    #[IsGranted(AdminAccessVoter::ACCESS)]
     public function createForPlace(
         string $slug,
         Request $request,

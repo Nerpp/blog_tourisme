@@ -60,21 +60,6 @@
                     </div>
                 </section>
             {% endif %}
-
-            {% if article.placeLinks|length > 0 %}
-                <section>
-                    <h2>Lieux cites</h2>
-                    <div class="stacked-links">
-                        {% for placeLink in article.placeLinks %}
-                            {% set linked_place = placeLink.place %}
-                            <div>
-                                <a href="{{ path('app_place_show', { slug: linked_place.slug }) }}">{{ linked_place.name }}</a>
-                                {% include 'partials/_google_maps_link.html.twig' with { place: linked_place } only %}
-                            </div>
-                        {% endfor %}
-                    </div>
-                </section>
-            {% endif %}
         </aside>
 
         <div class="full-span">

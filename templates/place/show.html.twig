@@ -1,16 +1,16 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}{{ place.seoTitle ?: place.name }} - Blog Tourisme{% endblock %}
-{% block meta_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Lieu touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
+{% block title %}{{ place.seoTitle ?: place.name }} - Carnet de lieux{% endblock %}
+{% block meta_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
 {% block open_graph_title %}{{ place.seoTitle ?: place.name }}{% endblock %}
-{% block open_graph_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Lieu touristique a decouvrir sur Blog Tourisme.' }}{% endblock %}
+{% block open_graph_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
 
 {% block body %}
     <main class="page-shell article-layout">
         <article class="article-main">
             <header class="page-header">
                 <p class="eyebrow">
-                    {% if place.category %}{{ place.category.name }}{% else %}Lieu{% endif %}
+                    {% if place.category %}{{ place.category.name }}{% else %}Repérage{% endif %}
                     {% if place.destination %} - {{ place.destination.name }}{% endif %}
                 </p>
                 <h1>{{ place.name }}</h1>
@@ -41,7 +41,7 @@
 
         <aside class="side-panel">
             <section>
-                <h2>Infos pratiques</h2>
+                <h2>Notes terrain</h2>
                 <dl class="facts-list">
                     {% if place.destination %}
                         <div><dt>Destination</dt><dd><a href="{{ path('app_destination_show', { slug: place.destination.slug }) }}">{{ place.destination.name }}</a></dd></div>
