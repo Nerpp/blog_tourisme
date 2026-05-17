@@ -12,7 +12,6 @@ use App\Repository\CategoryRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\PlaceRepository;
 use App\Security\Voter\AdminAccessVoter;
-use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -36,7 +35,7 @@ final class AdminPlaceController extends AbstractController
     {
         return $this->render('admin/places/index.html.twig', [
             'places' => $placeRepository->findBy([], ['updatedAt' => 'DESC', 'createdAt' => 'DESC'], 100),
-            'status_labels' => $this->statusLabels(),
+            'status_labels' => $this->placeStatusLabels(),
             'difficulty_labels' => $this->difficultyLabels(),
             'price_labels' => $this->priceLabels(),
         ]);
@@ -52,10 +51,8 @@ final class AdminPlaceController extends AbstractController
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
             }
 
-            if ($this->updatePlaceFromRequest($place, $request, forceDraft: true)) {
+            if ($this->updatePlaceFromRequest($place, $request)) {
                 $place->setSlug($this->createUniqueSlug($place->getName() ?? 'reperage'));
-                $place->setStatus(ContentStatus::Draft);
-                $place->setPublishedAt(null);
                 $this->entityManager->persist($place);
                 $this->entityManager->flush();
                 $this->addFlash('success', 'Repérage créé.');
@@ -111,7 +108,6 @@ final class AdminPlaceController extends AbstractController
             'place' => $place,
             'destinations' => $destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
             'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
-            'status_options' => $this->statusLabels(),
             'difficulty_options' => $this->difficultyLabels(),
             'price_options' => $this->priceLabels(),
             'title' => $title,
@@ -120,7 +116,7 @@ final class AdminPlaceController extends AbstractController
         ]);
     }
 
-    private function updatePlaceFromRequest(Place $place, Request $request, bool $forceDraft = false): bool
+    private function updatePlaceFromRequest(Place $place, Request $request): bool
     {
         $name = trim($request->request->getString('name'));
         $destinationId = $this->nullableInt($request->request->get('destination'));
@@ -131,9 +127,7 @@ final class AdminPlaceController extends AbstractController
             return false;
         }
 
-        $status = $forceDraft
-            ? ContentStatus::Draft
-            : (ContentStatus::tryFrom($request->request->getString('status')) ?? ContentStatus::Draft);
+        $status = $this->privateScoutingStatusFor($place);
 
         $place
             ->setName($name)
@@ -146,23 +140,25 @@ final class AdminPlaceController extends AbstractController
             ->setLongitude($this->nullableFloat($request->request->get('longitude')))
             ->setVisitDurationMinutes($this->nullableInt($request->request->get('visitDurationMinutes')))
             ->setDifficulty(PlaceDifficulty::tryFrom($request->request->getString('difficulty')) ?? PlaceDifficulty::Unknown)
-            ->setPriceType(PriceType::tryFrom($request->request->getString('priceType')) ?? PriceType::Unknown);
-
-        if ($status === ContentStatus::Published && $place->getPublishedAt() === null) {
-            $place->setPublishedAt(new DateTimeImmutable());
-        } elseif ($forceDraft) {
-            $place->setPublishedAt(null);
-        }
+            ->setPriceType(PriceType::tryFrom($request->request->getString('priceType')) ?? PriceType::Unknown)
+            ->setPublishedAt(null);
 
         return true;
     }
 
+    private function privateScoutingStatusFor(Place $place): ContentStatus
+    {
+        return $place->getStatus() === ContentStatus::Archived
+            ? ContentStatus::Archived
+            : ContentStatus::Draft;
+    }
+
     /** @return array<string, string> */
-    private function statusLabels(): array
+    private function placeStatusLabels(): array
     {
         return [
-            ContentStatus::Draft->value => 'Brouillon',
-            ContentStatus::Published->value => 'Publié',
+            ContentStatus::Draft->value => 'Privé',
+            ContentStatus::Published->value => 'Privé',
             ContentStatus::PrivateContent->value => 'Privé',
             ContentStatus::Archived->value => 'Archivé',
         ];
