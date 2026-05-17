@@ -52,8 +52,10 @@ final class AdminPlaceController extends AbstractController
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
             }
 
-            if ($this->updatePlaceFromRequest($place, $request)) {
+            if ($this->updatePlaceFromRequest($place, $request, forceDraft: true)) {
                 $place->setSlug($this->createUniqueSlug($place->getName() ?? 'reperage'));
+                $place->setStatus(ContentStatus::Draft);
+                $place->setPublishedAt(null);
                 $this->entityManager->persist($place);
                 $this->entityManager->flush();
                 $this->addFlash('success', 'Repérage créé.');
@@ -114,10 +116,11 @@ final class AdminPlaceController extends AbstractController
             'price_options' => $this->priceLabels(),
             'title' => $title,
             'submit_label' => $submitLabel,
+            'is_new' => $place->getId() === null,
         ]);
     }
 
-    private function updatePlaceFromRequest(Place $place, Request $request): bool
+    private function updatePlaceFromRequest(Place $place, Request $request, bool $forceDraft = false): bool
     {
         $name = trim($request->request->getString('name'));
         $destinationId = $this->nullableInt($request->request->get('destination'));
@@ -128,13 +131,17 @@ final class AdminPlaceController extends AbstractController
             return false;
         }
 
-        $status = ContentStatus::tryFrom($request->request->getString('status')) ?? ContentStatus::Draft;
+        $status = $forceDraft
+            ? ContentStatus::Draft
+            : (ContentStatus::tryFrom($request->request->getString('status')) ?? ContentStatus::Draft);
+
         $place
             ->setName($name)
             ->setDestination($destination)
             ->setCategory(($categoryId = $this->nullableInt($request->request->get('category'))) !== null ? $this->entityManager->find(Category::class, $categoryId) : null)
             ->setStatus($status)
             ->setShortDescription($this->nullIfBlank($request->request->getString('shortDescription')))
+            ->setAddress($this->nullIfBlank($request->request->getString('address')))
             ->setLatitude($this->nullableFloat($request->request->get('latitude')))
             ->setLongitude($this->nullableFloat($request->request->get('longitude')))
             ->setVisitDurationMinutes($this->nullableInt($request->request->get('visitDurationMinutes')))
@@ -143,6 +150,8 @@ final class AdminPlaceController extends AbstractController
 
         if ($status === ContentStatus::Published && $place->getPublishedAt() === null) {
             $place->setPublishedAt(new DateTimeImmutable());
+        } elseif ($forceDraft) {
+            $place->setPublishedAt(null);
         }
 
         return true;

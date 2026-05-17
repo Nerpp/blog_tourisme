@@ -14,6 +14,39 @@
     <section class="admin-card">
         <form class="admin-form" method="post">
             <input type="hidden" name="_token" value="{{ csrf_token(place.id ? 'admin_place_' ~ place.id : 'admin_place_form') }}">
+            <section class="admin-card">
+                <div class="admin-field">
+                    <span class="admin-label">Point GPS du repérage</span>
+                    <p class="admin-muted">Ouvrez Google Maps, cherchez le lieu, copiez les coordonnées ou l’URL du point, puis collez-les ici. Le formulaire remplira automatiquement la latitude et la longitude.</p>
+                    <p class="admin-muted">Depuis Google Maps, faites un clic droit sur le point puis copiez les coordonnées, ou copiez l’URL du lieu.</p>
+                    <div class="admin-row-actions">
+                        <a class="admin-button admin-button--secondary" href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer">Ouvrir Google Maps</a>
+                        <a class="admin-button admin-button--small admin-button--secondary" href="#" target="_blank" rel="noopener noreferrer" hidden data-place-open-map>Voir le point</a>
+                        <a class="admin-button admin-button--small admin-button--secondary" href="#" target="_blank" rel="noopener noreferrer" hidden data-place-directions>Y aller</a>
+                    </div>
+                </div>
+                <div class="admin-field">
+                    <label for="gpsPaste">Coller un point GPS ou une URL Google Maps</label>
+                    <textarea
+                        id="gpsPaste"
+                        rows="3"
+                        data-gps-paste
+                        placeholder="Exemples : 42.769, 2.873 ou https://www.google.com/maps?q=42.769,2.873"
+                    ></textarea>
+                    <p class="admin-muted" data-place-status>Collez ou saisissez un point GPS.</p>
+                </div>
+                <div class="admin-form-grid">
+                    <div class="admin-field">
+                        <label for="place-latitude">Latitude</label>
+                        <input id="place-latitude" name="latitude" type="number" step="any" value="{{ place.latitude }}" data-place-latitude>
+                    </div>
+                    <div class="admin-field">
+                        <label for="place-longitude">Longitude</label>
+                        <input id="place-longitude" name="longitude" type="number" step="any" value="{{ place.longitude }}" data-place-longitude>
+                    </div>
+                </div>
+            </section>
+
             <div class="admin-form-grid">
                 <div class="admin-field">
                     <label for="place-name">Nom</label>
@@ -37,25 +70,29 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="admin-field">
-                    <label for="place-status">Statut</label>
-                    <select id="place-status" name="status">
-                        {% for value, label in status_options %}
-                            <option value="{{ value }}" {% if place.status.value == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                {% if is_new %}
+                    <div class="admin-field">
+                        <span class="admin-label">Statut</span>
+                        <span class="admin-badge admin-badge--muted">Brouillon privé</span>
+                        <p class="admin-muted">Le statut est forcé côté serveur à la création, même si une valeur différente est envoyée.</p>
+                    </div>
+                {% else %}
+                    <div class="admin-field">
+                        <label for="place-status">Statut interne</label>
+                        <select id="place-status" name="status">
+                            {% for value, label in status_options %}
+                                <option value="{{ value }}" {% if place.status.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                {% endif %}
                 <div class="admin-field admin-field--full">
                     <label for="place-short-description">Note courte</label>
                     <textarea id="place-short-description" name="shortDescription" rows="3">{{ place.shortDescription }}</textarea>
                 </div>
-                <div class="admin-field">
-                    <label for="place-latitude">Latitude</label>
-                    <input id="place-latitude" name="latitude" type="number" step="any" value="{{ place.latitude }}">
-                </div>
-                <div class="admin-field">
-                    <label for="place-longitude">Longitude</label>
-                    <input id="place-longitude" name="longitude" type="number" step="any" value="{{ place.longitude }}">
+                <div class="admin-field admin-field--full">
+                    <label for="place-address">Adresse</label>
+                    <input id="place-address" name="address" value="{{ place.address }}">
                 </div>
                 <div class="admin-field">
                     <label for="place-duration">Temps estimé sur place</label>
@@ -87,4 +124,8 @@
             </div>
         </form>
     </section>
+{% endblock %}
+
+{% block javascripts %}
+    {{ vite_entry_script_tags('assets/js/admin-place-gps.js') }}
 {% endblock %}
