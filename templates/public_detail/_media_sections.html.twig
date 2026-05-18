@@ -253,40 +253,78 @@
 {% endif %}
 
 {% if immersive_media_links|length > 0 %}
-    <section class="media-section">
-        <div class="media-header">
+    {% set image360_media_links = immersive_media_links|filter(link => link.mediaAsset and link.mediaAsset.imageType and link.mediaAsset.imageType.value == '360') %}
+    {% set has_360_media = image360_media_links|length > 0 %}
+    <section class="trail-panorama-section">
+        <div class="trail-panorama-heading">
             <div>
-                <p class="media-kicker">Immersion</p>
-                <h2 class="media-title">Photos 360° et 180°</h2>
-                <p class="media-description">
-                    Ces vues immersives permettent de mieux comprendre l’environnement et les points de vue du parcours.
+                <span class="trail-panorama-badge">{{ has_360_media ? 'Vue 360°' : 'Vue immersive' }}</span>
+                <h2>{{ has_360_media ? 'Explorez le panorama' : 'Explorez la vue immersive' }}</h2>
+                <p>
+                    {{ has_360_media ? 'Glissez l’image pour découvrir le paysage comme si vous étiez sur place.' : 'Ouvrez ces vues immersives pour mieux ressentir le lieu.' }}
                 </p>
             </div>
 
-            <span class="media-count">{{ immersive_media_links|length }}</span>
+            <span class="trail-panorama-drone-badge">{{ has_360_media ? 'Drone 360°' : 'Immersion' }}</span>
         </div>
 
-        <div class="immersive-grid">
+        <div class="trail-panorama-list">
             {% for mediaLink in immersive_media_links %}
                 {% set media = mediaLink.mediaAsset %}
 
                 {% if media %}
-                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                    {% set is_360 = media.imageType and media.imageType.value == '360' %}
+                    {% set preview = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                    {% set panorama = media.filePath ?: media.externalUrl %}
+                    {% set mobile_panorama = media.metadata and media.metadata.mobilePath is defined ? media.metadata.mobilePath : null %}
 
-                    {% if image %}
-                        {% set image_url = image starts with 'http' ? image : asset(image) %}
+                    {% if is_360 and panorama %}
+                        {% set panorama_url = panorama starts with 'http' ? panorama : asset(panorama) %}
+                        {% set mobile_panorama_url = mobile_panorama ? (mobile_panorama starts with 'http' ? mobile_panorama : asset(mobile_panorama)) : null %}
+                        {% set preview_url = preview ? (preview starts with 'http' ? preview : asset(preview)) : null %}
+
+                        <article class="trail-panorama-card">
+                            <div class="trail-panorama-card__meta">
+                                <span class="trail-panorama-card__tag">Vue 360°</span>
+
+                                {% if media.title %}
+                                    <h3>{{ media.title }}</h3>
+                                {% endif %}
+
+                                <p>{{ media.caption ?: 'Glissez pour explorer le panorama.' }}</p>
+                            </div>
+
+                            <div
+                                class="js-panorama-viewer trail-panorama-viewer"
+                                data-panorama-url="{{ panorama_url }}"
+                                {% if mobile_panorama_url %}data-panorama-mobile-url="{{ mobile_panorama_url }}"{% endif %}
+                                aria-label="Vue panoramique 360 degrés"
+                            >
+                                <div class="trail-panorama-fallback" data-panorama-fallback>
+                                    {% if preview_url %}
+                                        <img src="{{ preview_url }}" alt="{{ media.altText ?: media.title ?: 'Aperçu du panorama 360' }}" loading="lazy">
+                                    {% endif %}
+                                    <p data-panorama-fallback-message>La vue 360° n’est pas disponible sur cet appareil, mais vous pouvez consulter l’image en aperçu.</p>
+                                </div>
+                            </div>
+
+                            {% if preview_url %}
+                                <noscript>
+                                    <style>.trail-panorama-viewer{display:none}</style>
+                                    <img class="trail-panorama-noscript" src="{{ preview_url }}" alt="{{ media.altText ?: media.title ?: 'Aperçu du panorama 360' }}">
+                                </noscript>
+                            {% endif %}
+                        </article>
+                    {% elseif preview %}
+                        {% set preview_url = preview starts with 'http' ? preview : asset(preview) %}
 
                         <a
                             class="immersive-card"
-                            href="{{ image_url }}"
-                            style="--immersive-image: url('{{ image_url|e('html_attr') }}');"
+                            href="{{ preview_url }}"
+                            style="--immersive-image: url('{{ preview_url|e('html_attr') }}');"
                         >
-                            <span class="immersive-card__tag">
-                                {{ media.imageType and media.imageType.value == '360' ? '360°' : '180°' }}
-                            </span>
-
+                            <span class="immersive-card__tag">180°</span>
                             <h3>{{ media.title ?: 'Vue immersive' }}</h3>
-
                             <p>{{ media.caption ?: 'Ouvrir l’image immersive.' }}</p>
                         </a>
                     {% endif %}
@@ -381,6 +419,10 @@
                                         {% set image_url = image starts with 'http' ? image : asset(image) %}
 
                                         <figure class="point-media-card">
+                                            {% if media.imageType and media.imageType.value in ['360', '180'] %}
+                                                <span class="point-media-card__badge">{{ media.imageType.value == '360' ? '360°' : '180°' }}</span>
+                                            {% endif %}
+
                                             <img
                                                 src="{{ image_url }}"
                                                 alt="{{ media.altText ?: media.title ?: point.title ?: item_title }}"

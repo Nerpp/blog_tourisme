@@ -21,6 +21,7 @@ use App\Repository\DestinationRepository;
 use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
 use App\Service\ImageUploadSecurity;
+use App\Service\Media\DronePanoramaUploadService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -50,6 +51,7 @@ final class PlaceStudioController extends AbstractController
         private readonly SluggerInterface $slugger,
         private readonly ParameterBagInterface $parameterBag,
         private readonly ImageUploadSecurity $imageUploadSecurity,
+        private readonly DronePanoramaUploadService $panoramaUploadService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
@@ -108,8 +110,9 @@ final class PlaceStudioController extends AbstractController
             $associations = $this->requestArray($request, 'photoUsages');
         }
         foreach ($files as $index => $file) {
+            $imageType = ImageType::tryFrom((string) ($imageTypes[$index] ?? '')) ?? ImageType::Standard;
             try {
-                $storedFile = $this->storeUploadedImage($file);
+                $storedFile = $this->storeImageByType($file, $imageType);
             } catch (InvalidArgumentException $exception) {
                 $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
 
@@ -123,12 +126,15 @@ final class PlaceStudioController extends AbstractController
                 ->setTitle($this->truncate($storedFile['title'], 180))
                 ->setCaption($this->nullIfBlank((string) ($captions[$index] ?? '')))
                 ->setMediaType(MediaType::Image)
-                ->setImageType(ImageType::tryFrom((string) ($imageTypes[$index] ?? '')) ?? ImageType::Standard)
+                ->setImageType($imageType)
                 ->setFilePath($storedFile['path'])
+                ->setThumbnailPath($storedFile['thumbnailPath'] ?? null)
                 ->setMimeType($storedFile['mimeType'])
                 ->setFileSize($storedFile['fileSize'])
                 ->setWidth($storedFile['width'])
-                ->setHeight($storedFile['height']);
+                ->setHeight($storedFile['height'])
+                ->setProjection($storedFile['projection'] ?? null)
+                ->setMetadata($storedFile['metadata'] ?? null);
 
             $placeMedia = (new PlaceMedia())
                 ->setPlace($place)
@@ -330,7 +336,7 @@ final class PlaceStudioController extends AbstractController
                 'standard' => 'Image classique',
                 '360' => 'Image 360°',
                 '180' => 'Image 180°',
-                'panorama' => 'Panorama',
+                'panorama' => 'Image panoramique',
                 'wide_angle' => 'Grand angle',
             ]),
             'photo_usage_options' => $this->photoUsageOptions(),
@@ -441,7 +447,19 @@ final class PlaceStudioController extends AbstractController
     }
 
     /**
-     * @return array{title: string, path: string, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null}
+     * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
+     */
+    private function storeImageByType(UploadedFile $file, ImageType $imageType): array
+    {
+        if ($imageType === ImageType::Degree360) {
+            return $this->panoramaUploadService->upload($file);
+        }
+
+        return $this->storeUploadedImage($file);
+    }
+
+    /**
+     * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
     private function storeUploadedImage(UploadedFile $file): array
     {

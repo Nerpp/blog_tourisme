@@ -93,7 +93,8 @@
                             <div class="studio-point-media">
                                 {% for point_media in point.mediaLinks %}
                                     {% set linked_media = point_media.mediaAsset %}
-                                    {% set linked_image_src = linked_media.filePath ? (linked_media.filePath starts with '/' ? linked_media.filePath : asset(linked_media.filePath)) : null %}
+                                    {% set linked_image_path = linked_media.thumbnailPath ?: linked_media.filePath %}
+                                    {% set linked_image_src = linked_image_path ? (linked_image_path starts with '/' ? linked_image_path : asset(linked_image_path)) : null %}
                                     <article class="studio-point-media-card">
                                         <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
                                         {% if linked_media.mediaType.value == 'image' and linked_image_src %}

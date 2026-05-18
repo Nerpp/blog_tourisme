@@ -377,6 +377,188 @@
   text-transform: uppercase;
 }
 
+/* VIEWER 360 */
+
+.trail-panorama-section {
+  margin: 2rem 0 34px;
+  padding: clamp(24px, 4vw, 40px);
+  border: 1px solid rgba(24, 50, 42, 0.08);
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at top right, rgba(126, 214, 167, 0.12), transparent 34%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 70px rgba(16, 39, 31, 0.08);
+}
+
+.trail-panorama-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 1rem;
+}
+
+.trail-panorama-badge,
+.trail-panorama-drone-badge,
+.trail-panorama-card__tag,
+.point-media-card__badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.trail-panorama-badge {
+  min-height: 34px;
+  padding: 0.35rem 0.75rem;
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.trail-panorama-drone-badge {
+  min-height: 38px;
+  padding: 0 14px;
+  background: rgba(79, 159, 117, 0.14);
+  color: #2e7b55;
+  font-size: 0.86rem;
+}
+
+.trail-panorama-heading h2 {
+  margin: 0.75rem 0 0.35rem;
+  color: #18322a;
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
+  line-height: 1.05;
+  font-weight: 950;
+}
+
+.trail-panorama-heading p {
+  max-width: 720px;
+  margin: 0;
+  color: rgba(15, 23, 42, 0.72);
+  line-height: 1.65;
+}
+
+.trail-panorama-list {
+  display: grid;
+  gap: 18px;
+}
+
+.trail-panorama-card {
+  display: grid;
+  gap: 16px;
+}
+
+.trail-panorama-card__meta {
+  display: grid;
+  gap: 8px;
+}
+
+.trail-panorama-card__tag {
+  min-height: 30px;
+  padding: 0 11px;
+  background: rgba(79, 159, 117, 0.14);
+  color: #2e7b55;
+  font-size: 0.78rem;
+}
+
+.trail-panorama-card__meta h3 {
+  margin: 0;
+  color: #18322a;
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.trail-panorama-card__meta p {
+  margin: 0;
+  color: rgba(24, 50, 42, 0.68);
+  line-height: 1.55;
+}
+
+.trail-panorama-viewer {
+  position: relative;
+  width: 100%;
+  height: min(68vh, 680px);
+  min-height: 520px;
+  overflow: hidden;
+  border-radius: 28px;
+  background: #020617;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+}
+
+.trail-panorama-viewer.pnlm-container {
+  background: #020617;
+}
+
+.trail-panorama-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #020617;
+  color: rgba(255, 255, 255, 0.86);
+  text-align: center;
+}
+
+.trail-panorama-fallback img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.72;
+}
+
+.trail-panorama-fallback p {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.72);
+  font-weight: 800;
+  line-height: 1.55;
+  backdrop-filter: blur(14px);
+}
+
+.trail-panorama-viewer.is-loaded .trail-panorama-fallback {
+  display: none;
+}
+
+.trail-panorama-viewer.is-unavailable .trail-panorama-fallback {
+  z-index: 4;
+}
+
+.trail-panorama-viewer .pnlm-controls-container {
+  left: 18px;
+  top: 18px;
+}
+
+.trail-panorama-viewer .pnlm-controls,
+.trail-panorama-viewer .pnlm-control {
+  border-color: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.22);
+}
+
+.trail-panorama-viewer .pnlm-compass {
+  right: 18px;
+  top: auto;
+  bottom: 18px;
+}
+
+.trail-panorama-noscript {
+  display: block;
+  width: 100%;
+  border-radius: 20px;
+  object-fit: cover;
+}
+
 /* PANORAMAS */
 
 .panorama-strip {
@@ -516,6 +698,18 @@
   backdrop-filter: blur(10px);
 }
 
+.point-media-card__badge {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 2;
+  min-height: 28px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #18322a;
+  font-size: 0.72rem;
+}
+
 .empty-media-note {
   margin: 0;
   padding: 20px;
@@ -545,6 +739,14 @@
 
   .journey-gallery {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .trail-panorama-viewer {
+    height: 420px;
+    min-height: 360px;
+    border-radius: 20px;
   }
 }
 
@@ -583,6 +785,17 @@
   .media-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .trail-panorama-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .trail-panorama-viewer {
+    height: 420px;
+    min-height: 360px;
+    border-radius: 20px;
   }
 }
 

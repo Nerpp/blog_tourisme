@@ -11,14 +11,16 @@
     }[image_type]|default('Image'))
 %}
 {% set is_demo_file = media.filePath and media.filePath starts with '/uploads/demo/' %}
+{% set image_path = media.thumbnailPath ?: (image_type == 'standard' ? media.filePath : null) %}
+{% set is_demo_image = image_path and image_path starts with '/uploads/demo/' %}
 
 <article class="media-card" data-media-type="{{ type }}" {% if image_type %}data-image-type="{{ image_type }}"{% endif %}>
     <div class="media-visual">
         <span class="badge media-badge">{{ badge }}</span>
 
         {% if type == 'image' %}
-            {% if media.filePath and not is_demo_file %}
-                <img src="{{ media.filePath }}" alt="{{ media.altText ?: media.title ?: 'Media touristique' }}" loading="lazy">
+            {% if image_path and not is_demo_image %}
+                <img src="{{ image_path }}" alt="{{ media.altText ?: media.title ?: 'Media touristique' }}" loading="lazy">
             {% else %}
                 <div class="media-placeholder" role="img" aria-label="{{ media.altText ?: media.title ?: 'Image de demonstration' }}">
                     <span>{{ badge }}</span>

@@ -8,5 +8,7 @@
 /config/reference.php
 public/uploads/avatars/*
 !public/uploads/avatars/.gitkeep
+public/uploads/media/360/*
+!public/uploads/media/360/.gitkeep
 npm-debug.log*
 yarn-error.log*

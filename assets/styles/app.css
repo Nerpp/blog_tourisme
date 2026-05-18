@@ -240,6 +240,22 @@ button {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.cover-media__badge {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #12615c;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .media-placeholder,
 .cover-placeholder {
   display: grid;

@@ -39,8 +39,10 @@ trait StudioMediaHelperTrait
 
     private function createImageAssetFromUpload(UploadedFile $file, ?string $caption = null, ?ImageType $imageType = null): ?MediaAsset
     {
+        $imageType ??= ImageType::Standard;
+
         try {
-            $storedFile = $this->storeUploadedImage($file);
+            $storedFile = $this->storeImageByType($file, $imageType);
         } catch (InvalidArgumentException $exception) {
             $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
 
@@ -52,12 +54,15 @@ trait StudioMediaHelperTrait
             ->setTitle($this->truncate($storedFile['title'], 180))
             ->setCaption($this->nullIfBlank($caption))
             ->setMediaType(MediaType::Image)
-            ->setImageType($imageType ?? ImageType::Standard)
+            ->setImageType($imageType)
             ->setFilePath($storedFile['path'])
+            ->setThumbnailPath($storedFile['thumbnailPath'] ?? null)
             ->setMimeType($storedFile['mimeType'])
             ->setFileSize($storedFile['fileSize'])
             ->setWidth($storedFile['width'])
-            ->setHeight($storedFile['height']);
+            ->setHeight($storedFile['height'])
+            ->setProjection($storedFile['projection'] ?? null)
+            ->setMetadata($storedFile['metadata'] ?? null);
     }
 
     private function createVideoAssetFromRequest(Request $request): ?MediaAsset
@@ -82,7 +87,7 @@ trait StudioMediaHelperTrait
     }
 
     /**
-     * @return array{title: string, path: string, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null}
+     * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
     private function storeUploadedImage(UploadedFile $file): array
     {
@@ -106,6 +111,18 @@ trait StudioMediaHelperTrait
             'width' => $inspection['width'],
             'height' => $inspection['height'],
         ];
+    }
+
+    /**
+     * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
+     */
+    private function storeImageByType(UploadedFile $file, ImageType $imageType): array
+    {
+        if ($imageType === ImageType::Degree360) {
+            return $this->panoramaUploadService->upload($file);
+        }
+
+        return $this->storeUploadedImage($file);
     }
 
     private function consumeUploadRateLimit(Request $request): bool

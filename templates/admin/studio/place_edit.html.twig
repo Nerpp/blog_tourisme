@@ -208,6 +208,27 @@
             word-break: break-word;
         }
 
+        .studio-preview__meta {
+            color: var(--admin-muted);
+            font-size: 0.86rem;
+            font-weight: 750;
+        }
+
+        .studio-preview__notice {
+            margin: 0;
+            padding: 10px 12px;
+            border-radius: var(--admin-radius);
+            background: var(--admin-info-soft);
+            color: var(--admin-info);
+            font-size: 0.9rem;
+            font-weight: 750;
+        }
+
+        .studio-preview__notice.is-warning {
+            background: var(--admin-warning-soft);
+            color: var(--admin-warning);
+        }
+
         .studio-preview img,
         .studio-media-thumb {
             width: 100%;
@@ -515,7 +536,8 @@
                 <div class="studio-media-grid">
                     {% for media_link in photo_links %}
                         {% set media = media_link.mediaAsset %}
-                        {% set image_src = media.filePath ? (media.filePath starts with '/' ? media.filePath : asset(media.filePath)) : null %}
+                        {% set image_path = media.thumbnailPath ?: media.filePath %}
+                        {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
                         {% set current_usage = media_link.role.value == 'cover' ? 'main' : 'gallery' %}
                         <article class="studio-media-card">
                             {% if media.filePath %}
@@ -687,7 +709,8 @@
                 <div class="studio-media-grid">
                     {% for media_link in immersive_links %}
                         {% set media = media_link.mediaAsset %}
-                        {% set image_src = media.filePath ? (media.filePath starts with '/' ? media.filePath : asset(media.filePath)) : null %}
+                        {% set image_path = media.thumbnailPath ?: media.filePath %}
+                        {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
                         <article class="studio-media-card">
                             {% if media.filePath %}
                                 <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: place.name }}">

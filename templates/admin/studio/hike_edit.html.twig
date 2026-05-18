@@ -32,6 +32,9 @@
         .studio-preview-list, .studio-media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
         .studio-preview, .studio-media-card, .studio-point { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fbfcfb; }
         .studio-preview__name { color: var(--admin-text); font-weight: 800; word-break: break-word; }
+        .studio-preview__meta { color: var(--admin-muted); font-size: .86rem; font-weight: 750; }
+        .studio-preview__notice { margin: 0; padding: 10px 12px; border-radius: var(--admin-radius); background: var(--admin-info-soft); color: var(--admin-info); font-size: .9rem; font-weight: 750; }
+        .studio-preview__notice.is-warning { background: var(--admin-warning-soft); color: var(--admin-warning); }
         .studio-preview img, .studio-media-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
         .studio-point-media { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
         .studio-point-media-card { display: grid; gap: 6px; }
@@ -143,7 +146,8 @@
                             <div class="studio-point-media">
                                 {% for point_media in point.mediaLinks %}
                                     {% set linked_media = point_media.mediaAsset %}
-                                    {% set linked_image_src = linked_media.filePath ? (linked_media.filePath starts with '/' ? linked_media.filePath : asset(linked_media.filePath)) : null %}
+                                    {% set linked_image_path = linked_media.thumbnailPath ?: linked_media.filePath %}
+                                    {% set linked_image_src = linked_image_path ? (linked_image_path starts with '/' ? linked_image_path : asset(linked_image_path)) : null %}
                                     <article class="studio-point-media-card">
                                         <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
                                         {% if linked_media.mediaType.value == 'image' and linked_image_src %}

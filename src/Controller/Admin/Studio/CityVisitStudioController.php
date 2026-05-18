@@ -18,6 +18,7 @@ use App\Repository\DestinationRepository;
 use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
 use App\Service\ImageUploadSecurity;
+use App\Service\Media\DronePanoramaUploadService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -44,6 +45,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly SluggerInterface $slugger,
         private readonly ParameterBagInterface $parameterBag,
         private readonly ImageUploadSecurity $imageUploadSecurity,
+        private readonly DronePanoramaUploadService $panoramaUploadService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
@@ -436,7 +438,7 @@ final class CityVisitStudioController extends AbstractController
             'standard' => 'Image classique',
             '360' => 'Image 360°',
             '180' => 'Image 180°',
-            'panorama' => 'Panorama',
+            'panorama' => 'Image panoramique',
             'wide_angle' => 'Grand angle',
         ]);
     }

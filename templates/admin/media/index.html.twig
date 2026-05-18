@@ -26,7 +26,7 @@
             </thead>
             <tbody>
                 {% for media in media_assets %}
-                    {% set src = media.filePath ?: media.thumbnailPath ?: media.externalUrl %}
+                    {% set src = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
                     {% set preview_src = src and (src starts with '/' or src starts with 'http') ? src : (src ? asset(src) : null) %}
                     <tr>
                         <td>

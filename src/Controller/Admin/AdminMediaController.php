@@ -155,7 +155,7 @@ final class AdminMediaController extends AbstractController
             ImageType::Standard->value => 'Image classique',
             ImageType::Degree360->value => 'Image 360°',
             ImageType::Degree180->value => 'Image 180°',
-            ImageType::Panorama->value => 'Panorama',
+            ImageType::Panorama->value => 'Image panoramique',
             ImageType::WideAngle->value => 'Grand angle',
         ];
     }

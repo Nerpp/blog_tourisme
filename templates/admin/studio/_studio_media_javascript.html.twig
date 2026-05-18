@@ -2,10 +2,39 @@
     (() => {
         const videoToggle = document.querySelector('[data-video-toggle]');
         const videoForm = document.querySelector('[data-video-form]');
+        const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        const panoramaImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
         const buildOptions = (options, selected) => Object.entries(options)
             .map(([value, label]) => `<option value="${value}"${value === selected ? ' selected' : ''}>${label}</option>`)
             .join('');
+
+        const readImageDimensions = (file) => new Promise((resolve) => {
+            const image = new Image();
+            const url = URL.createObjectURL(file);
+
+            image.onload = () => {
+                URL.revokeObjectURL(url);
+                resolve({ width: image.naturalWidth, height: image.naturalHeight });
+            };
+
+            image.onerror = () => {
+                URL.revokeObjectURL(url);
+                resolve({ width: null, height: null });
+            };
+
+            image.src = url;
+        });
+
+        const ratioLooksLikePanorama = (width, height) => {
+            if (!width || !height) {
+                return false;
+            }
+
+            const ratio = width / height;
+
+            return ratio >= 1.9 && ratio <= 2.1;
+        };
 
         document.querySelectorAll('[data-photo-upload-form]').forEach((form) => {
             const fileInput = form.querySelector('[data-photo-input]');
@@ -44,6 +73,15 @@
                     name.textContent = item.file.name;
                     card.appendChild(name);
 
+                    const dimensions = document.createElement('span');
+                    dimensions.className = 'studio-preview__meta';
+                    if (item.width && item.height) {
+                        dimensions.textContent = `${item.width} × ${item.height}px · ratio ${(item.width / item.height).toFixed(2)}:1`;
+                    } else {
+                        dimensions.textContent = 'Dimensions en cours de détection';
+                    }
+                    card.appendChild(dimensions);
+
                     const captionField = document.createElement('label');
                     captionField.className = 'studio-field';
                     const captionLabel = document.createElement('span');
@@ -65,7 +103,7 @@
                     row.className = 'studio-media-row';
                     row.innerHTML = `
                         <label class="studio-field">
-                            <span>Type d’image</span>
+                            <span>Type de média</span>
                             <select name="photoImageTypes[]">${buildOptions(imageTypeOptions, item.imageType)}</select>
                         </label>
                         <label class="studio-field">
@@ -78,11 +116,31 @@
 
                     imageTypeSelect.addEventListener('change', () => {
                         item.imageType = imageTypeSelect.value;
+                        renderPreview();
                     });
                     associationSelect.addEventListener('change', () => {
                         item.association = associationSelect.value;
                     });
                     card.appendChild(row);
+
+                    if (item.imageType === '360') {
+                        const panoramaNotice = document.createElement('p');
+                        panoramaNotice.className = 'studio-preview__notice';
+
+                        if (!panoramaImageTypes.includes(item.file.type)) {
+                            panoramaNotice.classList.add('is-warning');
+                            panoramaNotice.textContent = 'Une image 360° doit être en JPG, PNG ou WebP. Les GIF et SVG seront refusés.';
+                        } else if (item.width && item.height && !ratioLooksLikePanorama(item.width, item.height)) {
+                            panoramaNotice.classList.add('is-warning');
+                            panoramaNotice.textContent = 'Cette image ne ressemble pas à une photo 360° équirectangulaire : la largeur devrait être environ deux fois plus grande que la hauteur.';
+                        } else if (item.width && item.height) {
+                            panoramaNotice.textContent = 'Image 360° compatible : le panorama sera conservé et affiché dans une vue immersive.';
+                        } else {
+                            panoramaNotice.textContent = 'Utilisez ce type pour les photos 360° prises avec un drone DJI ou une caméra 360. L’image sera affichée dans une vue immersive.';
+                        }
+
+                        card.appendChild(panoramaNotice);
+                    }
 
                     const removeButton = document.createElement('button');
                     removeButton.className = 'admin-button admin-button--secondary studio-button-danger';
@@ -101,15 +159,24 @@
 
             fileInput.addEventListener('change', () => {
                 Array.from(fileInput.files || []).forEach((file) => {
-                    if (!file.type.startsWith('image/')) {
+                    if (!allowedImageTypes.includes(file.type)) {
                         return;
                     }
 
-                    selectedFiles.push({
+                    const item = {
                         file,
                         caption: '',
                         imageType: 'standard',
                         association: 'gallery',
+                        width: null,
+                        height: null,
+                    };
+
+                    selectedFiles.push(item);
+                    readImageDimensions(file).then((dimensions) => {
+                        item.width = dimensions.width;
+                        item.height = dimensions.height;
+                        renderPreview();
                     });
                 });
                 syncInputFiles();

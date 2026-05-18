@@ -1,21 +1,35 @@
 {% set featured_media = featured_media|default(null) %}
 {% set media_links = media_links|default([]) %}
 {% set cover_media = null %}
+{% set cover_is_special = false %}
 
 {% if featured_media and featured_media.mediaType.value == 'image' and featured_media.imageType and featured_media.imageType.value == 'standard' %}
     {% set cover_media = featured_media %}
+{% elseif featured_media and featured_media.mediaType.value == 'image' and featured_media.thumbnailPath %}
+    {% set cover_media = featured_media %}
+    {% set cover_is_special = featured_media.imageType and featured_media.imageType.value != 'standard' %}
 {% else %}
     {% set standard_media_links = media_links|filter(link => link.mediaAsset.mediaType.value == 'image' and link.mediaAsset.imageType and link.mediaAsset.imageType.value == 'standard') %}
     {% if standard_media_links|length > 0 %}
         {% set cover_media = (standard_media_links|first).mediaAsset %}
+    {% else %}
+        {% set preview_media_links = media_links|filter(link => link.mediaAsset.mediaType.value == 'image' and link.mediaAsset.thumbnailPath) %}
+        {% if preview_media_links|length > 0 %}
+            {% set cover_media = (preview_media_links|first).mediaAsset %}
+            {% set cover_is_special = cover_media.imageType and cover_media.imageType.value != 'standard' %}
+        {% endif %}
     {% endif %}
 {% endif %}
 
-{% set is_demo_file = cover_media and cover_media.filePath and cover_media.filePath starts with '/uploads/demo/' %}
+{% set cover_path = cover_media ? (cover_media.thumbnailPath ?: (cover_media.imageType and cover_media.imageType.value == 'standard' ? cover_media.filePath : null)) : null %}
+{% set is_demo_file = cover_path and cover_path starts with '/uploads/demo/' %}
 
 <div class="cover-media">
-    {% if cover_media and cover_media.filePath and not is_demo_file %}
-        <img src="{{ cover_media.filePath }}" alt="{{ cover_media.altText ?: cover_media.title ?: 'Image de couverture' }}" loading="lazy">
+    {% if cover_media and cover_path and not is_demo_file %}
+        <img src="{{ cover_path }}" alt="{{ cover_media.altText ?: cover_media.title ?: 'Image de couverture' }}" loading="lazy">
+        {% if cover_is_special and cover_media.imageType %}
+            <span class="cover-media__badge">{{ cover_media.imageType.value == '360' ? '360°' : (cover_media.imageType.value == '180' ? '180°' : 'Panorama') }}</span>
+        {% endif %}
     {% else %}
         <div class="cover-placeholder" role="img" aria-label="{{ cover_media ? (cover_media.altText ?: cover_media.title ?: 'Image de couverture') : 'Image de couverture non disponible' }}">
             <span>Image de couverture</span>

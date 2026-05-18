@@ -4,10 +4,10 @@
     <input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
     <div class="studio-upload">
         <label class="admin-button" for="{{ input_id }}">Ajouter des photos</label>
-        <input class="studio-file-input" id="{{ input_id }}" data-photo-input type="file" name="photos[]" accept="image/*" multiple>
+        <input class="studio-file-input" id="{{ input_id }}" data-photo-input type="file" name="photos[]" accept=".jpg,.jpeg,.png,.webp,.gif" multiple>
         <button class="admin-button admin-button--secondary" type="submit" data-photo-submit disabled>Importer</button>
     </div>
-    <p class="studio-help">Ajoutez un commentaire, choisissez le type d’image et associez chaque photo à l’image principale, à la galerie générale ou à un point GPS.</p>
+    <p class="studio-help">Ajoutez un commentaire, choisissez le type de média et associez chaque photo à l’image principale, à la galerie générale ou à un point GPS. Pour les photos DJI 360°, choisissez Image 360°. Le blog gardera le panorama et l’affichera dans une vue immersive.</p>
     <div
         class="studio-preview-list"
         data-photo-preview
