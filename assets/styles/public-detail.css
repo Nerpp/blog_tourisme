@@ -1007,6 +1007,10 @@ button.media-badge:hover {
   align-items: stretch;
 }
 
+.gallery-modal__slide--image-only.is-active {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .gallery-modal__media {
   overflow: hidden;
   margin: 0;
@@ -1022,6 +1026,10 @@ button.media-badge:hover {
   background: #07140f;
 }
 
+.gallery-modal__slide--image-only .gallery-modal__media img {
+  height: min(700px, calc(100vh - 220px));
+}
+
 .gallery-modal__caption {
   display: flex;
   flex-direction: column;
@@ -1035,12 +1043,6 @@ button.media-badge:hover {
   margin: 0;
   color: rgba(245, 247, 243, 0.76);
   line-height: 1.65;
-}
-
-.gallery-modal__caption .empty-media-note {
-  margin: 0;
-  color: rgba(245, 247, 243, 0.74);
-  background: rgba(255, 255, 255, 0.08);
 }
 
 .gallery-modal__nav {
@@ -1113,6 +1115,10 @@ button.media-badge:hover {
 
   .gallery-modal__media img {
     height: min(430px, 48vh);
+  }
+
+  .gallery-modal__slide--image-only .gallery-modal__media img {
+    height: min(560px, 64vh);
   }
 
   .gallery-modal__caption {

@@ -75,6 +75,12 @@
                             <img
                                 src="{{ image_url }}"
                                 alt="{{ media.altText ?: media.title ?: item_title }}"
+                                loading="lazy"
+                                decoding="async"
+                                {% if media.width and media.height %}
+                                    width="{{ media.width }}"
+                                    height="{{ media.height }}"
+                                {% endif %}
                             >
 
                             {% if loop.index == 5 and standard_media_links|length > 5 %}
@@ -139,28 +145,30 @@
                         {% set media = mediaLink.mediaAsset %}
 
                         {% if media %}
-                            {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                            {% set image = media.filePath ?: media.externalUrl ?: media.thumbnailPath %}
 
                             {% if image %}
                                 {% set image_url = image starts with 'http' ? image : asset(image) %}
+                                {% set has_caption = media.caption is not empty %}
 
-                                <article class="gallery-modal__slide js-gallery-slide {{ loop.first ? 'is-active' : '' }}">
+                                <article class="gallery-modal__slide js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
                                     <figure class="gallery-modal__media">
                                         <img
-                                            src="{{ image_url }}"
+                                            data-gallery-src="{{ image_url }}"
                                             alt="{{ media.altText ?: media.title ?: item_title }}"
+                                            decoding="async"
+                                            {% if media.width and media.height %}
+                                                width="{{ media.width }}"
+                                                height="{{ media.height }}"
+                                            {% endif %}
                                         >
                                     </figure>
 
-                                    <div class="gallery-modal__caption">
-                                        {% if media.caption %}
+                                    {% if has_caption %}
+                                        <div class="gallery-modal__caption">
                                             <p>{{ media.caption|nl2br }}</p>
-                                        {% else %}
-                                            <p class="empty-media-note">
-                                                Aucun commentaire renseigné pour cette photo.
-                                            </p>
-                                        {% endif %}
-                                    </div>
+                                        </div>
+                                    {% endif %}
                                 </article>
                             {% endif %}
                         {% endif %}
@@ -223,6 +231,7 @@
                                 {% elseif local_video %}
                                     <video
                                         controls
+                                        playsinline
                                         preload="metadata"
                                         {% if poster %}
                                             {% set poster_url = poster starts with 'http' ? poster : asset(poster) %}
@@ -310,7 +319,16 @@
                             >
                                 <div class="trail-panorama-fallback" data-panorama-fallback>
                                     {% if preview_url %}
-                                        <img src="{{ preview_url }}" alt="{{ media.altText ?: media.title ?: 'Aperçu du panorama 360' }}" loading="lazy">
+                                        <img
+                                            src="{{ preview_url }}"
+                                            alt="{{ media.altText ?: media.title ?: 'Aperçu du panorama 360' }}"
+                                            loading="lazy"
+                                            decoding="async"
+                                            {% if media.width and media.height %}
+                                                width="{{ media.width }}"
+                                                height="{{ media.height }}"
+                                            {% endif %}
+                                        >
                                     {% endif %}
                                     <p data-panorama-fallback-message>La vue 360° n’est pas disponible sur cet appareil, mais vous pouvez consulter l’image en aperçu.</p>
                                 </div>
@@ -495,6 +513,12 @@
                                             <img
                                                 src="{{ image_url }}"
                                                 alt="{{ media.altText ?: media.title ?: point.title ?: item_title }}"
+                                                loading="lazy"
+                                                decoding="async"
+                                                {% if media.width and media.height %}
+                                                    width="{{ media.width }}"
+                                                    height="{{ media.height }}"
+                                                {% endif %}
                                             >
 
                                             {% if media.caption or media.title %}

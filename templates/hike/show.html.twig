@@ -1,24 +1,31 @@
 {% extends 'base.html.twig' %}
 
+{% set cover_media = null %}
+
+{% for mediaLink in hike.mediaLinks %}
+    {% set media = mediaLink.mediaAsset %}
+
+    {% if cover_media is null and media and media.mediaType.value == 'image' %}
+        {% set cover_media = media %}
+    {% endif %}
+{% endfor %}
+
+{% set cover_image = null %}
+
+{% if cover_media %}
+    {% set cover_image = cover_media.thumbnailPath ?: cover_media.filePath ?: cover_media.externalUrl %}
+{% endif %}
+
 {% block title %}{{ hike.title }} - Randonnée{% endblock %}
 
-{% block body %}
-    {% set cover_media = null %}
-
-    {% for mediaLink in hike.mediaLinks %}
-        {% set media = mediaLink.mediaAsset %}
-
-        {% if cover_media is null and media and media.mediaType.value == 'image' %}
-            {% set cover_media = media %}
-        {% endif %}
-    {% endfor %}
-
-    {% set cover_image = null %}
-
+{% block preloads %}
     {% if cover_media %}
-        {% set cover_image = cover_media.thumbnailPath ?: cover_media.filePath ?: cover_media.externalUrl %}
+        {% set cover_image_url = cover_image starts with 'http' ? cover_image : asset(cover_image) %}
+        <link rel="preload" as="image" href="{{ cover_image_url }}">
     {% endif %}
+{% endblock %}
 
+{% block body %}
     <main class="public-detail-page">
         <section class="public-detail-hero">
             <div class="public-detail-container public-detail-hero-grid">

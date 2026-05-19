@@ -17,8 +17,45 @@ export function initPublicDetailGallery() {
       let currentIndex = 0;
       let previousFocus = null;
 
-      const setActiveSlide = (index) => {
+      const loadSlideImage = (index) => {
+        const slide = slides[(index + slides.length) % slides.length];
+        const image = slide ? slide.querySelector('img[data-gallery-src]') : null;
+
+        if (!image || image.src) {
+          return;
+        }
+
+        image.src = image.dataset.gallerySrc;
+      };
+
+      const preloadSlideImage = (index) => {
+        const slide = slides[(index + slides.length) % slides.length];
+        const image = slide ? slide.querySelector('img[data-gallery-src]') : null;
+        const src = image ? image.dataset.gallerySrc : null;
+
+        if (!src) {
+          return;
+        }
+
+        const preloadImage = new Image();
+        preloadImage.src = src;
+      };
+
+      const preloadNeighborSlides = () => {
+        if (slides.length < 2) {
+          return;
+        }
+
+        preloadSlideImage(currentIndex + 1);
+        preloadSlideImage(currentIndex - 1);
+      };
+
+      const setActiveSlide = (index, shouldLoadImages = true) => {
         currentIndex = (index + slides.length) % slides.length;
+
+        if (shouldLoadImages) {
+          loadSlideImage(currentIndex);
+        }
 
         slides.forEach((slide, slideIndex) => {
           slide.classList.toggle('is-active', slideIndex === currentIndex);
@@ -33,6 +70,10 @@ export function initPublicDetailGallery() {
 
         if (counter) {
           counter.textContent = `${currentIndex + 1} / ${slides.length}`;
+        }
+
+        if (shouldLoadImages) {
+          preloadNeighborSlides();
         }
       };
 
@@ -116,7 +157,7 @@ export function initPublicDetailGallery() {
         });
       });
 
-      setActiveSlide(0);
+      setActiveSlide(0, false);
     });
   };
 
