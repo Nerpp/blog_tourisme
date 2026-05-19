@@ -3,6 +3,7 @@
 {% set immersive_media_links = [] %}
 {% set panorama_media_links = [] %}
 {% set gps_point_type = gps_point_type|default(null) %}
+{% set valid_gps_points = [] %}
 
 {% for mediaLink in item.mediaLinks %}
     {% set media = mediaLink.mediaAsset %}
@@ -17,6 +18,12 @@
         {% else %}
             {% set standard_media_links = standard_media_links|merge([mediaLink]) %}
         {% endif %}
+    {% endif %}
+{% endfor %}
+
+{% for point in item.points %}
+    {% if point.latitude is not null and point.longitude is not null %}
+        {% set valid_gps_points = valid_gps_points|merge([point]) %}
     {% endif %}
 {% endfor %}
 
@@ -390,6 +397,45 @@
         <span class="media-count">{{ item.points|length }}</span>
     </div>
 
+    {% if valid_gps_points|length > 0 %}
+        {% set gps_access_point = valid_gps_points|first %}
+
+        <div class="public-route-gps">
+            {% if gps_point_type and is_granted('GPS_ACCESS', gps_access_point) %}
+                <div class="public-route-gps__actions">
+                    <a
+                        class="public-point-gps__button"
+                        href="{{ path('app_gps_start_open', { type: gps_point_type, id: item.id }) }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Aller au départ
+                    </a>
+
+                    <a
+                        class="public-point-gps__button public-point-gps__button--secondary"
+                        href="{{ path('app_gps_route_open', { type: gps_point_type, id: item.id }) }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Parcours Google Maps
+                    </a>
+                </div>
+
+                <p class="public-route-gps__notice">
+                    Conseil : avant de partir, téléchargez la zone dans Google Maps pour pouvoir naviguer même sans réseau.
+                </p>
+            {% elseif not is_granted('GPS_ACCESS', gps_access_point) %}
+                <a
+                    class="public-point-gps__cta"
+                    href="{{ path('app_login') }}"
+                >
+                    Connectez-vous pour accéder à la navigation GPS
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+
     <div class="public-point-list">
         {% for point in item.points %}
             <article class="public-point-card">
@@ -417,7 +463,7 @@
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
-                                    Ouvrir sur la carte
+                                    Voir ce point
                                 </a>
                             {% elseif not is_granted('GPS_ACCESS', point) %}
                                 <a

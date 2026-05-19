@@ -660,6 +660,30 @@
   line-height: 1.65;
 }
 
+.public-route-gps {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid rgba(23, 58, 46, 0.1);
+  border-radius: 22px;
+  background: rgba(23, 58, 46, 0.04);
+}
+
+.public-route-gps__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.public-route-gps__notice {
+  margin: 0;
+  color: rgba(24, 50, 42, 0.66);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .public-point-gps {
   display: flex;
   flex-wrap: wrap;
@@ -684,6 +708,10 @@
   background: #173a2e;
   color: #fff;
   box-shadow: 0 12px 28px rgba(23, 58, 46, 0.14);
+}
+
+.public-point-gps__button--secondary {
+  background: #2f7b59;
 }
 
 .public-point-gps__cta {
