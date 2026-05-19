@@ -1,4 +1,7 @@
-{% set public_destination_name = destination|default(null) ? destination.name : detected_commune_name|default(null) %}
+{% set public_destination_name = destination|default(null)
+    ? destination.name
+    : detected_commune_name|default(null)
+%}
 {% set public_department_name = detected_department_name|default(null) %}
 {% set public_region_name = detected_region_name|default(null) %}
 
@@ -36,7 +39,6 @@
             {% set public_region_name = destination_node.name %}
         {% endif %}
     {% endif %}
-
 {% endif %}
 
 {% set public_destination_label = public_destination_name|default('')|trim %}
@@ -52,11 +54,15 @@
         <span>{{ public_destination_label }}</span>
     {% endif %}
 
-    {% if public_department_label is not empty and public_department_key != public_destination_key %}
+    {% if public_department_label is not empty
+        and public_department_key != public_destination_key
+    %}
         <span>{{ public_department_label }}</span>
     {% endif %}
 
-    {% if public_region_label is not empty and public_region_key not in [public_destination_key, public_department_key] %}
+    {% if public_region_label is not empty
+        and public_region_key not in [public_destination_key, public_department_key]
+    %}
         <span>{{ public_region_label }}</span>
     {% endif %}
 

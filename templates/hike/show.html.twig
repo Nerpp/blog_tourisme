@@ -29,7 +29,10 @@
 
                     {% if is_granted('EDIT', hike) %}
                         <div class="show-admin-actions">
-                            <a href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}" class="show-admin-edit-link">Modifier</a>
+                            <a
+                                href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}"
+                                class="show-admin-edit-link"
+                            >Modifier</a>
                         </div>
                     {% endif %}
 
@@ -49,7 +52,10 @@
                 <div
                     class="public-detail-cover"
                     {% if cover_image %}
-                        {% set cover_image_url = cover_image starts with 'http' ? cover_image : asset(cover_image) %}
+                        {% set cover_image_url = cover_image starts with 'http'
+                            ? cover_image
+                            : asset(cover_image)
+                        %}
                         style="--public-cover-image: url('{{ cover_image_url|e('html_attr') }}');"
                     {% endif %}
                     aria-label="Image principale de la randonnée"
