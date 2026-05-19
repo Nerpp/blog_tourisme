@@ -2,6 +2,7 @@
 {% set video_media_links = [] %}
 {% set immersive_media_links = [] %}
 {% set panorama_media_links = [] %}
+{% set gps_point_type = gps_point_type|default(null) %}
 
 {% for mediaLink in item.mediaLinks %}
     {% set media = mediaLink.mediaAsset %}
@@ -405,6 +406,28 @@
 
                     {% if point.note %}
                         <p>{{ point.note|nl2br }}</p>
+                    {% endif %}
+
+                    {% if point.latitude is not null and point.longitude is not null %}
+                        <div class="public-point-gps">
+                            {% if gps_point_type and is_granted('GPS_ACCESS', point) %}
+                                <a
+                                    class="public-point-gps__button"
+                                    href="{{ path('app_gps_point_open', { type: gps_point_type, id: point.id }) }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Ouvrir sur la carte
+                                </a>
+                            {% elseif not is_granted('GPS_ACCESS', point) %}
+                                <a
+                                    class="public-point-gps__cta"
+                                    href="{{ path('app_login') }}"
+                                >
+                                    Connectez-vous pour ouvrir ce point sur la carte
+                                </a>
+                            {% endif %}
+                        </div>
                     {% endif %}
 
                     {% if point.mediaLinks|length > 0 %}
