@@ -245,8 +245,11 @@ final class QuickDestinationController extends AbstractController
                 ->setCode($code);
 
             $this->entityManager->persist($destination);
-        } elseif ($code !== null && $destination->getCode() === null) {
-            $destination->setCode($code);
+        } else {
+            $destination->setName($name);
+            if ($code !== null) {
+                $destination->setCode($code);
+            }
         }
 
         if ($parent instanceof Destination && !$this->sameDestination($destination, $parent) && !$this->sameDestination($destination->getParent(), $parent)) {
@@ -257,11 +260,11 @@ final class QuickDestinationController extends AbstractController
             $destination->setParent(null);
         }
 
-        if ($latitude !== null && $destination->getLatitude() === null) {
+        if ($latitude !== null) {
             $destination->setLatitude($latitude);
         }
 
-        if ($longitude !== null && $destination->getLongitude() === null) {
+        if ($longitude !== null) {
             $destination->setLongitude($longitude);
         }
 

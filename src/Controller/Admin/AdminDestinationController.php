@@ -6,6 +6,7 @@ use App\Entity\Destination;
 use App\Enum\DestinationType;
 use App\Repository\DestinationRepository;
 use App\Security\Voter\AdminAccessVoter;
+use App\Security\Voter\ContentEditVoter;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -59,6 +60,8 @@ final class AdminDestinationController extends AbstractController
     #[Route('/admin/destinations/{id}/edit', name: 'admin_destinations_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(Destination $destination, Request $request, DestinationRepository $destinationRepository): Response
     {
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $destination);
+
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('admin_destination_'.$destination->getId(), $request->request->getString('_token'))) {
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');

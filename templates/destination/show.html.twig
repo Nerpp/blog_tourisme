@@ -19,6 +19,11 @@
         <header class="page-header destination-show-hero">
             <p class="eyebrow">{{ destination_type_label }}</p>
             <h1>{{ destination.name }}</h1>
+            {% if is_granted('EDIT', destination) %}
+                <div class="show-admin-actions">
+                    <a href="{{ path('admin_destinations_edit', { id: destination.id }) }}" class="show-admin-edit-link">Modifier</a>
+                </div>
+            {% endif %}
             {% if destination.description %}
                 <p>{{ destination.description }}</p>
             {% else %}

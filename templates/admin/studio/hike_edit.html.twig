@@ -66,11 +66,13 @@
             <div>
                 <p class="studio-eyebrow">Studio randonnée rapide</p>
                 <h1 class="studio-title">{{ hike.title }}</h1>
-                <div class="studio-meta">
+                <div class="studio-meta" data-hike-location-badges data-empty-label="Destination non associée">
                     <span class="studio-badge">{{ status_options[hike.status.value] ?? hike.status.value }}</span>
-                    <span class="studio-badge studio-badge--muted">{{ hike.detectedCommuneName ?: 'Commune non détectée' }}</span>
-                    <span class="studio-badge studio-badge--muted">{{ hike.detectedDepartmentName ?: 'Département non détecté' }}</span>
-                    <span class="studio-badge studio-badge--muted">{{ hike.detectedRegionName ?: 'Région non détectée' }}</span>
+                    {% for location_badge in location_badges %}
+                        <span class="studio-badge studio-badge--muted" data-location-badge>{{ location_badge }}</span>
+                    {% else %}
+                        <span class="studio-badge studio-badge--muted" data-location-badge>Destination non associée</span>
+                    {% endfor %}
                 </div>
             </div>
             <div class="studio-actions">
@@ -107,7 +109,11 @@
                     <select form="{{ main_form_id }}" id="hike-destination" name="destination">
                         <option value="">Non associée</option>
                         {% for destination in destinations %}
-                            <option value="{{ destination.id }}" {% if hike.destination and hike.destination.id == destination.id %}selected{% endif %}>{{ destination.name }} · {{ destination.type.value }}</option>
+                            <option
+                                value="{{ destination.id }}"
+                                data-location-badges="{{ destination_location_badges[destination.id]|default([])|json_encode|e('html_attr') }}"
+                                {% if hike.destination and hike.destination.id == destination.id %}selected{% endif %}
+                            >{{ destination.name }} · {{ destination.type.value }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -250,4 +256,49 @@
 
 {% block javascripts %}
     {% include 'admin/studio/_studio_media_javascript.html.twig' %}
+    <script>
+        (() => {
+            const destinationSelect = document.querySelector('#hike-destination');
+            const badgeContainer = document.querySelector('[data-hike-location-badges]');
+
+            if (!destinationSelect || !badgeContainer) {
+                return;
+            }
+
+            const statusBadge = badgeContainer.querySelector('.studio-badge:not([data-location-badge])');
+            const emptyLabel = badgeContainer.dataset.emptyLabel || 'Destination non associée';
+
+            const renderBadges = (labels) => {
+                badgeContainer.querySelectorAll('[data-location-badge]').forEach((badge) => badge.remove());
+
+                const normalizedLabels = labels.length > 0 ? labels : [emptyLabel];
+                normalizedLabels.forEach((label) => {
+                    const badge = document.createElement('span');
+                    badge.className = 'studio-badge studio-badge--muted';
+                    badge.dataset.locationBadge = '';
+                    badge.textContent = label;
+                    badgeContainer.appendChild(badge);
+                });
+
+                if (statusBadge && statusBadge.parentElement !== badgeContainer) {
+                    badgeContainer.prepend(statusBadge);
+                }
+            };
+
+            destinationSelect.addEventListener('change', () => {
+                const selectedOption = destinationSelect.selectedOptions[0];
+                if (!selectedOption || !selectedOption.value) {
+                    renderBadges([]);
+
+                    return;
+                }
+
+                try {
+                    renderBadges(JSON.parse(selectedOption.dataset.locationBadges || '[]'));
+                } catch {
+                    renderBadges([selectedOption.textContent.trim()]);
+                }
+            });
+        })();
+    </script>
 {% endblock %}

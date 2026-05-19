@@ -9,6 +9,7 @@ use App\Enum\ContentStatus;
 use App\Repository\ArticleRepository;
 use App\Repository\CategoryRepository;
 use App\Security\Voter\AdminAccessVoter;
+use App\Security\Voter\ContentEditVoter;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -74,6 +75,8 @@ final class AdminArticleController extends AbstractController
     #[Route('/admin/articles/{id}/edit', name: 'admin_articles_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(Article $article, Request $request, CategoryRepository $categoryRepository): Response
     {
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $article);
+
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('admin_article_'.$article->getId(), $request->request->getString('_token'))) {
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');

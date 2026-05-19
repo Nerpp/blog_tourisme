@@ -15,6 +15,11 @@
                     {% if article.publishedAt %} - {{ article.publishedAt|date('d/m/Y') }}{% endif %}
                 </p>
                 <h1>{{ article.title }}</h1>
+                {% if is_granted('EDIT', article) %}
+                    <div class="show-admin-actions">
+                        <a href="{{ path('admin_articles_edit', { id: article.id }) }}" class="show-admin-edit-link">Modifier</a>
+                    </div>
+                {% endif %}
                 {% if article.excerpt %}
                     <p>{{ article.excerpt }}</p>
                 {% endif %}

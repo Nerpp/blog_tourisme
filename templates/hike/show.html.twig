@@ -27,6 +27,12 @@
 
                     <h1 class="public-detail-title">{{ hike.title }}</h1>
 
+                    {% if is_granted('EDIT', hike) %}
+                        <div class="show-admin-actions">
+                            <a href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}" class="show-admin-edit-link">Modifier</a>
+                        </div>
+                    {% endif %}
+
                     {% if hike.notes %}
                         <p class="public-detail-intro">{{ hike.notes|nl2br }}</p>
                     {% endif %}

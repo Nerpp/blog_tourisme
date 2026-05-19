@@ -17,6 +17,7 @@ use App\Enum\VideoType;
 use App\Repository\DestinationRepository;
 use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
+use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -53,7 +54,7 @@ final class CityVisitStudioController extends AbstractController
     #[Route('/city-visits/{id}/edit', name: 'admin_studio_city_visit_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(CityVisitDraft $cityVisitDraft, Request $request): Response
     {
-        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $cityVisitDraft);
 
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('studio_city_visit_edit_'.$cityVisitDraft->getId(), (string) $request->request->get('_token'))) {

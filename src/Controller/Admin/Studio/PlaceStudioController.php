@@ -20,6 +20,7 @@ use App\Repository\CategoryRepository;
 use App\Repository\DestinationRepository;
 use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
+use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
 use DateTimeImmutable;
@@ -59,7 +60,7 @@ final class PlaceStudioController extends AbstractController
     #[Route('/places/{id}/edit', name: 'admin_studio_place_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(Place $place, Request $request): Response
     {
-        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $place);
 
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('studio_place_edit_'.$place->getId(), (string) $request->request->get('_token'))) {

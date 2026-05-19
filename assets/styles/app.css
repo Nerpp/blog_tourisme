@@ -141,6 +141,34 @@ button {
   color: #12615c;
 }
 
+.show-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.show-admin-edit-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgba(18, 97, 92, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #12615c;
+  font-size: 0.9rem;
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(24, 33, 31, 0.08);
+}
+
+.show-admin-edit-link:hover {
+  border-color: #12615c;
+  background: #fff;
+  text-decoration: none;
+}
+
 .section-block {
   margin-top: 48px;
 }

@@ -27,6 +27,12 @@
 
                     <h1 class="public-detail-title">{{ city_visit.title }}</h1>
 
+                    {% if is_granted('EDIT', city_visit) %}
+                        <div class="show-admin-actions">
+                            <a href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}" class="show-admin-edit-link">Modifier</a>
+                        </div>
+                    {% endif %}
+
                     {% if city_visit.notes %}
                         <p class="public-detail-intro">{{ city_visit.notes|nl2br }}</p>
                     {% endif %}

@@ -18,6 +18,7 @@ use App\Enum\VideoType;
 use App\Repository\DestinationRepository;
 use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
+use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -54,7 +55,7 @@ final class HikeStudioController extends AbstractController
     #[Route('/hikes/{id}/edit', name: 'admin_studio_hike_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(HikeDraft $hikeDraft, Request $request): Response
     {
-        $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
 
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('studio_hike_edit_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
@@ -242,6 +243,7 @@ final class HikeStudioController extends AbstractController
         $pointTargetOptions = $this->pointTargetOptions($hikeDraft);
         $mediaPointTargets = $pointMediaEnabled ? $this->mediaPointTargetMap($hikeDraft) : [];
         $destinations = $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']);
+        $destinationLocationBadges = $this->destinationLocationBadgesById($destinations);
         $generalMediaLinks = array_values(array_filter($mediaLinks, static function (HikeDraftMedia $link) use ($mediaPointTargets): bool {
             $mediaId = $link->getMediaAsset()?->getId();
 
@@ -252,6 +254,8 @@ final class HikeStudioController extends AbstractController
         return $this->render('admin/studio/hike_edit.html.twig', [
             'hike' => $hikeDraft,
             'destinations' => $destinations,
+            'location_badges' => $this->hikeLocationBadges($hikeDraft),
+            'destination_location_badges' => $destinationLocationBadges,
             'destination_type_options' => $this->destinationTypeOptions(),
             'destination_parent_options' => $destinations,
             'destination_quick_create' => $this->destinationQuickCreateData($hikeDraft),
@@ -291,6 +295,57 @@ final class HikeStudioController extends AbstractController
             ->setStatus(HikeDraftStatus::tryFrom($request->request->getString('status')) ?? $hikeDraft->getStatus())
             ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
             ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+    }
+
+    /**
+     * @param list<Destination> $destinations
+     *
+     * @return array<int, list<string>>
+     */
+    private function destinationLocationBadgesById(array $destinations): array
+    {
+        $badgesById = [];
+        foreach ($destinations as $destination) {
+            $id = $destination->getId();
+            if ($id !== null) {
+                $badgesById[$id] = $this->destinationLocationBadges($destination);
+            }
+        }
+
+        return $badgesById;
+    }
+
+    /** @return list<string> */
+    private function hikeLocationBadges(HikeDraft $hikeDraft): array
+    {
+        $destination = $hikeDraft->getDestination();
+        if ($destination instanceof Destination) {
+            return $this->destinationLocationBadges($destination);
+        }
+
+        return array_values(array_filter([
+            $hikeDraft->getDetectedCommuneName(),
+            $hikeDraft->getDetectedDepartmentName(),
+            $hikeDraft->getDetectedRegionName(),
+        ], static fn (?string $value): bool => $value !== null && $value !== ''));
+    }
+
+    /** @return list<string> */
+    private function destinationLocationBadges(Destination $destination): array
+    {
+        $badges = [];
+        $current = $destination;
+
+        while ($current instanceof Destination) {
+            $name = $current->getName();
+            if ($name !== null && $name !== '') {
+                $badges[] = $name;
+            }
+
+            $current = $current->getParent();
+        }
+
+        return $badges;
     }
 
     /** @return array<string, string> */

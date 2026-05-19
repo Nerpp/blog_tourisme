@@ -14,6 +14,11 @@
                     {% if place.destination %} - {{ place.destination.name }}{% endif %}
                 </p>
                 <h1>{{ place.name }}</h1>
+                {% if is_granted('EDIT', place) %}
+                    <div class="show-admin-actions">
+                        <a href="{{ path('admin_studio_place_edit', { id: place.id }) }}" class="show-admin-edit-link">Modifier</a>
+                    </div>
+                {% endif %}
                 {% if place.shortDescription %}
                     <p>{{ place.shortDescription }}</p>
                 {% endif %}

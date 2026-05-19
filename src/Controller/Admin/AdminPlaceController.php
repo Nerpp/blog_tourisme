@@ -12,6 +12,7 @@ use App\Repository\CategoryRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\PlaceRepository;
 use App\Security\Voter\AdminAccessVoter;
+use App\Security\Voter\ContentEditVoter;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -67,6 +68,8 @@ final class AdminPlaceController extends AbstractController
     #[Route('/admin/places/{id}/edit', name: 'admin_places_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(Place $place, Request $request, DestinationRepository $destinationRepository, CategoryRepository $categoryRepository): Response
     {
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $place);
+
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('admin_place_'.$place->getId(), $request->request->getString('_token'))) {
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
