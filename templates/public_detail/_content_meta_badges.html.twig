@@ -37,14 +37,6 @@
         {% endif %}
     {% endif %}
 
-    {% set destination_node = destination_node ? destination_node.parent : null %}
-    {% if destination_node %}
-        {% if destination_node.type.value == 'department' %}
-            {% set public_department_name = destination_node.name %}
-        {% elseif destination_node.type.value == 'region' %}
-            {% set public_region_name = destination_node.name %}
-        {% endif %}
-    {% endif %}
 {% endif %}
 
 {% set public_destination_label = public_destination_name|default('')|trim %}
