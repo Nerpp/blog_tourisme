@@ -8,7 +8,12 @@
             <h1 class="admin-title">{{ title }}</h1>
             <p class="admin-subtitle">Formulaire rapide pour un repérage terrain. L’enrichissement média se fait dans le Studio.</p>
         </div>
-        <a class="admin-button admin-button--secondary" href="{{ path('admin_places_index') }}">Retour</a>
+        <div class="admin-row-actions">
+            {% if place.id and place.slug is not empty and place.status.value == 'published' %}
+                <a class="admin-button admin-button--secondary" href="{{ path('app_place_show', { slug: place.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
+            {% endif %}
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_places_index') }}">Retour</a>
+        </div>
     </header>
 
     <section class="admin-card">

@@ -185,6 +185,102 @@ final class HikeStudioController extends AbstractController
         return $this->redirectToStudio($hikeDraft);
     }
 
+    #[Route('/hike-points/{id}/update', name: 'admin_studio_hike_point_update', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updatePoint(HikePoint $point, Request $request): RedirectResponse
+    {
+        $hikeDraft = $point->getHikeDraft();
+        if (!$hikeDraft instanceof HikeDraft) {
+            throw $this->createNotFoundException('Randonnée introuvable.');
+        }
+
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
+
+        if (!$this->isCsrfTokenValid('studio_hike_point_update_'.$point->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le formulaire du point GPS a expiré. Réessayez.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $latitude = $this->coordinateFromRequest($request, 'latitude', -90, 90, 'La latitude GPS');
+        $longitude = $this->coordinateFromRequest($request, 'longitude', -180, 180, 'La longitude GPS');
+        if ($latitude === null || $longitude === null) {
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $position = $this->nullableInt($request->request->get('position'));
+        if ($position !== null && $position < 1) {
+            $this->addFlash('error', 'La position du point doit être supérieure ou égale à 1.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $point
+            ->setTitle($this->nullIfBlank($request->request->getString('title')))
+            ->setNote($this->nullIfBlank($request->request->getString('note')))
+            ->setLatitude($latitude)
+            ->setLongitude($longitude);
+
+        $type = HikePointType::tryFrom($request->request->getString('type'));
+        if ($type instanceof HikePointType) {
+            $point->setType($type);
+        }
+
+        if ($position !== null) {
+            $point->setPosition($position);
+        }
+
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Point GPS enregistré.');
+
+        return $this->redirectToStudio($hikeDraft);
+    }
+
+    #[Route('/hikes/{id}/destination/update', name: 'admin_studio_hike_destination_update', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updateDestination(HikeDraft $hikeDraft, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
+
+        if (!$this->isCsrfTokenValid('studio_hike_destination_update_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le formulaire de destination a expiré. Réessayez.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $destination = $hikeDraft->getDestination();
+        if (!$destination instanceof Destination) {
+            $this->addFlash('error', 'Aucune destination n’est associée à cette randonnée.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $type = DestinationType::tryFrom($request->request->getString('type')) ?? $destination->getType();
+        $name = $this->destinationNameFromRequest($request, $type);
+        if ($name === '') {
+            $this->addFlash('error', 'Renseignez le nom correspondant au type de destination.');
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $latitude = $this->nullableCoordinateFromRequest($request, 'latitude', -90, 90, 'La latitude GPS');
+        $longitude = $this->nullableCoordinateFromRequest($request, 'longitude', -180, 180, 'La longitude GPS');
+        if ($latitude === false || $longitude === false) {
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        $destination
+            ->setName($name)
+            ->setType($type)
+            ->setParent($this->parentForDestinationEdit($request, $type, $destination))
+            ->setCode($this->codeForType($type, $this->nullIfBlank($request->request->getString('code'))))
+            ->setLatitude($latitude)
+            ->setLongitude($longitude);
+
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Destination associée enregistrée.');
+
+        return $this->redirectToStudio($hikeDraft);
+    }
+
     #[Route('/hike-media/{id}/update', name: 'admin_studio_hike_media_update', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function updateMedia(HikeDraftMedia $mediaLink, Request $request): RedirectResponse
     {
@@ -259,6 +355,7 @@ final class HikeStudioController extends AbstractController
             'destination_type_options' => $this->destinationTypeOptions(),
             'destination_parent_options' => $destinations,
             'destination_quick_create' => $this->destinationQuickCreateData($hikeDraft),
+            'current_destination_edit' => $this->currentDestinationEditData($hikeDraft),
             'google_maps_url' => $this->generateGoogleMapsUrl($hikeDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
@@ -272,6 +369,7 @@ final class HikeStudioController extends AbstractController
                 'converted' => 'Converti',
                 'archived' => 'Archivé',
             ]),
+            'point_type_options' => $this->pointTypeOptions(),
             'image_type_options' => $this->imageTypeOptions(),
             'video_type_options' => $this->videoTypeOptions(),
             'photo_association_options' => $this->photoAssociationOptions($pointTargetOptions),
@@ -360,6 +458,152 @@ final class HikeStudioController extends AbstractController
         ];
     }
 
+    private function coordinateFromRequest(Request $request, string $field, float $min, float $max, string $label): ?float
+    {
+        $rawValue = trim((string) $request->request->get($field, ''));
+        if ($rawValue === '') {
+            $this->addFlash('error', sprintf('%s est obligatoire pour conserver un point GPS valide.', $label));
+
+            return null;
+        }
+
+        $normalizedValue = str_replace(',', '.', $rawValue);
+        if (!is_numeric($normalizedValue)) {
+            $this->addFlash('error', sprintf('%s doit être un nombre valide.', $label));
+
+            return null;
+        }
+
+        $coordinate = (float) $normalizedValue;
+        if ($coordinate < $min || $coordinate > $max) {
+            $this->addFlash('error', sprintf('%s doit être comprise entre %s et %s.', $label, $min, $max));
+
+            return null;
+        }
+
+        return $coordinate;
+    }
+
+    private function nullableCoordinateFromRequest(Request $request, string $field, float $min, float $max, string $label): float|false|null
+    {
+        $rawValue = trim((string) $request->request->get($field, ''));
+        if ($rawValue === '') {
+            return null;
+        }
+
+        $normalizedValue = str_replace(',', '.', $rawValue);
+        if (!is_numeric($normalizedValue)) {
+            $this->addFlash('error', sprintf('%s doit être un nombre valide.', $label));
+
+            return false;
+        }
+
+        $coordinate = (float) $normalizedValue;
+        if ($coordinate < $min || $coordinate > $max) {
+            $this->addFlash('error', sprintf('%s doit être comprise entre %s et %s.', $label, $min, $max));
+
+            return false;
+        }
+
+        return $coordinate;
+    }
+
+    private function destinationNameFromRequest(Request $request, DestinationType $type): string
+    {
+        $countryName = $this->truncate($request->request->getString('countryName'), 150);
+        $regionName = $this->truncate($request->request->getString('regionName'), 150);
+        $departmentName = $this->truncate($request->request->getString('departmentName'), 150);
+        $cityName = $this->truncate($request->request->getString('cityName'), 150);
+        $areaName = $this->truncate($request->request->getString('areaName'), 150);
+
+        return match ($type) {
+            DestinationType::Country => $countryName,
+            DestinationType::Region => $regionName,
+            DestinationType::Department => $departmentName,
+            DestinationType::City => $cityName,
+            DestinationType::Area => $areaName ?: $cityName,
+        };
+    }
+
+    private function parentForDestinationEdit(Request $request, DestinationType $type, Destination $currentDestination): ?Destination
+    {
+        $countryName = $this->truncate($request->request->getString('countryName'), 150);
+        $regionName = $this->truncate($request->request->getString('regionName'), 150);
+        $departmentName = $this->truncate($request->request->getString('departmentName'), 150);
+
+        $parent = null;
+        if ($type !== DestinationType::Country && $countryName !== '') {
+            $parent = $this->findOrCreateDestinationParent($countryName, DestinationType::Country, null, $currentDestination);
+        }
+
+        if (in_array($type, [DestinationType::Department, DestinationType::City, DestinationType::Area], true) && $regionName !== '') {
+            $parent = $this->findOrCreateDestinationParent($regionName, DestinationType::Region, $parent, $currentDestination);
+        }
+
+        if (in_array($type, [DestinationType::City, DestinationType::Area], true) && $departmentName !== '') {
+            $parent = $this->findOrCreateDestinationParent($departmentName, DestinationType::Department, $parent, $currentDestination);
+        }
+
+        return $parent;
+    }
+
+    private function findOrCreateDestinationParent(string $name, DestinationType $type, ?Destination $parent, Destination $currentDestination): ?Destination
+    {
+        $destination = $this->destinationRepository->findOneBy(['name' => $name, 'type' => $type]);
+        if ($this->sameDestination($destination, $currentDestination)) {
+            return $parent;
+        }
+
+        if (!$destination instanceof Destination) {
+            $destination = (new Destination())
+                ->setName($name)
+                ->setSlug($this->createUniqueDestinationSlug($name))
+                ->setType($type);
+            $this->entityManager->persist($destination);
+        }
+
+        if (!$this->sameDestination($destination->getParent(), $parent)) {
+            $destination->setParent($parent);
+        }
+
+        return $destination;
+    }
+
+    private function codeForType(DestinationType $type, ?string $code): ?string
+    {
+        return match ($type) {
+            DestinationType::City,
+            DestinationType::Area => $code,
+            DestinationType::Country,
+            DestinationType::Region,
+            DestinationType::Department => null,
+        };
+    }
+
+    private function sameDestination(?Destination $first, ?Destination $second): bool
+    {
+        if (!$first instanceof Destination || !$second instanceof Destination) {
+            return $first === $second;
+        }
+
+        return $first === $second || ($first->getId() !== null && $first->getId() === $second->getId());
+    }
+
+    private function createUniqueDestinationSlug(string $name): string
+    {
+        $baseSlug = strtolower((string) $this->slugger->slug($name));
+        $baseSlug = trim($baseSlug, '-') ?: 'destination';
+        $slug = $baseSlug;
+        $suffix = 2;
+
+        while ($this->destinationRepository->findOneBy(['slug' => $slug]) instanceof Destination) {
+            $slug = sprintf('%s-%d', $baseSlug, $suffix);
+            ++$suffix;
+        }
+
+        return $slug;
+    }
+
     /** @return array<string, float|int|string|null> */
     private function destinationQuickCreateData(HikeDraft $hikeDraft): array
     {
@@ -382,6 +626,46 @@ final class HikeStudioController extends AbstractController
             'latitude' => $point?->getLatitude(),
             'longitude' => $point?->getLongitude(),
         ];
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function currentDestinationEditData(HikeDraft $hikeDraft): array
+    {
+        $destination = $hikeDraft->getDestination();
+        if (!$destination instanceof Destination) {
+            return [];
+        }
+
+        $data = [
+            'countryName' => '',
+            'regionName' => '',
+            'departmentName' => '',
+            'cityName' => '',
+            'areaName' => '',
+            'type' => $destination->getType()->value,
+            'code' => $destination->getCode(),
+            'latitude' => $destination->getLatitude(),
+            'longitude' => $destination->getLongitude(),
+        ];
+
+        $current = $destination;
+        while ($current instanceof Destination) {
+            match ($current->getType()) {
+                DestinationType::Country => $data['countryName'] = $current->getName() ?? '',
+                DestinationType::Region => $data['regionName'] = $current->getName() ?? '',
+                DestinationType::Department => $data['departmentName'] = $current->getName() ?? '',
+                DestinationType::City => $data['cityName'] = $current->getName() ?? '',
+                DestinationType::Area => $data['areaName'] = $current->getName() ?? '',
+            };
+
+            $current = $current->getParent();
+        }
+
+        if ($destination->getType() === DestinationType::Area && $data['areaName'] === '') {
+            $data['areaName'] = $destination->getName() ?? '';
+        }
+
+        return $data;
     }
 
     private function latestPoint(HikeDraft $hikeDraft): ?HikePoint
@@ -668,6 +952,22 @@ final class HikeStudioController extends AbstractController
         $label = $title ?? $typeLabel;
 
         return sprintf('Point %d — %s', $point->getPosition(), $label);
+    }
+
+    /** @return array<string, string> */
+    private function pointTypeOptions(): array
+    {
+        return $this->enumChoices(HikePointType::cases(), [
+            'start' => 'Départ',
+            'interest' => 'Point d’intérêt',
+            'viewpoint' => 'Point de vue',
+            'photo' => 'Spot photo',
+            'water' => 'Point d’eau',
+            'danger' => 'Zone de vigilance',
+            'rest' => 'Pause',
+            'end' => 'Arrivée',
+            'other' => 'Autre point',
+        ]);
     }
 
     /** @return array<string, string> */

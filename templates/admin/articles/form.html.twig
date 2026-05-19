@@ -8,7 +8,12 @@
             <h1 class="admin-title">{{ title }}</h1>
             <p class="admin-subtitle">Création rapide et organisation. Les médias restent gérés dans les workflows dédiés.</p>
         </div>
-        <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Retour</a>
+        <div class="admin-row-actions">
+            {% if article.id and article.slug is not empty and article.status.value == 'published' %}
+                <a class="admin-button admin-button--secondary" href="{{ path('app_article_show', { slug: article.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
+            {% endif %}
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Retour</a>
+        </div>
     </header>
 
     <section class="admin-card">

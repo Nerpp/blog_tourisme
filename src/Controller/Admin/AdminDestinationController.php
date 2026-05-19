@@ -69,7 +69,12 @@ final class AdminDestinationController extends AbstractController
 
             if ($this->updateDestinationFromRequest($destination, $request)) {
                 $this->entityManager->flush();
-                $this->addFlash('success', 'Destination enregistrée.');
+                $this->addFlash(
+                    'success',
+                    $destination->getLatitude() !== null && $destination->getLongitude() !== null
+                        ? 'Destination enregistrée avec les coordonnées GPS.'
+                        : 'Destination enregistrée.'
+                );
 
                 return $this->redirectToRoute('admin_destinations_index');
             }

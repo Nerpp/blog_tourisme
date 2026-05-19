@@ -23,6 +23,12 @@
         {% for comment in comments %}
             {% set status_label = status_labels[comment.status.value] ?? comment.status.value %}
             {% set target = comment.article ?: comment.place %}
+            {% set target_preview_url = null %}
+            {% if comment.article and comment.article.slug is not empty and comment.article.status.value == 'published' %}
+                {% set target_preview_url = path('app_article_show', { slug: comment.article.slug }) %}
+            {% elseif comment.place and comment.place.slug is not empty and comment.place.status.value == 'published' %}
+                {% set target_preview_url = path('app_place_show', { slug: comment.place.slug }) %}
+            {% endif %}
             <article class="admin-comment-card">
                 <div class="admin-comment-card__header">
                     <div>
@@ -109,9 +115,9 @@
                         </form>
                     {% endif %}
                     <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_users_show', { id: comment.author.id }) }}">Voir utilisateur</a>
-                    {% if target and comment.status.value == 'approved' %}
-                        <a class="admin-button admin-button--small admin-button--secondary" href="{{ comment.article ? path('app_article_show', { slug: comment.article.slug }) : path('app_place_show', { slug: comment.place.slug }) }}">
-                            {{ comment.article ? 'Voir public' : 'Voir fiche privée' }}
+                    {% if target and target_preview_url and comment.status.value == 'approved' %}
+                        <a class="admin-button admin-button--small admin-button--secondary" href="{{ target_preview_url }}" target="_blank" rel="noopener noreferrer">
+                            Aperçu
                         </a>
                     {% endif %}
                 </div>

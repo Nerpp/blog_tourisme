@@ -62,8 +62,12 @@ class HikeDraftRepository extends ServiceEntityRepository
     public function findPublicBySlug(string $slug): ?HikeDraft
     {
         return $this->createQueryBuilder('h')
-            ->addSelect('destination', 'points', 'mediaLinks', 'mediaAssets')
+            ->addSelect('destination', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'destinationRoot', 'points', 'mediaLinks', 'mediaAssets')
             ->leftJoin('h.destination', 'destination')
+            ->leftJoin('destination.parent', 'destinationParent')
+            ->leftJoin('destinationParent.parent', 'destinationGrandParent')
+            ->leftJoin('destinationGrandParent.parent', 'destinationGreatGrandParent')
+            ->leftJoin('destinationGreatGrandParent.parent', 'destinationRoot')
             ->leftJoin('h.points', 'points')
             ->leftJoin('h.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')

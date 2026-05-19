@@ -3,7 +3,7 @@
 {% block title %}Studio repérage{% endblock %}
 
 {% set main_form_id = 'studio-place-main-form' %}
-{% set public_url = path('app_place_show', { slug: place.slug }) %}
+{% set public_url = place.slug is not empty ? path('app_place_show', { slug: place.slug }) : null %}
 {% set google_maps_url = place.latitude is not null and place.longitude is not null ? 'https://www.google.com/maps/search/?api=1&query=' ~ place.latitude ~ ',' ~ place.longitude : null %}
 
 {% block stylesheets %}
@@ -397,7 +397,9 @@
                 </div>
             </div>
             <div class="studio-actions">
-                <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Voir la fiche privée</a>
+                {% if place.slug is not empty and place.status.value == 'published' %}
+                    <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
                 <a class="admin-button admin-button--secondary" href="{{ path('admin') }}">Retour au tableau de bord</a>
                 <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="save">Enregistrer</button>
             </div>
@@ -752,7 +754,7 @@
                 <div class="studio-field studio-field--full">
                     <span class="studio-label">Aperçu Google simplifié</span>
                     <div class="studio-google-preview">
-                        <span class="studio-google-url">{{ app.request.schemeAndHttpHost }}{{ public_url }}</span>
+                        <span class="studio-google-url">{{ public_url ? app.request.schemeAndHttpHost ~ public_url : 'URL à compléter après enregistrement du slug.' }}</span>
                         <span class="studio-google-title">{{ place.seoTitle ?: place.name }}</span>
                         <span class="studio-google-description">{{ place.seoDescription ?: place.shortDescription ?: 'Description à compléter.' }}</span>
                     </div>
@@ -771,7 +773,9 @@
                 <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="save">Enregistrer</button>
                 <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="publish">Publier</button>
                 <button class="admin-button admin-button--secondary" form="{{ main_form_id }}" type="submit" name="action" value="draft">Repasser en brouillon</button>
-                <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Voir la fiche privée</a>
+                {% if place.slug is not empty and place.status.value == 'published' %}
+                    <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
                 <a class="admin-button admin-button--secondary" href="{{ path('admin') }}">Retour au tableau de bord</a>
             </div>
         </section>

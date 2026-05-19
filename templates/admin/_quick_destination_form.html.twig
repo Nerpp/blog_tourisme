@@ -9,6 +9,9 @@
 {% set secondary_button = is_field ? 'field-button field-button--secondary' : 'admin-button admin-button--secondary' %}
 {% set neutral_button = is_field ? 'field-button field-button--neutral' : 'admin-button admin-button--secondary' %}
 {% set destination_quick_create = destination_quick_create|default({}) %}
+{% set current_destination_edit = current_destination_edit|default({}) %}
+{% set current_destination_update_action = current_destination_update_action|default(null) %}
+{% set current_destination_update_token = current_destination_update_token|default(null) %}
 {% set destination_type_options = destination_type_options|default({}) %}
 {% set current_destination = current_destination|default(null) %}
 {% set context_type = destination_quick_create.contextType|default(destination_quick_create.targetType|default('')) %}
@@ -28,11 +31,81 @@
     </div>
 
     <div class="quick-destination__actions" data-quick-destination-actions>
-        <button class="{{ primary_button }}" type="button" data-quick-destination-toggle>{{ current_destination ? 'Modifier la destination' : 'Renseigner manuellement' }}</button>
+        {% if current_destination and current_destination_update_action %}
+            <button class="{{ primary_button }}" type="button" data-current-destination-toggle>Modifier la destination associée</button>
+            <button class="{{ secondary_button }}" type="button" data-quick-destination-toggle>Changer ou créer une autre destination</button>
+        {% else %}
+            <button class="{{ primary_button }}" type="button" data-quick-destination-toggle>{{ current_destination ? 'Changer ou créer une destination associée' : 'Renseigner manuellement' }}</button>
+        {% endif %}
         {% if not current_destination %}
             <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>Enregistrer sans destination pour l’instant</button>
         {% endif %}
     </div>
+
+    {% if current_destination and current_destination_update_action %}
+        <form class="quick-destination__form" method="post" action="{{ current_destination_update_action }}" data-current-destination-form hidden>
+            <input type="hidden" name="_token" value="{{ current_destination_update_token }}">
+
+            <div class="quick-destination__grid">
+                <div class="{{ row_class }}">
+                    <label for="current-destination-country-{{ current_destination.id }}">Pays</label>
+                    <input class="{{ input_class }}" id="current-destination-country-{{ current_destination.id }}" name="countryName" value="{{ current_destination_edit.countryName|default('') }}" autocomplete="country-name">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-region-{{ current_destination.id }}">Région / zone</label>
+                    <input class="{{ input_class }}" id="current-destination-region-{{ current_destination.id }}" name="regionName" value="{{ current_destination_edit.regionName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-department-{{ current_destination.id }}">Département / province</label>
+                    <input class="{{ input_class }}" id="current-destination-department-{{ current_destination.id }}" name="departmentName" value="{{ current_destination_edit.departmentName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-city-{{ current_destination.id }}">Ville / lieu</label>
+                    <input class="{{ input_class }}" id="current-destination-city-{{ current_destination.id }}" name="cityName" value="{{ current_destination_edit.cityName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-area-{{ current_destination.id }}">Zone / lieu précis</label>
+                    <input class="{{ input_class }}" id="current-destination-area-{{ current_destination.id }}" name="areaName" value="{{ current_destination_edit.areaName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-type-{{ current_destination.id }}">Type de destination</label>
+                    <select class="{{ select_class }}" id="current-destination-type-{{ current_destination.id }}" name="type">
+                        {% for value, label in destination_type_options %}
+                            <option value="{{ value }}" {% if current_destination_edit.type|default(current_destination.type.value) == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-code-{{ current_destination.id }}">Code optionnel</label>
+                    <input class="{{ input_class }}" id="current-destination-code-{{ current_destination.id }}" name="code" value="{{ current_destination_edit.code is defined ? current_destination_edit.code : '' }}">
+                </div>
+
+                <div class="{{ full_row_class }}">
+                    <span class="quick-destination__text">Coordonnées de la destination associée</span>
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-latitude-{{ current_destination.id }}">Latitude optionnelle</label>
+                    <input class="{{ input_class }}" id="current-destination-latitude-{{ current_destination.id }}" name="latitude" type="text" inputmode="decimal" value="{{ current_destination_edit.latitude is defined ? current_destination_edit.latitude : '' }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-longitude-{{ current_destination.id }}">Longitude optionnelle</label>
+                    <input class="{{ input_class }}" id="current-destination-longitude-{{ current_destination.id }}" name="longitude" type="text" inputmode="decimal" value="{{ current_destination_edit.longitude is defined ? current_destination_edit.longitude : '' }}">
+                </div>
+            </div>
+
+            <div class="quick-destination__actions">
+                <button class="{{ primary_button }}" type="submit">Enregistrer la destination</button>
+            </div>
+        </form>
+    {% endif %}
 
     <form class="quick-destination__form" method="post" action="{{ path('admin_studio_destination_quick_create') }}" data-quick-destination-form hidden>
         <input type="hidden" name="_token" value="{{ csrf_token('studio_destination_quick_create') }}">
@@ -43,6 +116,10 @@
         <input type="hidden" name="name" value="{{ destination_quick_create.name|default('') }}">
         <input type="hidden" name="parent" value="{{ destination_quick_create.parent|default('') }}">
         <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
+
+        {% if current_destination %}
+            <h3 class="quick-destination__title">Changer ou créer une autre destination</h3>
+        {% endif %}
 
         <div class="quick-destination__grid">
             <div class="{{ row_class }}">
@@ -108,10 +185,12 @@
     (() => {
         document.querySelectorAll('[data-quick-destination]').forEach((container) => {
             const toggle = container.querySelector('[data-quick-destination-toggle]');
+            const currentToggle = container.querySelector('[data-current-destination-toggle]');
             const skipButton = container.querySelector('[data-quick-destination-skip]');
             const actions = container.querySelector('[data-quick-destination-actions]');
             const gpsButton = container.querySelector('[data-quick-destination-gps]');
             const form = container.querySelector('[data-quick-destination-form]');
+            const currentForm = container.querySelector('[data-current-destination-form]');
             const latitude = container.querySelector('[data-quick-destination-latitude]');
             const longitude = container.querySelector('[data-quick-destination-longitude]');
             const status = container.querySelector('[data-quick-destination-status]');
@@ -120,7 +199,23 @@
             if (toggle && form) {
                 toggle.addEventListener('click', () => {
                     form.hidden = false;
+                    if (currentForm) {
+                        currentForm.hidden = true;
+                    }
                     toggle.hidden = true;
+                    if (skipStatus) {
+                        skipStatus.hidden = true;
+                    }
+                });
+            }
+
+            if (currentToggle && currentForm) {
+                currentToggle.addEventListener('click', () => {
+                    currentForm.hidden = false;
+                    if (form) {
+                        form.hidden = true;
+                    }
+                    currentToggle.hidden = true;
                     if (skipStatus) {
                         skipStatus.hidden = true;
                     }

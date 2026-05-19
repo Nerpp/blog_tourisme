@@ -39,6 +39,9 @@
                             <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_places_edit', { id: place.id }) }}">Modifier</a>
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir dans le Studio</a>
+                                {% if place.slug is not empty and place.status.value == 'published' %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_place_show', { slug: place.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
+                                {% endif %}
                                 <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Archiver ce repérage ?');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('admin_place_delete_' ~ place.id) }}">
                                     <button class="admin-button admin-button--small admin-button--danger" type="submit">Archiver</button>

@@ -8,7 +8,12 @@
             <h1 class="admin-title">{{ title }}</h1>
             <p class="admin-subtitle">Créez la destination finale et choisissez un parent si la hiérarchie existe déjà.</p>
         </div>
-        <a class="admin-button admin-button--secondary" href="{{ path('admin_destinations_index') }}">Retour</a>
+        <div class="admin-row-actions">
+            {% if destination.id and destination.slug is not empty %}
+                <a class="admin-button admin-button--secondary" href="{{ path('app_destination_show', { slug: destination.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
+            {% endif %}
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_destinations_index') }}">Retour</a>
+        </div>
     </header>
 
     <section class="admin-card">
@@ -67,6 +72,12 @@
                     <label for="destination-longitude">Longitude</label>
                     <input id="destination-longitude" name="longitude" type="number" step="any" value="{{ destination.longitude }}">
                 </div>
+                {% if destination.latitude is not null and destination.longitude is not null %}
+                    <div class="admin-field">
+                        <span class="admin-muted">Carte</span>
+                        <a class="admin-button admin-button--secondary" href="https://www.google.com/maps/search/?api=1&query={{ destination.latitude }},{{ destination.longitude }}" target="_blank" rel="noopener noreferrer">Voir sur Google Maps</a>
+                    </div>
+                {% endif %}
                 <div class="admin-field admin-field--full">
                     <label for="destination-description">Description</label>
                     <textarea id="destination-description" name="description" rows="5">{{ destination.description }}</textarea>

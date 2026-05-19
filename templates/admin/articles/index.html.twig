@@ -37,8 +37,8 @@
                             <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_articles_edit', { id: article.id }) }}">Modifier</a>
                                 <span class="admin-button admin-button--small admin-button--secondary" aria-disabled="true">Studio non disponible</span>
-                                {% if article.status.value == 'published' %}
-                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_article_show', { slug: article.slug }) }}">Voir public</a>
+                                {% if article.slug is not empty and article.status.value == 'published' %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_article_show', { slug: article.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
                                 {% endif %}
                                 <form method="post" action="{{ path('admin_articles_delete', { id: article.id }) }}" onsubmit="return confirm('Archiver cet article ?');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('admin_article_delete_' ~ article.id) }}">

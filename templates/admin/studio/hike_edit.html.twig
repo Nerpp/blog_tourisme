@@ -76,6 +76,9 @@
                 </div>
             </div>
             <div class="studio-actions">
+                {% if hike.slug is not empty and hike.status.value in ['finished', 'converted'] %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('app_hike_show', { slug: hike.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
                 {% if google_maps_url %}
                     <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
                 {% endif %}
@@ -125,6 +128,9 @@
             {% include 'admin/_quick_destination_form.html.twig' with {
                 ui_context: 'studio',
                 current_destination: hike.destination,
+                current_destination_edit: current_destination_edit,
+                current_destination_update_action: path('admin_studio_hike_destination_update', { id: hike.id }),
+                current_destination_update_token: csrf_token('studio_hike_destination_update_' ~ hike.id),
                 destination_quick_create: destination_quick_create,
                 destination_type_options: destination_type_options,
                 destination_parent_options: destination_parent_options
@@ -143,11 +149,56 @@
             </div>
             <div class="studio-media-grid">
                 {% for point in hike.points %}
+                    {% set point_has_valid_coordinates = point.latitude is not null and point.longitude is not null and point.latitude >= -90 and point.latitude <= 90 and point.longitude >= -180 and point.longitude <= 180 %}
                     <article class="studio-point">
-                        <strong>{{ point_labels[point.id] ?? (point.title ?: 'Point à visiter') }}</strong>
-                        <span>{{ point.latitude }}, {{ point.longitude }}</span>
-                        <span class="admin-muted">{{ point.detectedCommuneName ?: hike.detectedCommuneName ?: 'Commune non détectée' }}</span>
-                        {% if point.note %}<p>{{ point.note }}</p>{% endif %}
+                        <form class="studio-media-card__body" method="post" action="{{ path('admin_studio_hike_point_update', { id: point.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_point_update_' ~ point.id) }}">
+
+                            <div class="studio-field">
+                                <label for="hike-point-title-{{ point.id }}">Titre</label>
+                                <input id="hike-point-title-{{ point.id }}" name="title" value="{{ point.title }}">
+                            </div>
+
+                            <div class="studio-media-row">
+                                <div class="studio-field">
+                                    <label for="hike-point-type-{{ point.id }}">Type</label>
+                                    <select id="hike-point-type-{{ point.id }}" name="type">
+                                        {% for value, label in point_type_options %}
+                                            <option value="{{ value }}" {% if point.type.value == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="studio-field">
+                                    <label for="hike-point-position-{{ point.id }}">Position</label>
+                                    <input id="hike-point-position-{{ point.id }}" name="position" type="number" min="1" step="1" value="{{ point.position }}">
+                                </div>
+                            </div>
+
+                            <div class="studio-media-row">
+                                <div class="studio-field">
+                                    <label for="hike-point-latitude-{{ point.id }}">Latitude</label>
+                                    <input id="hike-point-latitude-{{ point.id }}" name="latitude" type="text" inputmode="decimal" value="{{ point.latitude }}" required>
+                                </div>
+                                <div class="studio-field">
+                                    <label for="hike-point-longitude-{{ point.id }}">Longitude</label>
+                                    <input id="hike-point-longitude-{{ point.id }}" name="longitude" type="text" inputmode="decimal" value="{{ point.longitude }}" required>
+                                </div>
+                            </div>
+
+                            <div class="studio-field">
+                                <label for="hike-point-note-{{ point.id }}">Note</label>
+                                <textarea id="hike-point-note-{{ point.id }}" name="note" rows="4">{{ point.note }}</textarea>
+                            </div>
+
+                            <span class="admin-muted">{{ point.detectedCommuneName ?: hike.detectedCommuneName ?: 'Commune non détectée' }}</span>
+
+                            <div class="studio-inline-actions">
+                                <button class="admin-button" type="submit">Enregistrer ce point</button>
+                                {% if point_has_valid_coordinates %}
+                                    <a class="admin-button admin-button--secondary" href="https://www.google.com/maps/search/?api=1&query={{ point.latitude }},{{ point.longitude }}" target="_blank" rel="noopener noreferrer">Voir ce point sur Google Maps</a>
+                                {% endif %}
+                            </div>
+                        </form>
                         {% if point_media_enabled and point.mediaLinks|length > 0 %}
                             <div class="studio-point-media">
                                 {% for point_media in point.mediaLinks %}

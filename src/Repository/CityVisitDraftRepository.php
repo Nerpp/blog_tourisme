@@ -62,8 +62,12 @@ class CityVisitDraftRepository extends ServiceEntityRepository
     public function findPublicBySlug(string $slug): ?CityVisitDraft
     {
         return $this->createQueryBuilder('c')
-            ->addSelect('destination', 'points', 'mediaLinks', 'mediaAssets')
+            ->addSelect('destination', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'destinationRoot', 'points', 'mediaLinks', 'mediaAssets')
             ->leftJoin('c.destination', 'destination')
+            ->leftJoin('destination.parent', 'destinationParent')
+            ->leftJoin('destinationParent.parent', 'destinationGrandParent')
+            ->leftJoin('destinationGrandParent.parent', 'destinationGreatGrandParent')
+            ->leftJoin('destinationGreatGrandParent.parent', 'destinationRoot')
             ->leftJoin('c.points', 'points')
             ->leftJoin('c.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')

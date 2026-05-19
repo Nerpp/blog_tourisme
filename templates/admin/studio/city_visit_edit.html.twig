@@ -21,6 +21,9 @@
                 </div>
             </div>
             <div class="studio-actions">
+                {% if city_visit.slug is not empty and city_visit.status.value in ['finished', 'converted'] %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('app_city_visit_show', { slug: city_visit.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
                 {% if google_maps_url %}
                     <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
                 {% endif %}

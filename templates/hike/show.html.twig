@@ -19,43 +19,6 @@
         {% set cover_image = cover_media.thumbnailPath ?: cover_media.filePath ?: cover_media.externalUrl %}
     {% endif %}
 
-    {% set public_destination = hike.destination %}
-    {% set public_destination_name = public_destination ? public_destination.name : hike.detectedCommuneName %}
-    {% set public_department_name = hike.detectedDepartmentName %}
-    {% set public_region_name = hike.detectedRegionName %}
-
-    {% if public_destination %}
-        {% set destination_node = public_destination %}
-        {% if destination_node.type.value == 'department' %}
-            {% set public_department_name = destination_node.name %}
-        {% elseif destination_node.type.value == 'region' %}
-            {% set public_region_name = destination_node.name %}
-        {% endif %}
-
-        {% set destination_node = destination_node.parent %}
-        {% if destination_node %}
-            {% if destination_node.type.value == 'department' %}
-                {% set public_department_name = destination_node.name %}
-            {% elseif destination_node.type.value == 'region' %}
-                {% set public_region_name = destination_node.name %}
-            {% endif %}
-        {% endif %}
-
-        {% set destination_node = destination_node ? destination_node.parent : null %}
-        {% if destination_node %}
-            {% if destination_node.type.value == 'department' %}
-                {% set public_department_name = destination_node.name %}
-            {% elseif destination_node.type.value == 'region' %}
-                {% set public_region_name = destination_node.name %}
-            {% endif %}
-        {% endif %}
-
-        {% set destination_node = destination_node ? destination_node.parent : null %}
-        {% if destination_node and destination_node.type.value == 'region' %}
-            {% set public_region_name = destination_node.name %}
-        {% endif %}
-    {% endif %}
-
     <main class="public-detail-page">
         <section class="public-detail-hero">
             <div class="public-detail-container public-detail-hero-grid">
@@ -74,21 +37,13 @@
                         <p class="public-detail-intro">{{ hike.notes|nl2br }}</p>
                     {% endif %}
 
-                    <div class="public-detail-meta">
-                        {% if public_destination_name %}
-                            <span>{{ public_destination_name }}</span>
-                        {% endif %}
-
-                        {% if public_department_name and public_department_name != public_destination_name %}
-                            <span>{{ public_department_name }}</span>
-                        {% endif %}
-
-                        {% if public_region_name and public_region_name not in [public_destination_name, public_department_name] %}
-                            <span>{{ public_region_name }}</span>
-                        {% endif %}
-
-                        <span>{{ hike.points|length }} étape{{ hike.points|length > 1 ? 's' : '' }}</span>
-                    </div>
+                    {% include 'public_detail/_content_meta_badges.html.twig' with {
+                        destination: hike.destination,
+                        detected_commune_name: hike.detectedCommuneName,
+                        detected_department_name: hike.detectedDepartmentName,
+                        detected_region_name: hike.detectedRegionName,
+                        points_count: hike.points|length
+                    } only %}
                 </div>
 
                 <div

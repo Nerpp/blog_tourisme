@@ -40,7 +40,9 @@
                         <td>
                             <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_destinations_edit', { id: destination.id }) }}">Modifier</a>
-                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_destination_show', { slug: destination.slug }) }}">Voir public</a>
+                                {% if destination.slug is not empty %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_destination_show', { slug: destination.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
+                                {% endif %}
                                 <form method="post" action="{{ path('admin_destinations_delete', { id: destination.id }) }}" onsubmit="return confirm('Supprimer cette destination si elle n’est pas utilisée ?');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('admin_destination_delete_' ~ destination.id) }}">
                                     <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer</button>
