@@ -74,6 +74,16 @@ class Article
     #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
     private Collection $placeLinks;
 
+    /** @var Collection<int, ArticleHike> */
+    #[ORM\OneToMany(mappedBy: 'article', targetEntity: ArticleHike::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
+    private Collection $hikeLinks;
+
+    /** @var Collection<int, ArticleCityVisit> */
+    #[ORM\OneToMany(mappedBy: 'article', targetEntity: ArticleCityVisit::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
+    private Collection $cityVisitLinks;
+
     /** @var Collection<int, ArticleMedia> */
     #[ORM\OneToMany(mappedBy: 'article', targetEntity: ArticleMedia::class, cascade: ['persist'], orphanRemoval: true)]
     #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
@@ -92,6 +102,8 @@ class Article
     {
         $this->destinationLinks = new ArrayCollection();
         $this->placeLinks = new ArrayCollection();
+        $this->hikeLinks = new ArrayCollection();
+        $this->cityVisitLinks = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
         $this->tagLinks = new ArrayCollection();
         $this->comments = new ArrayCollection();
@@ -261,6 +273,18 @@ class Article
     public function getPlaceLinks(): Collection
     {
         return $this->placeLinks;
+    }
+
+    /** @return Collection<int, ArticleHike> */
+    public function getHikeLinks(): Collection
+    {
+        return $this->hikeLinks;
+    }
+
+    /** @return Collection<int, ArticleCityVisit> */
+    public function getCityVisitLinks(): Collection
+    {
+        return $this->cityVisitLinks;
     }
 
     /** @return Collection<int, ArticleMedia> */

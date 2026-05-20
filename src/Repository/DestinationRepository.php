@@ -169,15 +169,49 @@ class DestinationRepository extends ServiceEntityRepository
     /** @return list<Destination> */
     public function findDiscoverableDestinations(int $limit = 6): array
     {
-        return $this->createQueryBuilder('d')
-            ->addSelect('parent')
-            ->leftJoin('d.parent', 'parent')
+        $rows = $this->createQueryBuilder('d')
+            ->select('d.id')
             ->andWhere('d.parent IS NOT NULL')
-            ->orderBy('d.type', 'ASC')
-            ->addOrderBy('d.name', 'ASC')
+            ->orderBy('d.updatedAt', 'DESC')
+            ->addOrderBy('d.createdAt', 'DESC')
+            ->addOrderBy('d.id', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
+            ->getArrayResult();
+
+        $ids = array_map(static fn (array $row): int => (int) $row['id'], $rows);
+        if ($ids === []) {
+            return [];
+        }
+
+        $destinations = $this->createQueryBuilder('d')
+            ->addSelect('parent', 'places', 'placeFeaturedImages', 'placeMediaLinks', 'placeMediaAssets', 'articleLinks', 'articles', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
+            ->leftJoin('d.parent', 'parent')
+            ->leftJoin('d.places', 'places', 'WITH', 'places.status = :published')
+            ->leftJoin('places.featuredImage', 'placeFeaturedImages')
+            ->leftJoin('places.mediaLinks', 'placeMediaLinks')
+            ->leftJoin('placeMediaLinks.mediaAsset', 'placeMediaAssets')
+            ->leftJoin('d.articleLinks', 'articleLinks')
+            ->leftJoin('articleLinks.article', 'articles', 'WITH', 'articles.status = :published')
+            ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
+            ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
+            ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
+            ->andWhere('d.id IN (:ids)')
+            ->setParameter('ids', $ids, ArrayParameterType::INTEGER)
+            ->setParameter('published', ContentStatus::Published)
+            ->orderBy('d.updatedAt', 'DESC')
+            ->addOrderBy('d.createdAt', 'DESC')
+            ->addOrderBy('d.id', 'DESC')
+            ->addOrderBy('placeMediaLinks.position', 'ASC')
+            ->addOrderBy('articleLinks.position', 'ASC')
+            ->addOrderBy('articleMediaLinks.position', 'ASC')
+            ->getQuery()
             ->getResult();
+
+        $positionById = array_flip($ids);
+        usort($destinations, static fn (Destination $first, Destination $second): int => ($positionById[$first->getId()] ?? 0) <=> ($positionById[$second->getId()] ?? 0));
+
+        return $destinations;
     }
 
     /**

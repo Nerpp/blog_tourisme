@@ -27,10 +27,8 @@
         </div>
 
         {% if latest_homepage_item %}
-            <a
+            <article
                 class="home-latest-card"
-                href="{{ latest_homepage_item.url }}"
-                aria-label="Voir : {{ latest_homepage_item.title }}"
                 {% if latest_homepage_item.image %}
                     style="--latest-card-image: url('{{ asset(latest_homepage_item.image)|e('html_attr') }}');"
                 {% endif %}
@@ -40,11 +38,25 @@
 
                     <h2>{{ latest_homepage_item.title }}</h2>
 
-                    <span class="home-latest-card__cta">
-                        Découvrir
-                    </span>
+                    {% if latest_homepage_item.secondary_title is defined %}
+                        <span class="home-latest-card__secondary-label">
+                            {{ latest_homepage_item.secondary_title }}
+                        </span>
+                    {% endif %}
+
+                    <div class="home-latest-card__actions">
+                        <a class="home-latest-card__cta" href="{{ latest_homepage_item.url }}">
+                            {{ latest_homepage_item.primary_cta|default('Découvrir') }}
+                        </a>
+
+                        {% if latest_homepage_item.secondary_url is defined and latest_homepage_item.secondary_cta is defined %}
+                            <a class="home-latest-card__secondary-cta" href="{{ latest_homepage_item.secondary_url }}">
+                                {{ latest_homepage_item.secondary_cta }}
+                            </a>
+                        {% endif %}
+                    </div>
                 </div>
-            </a>
+            </article>
         {% else %}
             <aside class="home-latest-card">
                 <div class="home-latest-card__overlay">

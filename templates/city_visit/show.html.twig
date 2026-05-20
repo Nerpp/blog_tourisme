@@ -80,6 +80,12 @@
                     points_title: 'Étapes de la visite',
                     gps_point_type: 'city_visit'
                 } only %}
+
+                {% include 'public_detail/_related_articles.html.twig' with {
+                    article_links: city_visit.articleLinks,
+                    section_title: 'Autour de cette visite',
+                    modal_id_prefix: 'city-visit-related-article-' ~ city_visit.id
+                } only %}
             </div>
         </section>
     </main>

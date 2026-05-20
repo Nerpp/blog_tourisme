@@ -71,10 +71,16 @@ class CityVisitDraft
     #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
     private Collection $mediaLinks;
 
+    /** @var Collection<int, ArticleCityVisit> */
+    #[ORM\OneToMany(mappedBy: 'cityVisitDraft', targetEntity: ArticleCityVisit::class)]
+    #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
+    private Collection $articleLinks;
+
     public function __construct()
     {
         $this->points = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
+        $this->articleLinks = new ArrayCollection();
     }
 
     public function __toString(): string
@@ -260,6 +266,12 @@ class CityVisitDraft
     public function getMediaLinks(): Collection
     {
         return $this->mediaLinks;
+    }
+
+    /** @return Collection<int, ArticleCityVisit> */
+    public function getArticleLinks(): Collection
+    {
+        return $this->articleLinks;
     }
 
     public function addMediaLink(CityVisitDraftMedia $mediaLink): static

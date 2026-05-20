@@ -16,7 +16,7 @@ Découvrez des randonnées, villages, villes et paysages méditerranéens à tra
             <div class="home-container">
                 <div class="home-section-header">
                     <div>
-                        <p class="home-section-kicker">Destinations populaires</p>
+                        <p class="home-section-kicker">Dernières destinations</p>
                         <h2>Explorer les dernières destinations</h2>
                     </div>
 
@@ -26,9 +26,10 @@ Découvrez des randonnées, villages, villes et paysages méditerranéens à tra
                 </div>
 
                 <div class="home-destination-grid">
-                    {% for destination in discoverable_destinations|slice(0, 3) %}
+                    {% for destination_card in destination_cards|slice(0, 3) %}
                         {% include 'home/partials/_destination_card.html.twig' with {
-                            destination: destination
+                            destination: destination_card.destination,
+                            representative_media: destination_card.media
                         } only %}
                     {% else %}
                         <p class="home-empty">Aucune destination disponible pour le moment.</p>

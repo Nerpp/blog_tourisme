@@ -8,11 +8,13 @@ import { initNavbar } from './js/navbar.js';
 import { initPublicDetailGallery } from './js/public-detail-gallery.js';
 import { initDestinationBrowser } from './js/destination-browser';
 import { initPanoramaViewers } from './js/panorama-viewer.js';
+import { initRelatedArticleModals } from './js/related-article-modal.js';
 
 initNavbar();
 initPublicDetailGallery();
 initDestinationBrowser();
 initPanoramaViewers();
+initRelatedArticleModals();
 const vueRoot = document.querySelector('#app');
 
 if (vueRoot) {

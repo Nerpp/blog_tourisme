@@ -7,6 +7,7 @@ use App\Entity\Destination;
 use App\Entity\Place;
 use App\Entity\Tag;
 use App\Enum\ContentStatus;
+use App\Enum\MediaType;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -51,7 +52,7 @@ class PlaceRepository extends ServiceEntityRepository
     public function findPublishedBySlug(string $slug): ?Place
     {
         return $this->createQueryBuilder('p')
-            ->addSelect('destination', 'category', 'featuredImage', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags', 'articleLinks', 'articles')
+            ->addSelect('destination', 'category', 'featuredImage', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('p.destination', 'destination')
             ->leftJoin('p.category', 'category')
             ->leftJoin('p.featuredImage', 'featuredImage')
@@ -61,6 +62,10 @@ class PlaceRepository extends ServiceEntityRepository
             ->leftJoin('tagLinks.tag', 'tags')
             ->leftJoin('p.articleLinks', 'articleLinks')
             ->leftJoin('articleLinks.article', 'articles')
+            ->leftJoin('articles.category', 'articleCategories')
+            ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
+            ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
+            ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
             ->andWhere('p.slug = :slug')
             ->andWhere('p.status = :status')
             ->andWhere('articles.id IS NULL OR articles.status = :status')
@@ -76,6 +81,27 @@ class PlaceRepository extends ServiceEntityRepository
     public function findByDestination(Destination $destination, int $limit = 12): array
     {
         return $this->findPublished(destination: $destination, limit: $limit);
+    }
+
+    public function findLatestPublishedWithMediaByDestination(Destination $destination): ?Place
+    {
+        return $this->createQueryBuilder('p')
+            ->addSelect('featuredImage', 'mediaLinks', 'mediaAssets')
+            ->leftJoin('p.featuredImage', 'featuredImage')
+            ->leftJoin('p.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('p.destination = :destination')
+            ->andWhere('p.status = :status')
+            ->andWhere('featuredImage.mediaType = :mediaType OR mediaAssets.mediaType = :mediaType')
+            ->setParameter('destination', $destination)
+            ->setParameter('status', ContentStatus::Published)
+            ->setParameter('mediaType', MediaType::Image)
+            ->orderBy('p.publishedAt', 'DESC')
+            ->addOrderBy('p.id', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     /**

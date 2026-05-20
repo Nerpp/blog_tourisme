@@ -1,0 +1,141 @@
+{% set article_links = article_links|default([]) %}
+{% set section_title = section_title|default('Pour aller plus loin') %}
+{% set modal_id_prefix = modal_id_prefix|default('related-article') %}
+{% set role_labels = {
+    related: 'Article lié',
+    history: 'Histoire',
+    legend: 'Légende',
+    practical: 'Infos pratiques',
+    context: 'Récit',
+    seo: null
+} %}
+{% set published_article_links = [] %}
+
+{% for article_link in article_links %}
+    {% if article_link.article and article_link.article.status.value == 'published' %}
+        {% set published_article_links = published_article_links|merge([article_link]) %}
+    {% endif %}
+{% endfor %}
+
+{% if published_article_links|length > 0 %}
+    <section class="related-articles-section">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">Lecture</p>
+                <h2 class="media-title">{{ section_title }}</h2>
+            </div>
+
+            <span class="media-count">{{ published_article_links|length }}</span>
+        </div>
+
+        <div class="related-articles-grid">
+            {% for article_link in published_article_links %}
+                {% set article = article_link.article %}
+                {% set modal_id = modal_id_prefix ~ '-' ~ article.id %}
+                {% set role = article_link.role is defined ? article_link.role : 'related' %}
+
+                <article class="related-article-card">
+                    {% if article.featuredImage %}
+                        <div class="related-article-card__visual">
+                            {% include 'public_detail/_responsive_image.html.twig' with {
+                                media: article.featuredImage,
+                                alt: media_public_alt(article.featuredImage, article, article.title),
+                                image_size: 'thumb',
+                                sizes: '(min-width: 900px) 320px, 100vw',
+                                img_class: 'related-article-card__image'
+                            } only %}
+                        </div>
+                    {% endif %}
+
+                    <div>
+                        <p class="related-article-card__meta">
+                            {% if role_labels[role]|default(null) %}
+                                <span>{{ role_labels[role] }}</span>
+                            {% endif %}
+                            {% if article.category %}
+                                <span>{{ article.category.name }}</span>
+                            {% endif %}
+                        </p>
+
+                        <h3>{{ article.title }}</h3>
+
+                        {% if article.excerpt %}
+                            <p>{{ article.excerpt }}</p>
+                        {% endif %}
+                    </div>
+
+                    <button
+                        type="button"
+                        class="related-article-card__button js-related-article-open"
+                        data-related-article-target="#{{ modal_id }}"
+                    >
+                        Lire l’article
+                    </button>
+                </article>
+
+                <div
+                    id="{{ modal_id }}"
+                    class="related-article-modal js-related-article-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-hidden="true"
+                    aria-labelledby="{{ modal_id }}-title"
+                    hidden
+                >
+                    <div class="related-article-modal__dialog" role="document">
+                        <header class="related-article-modal__header">
+                            <div>
+                                <p class="related-article-modal__eyebrow">
+                                    {% if article.category %}{{ article.category.name }}{% else %}Article{% endif %}
+                                    {% if article.publishedAt %} - {{ article.publishedAt|date('d/m/Y') }}{% endif %}
+                                </p>
+
+                                <h2 id="{{ modal_id }}-title">{{ article.title }}</h2>
+
+                                {% if article.excerpt %}
+                                    <p>{{ article.excerpt }}</p>
+                                {% endif %}
+                            </div>
+
+                            <button
+                                type="button"
+                                class="related-article-modal__close js-related-article-close"
+                                aria-label="Fermer l’article"
+                            >
+                                ×
+                            </button>
+                        </header>
+
+                        {% if article.featuredImage %}
+                            <div class="related-article-modal__cover">
+                                {% include 'public_detail/_responsive_image.html.twig' with {
+                                    media: article.featuredImage,
+                                    alt: media_public_alt(article.featuredImage, article, article.title),
+                                    image_size: 'medium',
+                                    sizes: '(min-width: 900px) 900px, 100vw'
+                                } only %}
+                            </div>
+                        {% endif %}
+
+                        <div class="related-article-modal__content prose">
+                            {{ article_content_html(article) }}
+                        </div>
+
+                        <footer class="related-article-modal__footer">
+                            <button type="button" class="related-article-modal__secondary js-related-article-close">
+                                Fermer
+                            </button>
+
+                            <a
+                                class="related-article-modal__primary"
+                                href="{{ path('app_article_show', { slug: article.slug }) }}"
+                            >
+                                Lire la page complète
+                            </a>
+                        </footer>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}

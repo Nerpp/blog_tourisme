@@ -263,6 +263,19 @@ button {
   object-fit: cover;
 }
 
+.article-main > .featured-media .cover-media,
+.article-gallery-section .media-visual,
+.article-content-media {
+  background: #eef4ef;
+}
+
+.article-main > .featured-media .cover-media img,
+.article-main > .featured-media .cover-media picture,
+.article-gallery-section .media-visual img,
+.article-gallery-section .media-visual picture {
+  object-fit: contain;
+}
+
 .media-badge {
   position: absolute;
   top: 10px;
@@ -332,6 +345,23 @@ button {
   color: #283431;
   font-size: 1.05rem;
   line-height: 1.85;
+}
+
+.article-content-media {
+  margin: 30px 0;
+}
+
+.article-content-media img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.article-content-media figcaption {
+  margin-top: 8px;
+  color: #66736e;
+  font-size: 0.92rem;
+  text-align: center;
 }
 
 .side-panel {

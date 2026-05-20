@@ -3,8 +3,10 @@
 namespace App\Repository;
 
 use App\Entity\CityVisitDraft;
+use App\Entity\Destination;
 use App\Entity\User;
 use App\Enum\CityVisitDraftStatus;
+use App\Enum\MediaType;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -62,7 +64,7 @@ class CityVisitDraftRepository extends ServiceEntityRepository
     public function findPublicBySlug(string $slug): ?CityVisitDraft
     {
         return $this->createQueryBuilder('c')
-            ->addSelect('destination', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets')
+            ->addSelect('destination', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('c.destination', 'destination')
             ->leftJoin('destination.parent', 'destinationParent')
             ->leftJoin('destinationParent.parent', 'destinationGrandParent')
@@ -70,6 +72,12 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->leftJoin('c.points', 'points')
             ->leftJoin('c.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->leftJoin('c.articleLinks', 'articleLinks')
+            ->leftJoin('articleLinks.article', 'articles')
+            ->leftJoin('articles.category', 'articleCategories')
+            ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
+            ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
+            ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
             ->andWhere('c.slug = :slug')
             ->andWhere('c.status IN (:statuses)')
             ->setParameter('slug', $slug)
@@ -79,6 +87,29 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ])
             ->orderBy('points.position', 'ASC')
             ->addOrderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('articleLinks.position', 'ASC')
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    public function findLatestPublicWithMediaByDestination(Destination $destination): ?CityVisitDraft
+    {
+        return $this->createQueryBuilder('c')
+            ->addSelect('mediaLinks', 'mediaAssets')
+            ->innerJoin('c.mediaLinks', 'mediaLinks')
+            ->innerJoin('mediaLinks.mediaAsset', 'mediaAssets', 'WITH', 'mediaAssets.mediaType = :mediaType')
+            ->andWhere('c.destination = :destination')
+            ->andWhere('c.status IN (:statuses)')
+            ->setParameter('destination', $destination)
+            ->setParameter('mediaType', MediaType::Image)
+            ->setParameter('statuses', [
+                CityVisitDraftStatus::Finished,
+                CityVisitDraftStatus::Converted,
+            ])
+            ->orderBy('c.finishedAt', 'DESC')
+            ->addOrderBy('c.id', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
     }

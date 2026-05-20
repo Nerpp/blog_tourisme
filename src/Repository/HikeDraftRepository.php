@@ -3,8 +3,10 @@
 namespace App\Repository;
 
 use App\Entity\HikeDraft;
+use App\Entity\Destination;
 use App\Entity\User;
 use App\Enum\HikeDraftStatus;
+use App\Enum\MediaType;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -62,7 +64,7 @@ class HikeDraftRepository extends ServiceEntityRepository
     public function findPublicBySlug(string $slug): ?HikeDraft
     {
         return $this->createQueryBuilder('h')
-            ->addSelect('destination', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets')
+            ->addSelect('destination', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('h.destination', 'destination')
             ->leftJoin('destination.parent', 'destinationParent')
             ->leftJoin('destinationParent.parent', 'destinationGrandParent')
@@ -70,6 +72,12 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->leftJoin('h.points', 'points')
             ->leftJoin('h.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->leftJoin('h.articleLinks', 'articleLinks')
+            ->leftJoin('articleLinks.article', 'articles')
+            ->leftJoin('articles.category', 'articleCategories')
+            ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
+            ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
+            ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
             ->andWhere('h.slug = :slug')
             ->andWhere('h.status IN (:statuses)')
             ->setParameter('slug', $slug)
@@ -79,6 +87,29 @@ class HikeDraftRepository extends ServiceEntityRepository
             ])
             ->orderBy('points.position', 'ASC')
             ->addOrderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('articleLinks.position', 'ASC')
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    public function findLatestPublicWithMediaByDestination(Destination $destination): ?HikeDraft
+    {
+        return $this->createQueryBuilder('h')
+            ->addSelect('mediaLinks', 'mediaAssets')
+            ->innerJoin('h.mediaLinks', 'mediaLinks')
+            ->innerJoin('mediaLinks.mediaAsset', 'mediaAssets', 'WITH', 'mediaAssets.mediaType = :mediaType')
+            ->andWhere('h.destination = :destination')
+            ->andWhere('h.status IN (:statuses)')
+            ->setParameter('destination', $destination)
+            ->setParameter('mediaType', MediaType::Image)
+            ->setParameter('statuses', [
+                HikeDraftStatus::Finished,
+                HikeDraftStatus::Converted,
+            ])
+            ->orderBy('h.finishedAt', 'DESC')
+            ->addOrderBy('h.id', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
     }

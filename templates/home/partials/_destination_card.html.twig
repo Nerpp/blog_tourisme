@@ -1,5 +1,17 @@
 <a class="home-destination-card" href="{{ path('app_destination_show', { slug: destination.slug }) }}">
-    <div class="home-destination-card__image">
+    <div class="home-destination-card__image {% if not representative_media %}home-destination-card__image--placeholder{% endif %}">
+        {% if representative_media %}
+            {% include 'public_detail/_responsive_image.html.twig' with {
+                media: representative_media,
+                alt: media_public_alt(representative_media, destination, destination.name),
+                image_size: 'medium',
+                sizes: '(min-width: 900px) 33vw, 100vw',
+                img_class: 'home-destination-card__img'
+            } only %}
+        {% else %}
+            <div class="home-destination-card__placeholder" aria-hidden="true"></div>
+        {% endif %}
+
         <div class="home-destination-card__overlay">
             <span class="home-destination-card__chip">
                 {{ destination.type.value }}
@@ -8,7 +20,11 @@
             <h3>{{ destination.name }}</h3>
 
             <p>
-                Découvrez cette destination et ses contenus publiés.
+                {% if representative_media %}
+                    Découvrez les derniers contenus publiés autour de cette destination.
+                {% else %}
+                    Image à compléter pour cette destination.
+                {% endif %}
             </p>
         </div>
     </div>

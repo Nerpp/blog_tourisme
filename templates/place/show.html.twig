@@ -87,18 +87,11 @@
                 </section>
             {% endif %}
 
-            {% if place.articleLinks|length > 0 %}
-                <section>
-                    <h2>Articles lies</h2>
-                    <div class="stacked-links">
-                        {% for articleLink in place.articleLinks %}
-                            {% if articleLink.article.status.value == 'published' %}
-                                <a href="{{ path('app_article_show', { slug: articleLink.article.slug }) }}">{{ articleLink.article.title }}</a>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                </section>
-            {% endif %}
+            {% include 'public_detail/_related_articles.html.twig' with {
+                article_links: place.articleLinks,
+                section_title: 'Pour aller plus loin',
+                modal_id_prefix: 'place-related-article-' ~ place.id
+            } only %}
         </aside>
 
         <div class="full-span">

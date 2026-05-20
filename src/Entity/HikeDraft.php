@@ -68,10 +68,16 @@ class HikeDraft
     #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
     private Collection $mediaLinks;
 
+    /** @var Collection<int, ArticleHike> */
+    #[ORM\OneToMany(mappedBy: 'hikeDraft', targetEntity: ArticleHike::class)]
+    #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
+    private Collection $articleLinks;
+
     public function __construct()
     {
         $this->points = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
+        $this->articleLinks = new ArrayCollection();
     }
 
     public function __toString(): string
@@ -245,6 +251,12 @@ class HikeDraft
     public function getMediaLinks(): Collection
     {
         return $this->mediaLinks;
+    }
+
+    /** @return Collection<int, ArticleHike> */
+    public function getArticleLinks(): Collection
+    {
+        return $this->articleLinks;
     }
 
     public function addMediaLink(HikeDraftMedia $mediaLink): static

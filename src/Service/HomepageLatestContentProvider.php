@@ -6,6 +6,9 @@ use App\Entity\Article;
 use App\Entity\CityVisitDraft;
 use App\Entity\HikeDraft;
 use App\Entity\MediaAsset;
+use App\Enum\CityVisitDraftStatus;
+use App\Enum\HikeDraftStatus;
+use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
@@ -26,7 +29,11 @@ final readonly class HomepageLatestContentProvider
      *     title: string,
      *     url: string,
      *     image: ?string,
-     *     date: \DateTimeImmutable
+     *     date: \DateTimeImmutable,
+     *     primary_cta: string,
+     *     secondary_title?: string,
+     *     secondary_url?: string,
+     *     secondary_cta?: string
      * }|null
      */
     public function getLatest(): ?array
@@ -61,6 +68,44 @@ final readonly class HomepageLatestContentProvider
             return null;
         }
 
+        $linkedHike = $this->publicLinkedHike($article);
+        if ($linkedHike instanceof HikeDraft) {
+            $hikeUrl = $this->urlResolver->hikeUrl($linkedHike);
+            if ($hikeUrl !== null) {
+                return [
+                    'type' => 'hike',
+                    'label' => 'Nouvel article',
+                    'title' => $linkedHike->getTitle() ?? 'Randonnée',
+                    'url' => $hikeUrl,
+                    'image' => $this->resolveMediaPath($this->getFirstHikeMedia($linkedHike)),
+                    'date' => $article->getPublishedAt(),
+                    'primary_cta' => 'Découvrir la balade',
+                    'secondary_title' => $article->getTitle() ?? 'Article associé',
+                    'secondary_url' => $url,
+                    'secondary_cta' => 'Lire l’article',
+                ];
+            }
+        }
+
+        $linkedCityVisit = $this->publicLinkedCityVisit($article);
+        if ($linkedCityVisit instanceof CityVisitDraft) {
+            $cityVisitUrl = $this->urlResolver->cityVisitUrl($linkedCityVisit);
+            if ($cityVisitUrl !== null) {
+                return [
+                    'type' => 'city_visit',
+                    'label' => 'Nouvel article',
+                    'title' => $linkedCityVisit->getTitle() ?? 'Visite de ville',
+                    'url' => $cityVisitUrl,
+                    'image' => $this->resolveMediaPath($this->getFirstCityVisitMedia($linkedCityVisit)),
+                    'date' => $article->getPublishedAt(),
+                    'primary_cta' => 'Découvrir la visite',
+                    'secondary_title' => $article->getTitle() ?? 'Article associé',
+                    'secondary_url' => $url,
+                    'secondary_cta' => 'Lire l’article',
+                ];
+            }
+        }
+
         $media = $article->getFeaturedImage() ?? $this->getFirstArticleMedia($article);
 
         return [
@@ -70,6 +115,7 @@ final readonly class HomepageLatestContentProvider
             'url' => $url,
             'image' => $this->resolveMediaPath($media),
             'date' => $article->getPublishedAt(),
+            'primary_cta' => 'Lire l’article',
         ];
     }
 
@@ -92,6 +138,7 @@ final readonly class HomepageLatestContentProvider
             'url' => $url,
             'image' => $this->resolveMediaPath($this->getFirstHikeMedia($hike)),
             'date' => $hike->getFinishedAt(),
+            'primary_cta' => 'Découvrir la balade',
         ];
     }
 
@@ -114,40 +161,74 @@ final readonly class HomepageLatestContentProvider
             'url' => $url,
             'image' => $this->resolveMediaPath($this->getFirstCityVisitMedia($cityVisit)),
             'date' => $cityVisit->getFinishedAt(),
+            'primary_cta' => 'Découvrir la visite',
         ];
+    }
+
+    private function publicLinkedHike(Article $article): ?HikeDraft
+    {
+        foreach ($article->getHikeLinks() as $link) {
+            $hike = $link->getHikeDraft();
+            if (
+                $hike instanceof HikeDraft
+                && in_array($hike->getStatus(), [HikeDraftStatus::Finished, HikeDraftStatus::Converted], true)
+            ) {
+                return $hike;
+            }
+        }
+
+        return null;
+    }
+
+    private function publicLinkedCityVisit(Article $article): ?CityVisitDraft
+    {
+        foreach ($article->getCityVisitLinks() as $link) {
+            $cityVisit = $link->getCityVisitDraft();
+            if (
+                $cityVisit instanceof CityVisitDraft
+                && in_array($cityVisit->getStatus(), [CityVisitDraftStatus::Finished, CityVisitDraftStatus::Converted], true)
+            ) {
+                return $cityVisit;
+            }
+        }
+
+        return null;
     }
 
     private function getFirstArticleMedia(Article $article): ?MediaAsset
     {
-        $firstMediaLink = $article->getMediaLinks()->first();
-
-        if ($firstMediaLink === false) {
-            return null;
+        foreach ($article->getMediaLinks() as $mediaLink) {
+            $media = $mediaLink->getMediaAsset();
+            if ($media->getMediaType() === MediaType::Image) {
+                return $media;
+            }
         }
 
-        return $firstMediaLink->getMediaAsset();
+        return null;
     }
 
     private function getFirstHikeMedia(HikeDraft $hike): ?MediaAsset
     {
-        $firstMediaLink = $hike->getMediaLinks()->first();
-
-        if ($firstMediaLink === false) {
-            return null;
+        foreach ($hike->getMediaLinks() as $mediaLink) {
+            $media = $mediaLink->getMediaAsset();
+            if ($media->getMediaType() === MediaType::Image) {
+                return $media;
+            }
         }
 
-        return $firstMediaLink->getMediaAsset();
+        return null;
     }
 
     private function getFirstCityVisitMedia(CityVisitDraft $cityVisit): ?MediaAsset
     {
-        $firstMediaLink = $cityVisit->getMediaLinks()->first();
-
-        if ($firstMediaLink === false) {
-            return null;
+        foreach ($cityVisit->getMediaLinks() as $mediaLink) {
+            $media = $mediaLink->getMediaAsset();
+            if ($media->getMediaType() === MediaType::Image) {
+                return $media;
+            }
         }
 
-        return $firstMediaLink->getMediaAsset();
+        return null;
     }
 
     private function resolveMediaPath(?MediaAsset $mediaAsset): ?string

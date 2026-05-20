@@ -6,6 +6,7 @@ use App\Entity\CityVisitDraft;
 use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\MediaAsset;
+use App\Entity\Article;
 use App\Entity\Place;
 use App\Enum\DestinationType;
 use App\Enum\ImageType;
@@ -182,6 +183,36 @@ final class MediaSeoTextService
 
     private function contentDestination(object|null $context): ?Destination
     {
+        if ($context instanceof Article) {
+            foreach ($context->getHikeLinks() as $link) {
+                $destination = $link->getHikeDraft()?->getDestination();
+                if ($destination instanceof Destination) {
+                    return $destination;
+                }
+            }
+
+            foreach ($context->getCityVisitLinks() as $link) {
+                $destination = $link->getCityVisitDraft()?->getDestination();
+                if ($destination instanceof Destination) {
+                    return $destination;
+                }
+            }
+
+            foreach ($context->getPlaceLinks() as $link) {
+                $destination = $link->getPlace()?->getDestination();
+                if ($destination instanceof Destination) {
+                    return $destination;
+                }
+            }
+
+            foreach ($context->getDestinationLinks() as $link) {
+                $destination = $link->getDestination();
+                if ($destination instanceof Destination) {
+                    return $destination;
+                }
+            }
+        }
+
         if ($context !== null && method_exists($context, 'getDestination')) {
             $destination = $context->getDestination();
 

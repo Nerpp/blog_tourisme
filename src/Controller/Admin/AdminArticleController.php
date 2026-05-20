@@ -3,16 +3,36 @@
 namespace App\Controller\Admin;
 
 use App\Entity\Article;
+use App\Entity\ArticleCityVisit;
+use App\Entity\ArticleHike;
+use App\Entity\ArticleMedia;
 use App\Entity\Category;
+use App\Entity\CityVisitDraft;
+use App\Entity\HikeDraft;
+use App\Entity\MediaAsset;
 use App\Entity\User;
 use App\Enum\ContentStatus;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
+use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CategoryRepository;
+use App\Repository\CityVisitDraftRepository;
+use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
+use App\Service\Article\ArticleContentSanitizer;
+use App\Service\ImageUploadSecurity;
+use App\Service\Media\ImageMetadataSanitizer;
+use App\Service\Media\MediaDeletionService;
+use App\Service\Media\MediaSeoTextService;
+use App\Service\Media\MediaVariantService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,9 +43,18 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 #[IsGranted(AdminAccessVoter::ACCESS)]
 final class AdminArticleController extends AbstractController
 {
+    private const UPLOAD_DIRECTORY = 'uploads/media';
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly SluggerInterface $slugger,
+        private readonly ArticleContentSanitizer $articleContentSanitizer,
+        private readonly ImageUploadSecurity $imageUploadSecurity,
+        private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
+        private readonly MediaDeletionService $mediaDeletionService,
+        private readonly MediaVariantService $mediaVariantService,
+        private readonly MediaSeoTextService $mediaSeoTextService,
+        private readonly ParameterBagInterface $parameterBag,
     ) {
     }
 
@@ -39,8 +68,12 @@ final class AdminArticleController extends AbstractController
     }
 
     #[Route('/admin/articles/new', name: 'admin_articles_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, CategoryRepository $categoryRepository): Response
-    {
+    public function new(
+        Request $request,
+        CategoryRepository $categoryRepository,
+        HikeDraftRepository $hikeDraftRepository,
+        CityVisitDraftRepository $cityVisitDraftRepository,
+    ): Response {
         $article = new Article();
 
         if ($request->isMethod('POST')) {
@@ -50,6 +83,8 @@ final class AdminArticleController extends AbstractController
 
             if ($this->updateArticleFromRequest($article, $request)) {
                 $article->setSlug($this->createUniqueSlug($article->getTitle() ?? 'article', Article::class));
+                $this->syncArticleRelations($article, $request);
+                $orphanCandidates = $this->handleArticleMediaFromRequest($article, $request);
                 $user = $this->getUser();
                 if ($user instanceof User) {
                     $article->setAuthor($user);
@@ -57,6 +92,7 @@ final class AdminArticleController extends AbstractController
 
                 $this->entityManager->persist($article);
                 $this->entityManager->flush();
+                $this->cleanupDetachedMedia($orphanCandidates);
                 $this->addFlash('success', 'Article créé.');
 
                 return $this->redirectToRoute('admin_articles_index');
@@ -65,16 +101,23 @@ final class AdminArticleController extends AbstractController
 
         return $this->render('admin/articles/form.html.twig', [
             'article' => $article,
-            'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
+            'categories' => $categoryRepository->findArticleCategories(),
+            ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository),
             'status_options' => $this->statusLabels(),
+            'role_options' => $this->roleLabels(),
             'title' => 'Nouvel article',
             'submit_label' => 'Créer l’article',
         ]);
     }
 
     #[Route('/admin/articles/{id}/edit', name: 'admin_articles_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
-    public function edit(Article $article, Request $request, CategoryRepository $categoryRepository): Response
-    {
+    public function edit(
+        Article $article,
+        Request $request,
+        CategoryRepository $categoryRepository,
+        HikeDraftRepository $hikeDraftRepository,
+        CityVisitDraftRepository $cityVisitDraftRepository,
+    ): Response {
         $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $article);
 
         if ($request->isMethod('POST')) {
@@ -83,7 +126,10 @@ final class AdminArticleController extends AbstractController
             }
 
             if ($this->updateArticleFromRequest($article, $request)) {
+                $this->syncArticleRelations($article, $request);
+                $orphanCandidates = $this->handleArticleMediaFromRequest($article, $request);
                 $this->entityManager->flush();
+                $this->cleanupDetachedMedia($orphanCandidates);
                 $this->addFlash('success', 'Article enregistré.');
 
                 return $this->redirectToRoute('admin_articles_index');
@@ -92,8 +138,10 @@ final class AdminArticleController extends AbstractController
 
         return $this->render('admin/articles/form.html.twig', [
             'article' => $article,
-            'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
+            'categories' => $categoryRepository->findArticleCategories(),
+            ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository),
             'status_options' => $this->statusLabels(),
+            'role_options' => $this->roleLabels(),
             'title' => 'Modifier l’article',
             'submit_label' => 'Enregistrer',
         ]);
@@ -126,9 +174,12 @@ final class AdminArticleController extends AbstractController
 
     private function updateArticleFromRequest(Article $article, Request $request): bool
     {
+        $previousTitle = $article->getTitle();
+        $previousStatus = $article->getStatus();
         $title = trim($request->request->getString('title'));
-        $content = trim($request->request->getString('content'));
-        if ($title === '' || $content === '') {
+        $rawContent = trim($request->request->getString('content'));
+        $content = $this->articleContentSanitizer->sanitize($rawContent);
+        if ($title === '' || $rawContent === '' || $this->plainContent($content) === '') {
             $this->addFlash('error', 'Le titre et le contenu sont obligatoires.');
 
             return false;
@@ -148,11 +199,20 @@ final class AdminArticleController extends AbstractController
             $article->setPublishedAt(new DateTimeImmutable());
         }
 
+        if (
+            $article->getId() !== null
+            && $previousStatus !== ContentStatus::Published
+            && $status !== ContentStatus::Published
+            && $title !== $previousTitle
+        ) {
+            $article->setSlug($this->createUniqueSlug($title, Article::class, $article));
+        }
+
         return true;
     }
 
     /** @param class-string $entityClass */
-    private function createUniqueSlug(string $name, string $entityClass): string
+    private function createUniqueSlug(string $name, string $entityClass, ?Article $currentArticle = null): string
     {
         $baseSlug = strtolower((string) $this->slugger->slug($name));
         $baseSlug = trim($baseSlug, '-') ?: 'contenu';
@@ -160,12 +220,406 @@ final class AdminArticleController extends AbstractController
         $suffix = 2;
         $repository = $this->entityManager->getRepository($entityClass);
 
-        while ($repository->findOneBy(['slug' => $slug]) !== null) {
+        while (($existing = $repository->findOneBy(['slug' => $slug])) !== null && (!$currentArticle instanceof Article || $existing->getId() !== $currentArticle->getId())) {
             $slug = sprintf('%s-%d', $baseSlug, $suffix);
             ++$suffix;
         }
 
         return $slug;
+    }
+
+    /**
+     * @return array{
+     *     hike_options: list<HikeDraft>,
+     *     city_visit_options: list<CityVisitDraft>,
+     *     selected_link_type: string,
+     *     selected_hike_id: ?int,
+     *     selected_city_visit_id: ?int,
+     *     selected_article_role: string
+     * }
+     */
+    private function articleRelationFormData(
+        Article $article,
+        HikeDraftRepository $hikeDraftRepository,
+        CityVisitDraftRepository $cityVisitDraftRepository,
+    ): array {
+        $hikeLinks = $article->getHikeLinks()->toArray();
+        $cityVisitLinks = $article->getCityVisitLinks()->toArray();
+        $firstHikeLink = $hikeLinks[0] ?? null;
+        $firstCityVisitLink = $cityVisitLinks[0] ?? null;
+        $selectedHike = $firstHikeLink?->getHikeDraft();
+        $selectedCityVisit = $firstCityVisitLink?->getCityVisitDraft();
+        $selectedLinkType = $selectedHike instanceof HikeDraft ? 'hike' : ($selectedCityVisit instanceof CityVisitDraft ? 'city_visit' : 'none');
+
+        return [
+            'hike_options' => $this->sortTourismContentOptions($hikeDraftRepository->findBy([], ['updatedAt' => 'DESC', 'id' => 'DESC'], 200)),
+            'city_visit_options' => $this->sortTourismContentOptions($cityVisitDraftRepository->findBy([], ['updatedAt' => 'DESC', 'id' => 'DESC'], 200)),
+            'selected_link_type' => $selectedLinkType,
+            'selected_hike_id' => $selectedHike?->getId(),
+            'selected_city_visit_id' => $selectedCityVisit?->getId(),
+            'selected_article_role' => $firstHikeLink?->getRole() ?? $firstCityVisitLink?->getRole() ?? 'related',
+        ];
+    }
+
+    private function syncArticleRelations(Article $article, Request $request): void
+    {
+        $linkType = $request->request->getString('linkedContentType', 'none');
+        $role = $this->normalizeRole($request->request->getString('articleRole', 'related'));
+
+        if ($linkType === 'hike') {
+            $this->syncHikeLinks($article, $this->nullableInt($request->request->get('linkedHike')), $role);
+            $this->syncCityVisitLinks($article, null, $role);
+
+            return;
+        }
+
+        if ($linkType === 'city_visit') {
+            $this->syncHikeLinks($article, null, $role);
+            $this->syncCityVisitLinks($article, $this->nullableInt($request->request->get('linkedCityVisit')), $role);
+
+            return;
+        }
+
+        $this->syncHikeLinks($article, null, $role);
+        $this->syncCityVisitLinks($article, null, $role);
+    }
+
+    private function syncHikeLinks(Article $article, ?int $id, string $role): void
+    {
+        $existingLink = null;
+        foreach ($article->getHikeLinks()->toArray() as $link) {
+            if ($id !== null && $link->getHikeDraft()?->getId() === $id) {
+                $existingLink = $link;
+                continue;
+            }
+
+            $article->getHikeLinks()->removeElement($link);
+        }
+
+        if ($id !== null) {
+            $hike = $this->entityManager->find(HikeDraft::class, $id);
+            if ($hike instanceof HikeDraft) {
+                $link = $existingLink instanceof ArticleHike ? $existingLink : (new ArticleHike())->setArticle($article)->setHikeDraft($hike);
+                $link->setRole($role)->setPosition(0);
+
+                if (!$article->getHikeLinks()->contains($link)) {
+                    $article->getHikeLinks()->add($link);
+                }
+            }
+        }
+    }
+
+    private function syncCityVisitLinks(Article $article, ?int $id, string $role): void
+    {
+        $existingLink = null;
+        foreach ($article->getCityVisitLinks()->toArray() as $link) {
+            if ($id !== null && $link->getCityVisitDraft()?->getId() === $id) {
+                $existingLink = $link;
+                continue;
+            }
+
+            $article->getCityVisitLinks()->removeElement($link);
+        }
+
+        if ($id !== null) {
+            $cityVisit = $this->entityManager->find(CityVisitDraft::class, $id);
+            if ($cityVisit instanceof CityVisitDraft) {
+                $link = $existingLink instanceof ArticleCityVisit ? $existingLink : (new ArticleCityVisit())->setArticle($article)->setCityVisitDraft($cityVisit);
+                $link->setRole($role)->setPosition(0);
+
+                if (!$article->getCityVisitLinks()->contains($link)) {
+                    $article->getCityVisitLinks()->add($link);
+                }
+            }
+        }
+    }
+
+    /**
+     * @template T of HikeDraft|CityVisitDraft
+     *
+     * @param list<T> $contents
+     *
+     * @return list<T>
+     */
+    private function sortTourismContentOptions(array $contents): array
+    {
+        usort($contents, function (HikeDraft|CityVisitDraft $first, HikeDraft|CityVisitDraft $second): int {
+            $firstAutomatic = $this->isAutomaticTitle($first->getTitle());
+            $secondAutomatic = $this->isAutomaticTitle($second->getTitle());
+
+            if ($firstAutomatic !== $secondAutomatic) {
+                return $firstAutomatic <=> $secondAutomatic;
+            }
+
+            return strcasecmp((string) $first->getTitle(), (string) $second->getTitle());
+        });
+
+        return $contents;
+    }
+
+    private function isAutomaticTitle(?string $title): bool
+    {
+        return preg_match('/^(Randonnée|Visite de ville) du \d{2}\/\d{2}\/\d{4}/', (string) $title) === 1;
+    }
+
+    private function normalizeRole(string $role): string
+    {
+        return array_key_exists($role, $this->roleLabels()) ? $role : 'related';
+    }
+
+    /** @return list<MediaAsset> */
+    private function handleArticleMediaFromRequest(Article $article, Request $request): array
+    {
+        $orphanCandidates = [];
+
+        if ($request->request->getBoolean('removeCover')) {
+            array_push($orphanCandidates, ...$this->removeCover($article));
+        }
+
+        foreach ($this->requestIds($request, 'removeMediaLinks') as $mediaLinkId) {
+            $candidate = $this->removeArticleMediaLink($article, $mediaLinkId);
+            if ($candidate instanceof MediaAsset) {
+                $orphanCandidates[] = $candidate;
+            }
+        }
+
+        $coverFile = $request->files->get('coverImage');
+        if ($coverFile instanceof UploadedFile && $coverFile->getSize() !== null && $coverFile->getSize() > 0) {
+            $media = $this->createArticleImageAssetFromUpload($coverFile, $article, MediaRole::Cover);
+            if ($media instanceof MediaAsset) {
+                array_push($orphanCandidates, ...$this->removeCover($article));
+                $this->attachArticleMedia($article, $media, MediaRole::Cover, 0);
+                $article->setFeaturedImage($media);
+            }
+        }
+
+        foreach ($this->normalizeUploadedFiles($request->files->get('galleryImages')) as $file) {
+            if ($file->getSize() === null || $file->getSize() <= 0) {
+                continue;
+            }
+
+            $media = $this->createArticleImageAssetFromUpload($file, $article, MediaRole::Gallery);
+            if ($media instanceof MediaAsset) {
+                $this->attachArticleMedia($article, $media, MediaRole::Gallery, $this->nextMediaPosition($article));
+            }
+        }
+
+        return $this->uniqueMediaAssets($orphanCandidates);
+    }
+
+    /** @return list<MediaAsset> */
+    private function removeCover(Article $article): array
+    {
+        $removedMedia = [];
+        foreach ($article->getMediaLinks()->toArray() as $link) {
+            if ($link->getRole() === MediaRole::Cover) {
+                $removedMedia[] = $link->getMediaAsset();
+                $article->getMediaLinks()->removeElement($link);
+                $this->entityManager->remove($link);
+            }
+        }
+
+        if ($article->getFeaturedImage() instanceof MediaAsset) {
+            $removedMedia[] = $article->getFeaturedImage();
+        }
+
+        $article->setFeaturedImage(null);
+
+        return $removedMedia;
+    }
+
+    private function removeArticleMediaLink(Article $article, int $mediaLinkId): ?MediaAsset
+    {
+        foreach ($article->getMediaLinks()->toArray() as $link) {
+            if ($link->getId() !== $mediaLinkId) {
+                continue;
+            }
+
+            $removedMedia = $link->getMediaAsset();
+            if ($link->getRole() === MediaRole::Cover) {
+                $article->setFeaturedImage(null);
+            }
+
+            $article->getMediaLinks()->removeElement($link);
+            $this->entityManager->remove($link);
+
+            return $removedMedia;
+        }
+
+        return null;
+    }
+
+    private function attachArticleMedia(Article $article, MediaAsset $media, MediaRole $role, int $position): void
+    {
+        $link = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($media)
+            ->setRole($role)
+            ->setPosition($position);
+
+        $article->getMediaLinks()->add($link);
+        $this->entityManager->persist($media);
+        $this->entityManager->persist($link);
+    }
+
+    private function nextMediaPosition(Article $article): int
+    {
+        $position = 0;
+        foreach ($article->getMediaLinks() as $link) {
+            $position = max($position, $link->getPosition() + 1);
+        }
+
+        return $position;
+    }
+
+    private function createArticleImageAssetFromUpload(UploadedFile $file, Article $article, MediaRole $role): ?MediaAsset
+    {
+        try {
+            $storedFile = $this->storeArticleImage($file, $article);
+        } catch (InvalidArgumentException $exception) {
+            $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
+
+            return null;
+        }
+
+        $caption = $role === MediaRole::Cover ? 'Image de couverture' : null;
+        $media = (new MediaAsset())
+            ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
+            ->setTitle($this->truncate($storedFile['title'], 180))
+            ->setAltText($storedFile['altText'])
+            ->setCaption($caption)
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath($storedFile['path'])
+            ->setMimeType($storedFile['mimeType'])
+            ->setFileSize($storedFile['fileSize'])
+            ->setWidth($storedFile['width'])
+            ->setHeight($storedFile['height']);
+
+        $variantResult = $this->mediaVariantService->generateForMedia($media);
+        if ($variantResult['status'] === 'error') {
+            $this->addFlash('warning', 'L’image a été ajoutée, mais ses variantes responsive n’ont pas pu être générées.');
+        }
+
+        return $media;
+    }
+
+    /**
+     * @return array{title: string, altText: string, path: string, mimeType: string, fileSize: int, width: int, height: int}
+     */
+    private function storeArticleImage(UploadedFile $file, Article $article): array
+    {
+        $inspection = $this->imageUploadSecurity->inspect($file);
+        if ($inspection['mimeType'] === 'image/gif') {
+            throw new InvalidArgumentException('les GIF ne sont pas pris en charge dans les articles pour garantir le nettoyage des métadonnées.');
+        }
+
+        $filename = sprintf(
+            '%s-%s.%s',
+            $this->mediaSeoTextService->filenameBaseForContext($article, MediaType::Image, ImageType::Standard),
+            bin2hex(random_bytes(6)),
+            $inspection['extension'],
+        );
+        $targetDirectory = $this->parameterBag->get('kernel.project_dir').'/public/'.self::UPLOAD_DIRECTORY;
+        if (!is_dir($targetDirectory)) {
+            mkdir($targetDirectory, 0775, true);
+        }
+
+        $file->move($targetDirectory, $filename);
+        $publicPath = '/'.self::UPLOAD_DIRECTORY.'/'.$filename;
+        $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath($publicPath);
+
+        return [
+            'title' => $this->mediaSeoTextService->titleForContext($article, MediaType::Image, ImageType::Standard),
+            'altText' => $this->mediaSeoTextService->altTextForContext($article, MediaType::Image, ImageType::Standard),
+            'path' => $publicPath,
+            'mimeType' => $sanitized['mimeType'],
+            'fileSize' => (int) (filesize($targetDirectory.'/'.$filename) ?: $inspection['fileSize']),
+            'width' => $sanitized['width'],
+            'height' => $sanitized['height'],
+        ];
+    }
+
+    /**
+     * @param mixed $files
+     *
+     * @return list<UploadedFile>
+     */
+    private function normalizeUploadedFiles(mixed $files): array
+    {
+        if ($files instanceof UploadedFile) {
+            return [$files];
+        }
+
+        if (!is_array($files)) {
+            return [];
+        }
+
+        return array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile));
+    }
+
+    /** @return list<int> */
+    private function requestIds(Request $request, string $key): array
+    {
+        $data = $request->request->all();
+        $values = $data[$key] ?? [];
+        if (!is_array($values)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $value): int => (int) $value, $values)));
+    }
+
+    private function plainContent(string $html): string
+    {
+        $withoutMediaTokens = preg_replace('/\[\[media:\d+\]\]/', '', $html) ?? $html;
+
+        return trim(html_entity_decode(strip_tags($withoutMediaTokens), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    }
+
+    /** @param list<MediaAsset> $orphanCandidates */
+    private function cleanupDetachedMedia(array $orphanCandidates): void
+    {
+        if ($orphanCandidates === []) {
+            return;
+        }
+
+        $this->entityManager->flush();
+        foreach ($orphanCandidates as $media) {
+            $result = $this->mediaDeletionService->deleteIfOrphan($media);
+            if ($result['deleted']) {
+                $this->addFlash('success', sprintf('Ancien média #%d supprimé car il n’était plus utilisé.', $result['mediaId']));
+            }
+        }
+
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @param list<MediaAsset> $mediaAssets
+     *
+     * @return list<MediaAsset>
+     */
+    private function uniqueMediaAssets(array $mediaAssets): array
+    {
+        $unique = [];
+        foreach ($mediaAssets as $media) {
+            $unique[spl_object_id($media)] = $media;
+        }
+
+        return array_values($unique);
+    }
+
+    /** @return array<string, string> */
+    private function roleLabels(): array
+    {
+        return [
+            'related' => 'Article lié',
+            'history' => 'Histoire',
+            'legend' => 'Légende',
+            'practical' => 'Infos pratiques',
+            'context' => 'Récit / découverte',
+        ];
     }
 
     private function nullableInt(mixed $value): ?int
@@ -182,5 +636,10 @@ final class AdminArticleController extends AbstractController
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function truncate(string $value, int $length): string
+    {
+        return mb_substr(trim($value), 0, $length);
     }
 }
