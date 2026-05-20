@@ -8,10 +8,15 @@
 /config/reference.php
 public/uploads/avatars/*
 !public/uploads/avatars/.gitkeep
+public/uploads/media/*
+!public/uploads/media/.gitkeep
+!public/uploads/media/360/
 public/uploads/media/360/*
 !public/uploads/media/360/.gitkeep
+!public/uploads/media/variants/
 public/uploads/media/variants/*
 !public/uploads/media/variants/.gitkeep
+!public/uploads/media/posters/
 public/uploads/media/posters/*
 !public/uploads/media/posters/.gitkeep
 npm-debug.log*

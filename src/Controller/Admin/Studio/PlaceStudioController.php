@@ -23,6 +23,7 @@ use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
+use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaVariantService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -54,6 +55,7 @@ final class PlaceStudioController extends AbstractController
         private readonly ParameterBagInterface $parameterBag,
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly DronePanoramaUploadService $panoramaUploadService,
+        private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
         private readonly MediaVariantService $mediaVariantService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
@@ -482,14 +484,15 @@ final class PlaceStudioController extends AbstractController
         }
 
         $file->move($targetDirectory, $filename);
+        $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath('/'.self::UPLOAD_DIRECTORY.'/'.$filename);
 
         return [
             'title' => $originalName,
             'path' => '/'.self::UPLOAD_DIRECTORY.'/'.$filename,
-            'mimeType' => $inspection['mimeType'],
-            'fileSize' => $inspection['fileSize'],
-            'width' => $inspection['width'],
-            'height' => $inspection['height'],
+            'mimeType' => $sanitized['mimeType'],
+            'fileSize' => (int) (filesize($targetDirectory.'/'.$filename) ?: $inspection['fileSize']),
+            'width' => $sanitized['width'],
+            'height' => $sanitized['height'],
         ];
     }
 

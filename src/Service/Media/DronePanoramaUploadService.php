@@ -36,6 +36,7 @@ final class DronePanoramaUploadService
     public function __construct(
         private readonly ParameterBagInterface $parameterBag,
         private readonly SluggerInterface $slugger,
+        private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
     ) {
     }
 
@@ -76,6 +77,15 @@ final class DronePanoramaUploadService
 
         $file->move($originalDirectory, $originalFilename);
         $originalFile = $originalDirectory.'/'.$originalFilename;
+        $sanitizedOriginal = $this->imageMetadataSanitizer->sanitizePublicPath(
+            self::PUBLIC_DIRECTORY.'/originals/'.$originalFilename,
+            applyOrientation: false,
+        );
+        $sourceWidth = $sanitizedOriginal['width'];
+        $sourceHeight = $sanitizedOriginal['height'];
+        $sourceMimeType = $sanitizedOriginal['mimeType'];
+        $this->assertEquirectangularDimensions($sourceWidth, $sourceHeight);
+
         $viewerFile = $baseDirectory.'/'.$viewerFilename;
         $mobileFile = $mobileDirectory.'/'.$mobileFilename;
         $thumbnailFile = $thumbnailDirectory.'/'.$thumbnailFilename;
@@ -83,44 +93,44 @@ final class DronePanoramaUploadService
         $viewerDimensions = $this->createViewerImage(
             $originalFile,
             $viewerFile,
-            $inspection['mimeType'],
-            $inspection['width'],
-            $inspection['height'],
+            $sourceMimeType,
+            $sourceWidth,
+            $sourceHeight,
             self::MAX_VIEWER_WIDTH,
         );
         $mobileDimensions = null;
-        if ($inspection['width'] > self::MOBILE_VIEWER_WIDTH) {
+        if ($sourceWidth > self::MOBILE_VIEWER_WIDTH) {
             $mobileDimensions = $this->createViewerImage(
                 $originalFile,
                 $mobileFile,
-                $inspection['mimeType'],
-                $inspection['width'],
-                $inspection['height'],
+                $sourceMimeType,
+                $sourceWidth,
+                $sourceHeight,
                 self::MOBILE_VIEWER_WIDTH,
             );
         }
         $thumbnailDimensions = $this->createThumbnail(
             $originalFile,
             $thumbnailFile,
-            $inspection['mimeType'],
-            $inspection['width'],
-            $inspection['height'],
+            $sourceMimeType,
+            $sourceWidth,
+            $sourceHeight,
         );
 
         return [
             'title' => $originalTitle,
             'path' => self::PUBLIC_DIRECTORY.'/'.$viewerFilename,
             'thumbnailPath' => self::PUBLIC_DIRECTORY.'/thumbs/'.$thumbnailFilename,
-            'mimeType' => $inspection['mimeType'],
+            'mimeType' => $sourceMimeType,
             'fileSize' => (int) (filesize($viewerFile) ?: $inspection['fileSize']),
             'width' => $viewerDimensions['width'],
             'height' => $viewerDimensions['height'],
             'projection' => 'equirectangular',
             'metadata' => [
                 'originalPath' => self::PUBLIC_DIRECTORY.'/originals/'.$originalFilename,
-                'originalWidth' => $inspection['width'],
-                'originalHeight' => $inspection['height'],
-                'originalFileSize' => $inspection['fileSize'],
+                'originalWidth' => $sourceWidth,
+                'originalHeight' => $sourceHeight,
+                'originalFileSize' => (int) (filesize($originalFile) ?: $inspection['fileSize']),
                 'viewerWidth' => $viewerDimensions['width'],
                 'viewerHeight' => $viewerDimensions['height'],
                 'mobilePath' => $mobileDimensions !== null ? self::PUBLIC_DIRECTORY.'/mobile/'.$mobileFilename : null,
@@ -128,9 +138,10 @@ final class DronePanoramaUploadService
                 'mobileHeight' => $mobileDimensions['height'] ?? null,
                 'thumbnailWidth' => $thumbnailDimensions['width'],
                 'thumbnailHeight' => $thumbnailDimensions['height'],
-                'ratio' => round($inspection['width'] / $inspection['height'], 4),
+                'ratio' => round($sourceWidth / $sourceHeight, 4),
                 'quality' => 'high',
                 'source' => 'drone_panorama_upload',
+                'metadataSanitized' => true,
             ],
         ];
     }
@@ -184,9 +195,7 @@ final class DronePanoramaUploadService
         }
 
         $ratio = $width / $height;
-        if ($ratio < self::MIN_EQUIRECTANGULAR_RATIO || $ratio > self::MAX_EQUIRECTANGULAR_RATIO) {
-            throw new InvalidArgumentException('cette image ne semble pas avoir un ratio 360° équirectangulaire. Une image 360° devrait généralement avoir une largeur environ deux fois plus grande que sa hauteur.');
-        }
+        $this->assertEquirectangularRatio($ratio);
 
         return [
             'mimeType' => $mimeType,
@@ -194,6 +203,22 @@ final class DronePanoramaUploadService
             'width' => $width,
             'height' => $height,
         ];
+    }
+
+    private function assertEquirectangularDimensions(int $width, int $height): void
+    {
+        if ($width < 1 || $height < 1 || ($width * $height) > self::MAX_PIXELS) {
+            throw new InvalidArgumentException('les dimensions de l’image 360° nettoyée sont invalides ou trop grandes.');
+        }
+
+        $this->assertEquirectangularRatio($width / $height);
+    }
+
+    private function assertEquirectangularRatio(float $ratio): void
+    {
+        if ($ratio < self::MIN_EQUIRECTANGULAR_RATIO || $ratio > self::MAX_EQUIRECTANGULAR_RATIO) {
+            throw new InvalidArgumentException('cette image ne semble pas avoir un ratio 360° équirectangulaire. Une image 360° devrait généralement avoir une largeur environ deux fois plus grande que sa hauteur.');
+        }
     }
 
     /**

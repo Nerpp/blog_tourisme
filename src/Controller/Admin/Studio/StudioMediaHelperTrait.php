@@ -109,14 +109,15 @@ trait StudioMediaHelperTrait
         }
 
         $file->move($targetDirectory, $filename);
+        $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath('/'.self::UPLOAD_DIRECTORY.'/'.$filename);
 
         return [
             'title' => $originalName,
             'path' => '/'.self::UPLOAD_DIRECTORY.'/'.$filename,
-            'mimeType' => $inspection['mimeType'],
-            'fileSize' => $inspection['fileSize'],
-            'width' => $inspection['width'],
-            'height' => $inspection['height'],
+            'mimeType' => $sanitized['mimeType'],
+            'fileSize' => (int) (filesize($targetDirectory.'/'.$filename) ?: $inspection['fileSize']),
+            'width' => $sanitized['width'],
+            'height' => $sanitized['height'],
         ];
     }
 
