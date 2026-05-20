@@ -1,0 +1,47 @@
+{% set image_size = image_size|default('thumb') %}
+{% set image_src = media_image_url(media, image_size) %}
+{% set avif_srcset = media_image_srcset(media, 'avif') %}
+{% set webp_srcset = media_image_srcset(media, 'webp') %}
+{% set fallback_srcset = media_image_srcset(media, 'fallback') %}
+{% set dimensions = media_image_dimensions(media, image_size) %}
+
+{% if image_src %}
+    <picture{% if picture_class|default(null) %} class="{{ picture_class }}"{% endif %}>
+        {% if avif_srcset %}
+            <source
+                type="image/avif"
+                srcset="{{ avif_srcset }}"
+                sizes="{{ sizes|default('100vw') }}"
+            >
+        {% endif %}
+
+        {% if webp_srcset %}
+            <source
+                type="image/webp"
+                srcset="{{ webp_srcset }}"
+                sizes="{{ sizes|default('100vw') }}"
+            >
+        {% endif %}
+
+        <img
+            src="{{ image_src }}"
+            alt="{{ alt|default('') }}"
+            loading="{{ loading|default('lazy') }}"
+            decoding="{{ decoding|default('async') }}"
+            {% if img_class|default(null) %}
+                class="{{ img_class }}"
+            {% endif %}
+            {% if fetchpriority|default(null) %}
+                fetchpriority="{{ fetchpriority }}"
+            {% endif %}
+            {% if fallback_srcset %}
+                srcset="{{ fallback_srcset }}"
+                sizes="{{ sizes|default('100vw') }}"
+            {% endif %}
+            {% if dimensions %}
+                width="{{ dimensions.width }}"
+                height="{{ dimensions.height }}"
+            {% endif %}
+        >
+    </picture>
+{% endif %}

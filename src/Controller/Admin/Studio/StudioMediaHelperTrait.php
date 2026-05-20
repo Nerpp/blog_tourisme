@@ -49,7 +49,7 @@ trait StudioMediaHelperTrait
             return null;
         }
 
-        return (new MediaAsset())
+        $media = (new MediaAsset())
             ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
             ->setTitle($this->truncate($storedFile['title'], 180))
             ->setCaption($this->nullIfBlank($caption))
@@ -63,6 +63,13 @@ trait StudioMediaHelperTrait
             ->setHeight($storedFile['height'])
             ->setProjection($storedFile['projection'] ?? null)
             ->setMetadata($storedFile['metadata'] ?? null);
+
+        $variantResult = $this->mediaVariantService->generateForMedia($media);
+        if ($variantResult['status'] === 'error') {
+            $this->addFlash('warning', 'L’image a été ajoutée, mais ses variantes responsive n’ont pas pu être générées.');
+        }
+
+        return $media;
     }
 
     private function createVideoAssetFromRequest(Request $request): ?MediaAsset

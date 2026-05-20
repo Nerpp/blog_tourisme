@@ -9,6 +9,7 @@ use App\Enum\MediaType;
 use App\Enum\VideoType;
 use App\Repository\MediaAssetRepository;
 use App\Security\Voter\AdminAccessVoter;
+use App\Service\Media\MediaVariantService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -22,6 +23,7 @@ final class AdminMediaController extends AbstractController
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
+        private readonly MediaVariantService $mediaVariantService,
     ) {
     }
 
@@ -51,6 +53,7 @@ final class AdminMediaController extends AbstractController
             if ($user instanceof User) {
                 $media->setUploadedBy($user);
             }
+            $this->mediaVariantService->generateForMedia($media, true);
 
             $this->entityManager->persist($media);
             $this->entityManager->flush();
@@ -70,7 +73,12 @@ final class AdminMediaController extends AbstractController
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
             }
 
+            $previousFilePath = $media->getFilePath();
+            $previousThumbnailPath = $media->getThumbnailPath();
             $this->updateMediaFromRequest($media, $request);
+            $forceVariants = $previousFilePath !== $media->getFilePath()
+                || $previousThumbnailPath !== $media->getThumbnailPath();
+            $this->mediaVariantService->generateForMedia($media, $forceVariants);
             $this->entityManager->flush();
             $this->addFlash('success', 'Média enregistré.');
 

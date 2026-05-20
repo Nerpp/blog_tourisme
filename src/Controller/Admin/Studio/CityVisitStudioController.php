@@ -20,6 +20,7 @@ use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
+use App\Service\Media\MediaVariantService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -47,6 +48,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly ParameterBagInterface $parameterBag,
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly DronePanoramaUploadService $panoramaUploadService,
+        private readonly MediaVariantService $mediaVariantService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }

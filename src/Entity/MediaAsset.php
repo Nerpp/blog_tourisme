@@ -79,6 +79,9 @@ class MediaAsset
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $metadata = null;
 
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $variants = null;
+
     /** @var Collection<int, Article> */
     #[ORM\OneToMany(mappedBy: 'featuredImage', targetEntity: Article::class)]
     private Collection $featuredArticles;
@@ -336,6 +339,18 @@ class MediaAsset
     public function setMetadata(?array $metadata): static
     {
         $this->metadata = $metadata;
+
+        return $this;
+    }
+
+    public function getVariants(): ?array
+    {
+        return $this->variants;
+    }
+
+    public function setVariants(?array $variants): static
+    {
+        $this->variants = $variants;
 
         return $this;
     }

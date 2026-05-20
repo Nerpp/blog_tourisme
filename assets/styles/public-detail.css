@@ -208,6 +208,7 @@
   min-height: 500px;
 }
 
+.journey-gallery-card picture,
 .journey-gallery-card img,
 .journey-gallery-card video {
   display: block;
@@ -503,9 +504,14 @@
   text-align: center;
 }
 
-.trail-panorama-fallback img {
+.trail-panorama-fallback picture {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.trail-panorama-fallback img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -736,6 +742,7 @@
   background: #dbe6dd;
 }
 
+.point-media-card picture,
 .point-media-card img,
 .point-media-card video {
   display: block;

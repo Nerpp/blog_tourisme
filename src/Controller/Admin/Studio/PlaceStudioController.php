@@ -23,6 +23,7 @@ use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
+use App\Service\Media\MediaVariantService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -53,6 +54,7 @@ final class PlaceStudioController extends AbstractController
         private readonly ParameterBagInterface $parameterBag,
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly DronePanoramaUploadService $panoramaUploadService,
+        private readonly MediaVariantService $mediaVariantService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
@@ -136,6 +138,11 @@ final class PlaceStudioController extends AbstractController
                 ->setHeight($storedFile['height'])
                 ->setProjection($storedFile['projection'] ?? null)
                 ->setMetadata($storedFile['metadata'] ?? null);
+
+            $variantResult = $this->mediaVariantService->generateForMedia($media);
+            if ($variantResult['status'] === 'error') {
+                $this->addFlash('warning', sprintf('Image "%s" ajoutée, mais variantes responsive non générées.', $file->getClientOriginalName()));
+            }
 
             $placeMedia = (new PlaceMedia())
                 ->setPlace($place)

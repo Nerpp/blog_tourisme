@@ -13,15 +13,14 @@
 {% set cover_image = null %}
 
 {% if cover_media %}
-    {% set cover_image = cover_media.thumbnailPath ?: cover_media.filePath ?: cover_media.externalUrl %}
+    {% set cover_image = media_image_url(cover_media, 'large') %}
 {% endif %}
 
 {% block title %}{{ hike.title }} - Randonnée{% endblock %}
 
 {% block preloads %}
-    {% if cover_media %}
-        {% set cover_image_url = cover_image starts with 'http' ? cover_image : asset(cover_image) %}
-        <link rel="preload" as="image" href="{{ cover_image_url }}">
+    {% if cover_image %}
+        <link rel="preload" as="image" href="{{ cover_image }}">
     {% endif %}
 {% endblock %}
 
@@ -59,11 +58,7 @@
                 <div
                     class="public-detail-cover"
                     {% if cover_image %}
-                        {% set cover_image_url = cover_image starts with 'http'
-                            ? cover_image
-                            : asset(cover_image)
-                        %}
-                        style="--public-cover-image: url('{{ cover_image_url|e('html_attr') }}');"
+                        style="--public-cover-image: url('{{ cover_image|e('html_attr') }}');"
                     {% endif %}
                     aria-label="Image principale de la randonnée"
                 ></div>

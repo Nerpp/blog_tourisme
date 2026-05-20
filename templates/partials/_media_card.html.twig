@@ -11,7 +11,10 @@
     }[image_type]|default('Image'))
 %}
 {% set is_demo_file = media.filePath and media.filePath starts with '/uploads/demo/' %}
-{% set image_path = media.thumbnailPath ?: (image_type == 'standard' ? media.filePath : null) %}
+{% set image_path = media_image_url(media, 'thumb') %}
+{% if image_type != 'standard' and not media.thumbnailPath and not media.variants %}
+    {% set image_path = null %}
+{% endif %}
 {% set is_demo_image = image_path and image_path starts with '/uploads/demo/' %}
 
 <article class="media-card" data-media-type="{{ type }}" {% if image_type %}data-image-type="{{ image_type }}"{% endif %}>
@@ -20,15 +23,22 @@
 
         {% if type == 'image' %}
             {% if image_path and not is_demo_image %}
-                <img src="{{ image_path }}" alt="{{ media.altText ?: media.title ?: 'Media touristique' }}" loading="lazy">
+                {% include 'public_detail/_responsive_image.html.twig' with {
+                    media: media,
+                    alt: media.altText ?: media.title ?: 'Media touristique',
+                    image_size: 'thumb',
+                    sizes: '(min-width: 900px) 280px, 100vw'
+                } only %}
             {% else %}
                 <div class="media-placeholder" role="img" aria-label="{{ media.altText ?: media.title ?: 'Image de demonstration' }}">
                     <span>{{ badge }}</span>
                 </div>
             {% endif %}
         {% elseif type == 'video' %}
-            {% if media.thumbnailPath and not (media.thumbnailPath starts with '/uploads/demo/') %}
-                <img src="{{ media.thumbnailPath }}" alt="{{ media.altText ?: media.title ?: 'Video touristique' }}" loading="lazy">
+            {% set poster_url = media_poster_url(media, 'thumb') %}
+
+            {% if poster_url and not (poster_url starts with '/uploads/demo/') %}
+                <img src="{{ poster_url }}" alt="{{ media.altText ?: media.title ?: 'Video touristique' }}" loading="lazy" decoding="async">
             {% else %}
                 <div class="media-placeholder media-placeholder-video" role="img" aria-label="{{ media.altText ?: media.title ?: 'Vidéo de demonstration' }}">
                     <span>Vidéo</span>

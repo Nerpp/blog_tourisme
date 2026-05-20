@@ -57,10 +57,10 @@
                 {% set media = mediaLink.mediaAsset %}
 
                 {% if media %}
-                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                    {% set image_url = media_image_url(media, 'thumb') %}
 
-                    {% if image %}
-                        {% set image_url = image starts with 'http' ? image : asset(image) %}
+                    {% if image_url %}
+                        {% set card_sizes = loop.first ? '(min-width: 900px) 50vw, 90vw' : '(min-width: 900px) 25vw, 45vw' %}
 
                         <figure class="journey-gallery-card {{ loop.first ? 'journey-gallery-card--large' : '' }}">
                             <button
@@ -72,16 +72,12 @@
                                 Photo
                             </button>
 
-                            <img
-                                src="{{ image_url }}"
-                                alt="{{ media.altText ?: media.title ?: item_title }}"
-                                loading="lazy"
-                                decoding="async"
-                                {% if media.width and media.height %}
-                                    width="{{ media.width }}"
-                                    height="{{ media.height }}"
-                                {% endif %}
-                            >
+                            {% include 'public_detail/_responsive_image.html.twig' with {
+                                media: media,
+                                alt: media.altText ?: media.title ?: item_title,
+                                image_size: loop.first ? 'medium' : 'thumb',
+                                sizes: card_sizes
+                            } only %}
 
                             {% if loop.index == 5 and standard_media_links|length > 5 %}
                                 <span class="journey-gallery-card__more">
@@ -145,10 +141,9 @@
                         {% set media = mediaLink.mediaAsset %}
 
                         {% if media %}
-                            {% set image = media.filePath ?: media.externalUrl ?: media.thumbnailPath %}
+                            {% set image_url = media_modal_url(media) %}
 
-                            {% if image %}
-                                {% set image_url = image starts with 'http' ? image : asset(image) %}
+                            {% if image_url %}
                                 {% set has_caption = media.caption is not empty %}
 
                                 <article class="gallery-modal__slide js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
@@ -212,7 +207,7 @@
                     {% set local_video = media.filePath %}
                     {% set embed_url = media|video_embed_url %}
                     {% set external_video = media.externalUrl %}
-                    {% set poster = media.thumbnailPath %}
+                    {% set poster_url = media_poster_url(media, 'medium') %}
 
                     {% if embed_url or local_video or external_video %}
                         <article class="video-card">
@@ -233,8 +228,7 @@
                                         controls
                                         playsinline
                                         preload="metadata"
-                                        {% if poster %}
-                                            {% set poster_url = poster starts with 'http' ? poster : asset(poster) %}
+                                        {% if poster_url %}
                                             poster="{{ poster_url }}"
                                         {% endif %}
                                     >
@@ -291,14 +285,13 @@
 
                 {% if media %}
                     {% set is_360 = media.imageType and media.imageType.value == '360' %}
-                    {% set preview = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                    {% set preview_url = media_image_url(media, 'medium') %}
                     {% set panorama = media.filePath ?: media.externalUrl %}
                     {% set mobile_panorama = media.metadata and media.metadata.mobilePath is defined ? media.metadata.mobilePath : null %}
 
                     {% if is_360 and panorama %}
                         {% set panorama_url = panorama starts with 'http' ? panorama : asset(panorama) %}
                         {% set mobile_panorama_url = mobile_panorama ? (mobile_panorama starts with 'http' ? mobile_panorama : asset(mobile_panorama)) : null %}
-                        {% set preview_url = preview ? (preview starts with 'http' ? preview : asset(preview)) : null %}
 
                         <article class="trail-panorama-card">
                             <div class="trail-panorama-card__meta">
@@ -319,16 +312,12 @@
                             >
                                 <div class="trail-panorama-fallback" data-panorama-fallback>
                                     {% if preview_url %}
-                                        <img
-                                            src="{{ preview_url }}"
-                                            alt="{{ media.altText ?: media.title ?: 'Aperçu du panorama 360' }}"
-                                            loading="lazy"
-                                            decoding="async"
-                                            {% if media.width and media.height %}
-                                                width="{{ media.width }}"
-                                                height="{{ media.height }}"
-                                            {% endif %}
-                                        >
+                                        {% include 'public_detail/_responsive_image.html.twig' with {
+                                            media: media,
+                                            alt: media.altText ?: media.title ?: 'Aperçu du panorama 360',
+                                            image_size: 'medium',
+                                            sizes: '100vw'
+                                        } only %}
                                     {% endif %}
                                     <p data-panorama-fallback-message>La vue 360° n’est pas disponible sur cet appareil, mais vous pouvez consulter l’image en aperçu.</p>
                                 </div>
@@ -341,9 +330,7 @@
                                 </noscript>
                             {% endif %}
                         </article>
-                    {% elseif preview %}
-                        {% set preview_url = preview starts with 'http' ? preview : asset(preview) %}
-
+                    {% elseif preview_url %}
                         <a
                             class="immersive-card"
                             href="{{ preview_url }}"
@@ -379,11 +366,9 @@
                 {% set media = mediaLink.mediaAsset %}
 
                 {% if media %}
-                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                    {% set image_url = media_image_url(media, 'large') %}
 
-                    {% if image %}
-                        {% set image_url = image starts with 'http' ? image : asset(image) %}
-
+                    {% if image_url %}
                         <article
                             class="panorama-card"
                             style="--panorama-image: url('{{ image_url|e('html_attr') }}');"
@@ -500,26 +485,20 @@
                                 {% set media = pointMediaLink.mediaAsset %}
 
                                 {% if media %}
-                                    {% set image = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                                    {% set image_url = media_image_url(media, 'thumb') %}
 
-                                    {% if image and media.mediaType.value == 'image' %}
-                                        {% set image_url = image starts with 'http' ? image : asset(image) %}
-
+                                    {% if image_url and media.mediaType.value == 'image' %}
                                         <figure class="point-media-card">
                                             {% if media.imageType and media.imageType.value in ['360', '180'] %}
                                                 <span class="point-media-card__badge">{{ media.imageType.value == '360' ? '360°' : '180°' }}</span>
                                             {% endif %}
 
-                                            <img
-                                                src="{{ image_url }}"
-                                                alt="{{ media.altText ?: media.title ?: point.title ?: item_title }}"
-                                                loading="lazy"
-                                                decoding="async"
-                                                {% if media.width and media.height %}
-                                                    width="{{ media.width }}"
-                                                    height="{{ media.height }}"
-                                                {% endif %}
-                                            >
+                                            {% include 'public_detail/_responsive_image.html.twig' with {
+                                                media: media,
+                                                alt: media.altText ?: media.title ?: point.title ?: item_title,
+                                                image_size: 'thumb',
+                                                sizes: '(min-width: 760px) 240px, 45vw'
+                                            } only %}
 
                                             {% if media.caption or media.title %}
                                                 <figcaption>{{ media.caption ?: media.title }}</figcaption>

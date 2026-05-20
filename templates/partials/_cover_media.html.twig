@@ -21,12 +21,25 @@
     {% endif %}
 {% endif %}
 
-{% set cover_path = cover_media ? (cover_media.thumbnailPath ?: (cover_media.imageType and cover_media.imageType.value == 'standard' ? cover_media.filePath : null)) : null %}
+{% set cover_path = cover_media ? media_image_url(cover_media, 'thumb') : null %}
+{% if cover_media
+    and cover_media.imageType
+    and cover_media.imageType.value != 'standard'
+    and not cover_media.thumbnailPath
+    and not cover_media.variants
+%}
+    {% set cover_path = null %}
+{% endif %}
 {% set is_demo_file = cover_path and cover_path starts with '/uploads/demo/' %}
 
 <div class="cover-media">
     {% if cover_media and cover_path and not is_demo_file %}
-        <img src="{{ cover_path }}" alt="{{ cover_media.altText ?: cover_media.title ?: 'Image de couverture' }}" loading="lazy">
+        {% include 'public_detail/_responsive_image.html.twig' with {
+            media: cover_media,
+            alt: cover_media.altText ?: cover_media.title ?: 'Image de couverture',
+            image_size: 'thumb',
+            sizes: '(min-width: 900px) 360px, 100vw'
+        } only %}
         {% if cover_is_special and cover_media.imageType %}
             <span class="cover-media__badge">{{ cover_media.imageType.value == '360' ? '360°' : (cover_media.imageType.value == '180' ? '180°' : 'Panorama') }}</span>
         {% endif %}

@@ -16,7 +16,6 @@ final class DronePanoramaUploadService
     private const MAX_VIEWER_WIDTH = 8192;
     private const MOBILE_VIEWER_WIDTH = 4096;
     private const THUMBNAIL_WIDTH = 1280;
-    private const THUMBNAIL_HEIGHT = 720;
     private const MIN_EQUIRECTANGULAR_RATIO = 1.9;
     private const MAX_EQUIRECTANGULAR_RATIO = 2.1;
 
@@ -240,22 +239,8 @@ final class DronePanoramaUploadService
      */
     private function createThumbnail(string $sourceFile, string $targetFile, string $mimeType, int $sourceWidth, int $sourceHeight): array
     {
-        $targetWidth = self::THUMBNAIL_WIDTH;
-        $targetHeight = self::THUMBNAIL_HEIGHT;
-        $targetRatio = $targetWidth / $targetHeight;
-        $sourceRatio = $sourceWidth / $sourceHeight;
-
-        if ($sourceRatio > $targetRatio) {
-            $cropHeight = $sourceHeight;
-            $cropWidth = (int) round($sourceHeight * $targetRatio);
-            $cropX = (int) round(($sourceWidth - $cropWidth) / 2);
-            $cropY = 0;
-        } else {
-            $cropWidth = $sourceWidth;
-            $cropHeight = (int) round($sourceWidth / $targetRatio);
-            $cropX = 0;
-            $cropY = (int) round(($sourceHeight - $cropHeight) / 2);
-        }
+        $targetWidth = min($sourceWidth, self::THUMBNAIL_WIDTH);
+        $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
 
         $sourceImage = $this->createImage($sourceFile, $mimeType);
         $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
@@ -265,12 +250,12 @@ final class DronePanoramaUploadService
             $sourceImage,
             0,
             0,
-            $cropX,
-            $cropY,
+            0,
+            0,
             $targetWidth,
             $targetHeight,
-            $cropWidth,
-            $cropHeight,
+            $sourceWidth,
+            $sourceHeight,
         );
 
         $this->saveImage($targetImage, $targetFile, $mimeType);
