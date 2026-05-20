@@ -77,11 +77,36 @@ class ArticleRepository extends ServiceEntityRepository
     private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder
     {
         return $this->createQueryBuilder('a')
-            ->addSelect('category', 'featuredImage', 'destinationLinks', 'destinations', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags')
+            ->addSelect(
+                'category',
+                'featuredImage',
+                'destinationLinks',
+                'destinations',
+                'placeLinks',
+                'places',
+                'hikeLinks',
+                'hikes',
+                'hikeDestinations',
+                'cityVisitLinks',
+                'cityVisits',
+                'cityVisitDestinations',
+                'mediaLinks',
+                'mediaAssets',
+                'tagLinks',
+                'tags',
+            )
             ->leftJoin('a.category', 'category')
             ->leftJoin('a.featuredImage', 'featuredImage')
             ->leftJoin('a.destinationLinks', 'destinationLinks')
             ->leftJoin('destinationLinks.destination', 'destinations')
+            ->leftJoin('a.placeLinks', 'placeLinks')
+            ->leftJoin('placeLinks.place', 'places')
+            ->leftJoin('a.hikeLinks', 'hikeLinks')
+            ->leftJoin('hikeLinks.hikeDraft', 'hikes')
+            ->leftJoin('hikes.destination', 'hikeDestinations')
+            ->leftJoin('a.cityVisitLinks', 'cityVisitLinks')
+            ->leftJoin('cityVisitLinks.cityVisitDraft', 'cityVisits')
+            ->leftJoin('cityVisits.destination', 'cityVisitDestinations')
             ->leftJoin('a.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
             ->leftJoin('a.tagLinks', 'tagLinks')

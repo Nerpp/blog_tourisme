@@ -1,0 +1,21 @@
+{% set entries = entries|default([]) %}
+{% set admin_subject = admin_subject|default(null) %}
+{% set admin_edit_path = admin_edit_path|default(null) %}
+
+<nav class="section-nav" aria-label="Navigation de la page">
+    <div class="section-nav__links">
+        {% for entry in entries %}
+            <a href="{{ entry.href }}" class="section-nav__link">
+                {{ entry.label }}
+            </a>
+        {% endfor %}
+    </div>
+
+    {% if admin_subject and admin_edit_path and is_granted('EDIT', admin_subject) %}
+        <div class="section-nav__admin">
+            <a href="{{ admin_edit_path }}" class="section-nav__admin-link">
+                Modifier
+            </a>
+        </div>
+    {% endif %}
+</nav>

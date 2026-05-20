@@ -1,22 +1,196 @@
 {% extends 'base.html.twig' %}
 
 {% block title %}Articles tourisme - Blog Tourisme{% endblock %}
-{% block meta_description %}Tous les articles publies : itineraires, conseils voyage et idees de decouverte pour preparer vos visites.{% endblock %}
+{% block meta_description %}Tous les articles publiés : itinéraires, conseils voyage et idées de découverte pour préparer vos visites.{% endblock %}
 
 {% block body %}
-    <main class="page-shell">
-        <header class="page-header">
-            <p class="eyebrow">Articles</p>
-            <h1>Itineraires et conseils voyage</h1>
-            <p>Retrouvez les derniers contenus publies, leurs destinations associees et les conseils pour preparer vos visites.</p>
-        </header>
+    {% set role_labels = {
+        related: 'Article lié',
+        history: 'Histoire',
+        legend: 'Légende',
+        practical: 'Infos pratiques',
+        context: 'Récit',
+        seo: 'Pour aller plus loin'
+    } %}
 
-        <div class="card-grid">
-            {% for article in articles %}
-                {% include 'partials/_article_card.html.twig' with { article: article } only %}
-            {% else %}
-                <p>Aucun article publie pour le moment.</p>
-            {% endfor %}
-        </div>
+    <main class="article-index-page">
+        <section class="article-index-hero">
+            <div class="article-index-shell article-index-hero__inner">
+                <div class="article-index-hero__content">
+                    <p class="article-index-kicker">Articles</p>
+                    <h1>Itinéraires et conseils voyage</h1>
+                    <p>
+                        Retrouvez les derniers contenus publiés, leurs destinations associées
+                        et les conseils pour préparer vos visites.
+                    </p>
+                </div>
+
+                <section class="article-index-search js-article-search" aria-label="Recherche d'articles">
+                    <label for="article-search-input">Rechercher dans les articles</label>
+                    <div class="article-index-search__field">
+                        <input
+                            id="article-search-input"
+                            class="js-article-search-input"
+                            type="search"
+                            autocomplete="off"
+                            placeholder="Rechercher un article, une balade, une ville…"
+                            aria-autocomplete="list"
+                            aria-controls="article-search-suggestions"
+                        >
+                        <button class="js-article-search-reset" type="button" hidden>Réinitialiser</button>
+                    </div>
+
+                    <div
+                        id="article-search-suggestions"
+                        class="article-index-search__suggestions js-article-search-suggestions"
+                        role="listbox"
+                        hidden
+                    ></div>
+
+                    <div class="article-index-search__filters" aria-label="Filtres rapides">
+                        <button type="button" class="js-article-query" data-article-query="">Tous</button>
+                        <button type="button" class="js-article-query" data-article-query="patrimoine">Patrimoine</button>
+                        <button type="button" class="js-article-query" data-article-query="nature">Nature</button>
+                        <button type="button" class="js-article-query" data-article-query="conseil voyage">Conseil voyage</button>
+                        <button type="button" class="js-article-query" data-article-query="itinéraire">Itinéraire</button>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <section class="article-index-shell article-index-results" aria-live="polite">
+            <div class="article-index-section-heading">
+                <div>
+                    <p class="article-index-kicker">Dernières publications</p>
+                    <h2>Guides, récits et histoires locales</h2>
+                </div>
+                <span class="article-index-count js-article-search-count">
+                    {{ articles|length }} article{{ articles|length > 1 ? 's' : '' }}
+                </span>
+            </div>
+
+            <p class="article-index-empty js-article-search-empty" hidden>Aucun article trouvé.</p>
+
+            <div class="article-index-grid">
+                {% for article in articles %}
+                    {% set article_url = path('app_article_show', { slug: article.slug }) %}
+                    {% set category_label = article.category ? article.category.name : 'Article' %}
+                    {% set public_hike_links = article.hikeLinks|filter(link => link.hikeDraft and link.hikeDraft.status.value in ['finished', 'converted']) %}
+                    {% set public_city_visit_links = article.cityVisitLinks|filter(link => link.cityVisitDraft and link.cityVisitDraft.status.value in ['finished', 'converted']) %}
+                    {% set primary_hike_link = public_hike_links|length > 0 ? public_hike_links|first : null %}
+                    {% set primary_city_visit_link = public_city_visit_links|length > 0 ? public_city_visit_links|first : null %}
+                    {% set role = primary_hike_link ? primary_hike_link.role : (primary_city_visit_link ? primary_city_visit_link.role : null) %}
+                    {% set role_label = role ? role_labels[role]|default(null) : null %}
+                    {% set related_title = null %}
+                    {% set related_kind = null %}
+                    {% set related_destination = null %}
+
+                    {% if primary_hike_link %}
+                        {% set related_kind = 'Balade' %}
+                        {% set related_title = primary_hike_link.hikeDraft.title %}
+                        {% set related_destination = primary_hike_link.hikeDraft.destination
+                            ? primary_hike_link.hikeDraft.destination.name
+                            : primary_hike_link.hikeDraft.detectedCommuneName
+                        %}
+                    {% elseif primary_city_visit_link %}
+                        {% set related_kind = 'Visite' %}
+                        {% set related_title = primary_city_visit_link.cityVisitDraft.title %}
+                        {% set related_destination = primary_city_visit_link.cityVisitDraft.destination
+                            ? primary_city_visit_link.cityVisitDraft.destination.name
+                            : primary_city_visit_link.cityVisitDraft.detectedCommuneName
+                        %}
+                    {% elseif article.destinationLinks|length > 0 %}
+                        {% set related_kind = 'Destination' %}
+                        {% set related_title = (article.destinationLinks|first).destination.name %}
+                    {% elseif article.placeLinks|length > 0 %}
+                        {% set related_kind = 'Lieu' %}
+                        {% set related_title = (article.placeLinks|first).place.name %}
+                    {% endif %}
+
+                    {% set cover_media = article.featuredImage %}
+                    {% if not cover_media %}
+                        {% set image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+                        {% if image_links|length > 0 %}
+                            {% set cover_media = (image_links|first).mediaAsset %}
+                        {% endif %}
+                    {% endif %}
+
+                    {% set search_text %}
+                        {{ article.title }}
+                        {{ article.excerpt }}
+                        {{ category_label }}
+                        {{ role_label }}
+                        {{ related_kind }}
+                        {{ related_title }}
+                        {{ related_destination }}
+                    {% endset %}
+
+                    <article
+                        class="article-list-card js-article-card"
+                        data-article-card
+                        data-title="{{ article.title|e('html_attr') }}"
+                        data-url="{{ article_url }}"
+                        data-meta="{{ category_label|e('html_attr') }}"
+                        data-linked="{{ related_title ? related_title|e('html_attr') : '' }}"
+                        data-search="{{ search_text|striptags|trim|e('html_attr') }}"
+                    >
+                        <a class="article-list-card__visual" href="{{ article_url }}" aria-label="Lire {{ article.title }}">
+                            {% if cover_media %}
+                                {% include 'public_detail/_responsive_image.html.twig' with {
+                                    media: cover_media,
+                                    alt: media_public_alt(cover_media, article, article.title),
+                                    image_size: 'medium',
+                                    sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
+                                    img_class: 'article-list-card__image'
+                                } only %}
+                            {% else %}
+                                <div class="article-list-card__placeholder" role="img" aria-label="Image d'article non disponible">
+                                    <span>Article</span>
+                                </div>
+                            {% endif %}
+                        </a>
+
+                        <div class="article-list-card__body">
+                            <div class="article-list-card__badges">
+                                <span>{{ category_label }}</span>
+                                {% if role_label and role != 'seo' %}
+                                    <span>{{ role_label }}</span>
+                                {% endif %}
+                            </div>
+
+                            {% if article.publishedAt %}
+                                <time datetime="{{ article.publishedAt|date('Y-m-d') }}">
+                                    {{ article.publishedAt|date('d/m/Y') }}
+                                </time>
+                            {% endif %}
+
+                            <h3>
+                                <a href="{{ article_url }}">{{ article.title }}</a>
+                            </h3>
+
+                            {% if article.excerpt %}
+                                <p>
+                                    {{ article.excerpt|length > 150
+                                        ? article.excerpt|slice(0, 150) ~ '…'
+                                        : article.excerpt
+                                    }}
+                                </p>
+                            {% endif %}
+
+                            {% if related_title %}
+                                <p class="article-list-card__related">
+                                    Article lié à {{ related_kind|lower }} {{ related_title }}
+                                    {% if related_destination %} — {{ related_destination }}{% endif %}
+                                </p>
+                            {% endif %}
+
+                            <a class="article-list-card__cta" href="{{ article_url }}">Lire l'article</a>
+                        </div>
+                    </article>
+                {% else %}
+                    <p class="article-index-empty">Aucun article publié pour le moment.</p>
+                {% endfor %}
+            </div>
+        </section>
     </main>
 {% endblock %}

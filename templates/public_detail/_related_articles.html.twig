@@ -1,6 +1,7 @@
 {% set article_links = article_links|default([]) %}
 {% set section_title = section_title|default('Pour aller plus loin') %}
 {% set modal_id_prefix = modal_id_prefix|default('related-article') %}
+{% set section_id = section_id|default(null) %}
 {% set role_labels = {
     related: 'Article lié',
     history: 'Histoire',
@@ -18,7 +19,7 @@
 {% endfor %}
 
 {% if published_article_links|length > 0 %}
-    <section class="related-articles-section">
+    <section{% if section_id %} id="{{ section_id }}"{% endif %} class="related-articles-section">
         <div class="media-header">
             <div>
                 <p class="media-kicker">Lecture</p>

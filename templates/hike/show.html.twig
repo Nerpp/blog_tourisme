@@ -33,15 +33,6 @@
 
                     <h1 class="public-detail-title">{{ hike.title }}</h1>
 
-                    {% if is_granted('EDIT', hike) %}
-                        <div class="show-admin-actions">
-                            <a
-                                href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}"
-                                class="show-admin-edit-link"
-                            >Modifier</a>
-                        </div>
-                    {% endif %}
-
                     {% if hike.notes %}
                         <p class="public-detail-intro">{{ hike.notes|nl2br }}</p>
                     {% endif %}
@@ -67,25 +58,44 @@
 
         <section class="public-detail-content">
             <div class="public-detail-container">
-                {% include 'public_detail/_media_sections.html.twig' with {
-                    item: hike,
-                    item_title: hike.title,
-                    gallery_id: 'hike-gallery-' ~ hike.id,
-                    photos_title: 'Photos du parcours',
-                    photos_description: 'Les images classiques du lieu, utiles pour ressentir l’ambiance générale de la balade.',
-                    video_kicker: 'Drone',
-                    videos_title: 'Vidéos aériennes',
-                    videos_description: 'Les vidéos prises pendant l’exploration permettent de visualiser le relief, les accès et l’ambiance du site.',
-                    video_fallback_title: 'Vidéo du parcours',
-                    points_title: 'Étapes de la randonnée',
-                    gps_point_type: 'hike'
-                } only %}
+                {% set gallery_id = 'hike-gallery-' ~ hike.id %}
 
-                {% include 'public_detail/_related_articles.html.twig' with {
-                    article_links: hike.articleLinks,
-                    section_title: 'Autour de cette balade',
-                    modal_id_prefix: 'hike-related-article-' ~ hike.id
-                } only %}
+                <div class="public-detail-layout">
+                    {% include 'public_detail/_section_nav.html.twig' with {
+                        entries: [
+                            { label: 'Photos', href: '#' ~ gallery_id ~ '-photos' },
+                            { label: 'Vidéos', href: '#' ~ gallery_id ~ '-videos' },
+                            { label: 'Immersion', href: '#' ~ gallery_id ~ '-immersive' },
+                            { label: 'Itinéraire', href: '#' ~ gallery_id ~ '-points' },
+                            { label: 'Articles', href: '#hike-related-articles-' ~ hike.id }
+                        ],
+                        admin_subject: hike,
+                        admin_edit_path: path('admin_studio_hike_edit', { id: hike.id })
+                    } only %}
+
+                    <div class="public-detail-main">
+                        {% include 'public_detail/_media_sections.html.twig' with {
+                            item: hike,
+                            item_title: hike.title,
+                            gallery_id: gallery_id,
+                            photos_title: 'Photos du parcours',
+                            photos_description: 'Les images classiques du lieu, utiles pour ressentir l’ambiance générale de la balade.',
+                            video_kicker: 'Drone',
+                            videos_title: 'Vidéos aériennes',
+                            videos_description: 'Les vidéos prises pendant l’exploration permettent de visualiser le relief, les accès et l’ambiance du site.',
+                            video_fallback_title: 'Vidéo du parcours',
+                            points_title: 'Étapes de la randonnée',
+                            gps_point_type: 'hike'
+                        } only %}
+
+                        {% include 'public_detail/_related_articles.html.twig' with {
+                            article_links: hike.articleLinks,
+                            section_title: 'Autour de cette balade',
+                            modal_id_prefix: 'hike-related-article-' ~ hike.id,
+                            section_id: 'hike-related-articles-' ~ hike.id
+                        } only %}
+                    </div>
+                </div>
             </div>
         </section>
     </main>

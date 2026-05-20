@@ -3,18 +3,21 @@ import './styles/home.css';
 import './styles/navbar.css';
 import './styles/public-detail.css';
 import './styles/destination.css';
+import './styles/article-index.css';
 
 import { initNavbar } from './js/navbar.js';
 import { initPublicDetailGallery } from './js/public-detail-gallery.js';
 import { initDestinationBrowser } from './js/destination-browser';
 import { initPanoramaViewers } from './js/panorama-viewer.js';
 import { initRelatedArticleModals } from './js/related-article-modal.js';
+import { initArticleSearch } from './js/article-search.js';
 
 initNavbar();
 initPublicDetailGallery();
 initDestinationBrowser();
 initPanoramaViewers();
 initRelatedArticleModals();
+initArticleSearch();
 const vueRoot = document.querySelector('#app');
 
 if (vueRoot) {

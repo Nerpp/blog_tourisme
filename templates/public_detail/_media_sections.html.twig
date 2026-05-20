@@ -28,7 +28,7 @@
 {% endfor %}
 
 {% if standard_media_links|length > 0 %}
-    <section class="media-section">
+    <section id="{{ gallery_id }}-photos" class="media-section">
         <div class="media-header">
             <div>
                 <p class="media-kicker">Parcours</p>
@@ -186,7 +186,7 @@
 {% endif %}
 
 {% if video_media_links|length > 0 %}
-    <section class="media-section media-section--dark">
+    <section id="{{ gallery_id }}-videos" class="media-section media-section--dark">
         <div class="media-header">
             <div>
                 <p class="media-kicker">{{ video_kicker }}</p>
@@ -266,7 +266,7 @@
 {% if immersive_media_links|length > 0 %}
     {% set image360_media_links = immersive_media_links|filter(link => link.mediaAsset and link.mediaAsset.imageType and link.mediaAsset.imageType.value == '360') %}
     {% set has_360_media = image360_media_links|length > 0 %}
-    <section class="trail-panorama-section">
+    <section id="{{ gallery_id }}-immersive" class="trail-panorama-section">
         <div class="trail-panorama-heading">
             <div>
                 <span class="trail-panorama-badge">{{ has_360_media ? 'Vue 360°' : 'Vue immersive' }}</span>
@@ -346,7 +346,7 @@
 {% endif %}
 
 {% if panorama_media_links|length > 0 %}
-    <section class="media-section">
+    <section id="{{ gallery_id }}-panoramas" class="media-section">
         <div class="media-header">
             <div>
                 <p class="media-kicker">Panorama</p>
@@ -388,7 +388,7 @@
     </section>
 {% endif %}
 
-<section class="media-section public-point-section">
+<section id="{{ gallery_id }}-points" class="media-section public-point-section">
     <div class="media-header">
         <div>
             <p class="media-kicker">Itinéraire</p>
