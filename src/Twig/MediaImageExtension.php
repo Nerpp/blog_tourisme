@@ -3,6 +3,7 @@
 namespace App\Twig;
 
 use App\Entity\MediaAsset;
+use App\Service\Media\MediaSeoTextService;
 use Symfony\Component\Asset\Packages;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
@@ -13,6 +14,7 @@ final class MediaImageExtension extends AbstractExtension
 
     public function __construct(
         private readonly Packages $packages,
+        private readonly MediaSeoTextService $mediaSeoTextService,
     ) {
     }
 
@@ -24,7 +26,27 @@ final class MediaImageExtension extends AbstractExtension
             new TwigFunction('media_poster_url', [$this, 'posterUrl']),
             new TwigFunction('media_image_srcset', [$this, 'imageSrcset']),
             new TwigFunction('media_image_dimensions', [$this, 'imageDimensions']),
+            new TwigFunction('media_public_title', [$this, 'publicTitle']),
+            new TwigFunction('media_public_alt', [$this, 'publicAlt']),
         ];
+    }
+
+    public function publicTitle(?MediaAsset $media, object|string|null $context = null, ?string $fallbackTitle = null): ?string
+    {
+        if (!$media instanceof MediaAsset) {
+            return $fallbackTitle;
+        }
+
+        return $this->mediaSeoTextService->publicTitle($media, $context, $fallbackTitle);
+    }
+
+    public function publicAlt(?MediaAsset $media, object|string|null $context = null, ?string $fallbackTitle = null): string
+    {
+        if (!$media instanceof MediaAsset) {
+            return $fallbackTitle ?? '';
+        }
+
+        return $this->mediaSeoTextService->publicAlt($media, $context, $fallbackTitle);
     }
 
     public function imageUrl(?MediaAsset $media, string $size = 'thumb'): ?string

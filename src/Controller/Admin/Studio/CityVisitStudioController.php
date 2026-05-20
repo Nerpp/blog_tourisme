@@ -21,6 +21,7 @@ use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
 use App\Service\Media\ImageMetadataSanitizer;
+use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -50,6 +51,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly DronePanoramaUploadService $panoramaUploadService,
         private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
+        private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
@@ -110,6 +112,7 @@ final class CityVisitStudioController extends AbstractController
                 $file,
                 (string) ($captions[$index] ?? ''),
                 ImageType::tryFrom((string) ($imageTypes[$index] ?? '')) ?? ImageType::Standard,
+                $cityVisitDraft,
             );
             if (!$media instanceof MediaAsset) {
                 continue;
@@ -154,7 +157,7 @@ final class CityVisitStudioController extends AbstractController
             return $this->redirectToStudio($cityVisitDraft);
         }
 
-        $media = $this->createVideoAssetFromRequest($request);
+        $media = $this->createVideoAssetFromRequest($request, $cityVisitDraft);
         if (!$media instanceof MediaAsset) {
             $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
 

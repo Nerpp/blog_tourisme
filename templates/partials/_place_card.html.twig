@@ -1,7 +1,8 @@
 <article class="content-card">
     {% include 'partials/_cover_media.html.twig' with {
         featured_media: place.featuredImage,
-        media_links: place.mediaLinks
+        media_links: place.mediaLinks,
+        media_context: place
     } only %}
     <div class="card-body">
         <p class="card-meta">

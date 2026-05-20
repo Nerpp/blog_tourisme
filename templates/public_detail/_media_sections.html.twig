@@ -74,7 +74,7 @@
 
                             {% include 'public_detail/_responsive_image.html.twig' with {
                                 media: media,
-                                alt: media.altText ?: media.title ?: item_title,
+                                alt: media_public_alt(media, item, item_title),
                                 image_size: loop.first ? 'medium' : 'thumb',
                                 sizes: card_sizes
                             } only %}
@@ -150,7 +150,7 @@
                                     <figure class="gallery-modal__media">
                                         <img
                                             data-gallery-src="{{ image_url }}"
-                                            alt="{{ media.altText ?: media.title ?: item_title }}"
+                                            alt="{{ media_public_alt(media, item, item_title) }}"
                                             decoding="async"
                                             {% if media.width and media.height %}
                                                 width="{{ media.width }}"
@@ -217,7 +217,7 @@
                                 {% if embed_url %}
                                     <iframe
                                         src="{{ embed_url }}"
-                                        title="{{ media.title ?: item_title }}"
+                                        title="{{ media_public_title(media, item, item_title) }}"
                                         loading="lazy"
                                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                         referrerpolicy="strict-origin-when-cross-origin"
@@ -249,7 +249,7 @@
                             </div>
 
                             <div class="video-content">
-                                <h3>{{ media.title ?: video_fallback_title }}</h3>
+                                <h3>{{ media_public_title(media, item, video_fallback_title) }}</h3>
 
                                 {% if media.caption %}
                                     <p>{{ media.caption }}</p>
@@ -297,9 +297,7 @@
                             <div class="trail-panorama-card__meta">
                                 <span class="trail-panorama-card__tag">Vue 360°</span>
 
-                                {% if media.title %}
-                                    <h3>{{ media.title }}</h3>
-                                {% endif %}
+                                <h3>{{ media_public_title(media, item, 'Vue 360°') }}</h3>
 
                                 <p>{{ media.caption ?: 'Glissez pour explorer le panorama.' }}</p>
                             </div>
@@ -314,7 +312,7 @@
                                     {% if preview_url %}
                                         {% include 'public_detail/_responsive_image.html.twig' with {
                                             media: media,
-                                            alt: media.altText ?: media.title ?: 'Aperçu du panorama 360',
+                                            alt: media_public_alt(media, item, 'Aperçu du panorama 360'),
                                             image_size: 'medium',
                                             sizes: '100vw'
                                         } only %}
@@ -326,7 +324,7 @@
                             {% if preview_url %}
                                 <noscript>
                                     <style>.trail-panorama-viewer{display:none}</style>
-                                    <img class="trail-panorama-noscript" src="{{ preview_url }}" alt="{{ media.altText ?: media.title ?: 'Aperçu du panorama 360' }}">
+                                    <img class="trail-panorama-noscript" src="{{ preview_url }}" alt="{{ media_public_alt(media, item, 'Aperçu du panorama 360') }}">
                                 </noscript>
                             {% endif %}
                         </article>
@@ -337,7 +335,7 @@
                             style="--immersive-image: url('{{ preview_url|e('html_attr') }}');"
                         >
                             <span class="immersive-card__tag">180°</span>
-                            <h3>{{ media.title ?: 'Vue immersive' }}</h3>
+                            <h3>{{ media_public_title(media, item, 'Vue immersive') }}</h3>
                             <p>{{ media.caption ?: 'Ouvrir l’image immersive.' }}</p>
                         </a>
                     {% endif %}
@@ -376,7 +374,7 @@
                             <span class="media-badge">Panorama</span>
 
                             <div class="panorama-card__content">
-                                <h3>{{ media.title ?: 'Vue panoramique' }}</h3>
+                                <h3>{{ media_public_title(media, item, 'Vue panoramique') }}</h3>
 
                                 {% if media.caption %}
                                     <p>{{ media.caption }}</p>
@@ -495,13 +493,14 @@
 
                                             {% include 'public_detail/_responsive_image.html.twig' with {
                                                 media: media,
-                                                alt: media.altText ?: media.title ?: point.title ?: item_title,
+                                                alt: media_public_alt(media, item, point.title ?: item_title),
                                                 image_size: 'thumb',
                                                 sizes: '(min-width: 760px) 240px, 45vw'
                                             } only %}
 
-                                            {% if media.caption or media.title %}
-                                                <figcaption>{{ media.caption ?: media.title }}</figcaption>
+                                            {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
+                                            {% if media.caption or point_media_title %}
+                                                <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
                                             {% endif %}
                                         </figure>
                                     {% endif %}

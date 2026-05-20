@@ -53,11 +53,13 @@ final class DronePanoramaUploadService
      *     metadata: array<string, mixed>
      * }
      */
-    public function upload(UploadedFile $file): array
+    public function upload(UploadedFile $file, ?string $basenameSeed = null): array
     {
         $inspection = $this->inspect($file);
         $originalTitle = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) ?: 'panorama-360';
-        $safeName = strtolower((string) $this->slugger->slug($originalTitle));
+        $safeName = $basenameSeed !== null && $basenameSeed !== ''
+            ? strtolower((string) $this->slugger->slug($basenameSeed))
+            : strtolower((string) $this->slugger->slug($originalTitle));
         $uniqueName = sprintf('%s-%s', $safeName, bin2hex(random_bytes(8)));
         $extension = self::ALLOWED_MIME_EXTENSIONS[$inspection['mimeType']];
 

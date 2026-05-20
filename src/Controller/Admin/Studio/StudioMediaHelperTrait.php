@@ -37,12 +37,16 @@ trait StudioMediaHelperTrait
         return array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile));
     }
 
-    private function createImageAssetFromUpload(UploadedFile $file, ?string $caption = null, ?ImageType $imageType = null): ?MediaAsset
-    {
+    private function createImageAssetFromUpload(
+        UploadedFile $file,
+        ?string $caption = null,
+        ?ImageType $imageType = null,
+        object|string|null $context = null,
+    ): ?MediaAsset {
         $imageType ??= ImageType::Standard;
 
         try {
-            $storedFile = $this->storeImageByType($file, $imageType);
+            $storedFile = $this->storeImageByType($file, $imageType, $context);
         } catch (InvalidArgumentException $exception) {
             $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
 
@@ -52,6 +56,7 @@ trait StudioMediaHelperTrait
         $media = (new MediaAsset())
             ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
             ->setTitle($this->truncate($storedFile['title'], 180))
+            ->setAltText($storedFile['altText'] ?? null)
             ->setCaption($this->nullIfBlank($caption))
             ->setMediaType(MediaType::Image)
             ->setImageType($imageType)
@@ -72,7 +77,7 @@ trait StudioMediaHelperTrait
         return $media;
     }
 
-    private function createVideoAssetFromRequest(Request $request): ?MediaAsset
+    private function createVideoAssetFromRequest(Request $request, object|string|null $context = null): ?MediaAsset
     {
         $externalUrl = $this->nullIfBlank($request->request->getString('externalUrl'));
         if ($externalUrl === null) {
@@ -86,7 +91,11 @@ trait StudioMediaHelperTrait
 
         return (new MediaAsset())
             ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
-            ->setTitle($this->nullIfBlank($request->request->getString('title')))
+            ->setTitle(
+                $this->nullIfBlank($request->request->getString('title'))
+                ?? $this->mediaSeoTextService->titleForContext($context, MediaType::Video),
+            )
+            ->setAltText($this->mediaSeoTextService->altTextForContext($context, MediaType::Video))
             ->setCaption($this->nullIfBlank($request->request->getString('caption')))
             ->setMediaType(MediaType::Video)
             ->setVideoType($videoType)
@@ -96,12 +105,12 @@ trait StudioMediaHelperTrait
     /**
      * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
-    private function storeUploadedImage(UploadedFile $file): array
+    private function storeUploadedImage(UploadedFile $file, object|string|null $context = null, ?ImageType $imageType = null): array
     {
-        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) ?: 'photo';
-        $safeName = strtolower((string) $this->slugger->slug($originalName));
+        $imageType ??= ImageType::Standard;
         $inspection = $this->imageUploadSecurity->inspect($file);
         $extension = $inspection['extension'];
+        $safeName = $this->mediaSeoTextService->filenameBaseForContext($context, MediaType::Image, $imageType);
         $filename = sprintf('%s-%s.%s', $safeName, bin2hex(random_bytes(6)), $extension);
         $targetDirectory = $this->parameterBag->get('kernel.project_dir').'/public/'.self::UPLOAD_DIRECTORY;
         if (!is_dir($targetDirectory)) {
@@ -112,7 +121,8 @@ trait StudioMediaHelperTrait
         $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath('/'.self::UPLOAD_DIRECTORY.'/'.$filename);
 
         return [
-            'title' => $originalName,
+            'title' => $this->mediaSeoTextService->titleForContext($context, MediaType::Image, $imageType),
+            'altText' => $this->mediaSeoTextService->altTextForContext($context, MediaType::Image, $imageType),
             'path' => '/'.self::UPLOAD_DIRECTORY.'/'.$filename,
             'mimeType' => $sanitized['mimeType'],
             'fileSize' => (int) (filesize($targetDirectory.'/'.$filename) ?: $inspection['fileSize']),
@@ -124,13 +134,21 @@ trait StudioMediaHelperTrait
     /**
      * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
-    private function storeImageByType(UploadedFile $file, ImageType $imageType): array
+    private function storeImageByType(UploadedFile $file, ImageType $imageType, object|string|null $context = null): array
     {
         if ($imageType === ImageType::Degree360) {
-            return $this->panoramaUploadService->upload($file);
+            $storedFile = $this->panoramaUploadService->upload(
+                $file,
+                $this->mediaSeoTextService->filenameBaseForContext($context, MediaType::Image, $imageType),
+            );
+
+            return array_replace($storedFile, [
+                'title' => $this->mediaSeoTextService->titleForContext($context, MediaType::Image, $imageType),
+                'altText' => $this->mediaSeoTextService->altTextForContext($context, MediaType::Image, $imageType),
+            ]);
         }
 
-        return $this->storeUploadedImage($file);
+        return $this->storeUploadedImage($file, $context, $imageType);
     }
 
     private function consumeUploadRateLimit(Request $request): bool

@@ -2,7 +2,8 @@
     <a class="destination-content-card__media" href="{{ path('app_city_visit_show', { slug: city_visit.slug }) }}" aria-label="Voir la visite de ville {{ city_visit.title }}">
         {% include 'partials/_cover_media.html.twig' with {
             featured_media: null,
-            media_links: city_visit.mediaLinks
+            media_links: city_visit.mediaLinks,
+            media_context: city_visit
         } only %}
     </a>
     <div class="card-body">

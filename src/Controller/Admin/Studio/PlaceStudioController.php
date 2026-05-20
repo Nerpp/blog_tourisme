@@ -24,6 +24,7 @@ use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
 use App\Service\Media\ImageMetadataSanitizer;
+use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -56,6 +57,7 @@ final class PlaceStudioController extends AbstractController
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly DronePanoramaUploadService $panoramaUploadService,
         private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
+        private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
@@ -117,7 +119,7 @@ final class PlaceStudioController extends AbstractController
         foreach ($files as $index => $file) {
             $imageType = ImageType::tryFrom((string) ($imageTypes[$index] ?? '')) ?? ImageType::Standard;
             try {
-                $storedFile = $this->storeImageByType($file, $imageType);
+                $storedFile = $this->storeImageByType($file, $imageType, $place);
             } catch (InvalidArgumentException $exception) {
                 $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
 
@@ -129,6 +131,7 @@ final class PlaceStudioController extends AbstractController
             $media = (new MediaAsset())
                 ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
                 ->setTitle($this->truncate($storedFile['title'], 180))
+                ->setAltText($storedFile['altText'] ?? null)
                 ->setCaption($this->nullIfBlank((string) ($captions[$index] ?? '')))
                 ->setMediaType(MediaType::Image)
                 ->setImageType($imageType)
@@ -200,7 +203,11 @@ final class PlaceStudioController extends AbstractController
 
         $media = (new MediaAsset())
             ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
-            ->setTitle($this->nullIfBlank($request->request->getString('title')))
+            ->setTitle(
+                $this->nullIfBlank($request->request->getString('title'))
+                ?? $this->mediaSeoTextService->titleForContext($place, MediaType::Video),
+            )
+            ->setAltText($this->mediaSeoTextService->altTextForContext($place, MediaType::Video))
             ->setCaption($this->nullIfBlank($request->request->getString('caption')))
             ->setMediaType(MediaType::Video)
             ->setVideoType($videoType)
@@ -459,24 +466,32 @@ final class PlaceStudioController extends AbstractController
     /**
      * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
-    private function storeImageByType(UploadedFile $file, ImageType $imageType): array
+    private function storeImageByType(UploadedFile $file, ImageType $imageType, object|string|null $context = null): array
     {
         if ($imageType === ImageType::Degree360) {
-            return $this->panoramaUploadService->upload($file);
+            $storedFile = $this->panoramaUploadService->upload(
+                $file,
+                $this->mediaSeoTextService->filenameBaseForContext($context, MediaType::Image, $imageType),
+            );
+
+            return array_replace($storedFile, [
+                'title' => $this->mediaSeoTextService->titleForContext($context, MediaType::Image, $imageType),
+                'altText' => $this->mediaSeoTextService->altTextForContext($context, MediaType::Image, $imageType),
+            ]);
         }
 
-        return $this->storeUploadedImage($file);
+        return $this->storeUploadedImage($file, $context, $imageType);
     }
 
     /**
      * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
-    private function storeUploadedImage(UploadedFile $file): array
+    private function storeUploadedImage(UploadedFile $file, object|string|null $context = null, ?ImageType $imageType = null): array
     {
-        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) ?: 'photo';
-        $safeName = strtolower((string) $this->slugger->slug($originalName));
+        $imageType ??= ImageType::Standard;
         $inspection = $this->imageUploadSecurity->inspect($file);
         $extension = $inspection['extension'];
+        $safeName = $this->mediaSeoTextService->filenameBaseForContext($context, MediaType::Image, $imageType);
         $filename = sprintf('%s-%s.%s', $safeName, bin2hex(random_bytes(6)), $extension);
         $targetDirectory = $this->parameterBag->get('kernel.project_dir').'/public/'.self::UPLOAD_DIRECTORY;
         if (!is_dir($targetDirectory)) {
@@ -487,7 +502,8 @@ final class PlaceStudioController extends AbstractController
         $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath('/'.self::UPLOAD_DIRECTORY.'/'.$filename);
 
         return [
-            'title' => $originalName,
+            'title' => $this->mediaSeoTextService->titleForContext($context, MediaType::Image, $imageType),
+            'altText' => $this->mediaSeoTextService->altTextForContext($context, MediaType::Image, $imageType),
             'path' => '/'.self::UPLOAD_DIRECTORY.'/'.$filename,
             'mimeType' => $sanitized['mimeType'],
             'fileSize' => (int) (filesize($targetDirectory.'/'.$filename) ?: $inspection['fileSize']),

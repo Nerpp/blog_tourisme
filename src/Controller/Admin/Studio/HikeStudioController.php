@@ -22,6 +22,7 @@ use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
 use App\Service\Media\ImageMetadataSanitizer;
+use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -51,6 +52,7 @@ final class HikeStudioController extends AbstractController
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly DronePanoramaUploadService $panoramaUploadService,
         private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
+        private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
@@ -111,6 +113,7 @@ final class HikeStudioController extends AbstractController
                 $file,
                 (string) ($captions[$index] ?? ''),
                 ImageType::tryFrom((string) ($imageTypes[$index] ?? '')) ?? ImageType::Standard,
+                $hikeDraft,
             );
             if (!$media instanceof MediaAsset) {
                 continue;
@@ -155,7 +158,7 @@ final class HikeStudioController extends AbstractController
             return $this->redirectToStudio($hikeDraft);
         }
 
-        $media = $this->createVideoAssetFromRequest($request);
+        $media = $this->createVideoAssetFromRequest($request, $hikeDraft);
         if (!$media instanceof MediaAsset) {
             $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
 
@@ -387,9 +390,11 @@ final class HikeStudioController extends AbstractController
 
     private function updateDraftFromRequest(HikeDraft $hikeDraft, Request $request): void
     {
+        $previousTitle = $hikeDraft->getTitle();
         $title = $this->truncate($request->request->getString('title'), 180);
-        if ($title !== '') {
+        if ($title !== '' && ($title !== $previousTitle || $this->shouldRefreshHikeSlug($hikeDraft, $title))) {
             $hikeDraft->setTitle($title);
+            $hikeDraft->setSlug($this->createUniqueHikeSlug($title, $hikeDraft));
         }
 
         $destinationId = $this->nullableInt($request->request->get('destination'));
@@ -606,6 +611,37 @@ final class HikeStudioController extends AbstractController
         }
 
         return $slug;
+    }
+
+    private function createUniqueHikeSlug(string $title, HikeDraft $currentHike): string
+    {
+        $baseSlug = strtolower((string) $this->slugger->slug($title));
+        $baseSlug = trim($baseSlug, '-') ?: 'randonnee';
+        $slug = $baseSlug;
+        $suffix = 2;
+        $repository = $this->entityManager->getRepository(HikeDraft::class);
+
+        while (($existing = $repository->findOneBy(['slug' => $slug])) instanceof HikeDraft && $existing->getId() !== $currentHike->getId()) {
+            $slug = sprintf('%s-%d', $baseSlug, $suffix);
+            ++$suffix;
+        }
+
+        return $slug;
+    }
+
+    private function shouldRefreshHikeSlug(HikeDraft $hikeDraft, string $title): bool
+    {
+        $currentSlug = $hikeDraft->getSlug();
+        if ($currentSlug === null || $currentSlug === '') {
+            return true;
+        }
+
+        $expectedBaseSlug = trim(strtolower((string) $this->slugger->slug($title)), '-') ?: 'randonnee';
+        if ($currentSlug === $expectedBaseSlug || preg_match('/^'.preg_quote($expectedBaseSlug, '/').'-\d+$/', $currentSlug) === 1) {
+            return false;
+        }
+
+        return preg_match('/^randonnee-du-\d{2}-\d{2}-\d{4}/', $currentSlug) === 1;
     }
 
     /** @return array<string, float|int|string|null> */

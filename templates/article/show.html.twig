@@ -28,7 +28,8 @@
             <div class="featured-media">
                 {% include 'partials/_cover_media.html.twig' with {
                     featured_media: article.featuredImage,
-                    media_links: article.mediaLinks
+                    media_links: article.mediaLinks,
+                    media_context: article
                 } only %}
             </div>
 
