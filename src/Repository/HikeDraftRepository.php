@@ -126,10 +126,16 @@ class HikeDraftRepository extends ServiceEntityRepository
         }
 
         return $this->createQueryBuilder('h')
-            ->addSelect('destination', 'mediaLinks', 'mediaAssets')
+            ->addSelect('destination', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('h.destination', 'destination')
             ->leftJoin('h.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->leftJoin('h.articleLinks', 'articleLinks')
+            ->leftJoin('articleLinks.article', 'articles')
+            ->leftJoin('articles.category', 'articleCategories')
+            ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
+            ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
+            ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
             ->andWhere('destination.id IN (:destinationIds)')
             ->andWhere('h.status IN (:statuses)')
             ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)

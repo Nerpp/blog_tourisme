@@ -136,6 +136,29 @@ class DestinationRepository extends ServiceEntityRepository
         return $destinationIds;
     }
 
+    /**
+     * @param list<int> $ids
+     *
+     * @return list<Destination>
+     */
+    public function findWithParentsByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('d')
+            ->addSelect('parent', 'grandParent', 'greatGrandParent')
+            ->leftJoin('d.parent', 'parent')
+            ->leftJoin('parent.parent', 'grandParent')
+            ->leftJoin('grandParent.parent', 'greatGrandParent')
+            ->andWhere('d.id IN (:ids)')
+            ->setParameter('ids', $ids, ArrayParameterType::INTEGER)
+            ->orderBy('d.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findBySlug(string $slug): ?Destination
     {
         return $this->createQueryBuilder('d')

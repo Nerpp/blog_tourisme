@@ -3,7 +3,9 @@
 namespace App\Repository;
 
 use App\Entity\Article;
+use App\Enum\CityVisitDraftStatus;
 use App\Enum\ContentStatus;
+use App\Enum\HikeDraftStatus;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -62,6 +64,32 @@ class ArticleRepository extends ServiceEntityRepository
      * @return list<Article>
      */
     public function findPublishedByDestinationIds(array $destinationIds): array
+    {
+        if ($destinationIds === []) {
+            return [];
+        }
+
+        return $this->createPublishedQueryBuilder()
+            ->andWhere('(destinations.id IN (:destinationIds) OR (hikeDestinations.id IN (:destinationIds) AND hikes.status IN (:hikeStatuses)) OR (cityVisitDestinations.id IN (:destinationIds) AND cityVisits.status IN (:cityVisitStatuses)))')
+            ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
+            ->setParameter('hikeStatuses', [
+                HikeDraftStatus::Finished->value,
+                HikeDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->setParameter('cityVisitStatuses', [
+                CityVisitDraftStatus::Finished->value,
+                CityVisitDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @param list<int> $destinationIds
+     *
+     * @return list<Article>
+     */
+    public function findPublishedDirectlyByDestinationIds(array $destinationIds): array
     {
         if ($destinationIds === []) {
             return [];

@@ -126,10 +126,16 @@ class CityVisitDraftRepository extends ServiceEntityRepository
         }
 
         return $this->createQueryBuilder('c')
-            ->addSelect('destination', 'mediaLinks', 'mediaAssets')
+            ->addSelect('destination', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('c.destination', 'destination')
             ->leftJoin('c.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->leftJoin('c.articleLinks', 'articleLinks')
+            ->leftJoin('articleLinks.article', 'articles')
+            ->leftJoin('articles.category', 'articleCategories')
+            ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
+            ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
+            ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
             ->andWhere('destination.id IN (:destinationIds)')
             ->andWhere('c.status IN (:statuses)')
             ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
