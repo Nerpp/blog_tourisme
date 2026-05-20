@@ -609,7 +609,7 @@
                     <section>
                         <h2>Contenu</h2>
                         <a href="{{ path('admin_articles_index') }}" class="{{ route starts with 'admin_articles' ? 'is-active' }}">Articles</a>
-                        <a href="{{ path('admin_places_index') }}" class="{{ route starts with 'admin_places' or route starts with 'admin_studio_place' ? 'is-active' }}">Carnet de lieux</a>
+                        <a href="{{ path('admin_places_index') }}" class="{{ route starts with 'admin_places' or route starts with 'admin_studio_place' ? 'is-active' }}">Repérages</a>
                         <a href="{{ path('admin_destinations_index') }}" class="{{ route starts with 'admin_destinations' ? 'is-active' }}">Destinations</a>
                         <a href="{{ path('admin_media_index') }}" class="{{ route starts with 'admin_media' ? 'is-active' }}">Médias</a>
                     </section>
@@ -628,6 +628,7 @@
                     </section>
                     <section>
                         <h2>Système</h2>
+                        <a href="{{ path('admin_traffic_index') }}" class="{{ route starts with 'admin_traffic' ? 'is-active' }}">Trafic</a>
                         <a href="{{ path('admin_users_index') }}" class="{{ route starts with 'admin_users' ? 'is-active' }}">Utilisateurs</a>
                         <a href="{{ path('app_home') }}">Retour au site public</a>
                     </section>

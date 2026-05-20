@@ -1,12 +1,12 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Carnet de lieux{% endblock %}
+{% block title %}Repérages{% endblock %}
 
 {% block body %}
     <header class="admin-header">
         <div>
-            <h1 class="admin-title">Carnet de lieux</h1>
-            <p class="admin-subtitle">Repérages, notes terrain et points utiles pour préparer les contenus publics.</p>
+            <h1 class="admin-title">Repérages</h1>
+            <p class="admin-subtitle">Endroits à visiter, notes terrain et idées de contenus à garder sous la main.</p>
         </div>
         <a class="admin-button" href="{{ path('admin_places_new') }}">Nouveau repérage</a>
     </header>
@@ -16,7 +16,7 @@
             <thead>
                 <tr>
                     <th>Nom</th>
-                    <th>Destination</th>
+                    <th>Secteur / localisation</th>
                     <th>Catégorie</th>
                     <th>Statut</th>
                     <th>Temps terrain</th>
@@ -29,7 +29,7 @@
                 {% for place in places %}
                     <tr>
                         <td>{{ place.name }}</td>
-                        <td>{{ place.destination }}</td>
+                        <td>{{ place.destination ?: 'Secteur libre' }}</td>
                         <td>{{ place.category ?: 'Non renseignée' }}</td>
                         <td><span class="admin-badge">{{ status_labels[place.status.value] ?? place.status.value }}</span></td>
                         <td>{{ place.visitDurationMinutes ? place.visitDurationMinutes ~ ' min' : '-' }}</td>
@@ -39,12 +39,9 @@
                             <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_places_edit', { id: place.id }) }}">Modifier</a>
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir dans le Studio</a>
-                                {% if place.slug is not empty and place.status.value == 'published' %}
-                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_place_show', { slug: place.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
-                                {% endif %}
-                                <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Archiver ce repérage ?');">
+                                <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Supprimer ce repérage ? Cette action est définitive. Les médias non utilisés ailleurs seront aussi supprimés.');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('admin_place_delete_' ~ place.id) }}">
-                                    <button class="admin-button admin-button--small admin-button--danger" type="submit">Archiver</button>
+                                    <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer</button>
                                 </form>
                             </div>
                         </td>

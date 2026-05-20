@@ -4,6 +4,7 @@ namespace App\Controller\Admin;
 
 use App\Entity\Category;
 use App\Entity\Destination;
+use App\Entity\MediaAsset;
 use App\Entity\Place;
 use App\Enum\ContentStatus;
 use App\Enum\PlaceDifficulty;
@@ -13,6 +14,7 @@ use App\Repository\DestinationRepository;
 use App\Repository\PlaceRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
+use App\Service\Media\MediaDeletionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -28,6 +30,7 @@ final class AdminPlaceController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly SluggerInterface $slugger,
+        private readonly MediaDeletionService $mediaDeletionService,
     ) {
     }
 
@@ -89,13 +92,46 @@ final class AdminPlaceController extends AbstractController
     #[Route('/admin/places/{id}/delete', name: 'admin_places_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function delete(Place $place, Request $request): RedirectResponse
     {
+        $this->denyAccessUnlessGranted(ContentEditVoter::DELETE, $place);
+
         if (!$this->isCsrfTokenValid('admin_place_delete_'.$place->getId(), $request->request->getString('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
 
-        $place->setStatus(ContentStatus::Archived);
-        $this->entityManager->flush();
-        $this->addFlash('success', 'Repérage archivé.');
+        $orphanCandidates = $this->placeMediaCandidates($place);
+        foreach ($place->getArticleLinks() as $articleLink) {
+            $this->entityManager->remove($articleLink);
+        }
+
+        foreach ($place->getMediaLinks() as $mediaLink) {
+            $this->entityManager->remove($mediaLink);
+        }
+
+        foreach ($place->getTagLinks() as $tagLink) {
+            $this->entityManager->remove($tagLink);
+        }
+
+        foreach ($place->getComments() as $comment) {
+            $comment->setPlace(null);
+        }
+
+        $place->setFeaturedImage(null);
+        $this->entityManager->remove($place);
+
+        try {
+            $this->entityManager->flush();
+
+            foreach ($orphanCandidates as $media) {
+                $this->mediaDeletionService->deleteIfOrphan($media);
+            }
+            $this->entityManager->flush();
+        } catch (\Throwable $exception) {
+            $this->addFlash('error', 'Le repérage n’a pas pu être supprimé.');
+
+            return $this->redirectToRoute('admin_places_index');
+        }
+
+        $this->addFlash('success', 'Le repérage a été supprimé.');
 
         return $this->redirectToRoute('admin_places_index');
     }
@@ -124,8 +160,8 @@ final class AdminPlaceController extends AbstractController
         $name = trim($request->request->getString('name'));
         $destinationId = $this->nullableInt($request->request->get('destination'));
         $destination = $destinationId !== null ? $this->entityManager->find(Destination::class, $destinationId) : null;
-        if ($name === '' || !$destination instanceof Destination) {
-            $this->addFlash('error', 'Le nom et la destination sont obligatoires.');
+        if ($name === '') {
+            $this->addFlash('error', 'Le nom est obligatoire.');
 
             return false;
         }
@@ -154,6 +190,27 @@ final class AdminPlaceController extends AbstractController
         return $place->getStatus() === ContentStatus::Archived
             ? ContentStatus::Archived
             : ContentStatus::Draft;
+    }
+
+    /**
+     * @return list<MediaAsset>
+     */
+    private function placeMediaCandidates(Place $place): array
+    {
+        $candidates = [];
+        $featuredImage = $place->getFeaturedImage();
+        if ($featuredImage instanceof MediaAsset) {
+            $candidates[$featuredImage->getId() ?? spl_object_id($featuredImage)] = $featuredImage;
+        }
+
+        foreach ($place->getMediaLinks() as $mediaLink) {
+            $media = $mediaLink->getMediaAsset();
+            if ($media instanceof MediaAsset) {
+                $candidates[$media->getId() ?? spl_object_id($media)] = $media;
+            }
+        }
+
+        return array_values($candidates);
     }
 
     /** @return array<string, string> */

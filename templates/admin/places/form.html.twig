@@ -22,8 +22,8 @@
             <section class="admin-card">
                 <div class="admin-field">
                     <span class="admin-label">Point GPS du repérage</span>
-                    <p class="admin-muted">Ouvrez Google Maps, cherchez le lieu, copiez les coordonnées ou l’URL du point, puis collez-les ici. Le formulaire remplira automatiquement la latitude et la longitude.</p>
-                    <p class="admin-muted">Depuis Google Maps, faites un clic droit sur le point puis copiez les coordonnées, ou copiez l’URL du lieu.</p>
+                    <p class="admin-muted">Ouvrez Google Maps, cherchez l’endroit à visiter, copiez les coordonnées ou l’URL du point, puis collez-les ici. Le formulaire remplira automatiquement la latitude et la longitude.</p>
+                    <p class="admin-muted">Depuis Google Maps, faites un clic droit sur le point puis copiez les coordonnées, ou copiez l’URL de l’endroit.</p>
                     <div class="admin-row-actions">
                         <a class="admin-button admin-button--secondary" href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer">Ouvrir Google Maps</a>
                         <a class="admin-button admin-button--small admin-button--secondary" href="#" target="_blank" rel="noopener noreferrer" hidden data-place-open-map>Voir le point</a>
@@ -58,9 +58,9 @@
                     <input id="place-name" name="name" value="{{ place.name }}" required>
                 </div>
                 <div class="admin-field">
-                    <label for="place-destination">Destination</label>
-                    <select id="place-destination" name="destination" required>
-                        <option value="">Choisir</option>
+                    <label for="place-destination">Secteur / localisation</label>
+                    <select id="place-destination" name="destination">
+                        <option value="">Secteur libre</option>
                         {% for destination in destinations %}
                             <option value="{{ destination.id }}" {% if place.destination and place.destination.id == destination.id %}selected{% endif %}>{{ destination.name }}</option>
                         {% endfor %}
@@ -78,7 +78,7 @@
                 <div class="admin-field">
                     <span class="admin-label">Repérage privé</span>
                     <span class="admin-badge admin-badge--muted">Privé</span>
-                    <p class="admin-muted">Cette fiche reste dans le carnet de lieux admin et n’est jamais publiée côté visiteurs.</p>
+                    <p class="admin-muted">Ce repérage reste dans l’espace admin, comme note terrain à reprendre plus tard.</p>
                 </div>
                 <div class="admin-field admin-field--full">
                     <label for="place-short-description">Note courte</label>

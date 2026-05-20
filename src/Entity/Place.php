@@ -29,7 +29,7 @@ class Place
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: Destination::class, inversedBy: 'places')]
-    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?Destination $destination = null;
 
     #[ORM\ManyToOne(targetEntity: Category::class, inversedBy: 'places')]
@@ -123,7 +123,7 @@ class Place
         return $this->destination;
     }
 
-    public function setDestination(Destination $destination): static
+    public function setDestination(?Destination $destination): static
     {
         $this->destination = $destination;
 

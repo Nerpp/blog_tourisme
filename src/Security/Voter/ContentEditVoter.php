@@ -15,9 +15,14 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 final class ContentEditVoter extends Voter
 {
     public const EDIT = 'EDIT';
+    public const DELETE = 'DELETE';
 
     protected function supports(string $attribute, mixed $subject): bool
     {
+        if ($attribute === self::DELETE) {
+            return $subject instanceof Place;
+        }
+
         return $attribute === self::EDIT
             && (
                 $subject instanceof Article
