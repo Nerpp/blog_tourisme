@@ -78,10 +78,18 @@
                                 autocomplete="current-password"
                                 required
                             >
+                            <a class="login-help-link" href="{{ path('app_forgot_password_request') }}">Mot de passe oublié ?</a>
                         </div>
 
                         <button class="login-button" type="submit">Se connecter</button>
                     </form>
+
+                    <div class="auth-separator"><span>ou</span></div>
+
+                    <a class="oauth-button oauth-button--google" href="{{ path('connect_google_start') }}">
+                        <span class="oauth-button__mark" aria-hidden="true">G</span>
+                        Continuer avec Google
+                    </a>
 
                     <div class="login-links" aria-label="Liens utiles">
                         <a href="{{ path('app_home') }}">Retour à l’accueil</a>

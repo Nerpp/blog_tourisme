@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Nouveau mot de passe - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main class="login-page">
+        <section class="login-shell" aria-labelledby="reset-password-title">
+            <aside class="login-hero" aria-label="Nouveau mot de passe">
+                <div class="login-hero__content">
+                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <p class="login-eyebrow">Sécurité du compte</p>
+                    <h1 id="reset-password-title">Choisir un nouveau mot de passe</h1>
+                    <p class="login-hero__text">
+                        Utilisez une phrase longue ou une combinaison difficile à deviner.
+                    </p>
+                </div>
+            </aside>
+
+            <section class="login-panel" aria-label="Formulaire de nouveau mot de passe">
+                <div class="login-card">
+                    <div class="login-card__header">
+                        <p class="login-card__kicker">Réinitialisation</p>
+                        <h2>Nouveau mot de passe</h2>
+                        <p>Votre nouveau mot de passe doit contenir au moins 12 caractères.</p>
+                    </div>
+
+                    {{ form_start(reset_form, { attr: { class: 'login-form', novalidate: 'novalidate' } }) }}
+                        {{ form_errors(reset_form) }}
+
+                        <div class="login-field">
+                            {{ form_label(reset_form.plainPassword.first) }}
+                            {{ form_widget(reset_form.plainPassword.first, { attr: { class: 'login-input' } }) }}
+                            {{ form_errors(reset_form.plainPassword.first) }}
+                        </div>
+
+                        <div class="login-field">
+                            {{ form_label(reset_form.plainPassword.second) }}
+                            {{ form_widget(reset_form.plainPassword.second, { attr: { class: 'login-input' } }) }}
+                            {{ form_errors(reset_form.plainPassword.second) }}
+                            {{ form_errors(reset_form.plainPassword) }}
+                        </div>
+
+                        <button class="login-button" type="submit">Réinitialiser le mot de passe</button>
+                    {{ form_end(reset_form) }}
+                </div>
+            </section>
+        </section>
+    </main>
+{% endblock %}

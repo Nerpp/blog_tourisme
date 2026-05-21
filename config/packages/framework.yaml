@@ -33,6 +33,10 @@ framework:
             rate:
                 interval: '1 minute'
                 amount: 10
+        password_reset:
+            policy: sliding_window
+            limit: 5
+            interval: '15 minutes'
 
     mailer:
         dsn: '%env(MAILER_DSN)%'

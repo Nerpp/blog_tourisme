@@ -1,0 +1,45 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mot de passe oublié - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main class="login-page">
+        <section class="login-shell" aria-labelledby="reset-request-title">
+            <aside class="login-hero" aria-label="Réinitialisation sécurisée">
+                <div class="login-hero__content">
+                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <p class="login-eyebrow">Accès sécurisé</p>
+                    <h1 id="reset-request-title">Réinitialiser votre mot de passe</h1>
+                    <p class="login-hero__text">
+                        Recevez un lien temporaire pour choisir un nouveau mot de passe et retrouver votre espace.
+                    </p>
+                </div>
+            </aside>
+
+            <section class="login-panel" aria-label="Formulaire de demande de réinitialisation">
+                <div class="login-card">
+                    <div class="login-card__header">
+                        <p class="login-card__kicker">Mot de passe oublié</p>
+                        <h2>Recevoir un lien</h2>
+                        <p>Indiquez l’adresse email de votre compte.</p>
+                    </div>
+
+                    {{ form_start(request_form, { attr: { class: 'login-form', novalidate: 'novalidate' } }) }}
+                        <div class="login-field">
+                            {{ form_label(request_form.email) }}
+                            {{ form_widget(request_form.email, { attr: { class: 'login-input', autocomplete: 'email', autofocus: true } }) }}
+                            {{ form_errors(request_form.email) }}
+                        </div>
+
+                        <button class="login-button" type="submit">Envoyer le lien</button>
+                    {{ form_end(request_form) }}
+
+                    <div class="login-links" aria-label="Liens utiles">
+                        <a href="{{ path('app_login') }}">Retour à la connexion</a>
+                        <a href="{{ path('app_register') }}">Créer un compte</a>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+{% endblock %}

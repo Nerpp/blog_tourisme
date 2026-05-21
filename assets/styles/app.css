@@ -880,6 +880,13 @@ textarea {
   box-shadow: 0 0 0 4px rgba(18, 97, 92, 0.16);
 }
 
+.login-help-link {
+  justify-self: end;
+  color: #12615c;
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
 .login-button {
   width: 100%;
   min-height: 54px;
@@ -893,6 +900,63 @@ textarea {
 .login-button:hover {
   text-decoration: none;
   transform: translateY(-1px);
+}
+
+.auth-separator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin: 22px 0;
+  color: #72817c;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.auth-separator::before,
+.auth-separator::after {
+  height: 1px;
+  background: rgba(24, 33, 31, 0.12);
+  content: "";
+}
+
+.oauth-button {
+  display: inline-flex;
+  width: 100%;
+  min-height: 52px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid rgba(24, 33, 31, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  color: #243532;
+  font-weight: 850;
+  box-shadow: 0 12px 24px rgba(31, 46, 42, 0.08);
+}
+
+.oauth-button:hover {
+  border-color: rgba(18, 97, 92, 0.38);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.oauth-button:focus-visible {
+  outline: 3px solid rgba(18, 97, 92, 0.34);
+  outline-offset: 3px;
+}
+
+.oauth-button__mark {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgba(24, 33, 31, 0.12);
+  border-radius: 50%;
+  color: #12615c;
+  font-weight: 950;
 }
 
 .login-button:focus-visible,

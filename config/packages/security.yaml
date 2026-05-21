@@ -18,6 +18,8 @@ security:
             provider: app_user_provider
             access_denied_handler: App\Security\AdminAccessDeniedHandler
             user_checker: App\Security\BannedUserChecker
+            custom_authenticators:
+                - App\Security\GoogleAuthenticator
             login_throttling:
                 max_attempts: 5
                 interval: '15 minutes'

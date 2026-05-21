@@ -17,6 +17,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Table(name: 'app_user')]
 #[ORM\HasLifecycleCallbacks]
 #[UniqueEntity(fields: ['email'], message: 'Cet email est deja utilise.')]
+#[UniqueEntity(fields: ['googleId'], message: 'Ce compte Google est deja associe a un utilisateur.')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     use TimestampableTrait;
@@ -36,6 +37,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column]
     private ?string $password = null;
+
+    #[ORM\Column(length: 191, nullable: true, unique: true)]
+    private ?string $googleId = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isVerified = false;
 
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $displayName = null;
@@ -111,7 +118,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function setEmail(string $email): static
     {
-        $this->email = $email;
+        $this->email = mb_strtolower(trim($email));
 
         return $this;
     }
@@ -139,6 +146,31 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setPassword(string $password): static
     {
         $this->password = $password;
+
+        return $this;
+    }
+
+    public function getGoogleId(): ?string
+    {
+        return $this->googleId;
+    }
+
+    public function setGoogleId(?string $googleId): static
+    {
+        $googleId = trim((string) $googleId);
+        $this->googleId = $googleId === '' ? null : mb_substr($googleId, 0, 191);
+
+        return $this;
+    }
+
+    public function isVerified(): bool
+    {
+        return $this->isVerified;
+    }
+
+    public function setIsVerified(bool $isVerified): static
+    {
+        $this->isVerified = $isVerified;
 
         return $this;
     }

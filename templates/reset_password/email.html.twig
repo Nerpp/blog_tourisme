@@ -1,0 +1,17 @@
+<h1>Réinitialisation de votre mot de passe</h1>
+
+<p>
+    Une demande de réinitialisation a été faite pour votre compte Blog Tourisme.
+</p>
+
+<p>
+    <a href="{{ url('app_reset_password', { token: reset_token.token }) }}">Choisir un nouveau mot de passe</a>
+</p>
+
+<p>
+    Ce lien expire dans {{ token_lifetime_minutes }} minute{{ token_lifetime_minutes > 1 ? 's' : '' }}.
+</p>
+
+<p>
+    Si vous n’êtes pas à l’origine de cette demande, vous pouvez ignorer cet email.
+</p>

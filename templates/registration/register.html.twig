@@ -28,6 +28,13 @@
                         <p>Ajoutez vos informations et une image de profil optionnelle.</p>
                     </div>
 
+                    <a class="oauth-button oauth-button--google" href="{{ path('connect_google_start') }}">
+                        <span class="oauth-button__mark" aria-hidden="true">G</span>
+                        S’inscrire avec Google
+                    </a>
+
+                    <div class="auth-separator"><span>ou</span></div>
+
                     {{ form_start(registration_form, { attr: { class: 'register-form', novalidate: 'novalidate' } }) }}
                         {{ form_errors(registration_form) }}
 
