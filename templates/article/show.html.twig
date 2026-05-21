@@ -3,14 +3,14 @@
 {% set article_cover_media = null %}
 
 {% if article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
-    {% set article_cover_media = article.featuredImage %}
+	{% set article_cover_media = article.featuredImage %}
 {% else %}
-    {% for mediaLink in article.mediaLinks %}
-        {% set media = mediaLink.mediaAsset %}
-        {% if article_cover_media is null and media and media.mediaType.value == 'image' %}
-            {% set article_cover_media = media %}
-        {% endif %}
-    {% endfor %}
+	{% for mediaLink in article.mediaLinks %}
+		{% set media = mediaLink.mediaAsset %}
+		{% if article_cover_media is null and media and media.mediaType.value == 'image' %}
+			{% set article_cover_media = media %}
+		{% endif %}
+	{% endfor %}
 {% endif %}
 
 {% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, 'large') : null %}
@@ -19,170 +19,211 @@
 {% set related_article_ids = [article.id] %}
 
 {% for hikeLink in article.hikeLinks %}
-    {% if hikeLink.hikeDraft and hikeLink.hikeDraft.status.value in ['finished', 'converted'] %}
-        {% for relatedLink in hikeLink.hikeDraft.articleLinks %}
-            {% set relatedArticle = relatedLink.article %}
-            {% if relatedArticle and relatedArticle.status.value == 'published' and relatedArticle.id not in related_article_ids %}
-                {% set related_article_links = related_article_links|merge([relatedLink]) %}
-                {% set related_article_ids = related_article_ids|merge([relatedArticle.id]) %}
-            {% endif %}
-        {% endfor %}
-    {% endif %}
+	{% if hikeLink.hikeDraft and hikeLink.hikeDraft.status.value in ['finished', 'converted'] %}
+		{% for relatedLink in hikeLink.hikeDraft.articleLinks %}
+			{% set relatedArticle = relatedLink.article %}
+			{% if relatedArticle and relatedArticle.status.value == 'published' and relatedArticle.id not in related_article_ids %}
+				{% set related_article_links = related_article_links|merge([relatedLink]) %}
+				{% set related_article_ids = related_article_ids|merge([relatedArticle.id]) %}
+			{% endif %}
+		{% endfor %}
+	{% endif %}
 {% endfor %}
 
 {% for cityVisitLink in article.cityVisitLinks %}
-    {% if cityVisitLink.cityVisitDraft and cityVisitLink.cityVisitDraft.status.value in ['finished', 'converted'] %}
-        {% for relatedLink in cityVisitLink.cityVisitDraft.articleLinks %}
-            {% set relatedArticle = relatedLink.article %}
-            {% if relatedArticle and relatedArticle.status.value == 'published' and relatedArticle.id not in related_article_ids %}
-                {% set related_article_links = related_article_links|merge([relatedLink]) %}
-                {% set related_article_ids = related_article_ids|merge([relatedArticle.id]) %}
-            {% endif %}
-        {% endfor %}
-    {% endif %}
+	{% if cityVisitLink.cityVisitDraft and cityVisitLink.cityVisitDraft.status.value in ['finished', 'converted'] %}
+		{% for relatedLink in cityVisitLink.cityVisitDraft.articleLinks %}
+			{% set relatedArticle = relatedLink.article %}
+			{% if relatedArticle and relatedArticle.status.value == 'published' and relatedArticle.id not in related_article_ids %}
+				{% set related_article_links = related_article_links|merge([relatedLink]) %}
+				{% set related_article_ids = related_article_ids|merge([relatedArticle.id]) %}
+			{% endif %}
+		{% endfor %}
+	{% endif %}
 {% endfor %}
 
-{% block title %}{{ article.seoTitle ?: article.title }} - Blog Tourisme{% endblock %}
-{% block meta_description %}{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}{% endblock %}
-{% block canonical %}<link rel="canonical" href="{{ article.canonicalUrl ?: app.request.uri }}">{% endblock %}
-{% block open_graph_title %}{{ article.seoTitle ?: article.title }}{% endblock %}
-{% block open_graph_description %}{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}{% endblock %}
+{% block title %}
+	{{ article.seoTitle ?: article.title }}
+	- Blog Tourisme
+{% endblock %}
+{% block meta_description %}
+	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
+{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ article.canonicalUrl ?: app.request.uri }}">
+{% endblock %}
+{% block open_graph_title %}
+	{{ article.seoTitle ?: article.title }}
+{% endblock %}
+{% block open_graph_description %}
+	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
+{% endblock %}
 
 {% block preloads %}
-    {% if article_cover_image %}
-        <link rel="preload" as="image" href="{{ article_cover_image }}">
-    {% endif %}
+	{% if article_cover_image %}
+		<link rel="preload" as="image" href="{{ article_cover_image }}">
+	{% endif %}
 {% endblock %}
 
 {% block body %}
-    <main class="public-detail-page article-show-page">
-        <section class="public-detail-hero">
-            <div class="public-detail-container public-detail-hero-grid">
-                <div>
-                    <p class="public-detail-kicker">
-                        {% if article.category %}{{ article.category.name }}{% else %}Article{% endif %}
-                        {% if article.publishedAt %} · {{ article.publishedAt|date('d/m/Y') }}{% endif %}
-                    </p>
+	<main class="public-detail-page article-show-page">
+		<section class="public-detail-hero">
+			<div class="public-detail-container public-detail-hero-grid">
+				<div>
+					<p class="public-detail-kicker">
+						{% if article.category %}
+							{{ article.category.name }}{% else %}Article
+						{% endif %}
+						{% if article.publishedAt %}
+							·
+							{{ article.publishedAt|date('d/m/Y') }}
+						{% endif %}
+					</p>
 
-                    <h1 class="public-detail-title article-show-title">{{ article.title }}</h1>
+					<h1 class="public-detail-title article-show-title">{{ article.title }}</h1>
 
-                    {% if is_granted('EDIT', article) %}
-                        <div class="article-show-admin">
-                            <a href="{{ path('admin_articles_edit', { id: article.id }) }}" class="show-admin-edit-link">
-                                Modifier
-                            </a>
-                        </div>
-                    {% endif %}
-                </div>
+					<div class="public-detail-meta article-show-meta">
+						<span>Article</span>
 
-                <div
-                    class="public-detail-cover"
-                    {% if article_cover_image %}
-                        style="--public-cover-image: url('{{ article_cover_image|e('html_attr') }}');"
-                    {% endif %}
-                    aria-label="Image principale de l’article"
-                ></div>
-            </div>
-        </section>
+						{% if article.category %}
+							<span>{{ article.category.name }}</span>
+						{% endif %}
 
-        <section class="public-detail-content">
-            <div class="public-detail-container">
-                <div class="article-show-layout">
-                    <article class="article-show-main">
-                        <div class="prose article-content">
-                            {{ article_content_html(article) }}
-                        </div>
+						{% for hikeLink in article.hikeLinks|slice(0, 1) %}
+							{% set hike = hikeLink.hikeDraft %}
 
-                        {% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
-                        {% if gallery_media_links|length > 0 %}
-                            <section class="section-block article-gallery-section">
-                                <h2>Galerie</h2>
-                                {% include 'partials/_media_gallery.html.twig' with { media_links: gallery_media_links } only %}
-                            </section>
-                        {% endif %}
-                    </article>
+							{% if hike and hike.status.value in ['finished', 'converted'] %}
+								{% if hike.destination %}
+									<span>{{ hike.destination.name }}</span>
+								{% endif %}
 
-                    <aside class="article-show-sidebar">
-                        {% if article.hikeLinks|length > 0 or article.cityVisitLinks|length > 0 or article.placeLinks|length > 0 %}
-                            <section class="article-show-side-card article-show-side-card--highlight">
-                                <p class="article-show-side-card__kicker">À découvrir pendant la balade</p>
+								<span>{{ hike.title }}</span>
+							{% endif %}
+						{% endfor %}
 
-                                {% for hikeLink in article.hikeLinks %}
-                                    {% if hikeLink.hikeDraft.status.value in ['finished', 'converted'] %}
-                                        <h2>{{ hikeLink.hikeDraft.title }}</h2>
-                                        <a class="article-show-side-card__button" href="{{ path('app_hike_show', { slug: hikeLink.hikeDraft.slug }) }}">
-                                            Voir la balade
-                                        </a>
-                                    {% endif %}
-                                {% endfor %}
+						{% for cityVisitLink in article.cityVisitLinks|slice(0, 1) %}
+							{% set visit = cityVisitLink.cityVisitDraft %}
 
-                                {% for cityVisitLink in article.cityVisitLinks %}
-                                    {% if cityVisitLink.cityVisitDraft.status.value in ['finished', 'converted'] %}
-                                        <h2>{{ cityVisitLink.cityVisitDraft.title }}</h2>
-                                        <a class="article-show-side-card__button" href="{{ path('app_city_visit_show', { slug: cityVisitLink.cityVisitDraft.slug }) }}">
-                                            Voir la visite
-                                        </a>
-                                    {% endif %}
-                                {% endfor %}
+							{% if visit and visit.status.value in ['finished', 'converted'] %}
+								{% if visit.destination %}
+									<span>{{ visit.destination.name }}</span>
+								{% endif %}
 
-                                {% for placeLink in article.placeLinks %}
-                                    {% if placeLink.place.status.value == 'published' %}
-                                        <h2>{{ placeLink.place.name }}</h2>
-                                        <a class="article-show-side-card__button" href="{{ path('app_place_show', { slug: placeLink.place.slug }) }}">
-                                            Voir le lieu
-                                        </a>
-                                    {% endif %}
-                                {% endfor %}
-                            </section>
-                        {% endif %}
+								<span>{{ visit.title }}</span>
+							{% endif %}
+						{% endfor %}
+					</div>
 
-                        {% if related_article_links|length > 0 %}
-                            <section class="article-show-side-card">
-                                <p class="article-show-side-card__kicker">Pour aller plus loin</p>
+					{% if is_granted('EDIT', article) %}
+						<div class="article-show-admin">
+							<a href="{{ path('admin_articles_edit', { id: article.id }) }}" class="show-admin-edit-link">
+								Modifier
+							</a>
+						</div>
+					{% endif %}
+				</div>
 
-                                <div class="article-show-side-links">
-                                    {% for relatedLink in related_article_links|slice(0, 4) %}
-                                        <a href="{{ path('app_article_show', { slug: relatedLink.article.slug }) }}">
-                                            {{ relatedLink.article.title }}
-                                        </a>
-                                    {% endfor %}
-                                </div>
-                            </section>
-                        {% endif %}
+				<div class="public-detail-cover article-show-cover" {% if article_cover_image %} style="--public-cover-image: url('{{ article_cover_image|e('html_attr') }}');" {% endif %} aria-label="Image principale de l’article"></div>
+			</div>
+		</section>
 
-                        {% if article.destinationLinks|length > 0 %}
-                            <section class="article-show-side-card">
-                                <p class="article-show-side-card__kicker">À proximité</p>
+		<section class="public-detail-content">
+			<div class="public-detail-container">
+				<div class="article-show-layout">
+					<article class="article-show-main">
+						<div class="prose article-content">
+							{{ article_content_html(article) }}
+						</div>
 
-                                <div class="article-show-side-links">
-                                    {% for destinationLink in article.destinationLinks %}
-                                        <a href="{{ path('app_destination_show', { slug: destinationLink.destination.slug }) }}">
-                                            {{ destinationLink.destination.name }}
-                                        </a>
-                                    {% endfor %}
-                                </div>
-                            </section>
-                        {% endif %}
+						{% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
+						{% if gallery_media_links|length > 0 %}
+							<section class="section-block article-gallery-section">
+								<h2>Galerie</h2>
+								{% include 'partials/_media_gallery.html.twig' with { media_links: gallery_media_links } only %}
+							</section>
+						{% endif %}
+					</article>
 
-                        {% if article.tagLinks|length > 0 %}
-                            <section class="article-show-side-card">
-                                <p class="article-show-side-card__kicker">Tags</p>
+					<aside class="article-show-sidebar">
+						{% if article.hikeLinks|length > 0 or article.cityVisitLinks|length > 0 or article.placeLinks|length > 0 %}
+							<section class="article-show-side-card article-show-side-card--highlight">
+								<p class="article-show-side-card__kicker">À découvrir pendant la balade</p>
 
-                                <div class="badges">
-                                    {% for tagLink in article.tagLinks %}
-                                        <span class="badge">{{ tagLink.tag.name }}</span>
-                                    {% endfor %}
-                                </div>
-                            </section>
-                        {% endif %}
-                    </aside>
-                </div>
+								{% for hikeLink in article.hikeLinks %}
+									{% if hikeLink.hikeDraft.status.value in ['finished', 'converted'] %}
+										<h2>{{ hikeLink.hikeDraft.title }}</h2>
+										<a class="article-show-side-card__button" href="{{ path('app_hike_show', { slug: hikeLink.hikeDraft.slug }) }}">
+											Voir la balade
+										</a>
+									{% endif %}
+								{% endfor %}
 
-                <div class="article-show-comments">
-                    {% include 'partials/_comments.html.twig' with { comments: comments } %}
-                    {% include 'partials/_comment_form.html.twig' with { comment_form: comment_form } %}
-                </div>
-            </div>
-        </section>
-    </main>
+								{% for cityVisitLink in article.cityVisitLinks %}
+									{% if cityVisitLink.cityVisitDraft.status.value in ['finished', 'converted'] %}
+										<h2>{{ cityVisitLink.cityVisitDraft.title }}</h2>
+										<a class="article-show-side-card__button" href="{{ path('app_city_visit_show', { slug: cityVisitLink.cityVisitDraft.slug }) }}">
+											Voir la visite
+										</a>
+									{% endif %}
+								{% endfor %}
+
+								{% for placeLink in article.placeLinks %}
+									{% if placeLink.place.status.value == 'published' %}
+										<h2>{{ placeLink.place.name }}</h2>
+										<a class="article-show-side-card__button" href="{{ path('app_place_show', { slug: placeLink.place.slug }) }}">
+											Voir le lieu
+										</a>
+									{% endif %}
+								{% endfor %}
+							</section>
+						{% endif %}
+
+						{% if related_article_links|length > 0 %}
+							<section class="article-show-side-card">
+								<p class="article-show-side-card__kicker">Pour aller plus loin</p>
+
+								<div class="article-show-side-links">
+									{% for relatedLink in related_article_links|slice(0, 4) %}
+										<a href="{{ path('app_article_show', { slug: relatedLink.article.slug }) }}">
+											{{ relatedLink.article.title }}
+										</a>
+									{% endfor %}
+								</div>
+							</section>
+						{% endif %}
+
+						{% if article.destinationLinks|length > 0 %}
+							<section class="article-show-side-card">
+								<p class="article-show-side-card__kicker">À proximité</p>
+
+								<div class="article-show-side-links">
+									{% for destinationLink in article.destinationLinks %}
+										<a href="{{ path('app_destination_show', { slug: destinationLink.destination.slug }) }}">
+											{{ destinationLink.destination.name }}
+										</a>
+									{% endfor %}
+								</div>
+							</section>
+						{% endif %}
+
+						{% if article.tagLinks|length > 0 %}
+							<section class="article-show-side-card">
+								<p class="article-show-side-card__kicker">Tags</p>
+
+								<div class="badges">
+									{% for tagLink in article.tagLinks %}
+										<span class="badge">{{ tagLink.tag.name }}</span>
+									{% endfor %}
+								</div>
+							</section>
+						{% endif %}
+					</aside>
+				</div>
+
+				<div class="article-show-comments">
+					{% include 'partials/_comments.html.twig' with { comments: comments } %}
+					{% include 'partials/_comment_form.html.twig' with { comment_form: comment_form } %}
+				</div>
+			</div>
+		</section>
+	</main>
 {% endblock %}
