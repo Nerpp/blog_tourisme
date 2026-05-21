@@ -10,9 +10,12 @@ use App\Enum\VideoType;
 use App\Repository\MediaAssetRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\PublicMediaPathValidator;
 use App\Service\Media\VideoThumbnailGenerator;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,6 +29,7 @@ final class AdminMediaController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly MediaVariantService $mediaVariantService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
+        private readonly PublicMediaPathValidator $publicMediaPathValidator,
     ) {
     }
 
@@ -127,6 +131,23 @@ final class AdminMediaController extends AbstractController
     private function updateMediaFromRequest(MediaAsset $media, Request $request): void
     {
         $mediaType = MediaType::tryFrom($request->request->getString('mediaType')) ?? MediaType::Image;
+        try {
+            $filePath = $this->publicMediaPathValidator->validateNullableUploadPath(
+                $this->nullIfBlank($request->request->getString('filePath')),
+                'filePath',
+            );
+            $thumbnailPath = $this->publicMediaPathValidator->validateNullableUploadPath(
+                $this->nullIfBlank($request->request->getString('thumbnailPath')),
+                'thumbnailPath',
+            );
+            $externalUrl = $this->publicMediaPathValidator->validateNullableHttpUrl(
+                $this->nullIfBlank($request->request->getString('externalUrl')),
+                'externalUrl',
+            );
+        } catch (InvalidArgumentException $exception) {
+            throw new BadRequestHttpException($exception->getMessage(), $exception);
+        }
+
         $media
             ->setTitle($this->nullIfBlank($request->request->getString('title')))
             ->setAltText($this->nullIfBlank($request->request->getString('altText')))
@@ -134,9 +155,9 @@ final class AdminMediaController extends AbstractController
             ->setMediaType($mediaType)
             ->setImageType($mediaType === MediaType::Image ? (ImageType::tryFrom($request->request->getString('imageType')) ?? ImageType::Standard) : null)
             ->setVideoType($mediaType === MediaType::Video ? (VideoType::tryFrom($request->request->getString('videoType')) ?? VideoType::External) : null)
-            ->setFilePath($this->nullIfBlank($request->request->getString('filePath')))
-            ->setThumbnailPath($this->nullIfBlank($request->request->getString('thumbnailPath')))
-            ->setExternalUrl($this->nullIfBlank($request->request->getString('externalUrl')));
+            ->setFilePath($filePath)
+            ->setThumbnailPath($thumbnailPath)
+            ->setExternalUrl($externalUrl);
     }
 
     private function generateVideoThumbnailIfMissing(MediaAsset $media): void

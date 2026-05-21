@@ -18,6 +18,7 @@ final class VideoThumbnailGenerator
     public function __construct(
         private readonly ParameterBagInterface $parameterBag,
         private readonly SluggerInterface $slugger,
+        private readonly PublicMediaPathValidator $publicMediaPathValidator,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -155,12 +156,37 @@ final class VideoThumbnailGenerator
 
     private function resolveLocalPublicPath(?string $publicPath): ?string
     {
-        if ($publicPath === null || $publicPath === '' || str_starts_with($publicPath, 'http://') || str_starts_with($publicPath, 'https://')) {
+        if (!$this->publicMediaPathValidator->isSafeMediaUploadPath($publicPath)) {
+            $this->logger->warning('Chemin vidéo refusé pour la génération de miniature.', [
+                'publicPath' => $publicPath,
+            ]);
+
             return null;
         }
 
-        $path = $this->parameterBag->get('kernel.project_dir').'/public/'.ltrim($publicPath, '/');
+        $allowedRoot = realpath($this->parameterBag->get('kernel.project_dir').'/public/uploads/media');
+        if ($allowedRoot === false) {
+            $this->logger->warning('Dossier public/uploads/media introuvable pour la génération de miniature vidéo.');
 
-        return is_file($path) ? $path : null;
+            return null;
+        }
+
+        $candidatePath = $this->parameterBag->get('kernel.project_dir').'/public/'.ltrim((string) $publicPath, '/');
+        $realPath = realpath($candidatePath);
+        if ($realPath === false || !is_file($realPath)) {
+            return null;
+        }
+
+        $allowedRoot = rtrim($allowedRoot, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        if (!str_starts_with($realPath, $allowedRoot)) {
+            $this->logger->warning('Chemin vidéo hors du dossier autorisé refusé pour ffmpeg.', [
+                'publicPath' => $publicPath,
+                'realPath' => $realPath,
+            ]);
+
+            return null;
+        }
+
+        return $realPath;
     }
 }
