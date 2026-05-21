@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimit;
 
+/** @property-read \App\Service\Media\ImageTypeDetector $imageTypeDetector */
 trait StudioMediaHelperTrait
 {
     private const UPLOAD_DIRECTORY = 'uploads/media';
@@ -43,7 +44,7 @@ trait StudioMediaHelperTrait
         ?ImageType $imageType = null,
         object|string|null $context = null,
     ): ?MediaAsset {
-        $imageType ??= ImageType::Standard;
+        $imageType ??= $this->imageTypeDetector->detectFromUpload($file);
 
         try {
             $storedFile = $this->storeImageByType($file, $imageType, $context);

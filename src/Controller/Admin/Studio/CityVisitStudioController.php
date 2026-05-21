@@ -20,6 +20,7 @@ use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
+use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
@@ -51,6 +52,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly DronePanoramaUploadService $panoramaUploadService,
         private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
+        private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
         private readonly ActionRateLimiter $actionRateLimiter,
@@ -111,7 +113,7 @@ final class CityVisitStudioController extends AbstractController
             $media = $this->createImageAssetFromUpload(
                 $file,
                 (string) ($captions[$index] ?? ''),
-                ImageType::tryFrom((string) ($imageTypes[$index] ?? '')) ?? ImageType::Standard,
+                ImageType::tryFrom((string) ($imageTypes[$index] ?? '')),
                 $cityVisitDraft,
             );
             if (!$media instanceof MediaAsset) {

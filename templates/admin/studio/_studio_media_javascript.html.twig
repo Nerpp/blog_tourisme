@@ -36,6 +36,38 @@
             return ratio >= 1.9 && ratio <= 2.1;
         };
 
+        const detectImageType = (file, width, height) => {
+            const filename = (file.name || '').toLowerCase();
+            if (filename.includes('180')) {
+                return '180';
+            }
+
+            if (!width || !height) {
+                return 'standard';
+            }
+
+            const ratio = width / height;
+            if (ratio >= 1.9 && ratio <= 2.1) {
+                if (width >= 3000 && panoramaImageTypes.includes(file.type)) {
+                    return '360';
+                }
+
+                if (width >= 1600 && width < 3000) {
+                    return '180';
+                }
+            }
+
+            if (ratio > 2.2) {
+                return 'panorama';
+            }
+
+            if (ratio >= 1.65 && ratio <= 2.2) {
+                return 'wide_angle';
+            }
+
+            return 'standard';
+        };
+
         document.querySelectorAll('[data-photo-upload-form]').forEach((form) => {
             const fileInput = form.querySelector('[data-photo-input]');
             const preview = form.querySelector('[data-photo-preview]');
@@ -47,6 +79,7 @@
             const imageTypeOptions = JSON.parse(preview.dataset.imageTypes || '{}');
             const associationOptions = JSON.parse(preview.dataset.associations || '{"gallery":"Galerie générale"}');
             const selectedFiles = [];
+            const imageTypeLabel = (value) => imageTypeOptions[value] || value;
 
             const syncInputFiles = () => {
                 const transfer = new DataTransfer();
@@ -116,12 +149,20 @@
 
                     imageTypeSelect.addEventListener('change', () => {
                         item.imageType = imageTypeSelect.value;
+                        item.imageTypeManuallyChanged = true;
                         renderPreview();
                     });
                     associationSelect.addEventListener('change', () => {
                         item.association = associationSelect.value;
                     });
                     card.appendChild(row);
+
+                    if (item.detectedImageType && !item.imageTypeManuallyChanged) {
+                        const detectedNotice = document.createElement('p');
+                        detectedNotice.className = 'studio-preview__notice';
+                        detectedNotice.textContent = `Type détecté automatiquement : ${imageTypeLabel(item.detectedImageType)}`;
+                        card.appendChild(detectedNotice);
+                    }
 
                     if (item.imageType === '360') {
                         const panoramaNotice = document.createElement('p');
@@ -167,6 +208,8 @@
                         file,
                         caption: '',
                         imageType: 'standard',
+                        detectedImageType: null,
+                        imageTypeManuallyChanged: false,
                         association: 'gallery',
                         width: null,
                         height: null,
@@ -176,6 +219,10 @@
                     readImageDimensions(file).then((dimensions) => {
                         item.width = dimensions.width;
                         item.height = dimensions.height;
+                        item.detectedImageType = detectImageType(file, dimensions.width, dimensions.height);
+                        if (!item.imageTypeManuallyChanged) {
+                            item.imageType = item.detectedImageType;
+                        }
                         renderPreview();
                     });
                 });
