@@ -338,212 +338,259 @@
 
 /* VIDÉOS */
 
-.drone-video-grid {
+.video-thumb-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 18px;
 }
 
-.video-card {
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 30px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.video-frame {
+.video-thumb-card {
   position: relative;
+  display: block;
+  min-height: 220px;
+  max-height: 280px;
   aspect-ratio: 16 / 9;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
   background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 20px 54px rgba(2, 6, 23, 0.2);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
-.video-frame video,
-.video-frame iframe {
+.video-thumb-card img {
   display: block;
   width: 100%;
   height: 100%;
-  border: 0;
   object-fit: cover;
+  opacity: 0.88;
+  transition:
+    opacity 0.25s ease,
+    transform 0.45s ease;
 }
 
-.video-content {
-  padding: 18px;
+.video-thumb-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 28px 70px rgba(2, 6, 23, 0.28);
 }
 
-.video-content h3 {
-  margin: 0 0 8px;
-  color: #fff;
-  font-size: 1.2rem;
-  font-weight: 950;
+.video-thumb-card:hover img {
+  opacity: 1;
+  transform: scale(1.04);
 }
 
-.video-content p {
-  margin: 0;
-  color: rgba(245, 247, 243, 0.68);
-  line-height: 1.55;
+.video-thumb-card:focus-visible {
+  outline: 4px solid rgba(126, 214, 167, 0.45);
+  outline-offset: 4px;
 }
 
-/* 360 / 180 */
-
-.immersive-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.immersive-card {
-  position: relative;
-  display: flex;
-  min-height: 340px;
-  overflow: hidden;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 22px;
-  border-radius: 30px;
+.video-thumb-card.has-placeholder {
   background:
-    linear-gradient(to top, rgba(0, 0, 0, 0.76), rgba(0, 0, 0, 0.12)),
-    var(--immersive-image, url("/images/home/hero-sea-mountain.webp"));
-  background-size: cover;
-  background-position: center;
-  color: #fff;
-  text-decoration: none;
+    radial-gradient(circle at center, rgba(126, 214, 167, 0.18), transparent 38%),
+    linear-gradient(135deg, rgba(16, 39, 31, 0.96), rgba(2, 6, 23, 0.92));
 }
 
-.immersive-card:hover {
-  color: #fff;
-  text-decoration: none;
-}
-
-.immersive-card h3 {
-  position: relative;
-  z-index: 1;
-  margin: 0 0 10px;
-  font-size: 1.55rem;
-  line-height: 1.08;
-  font-weight: 950;
-}
-
-.immersive-card p {
-  position: relative;
-  z-index: 1;
-  margin: 0;
-  color: rgba(255, 255, 255, 0.72);
-  line-height: 1.55;
-}
-
-.immersive-card__tag {
+.video-thumb-card__badge {
   position: absolute;
-  left: 18px;
-  top: 18px;
+  left: 16px;
+  top: 16px;
   z-index: 2;
-  padding: 7px 11px;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
   color: #18322a;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 950;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  backdrop-filter: blur(12px);
 }
 
-/* VIEWER 360 */
-
-.trail-panorama-section {
-  margin: 2rem 0 34px;
-  padding: clamp(24px, 4vw, 40px);
-  border: 1px solid rgba(24, 50, 42, 0.08);
-  border-radius: 34px;
-  background:
-    radial-gradient(circle at top right, rgba(126, 214, 167, 0.12), transparent 34%),
-    rgba(255, 255, 255, 0.94);
-  box-shadow: 0 24px 70px rgba(16, 39, 31, 0.08);
-}
-
-.trail-panorama-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 1rem;
-}
-
-.trail-panorama-badge,
-.trail-panorama-drone-badge,
-.trail-panorama-card__tag,
-.point-media-card__badge {
+.video-thumb-card__play,
+.video-thumb-card__placeholder {
   display: inline-flex;
   align-items: center;
-  width: fit-content;
+  justify-content: center;
+}
+
+.video-thumb-card__play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 62px;
+  height: 62px;
   border-radius: 999px;
-  font-weight: 900;
+  background: rgba(255, 255, 255, 0.9);
+  color: #10271f;
+  font-size: 1.35rem;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 18px 42px rgba(2, 6, 23, 0.24);
 }
 
-.trail-panorama-badge {
-  min-height: 34px;
-  padding: 0.35rem 0.75rem;
-  background: rgba(15, 23, 42, 0.92);
-  color: #fff;
-  font-size: 0.8rem;
+.video-thumb-card__placeholder {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  flex-direction: column;
+  gap: 90px;
+  padding: 72px 20px 24px;
+  background:
+    radial-gradient(circle at center, rgba(126, 214, 167, 0.2), transparent 34%),
+    linear-gradient(135deg, rgba(16, 39, 31, 0.94), rgba(2, 6, 23, 0.9)),
+    rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
 }
 
-.trail-panorama-drone-badge {
+.video-thumb-card__placeholder .video-thumb-card__play {
+  position: static;
+  transform: none;
+}
+
+.video-thumb-card__title {
+  position: relative;
+  z-index: 2;
+  max-width: 100%;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.92rem;
+  font-weight: 850;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.video-thumb-card__more {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  display: inline-flex;
   min-height: 38px;
-  padding: 0 14px;
-  background: rgba(79, 159, 117, 0.14);
-  color: #2e7b55;
-  font-size: 0.86rem;
-}
-
-.trail-panorama-heading h2 {
-  margin: 0.75rem 0 0.35rem;
-  color: #18322a;
-  font-size: clamp(1.5rem, 3vw, 2.4rem);
-  line-height: 1.05;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: rgba(16, 39, 31, 0.78);
+  color: #fff;
+  font-size: 0.82rem;
   font-weight: 950;
+  backdrop-filter: blur(12px);
 }
 
-.trail-panorama-heading p {
-  max-width: 720px;
-  margin: 0;
-  color: rgba(15, 23, 42, 0.72);
-  line-height: 1.65;
+.video-external-link {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #4f9f75;
+  color: #fff;
+  font-weight: 950;
+  text-decoration: none;
 }
 
-.trail-panorama-list {
+.video-external-link:hover {
+  background: #458f68;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* VUES IMMERSIVES */
+
+.immersive-gallery-grid {
   display: grid;
-  gap: 18px;
-}
-
-.trail-panorama-card {
-  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
-.trail-panorama-card__meta {
-  display: grid;
-  gap: 8px;
+.immersive-gallery-card {
+  position: relative;
+  display: block;
+  min-height: 240px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: #dbe6dd;
+  cursor: pointer;
+  box-shadow: 0 18px 42px rgba(16, 39, 31, 0.1);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
-.trail-panorama-card__tag {
-  min-height: 30px;
-  padding: 0 11px;
-  background: rgba(79, 159, 117, 0.14);
-  color: #2e7b55;
-  font-size: 0.78rem;
+.immersive-gallery-card--large {
+  grid-column: span 2;
+  grid-row: span 2;
+  min-height: 500px;
 }
 
-.trail-panorama-card__meta h3 {
-  margin: 0;
+.immersive-gallery-card picture,
+.immersive-gallery-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.45s ease;
+}
+
+.immersive-gallery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 58px rgba(16, 39, 31, 0.16);
+}
+
+.immersive-gallery-card:hover img {
+  transform: scale(1.04);
+}
+
+.immersive-gallery-card:focus-visible {
+  outline: 4px solid rgba(79, 159, 117, 0.45);
+  outline-offset: 4px;
+}
+
+.immersive-gallery-card__badge {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 2;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
   color: #18322a;
-  font-size: 1.35rem;
+  font-size: 0.78rem;
   font-weight: 950;
+  backdrop-filter: blur(12px);
 }
 
-.trail-panorama-card__meta p {
-  margin: 0;
-  color: rgba(24, 50, 42, 0.68);
-  line-height: 1.55;
+.immersive-gallery-card__more {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: rgba(16, 39, 31, 0.78);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 950;
+  backdrop-filter: blur(12px);
 }
+
+/* VIEWER 360 */
 
 .trail-panorama-viewer {
   position: relative;
@@ -577,6 +624,11 @@
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.trail-panorama-fallback > img {
+  position: absolute;
+  inset: 0;
 }
 
 .trail-panorama-fallback img {
@@ -631,47 +683,6 @@
   width: 100%;
   border-radius: 20px;
   object-fit: cover;
-}
-
-/* PANORAMAS */
-
-.panorama-strip {
-  display: grid;
-  gap: 18px;
-}
-
-.panorama-card {
-  position: relative;
-  min-height: 340px;
-  overflow: hidden;
-  border-radius: 32px;
-  background:
-    linear-gradient(to right, rgba(0, 0, 0, 0.56), rgba(0, 0, 0, 0.04)),
-    var(--panorama-image, url("/images/home/hero-sea-mountain.webp"));
-  background-size: cover;
-  background-position: center;
-}
-
-.panorama-card__content {
-  position: absolute;
-  left: 24px;
-  bottom: 24px;
-  max-width: 560px;
-  color: #fff;
-}
-
-.panorama-card__content h3 {
-  margin: 0 0 10px;
-  font-size: clamp(1.8rem, 4vw, 3rem);
-  line-height: 1;
-  letter-spacing: -0.04em;
-  font-weight: 950;
-}
-
-.panorama-card__content p {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.74);
-  line-height: 1.55;
 }
 
 /* ÉTAPES */
@@ -838,11 +849,15 @@
   right: 10px;
   top: 10px;
   z-index: 2;
+  display: inline-flex;
   min-height: 28px;
+  align-items: center;
   padding: 0 10px;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   color: #18322a;
   font-size: 0.72rem;
+  font-weight: 900;
 }
 
 .empty-media-note {
@@ -861,9 +876,7 @@
     background: linear-gradient(to bottom, #10271f 0, #10271f 760px, #f5f7f3 760px, #f5f7f3 100%);
   }
 
-  .public-detail-hero-grid,
-  .drone-video-grid,
-  .immersive-grid {
+  .public-detail-hero-grid {
     grid-template-columns: 1fr;
   }
 
@@ -873,6 +886,14 @@
   }
 
   .journey-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .video-thumb-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .immersive-gallery-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -903,10 +924,25 @@
   }
 
   .journey-gallery-card,
-  .journey-gallery-card--large {
+  .journey-gallery-card--large,
+  .video-thumb-card,
+  .immersive-gallery-card,
+  .immersive-gallery-card--large {
     grid-column: auto;
     grid-row: auto;
-    min-height: 250px;
+    min-height: 220px;
+  }
+
+  .immersive-gallery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .video-thumb-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .video-thumb-card {
+    max-height: 240px;
   }
 
   .public-point-card {
@@ -920,11 +956,6 @@
   .media-header {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .trail-panorama-heading {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .trail-panorama-viewer {
@@ -1025,6 +1056,12 @@ button.media-badge:hover {
   box-shadow: 0 42px 120px rgba(0, 0, 0, 0.45);
 }
 
+.gallery-modal__dialog--video,
+.gallery-modal__dialog--immersive,
+.gallery-modal__dialog--panorama {
+  width: min(1440px, 100%);
+}
+
 .gallery-modal__header {
   display: flex;
   align-items: flex-start;
@@ -1086,6 +1123,14 @@ button.media-badge:hover {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.gallery-modal__slide--video.is-active,
+.gallery-modal__slide--immersive.is-active,
+.gallery-modal__slide--panorama.is-active {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-content: center;
+}
+
 .gallery-modal__media {
   overflow: hidden;
   margin: 0;
@@ -1105,6 +1150,45 @@ button.media-badge:hover {
   height: min(700px, calc(100vh - 220px));
 }
 
+.gallery-modal__video-frame,
+.gallery-modal__media--immersive,
+.gallery-modal__media--panorama {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #07140f;
+}
+
+.gallery-modal__video-frame {
+  aspect-ratio: 16 / 9;
+  max-height: min(70vh, 760px);
+}
+
+.gallery-modal__video-frame iframe,
+.gallery-modal__video-frame video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: contain;
+  background: #07140f;
+}
+
+.gallery-modal__slide--immersive .gallery-modal__media--immersive img,
+.gallery-modal__slide--panorama .gallery-modal__media--panorama img {
+  width: 100%;
+  height: auto;
+  max-height: min(720px, calc(100vh - 260px));
+  object-fit: contain;
+}
+
+.gallery-modal__slide--viewer360 .trail-panorama-viewer {
+  height: min(70vh, 720px);
+  min-height: 520px;
+  border-radius: 26px;
+  box-shadow: none;
+}
+
 .gallery-modal__caption {
   display: flex;
   flex-direction: column;
@@ -1118,6 +1202,13 @@ button.media-badge:hover {
   margin: 0;
   color: rgba(245, 247, 243, 0.76);
   line-height: 1.65;
+}
+
+.gallery-modal__caption--video,
+.gallery-modal__caption--immersive,
+.gallery-modal__caption--panorama {
+  justify-content: flex-start;
+  padding: 18px 20px;
 }
 
 .gallery-modal__nav {
@@ -1416,6 +1507,18 @@ html.has-related-article-modal {
 
   .gallery-modal__slide--image-only .gallery-modal__media img {
     height: min(560px, 64vh);
+  }
+
+  .gallery-modal__slide--immersive .gallery-modal__media--immersive img,
+  .gallery-modal__slide--panorama .gallery-modal__media--panorama img {
+    height: auto;
+    max-height: calc(100vh - 250px);
+  }
+
+  .gallery-modal__slide--viewer360 .trail-panorama-viewer {
+    height: 60vh;
+    min-height: 360px;
+    border-radius: 20px;
   }
 
   .gallery-modal__caption {

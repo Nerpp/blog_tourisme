@@ -13,58 +13,108 @@ function markUnavailable(element, message = unavailableMessage) {
   }
 }
 
-export function initPanoramaViewers() {
-  const init = () => {
-    const pannellum = window.pannellum;
-    const viewers = document.querySelectorAll('.js-panorama-viewer');
-    const useMobilePanorama = window.matchMedia('(max-width: 768px)').matches;
+function refreshViewer(element) {
+  requestAnimationFrame(() => {
+    const viewer = element.publicDetailPanoramaViewer;
 
-    if (!pannellum || typeof pannellum.viewer !== 'function') {
-      viewers.forEach((element) => markUnavailable(element));
-
-      return;
+    if (viewer && typeof viewer.resize === 'function') {
+      viewer.resize();
     }
 
-    viewers.forEach((element) => {
-      const panoramaUrl = useMobilePanorama && element.dataset.panoramaMobileUrl
-        ? element.dataset.panoramaMobileUrl
-        : element.dataset.panoramaUrl;
+    window.dispatchEvent(new Event('resize'));
+  });
+}
 
-      if (!panoramaUrl || element.dataset.panoramaInitialized === 'true') {
+function isHiddenGalleryViewer(element) {
+  const modal = element.closest('.js-gallery-modal');
+
+  return modal && (modal.hidden || modal.getAttribute('aria-hidden') === 'true');
+}
+
+function panoramaUrlForElement(element) {
+  const useMobilePanorama = window.matchMedia('(max-width: 768px)').matches;
+
+  return useMobilePanorama && element.dataset.panoramaMobileUrl
+    ? element.dataset.panoramaMobileUrl
+    : element.dataset.panoramaUrl;
+}
+
+function initPanoramaViewer(element) {
+  const pannellum = window.pannellum;
+
+  if (!pannellum || typeof pannellum.viewer !== 'function') {
+    markUnavailable(element);
+
+    return;
+  }
+
+  if (element.dataset.panoramaInitialized === 'true') {
+    refreshViewer(element);
+
+    return;
+  }
+
+  const panoramaUrl = panoramaUrlForElement(element);
+
+  if (!panoramaUrl) {
+    return;
+  }
+
+  element.dataset.panoramaInitialized = 'true';
+  element.classList.add('is-loading');
+
+  try {
+    const viewer = pannellum.viewer(element, {
+      type: 'equirectangular',
+      panorama: panoramaUrl,
+      autoLoad: true,
+      compass: true,
+      showZoomCtrl: true,
+      mouseZoom: true,
+      keyboardZoom: true,
+      draggable: true,
+    });
+
+    element.publicDetailPanoramaViewer = viewer;
+
+    if (viewer && typeof viewer.on === 'function') {
+      viewer.on('load', () => {
+        element.classList.remove('is-loading');
+        element.classList.add('is-loaded');
+        refreshViewer(element);
+      });
+
+      viewer.on('error', () => {
+        markUnavailable(element);
+      });
+    } else {
+      element.classList.remove('is-loading');
+      element.classList.add('is-loaded');
+      refreshViewer(element);
+    }
+  } catch (error) {
+    markUnavailable(element);
+  }
+}
+
+export function initPanoramaViewers() {
+  const init = () => {
+    const viewers = document.querySelectorAll('.js-panorama-viewer');
+
+    viewers.forEach((element) => {
+      if (isHiddenGalleryViewer(element)) {
         return;
       }
 
-      element.dataset.panoramaInitialized = 'true';
-      element.classList.add('is-loading');
+      initPanoramaViewer(element);
+    });
 
-      try {
-        const viewer = pannellum.viewer(element, {
-          type: 'equirectangular',
-          panorama: panoramaUrl,
-          autoLoad: true,
-          compass: true,
-          showZoomCtrl: true,
-          mouseZoom: true,
-          keyboardZoom: true,
-          draggable: true,
-        });
-
-        if (viewer && typeof viewer.on === 'function') {
-          viewer.on('load', () => {
-            element.classList.remove('is-loading');
-            element.classList.add('is-loaded');
-          });
-
-          viewer.on('error', () => {
-            markUnavailable(element);
-          });
-        } else {
-          element.classList.remove('is-loading');
-          element.classList.add('is-loaded');
-        }
-      } catch (error) {
-        markUnavailable(element);
+    document.addEventListener('public-detail:panorama-activate', (event) => {
+      if (!(event.target instanceof Element) || !event.target.matches('.js-panorama-viewer')) {
+        return;
       }
+
+      initPanoramaViewer(event.target);
     });
   };
 

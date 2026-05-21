@@ -12,7 +12,10 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimit;
 
-/** @property-read \App\Service\Media\ImageTypeDetector $imageTypeDetector */
+/**
+ * @property-read \App\Service\Media\ImageTypeDetector $imageTypeDetector
+ * @property-read \App\Service\Media\VideoThumbnailGenerator $videoThumbnailGenerator
+ */
 trait StudioMediaHelperTrait
 {
     private const UPLOAD_DIRECTORY = 'uploads/media';
@@ -90,7 +93,7 @@ trait StudioMediaHelperTrait
             $videoType = VideoType::External;
         }
 
-        return (new MediaAsset())
+        $media = (new MediaAsset())
             ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
             ->setTitle(
                 $this->nullIfBlank($request->request->getString('title'))
@@ -101,6 +104,10 @@ trait StudioMediaHelperTrait
             ->setMediaType(MediaType::Video)
             ->setVideoType($videoType)
             ->setExternalUrl($externalUrl);
+
+        $this->videoThumbnailGenerator->generateForMedia($media);
+
+        return $media;
     }
 
     /**

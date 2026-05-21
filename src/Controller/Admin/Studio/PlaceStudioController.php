@@ -27,6 +27,7 @@ use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\VideoThumbnailGenerator;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -61,6 +62,7 @@ final class PlaceStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
@@ -215,6 +217,7 @@ final class PlaceStudioController extends AbstractController
             ->setMediaType(MediaType::Video)
             ->setVideoType($videoType)
             ->setExternalUrl($externalUrl);
+        $this->videoThumbnailGenerator->generateForMedia($media);
 
         $placeMedia = (new PlaceMedia())
             ->setPlace($place)
@@ -270,6 +273,9 @@ final class PlaceStudioController extends AbstractController
             $media
                 ->setVideoType($videoType)
                 ->setExternalUrl($this->nullIfBlank($request->request->getString('externalUrl')));
+            if ($media->getThumbnailPath() === null || $media->getThumbnailPath() === '') {
+                $this->videoThumbnailGenerator->generateForMedia($media);
+            }
         }
 
         $usage = $media->getMediaType() === MediaType::Image

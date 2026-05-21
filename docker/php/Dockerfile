@@ -5,6 +5,7 @@ RUN apt-get update \
         ca-certificates \
         curl \
         default-mysql-client \
+        ffmpeg \
         git \
         libicu-dev \
         libjpeg62-turbo-dev \

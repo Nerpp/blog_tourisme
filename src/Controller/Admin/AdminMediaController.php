@@ -10,6 +10,7 @@ use App\Enum\VideoType;
 use App\Repository\MediaAssetRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\VideoThumbnailGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -24,6 +25,7 @@ final class AdminMediaController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
     ) {
     }
 
@@ -53,6 +55,7 @@ final class AdminMediaController extends AbstractController
             if ($user instanceof User) {
                 $media->setUploadedBy($user);
             }
+            $this->generateVideoThumbnailIfMissing($media);
             $this->mediaVariantService->generateForMedia($media, true);
 
             $this->entityManager->persist($media);
@@ -76,6 +79,7 @@ final class AdminMediaController extends AbstractController
             $previousFilePath = $media->getFilePath();
             $previousThumbnailPath = $media->getThumbnailPath();
             $this->updateMediaFromRequest($media, $request);
+            $this->generateVideoThumbnailIfMissing($media);
             $forceVariants = $previousFilePath !== $media->getFilePath()
                 || $previousThumbnailPath !== $media->getThumbnailPath();
             $this->mediaVariantService->generateForMedia($media, $forceVariants);
@@ -133,6 +137,13 @@ final class AdminMediaController extends AbstractController
             ->setFilePath($this->nullIfBlank($request->request->getString('filePath')))
             ->setThumbnailPath($this->nullIfBlank($request->request->getString('thumbnailPath')))
             ->setExternalUrl($this->nullIfBlank($request->request->getString('externalUrl')));
+    }
+
+    private function generateVideoThumbnailIfMissing(MediaAsset $media): void
+    {
+        if ($media->getMediaType() === MediaType::Video && ($media->getThumbnailPath() === null || $media->getThumbnailPath() === '')) {
+            $this->videoThumbnailGenerator->generateForMedia($media);
+        }
     }
 
     private function canDelete(MediaAsset $media): bool

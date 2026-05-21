@@ -25,6 +25,7 @@ use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\VideoThumbnailGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -56,6 +57,7 @@ final class HikeStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
     }
@@ -738,6 +740,9 @@ final class HikeStudioController extends AbstractController
             $media
                 ->setVideoType($videoType === VideoType::Local ? VideoType::External : $videoType)
                 ->setExternalUrl($this->nullIfBlank($request->request->getString('externalUrl')));
+            if ($media->getThumbnailPath() === null || $media->getThumbnailPath() === '') {
+                $this->videoThumbnailGenerator->generateForMedia($media);
+            }
         }
 
         $hikeDraft = $mediaLink->getHikeDraft();
