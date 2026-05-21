@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class AvatarUploadService
 {
-    private const MAX_BYTES = 5_242_880;
+    private const MAX_BYTES = 2_097_152;
     private const MAX_WIDTH = 4000;
     private const MAX_HEIGHT = 4000;
     private const AVATAR_SIZE = 256;
@@ -94,6 +94,32 @@ final class AvatarUploadService
         return self::PUBLIC_DIRECTORY.'/'.$filename;
     }
 
+    public function delete(?string $publicPath): void
+    {
+        if ($publicPath === null || !str_starts_with($publicPath, self::PUBLIC_DIRECTORY.'/')) {
+            return;
+        }
+
+        $filename = basename($publicPath);
+        if ($filename === '' || $filename === '.gitkeep') {
+            return;
+        }
+
+        $directory = realpath($this->projectDir.'/'.self::UPLOAD_DIRECTORY);
+        if ($directory === false) {
+            return;
+        }
+
+        $targetPath = realpath($directory.'/'.$filename);
+        if ($targetPath === false || !str_starts_with($targetPath, $directory.DIRECTORY_SEPARATOR)) {
+            return;
+        }
+
+        if (is_file($targetPath)) {
+            @unlink($targetPath);
+        }
+    }
+
     /**
      * @return array{mimeType: string, width: int, height: int}
      */
@@ -109,7 +135,7 @@ final class AvatarUploadService
         }
 
         if ($size > self::MAX_BYTES) {
-            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 5 Mo.');
+            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 2 Mo.');
         }
 
         $extension = strtolower((string) $file->getClientOriginalExtension());

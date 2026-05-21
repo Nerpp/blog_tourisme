@@ -43,6 +43,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $avatarPath = null;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $receivePublicationEmails = false;
+
     #[ORM\Column]
     private bool $trustedCommenter = false;
 
@@ -166,6 +169,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $avatarPath = trim((string) $avatarPath);
         $this->avatarPath = $avatarPath === '' ? null : mb_substr($avatarPath, 0, 255);
+
+        return $this;
+    }
+
+    public function isReceivePublicationEmails(): bool
+    {
+        return $this->receivePublicationEmails;
+    }
+
+    public function setReceivePublicationEmails(bool $receivePublicationEmails): static
+    {
+        $this->receivePublicationEmails = $receivePublicationEmails;
 
         return $this;
     }

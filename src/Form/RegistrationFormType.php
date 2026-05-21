@@ -35,9 +35,9 @@ class RegistrationFormType extends AbstractType
                 'required' => false,
                 'constraints' => [
                     new File(
-                        maxSize: '5M',
+                        maxSize: '2M',
                         mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-                        maxSizeMessage: 'L’image de profil ne doit pas dépasser 5 Mo.',
+                        maxSizeMessage: 'L’image de profil ne doit pas dépasser 2 Mo.',
                         mimeTypesMessage: 'Formats acceptés : JPG, PNG ou WebP.',
                     ),
                 ],
