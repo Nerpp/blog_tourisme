@@ -4,6 +4,7 @@ import './styles/navbar.css';
 import './styles/public-detail.css';
 import './styles/destination.css';
 import './styles/article-index.css';
+import './styles/article-show.css';
 
 import { initNavbar } from './js/navbar.js';
 import { initPublicDetailGallery } from './js/public-detail-gallery.js';
