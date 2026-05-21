@@ -1,17 +1,72 @@
-<h1>Réinitialisation de votre mot de passe</h1>
+{% set resetLink = url('app_reset_password', { token: reset_token.token }) %}
 
-<p>
-    Une demande de réinitialisation a été faite pour votre compte Blog Tourisme.
-</p>
+<div style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent;">
+    Votre lien sécurisé de réinitialisation est disponible.
+</div>
 
-<p>
-    <a href="{{ url('app_reset_password', { token: reset_token.token }) }}">Choisir un nouveau mot de passe</a>
-</p>
+<div style="margin: 0; padding: 28px 12px; background: #f6f3ea; font-family: Inter, Arial, Helvetica, sans-serif; color: #18211f;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; max-width: 600px; overflow: hidden; border-collapse: separate; border-spacing: 0; border: 1px solid #dce8e3; border-radius: 16px; background: #fffdf8;">
+                    <tr>
+                        <td style="padding: 30px 30px 34px; background: linear-gradient(135deg, #0e4d55 0%, #12615c 58%, #77b6ad 100%); color: #ffffff;">
+                            <p style="margin: 0 0 12px; color: #f3c975; font-size: 12px; font-weight: 800; letter-spacing: 0; text-transform: uppercase;">
+                                Blog Tourisme
+                            </p>
+                            <h1 style="margin: 0; color: #ffffff; font-size: 30px; line-height: 1.15; font-weight: 850;">
+                                Réinitialisation de votre mot de passe
+                            </h1>
+                            <p style="margin: 14px 0 0; color: #edf8f5; font-size: 16px; line-height: 1.65;">
+                                Votre accès reste protégé, comme une étape tranquille avant de reprendre la route.
+                            </p>
+                        </td>
+                    </tr>
 
-<p>
-    Ce lien expire dans {{ token_lifetime_minutes }} minute{{ token_lifetime_minutes > 1 ? 's' : '' }}.
-</p>
+                    <tr>
+                        <td style="padding: 32px 30px 12px;">
+                            <p style="margin: 0 0 18px; color: #31413d; font-size: 16px; line-height: 1.7;">
+                                Vous avez demandé à réinitialiser votre mot de passe sur Blog Tourisme.
+                            </p>
 
-<p>
-    Si vous n’êtes pas à l’origine de cette demande, vous pouvez ignorer cet email.
-</p>
+                            <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 24px 0;">
+                                <tr>
+                                    <td style="border-radius: 10px; background: #12615c;">
+                                        <a href="{{ resetLink }}" style="display: inline-block; padding: 15px 22px; color: #ffffff; font-size: 16px; font-weight: 800; text-decoration: none;">
+                                            Choisir un nouveau mot de passe
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0 0 16px; color: #5f6f6a; font-size: 14px; line-height: 1.65;">
+                                Ce lien expire dans {{ token_lifetime_minutes }} minute{{ token_lifetime_minutes > 1 ? 's' : '' }}.
+                            </p>
+
+                            <div style="margin: 22px 0; padding: 16px; border: 1px solid #dce8e3; border-left: 4px solid #12615c; border-radius: 10px; background: #f3faf7;">
+                                <p style="margin: 0; color: #31413d; font-size: 14px; line-height: 1.65;">
+                                    Si vous n’êtes pas à l’origine de cette demande, vous pouvez ignorer cet email.
+                                </p>
+                            </div>
+
+                            <p style="margin: 0 0 8px; color: #5f6f6a; font-size: 13px; line-height: 1.6;">
+                                Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :
+                            </p>
+                            <p style="margin: 0; color: #12615c; font-size: 13px; line-height: 1.6; word-break: break-all;">
+                                <a href="{{ resetLink }}" style="color: #12615c; text-decoration: underline;">{{ resetLink }}</a>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 22px 30px 30px;">
+                            <p style="margin: 0; color: #31413d; font-size: 15px; line-height: 1.7;">
+                                L’équipe Blog Tourisme
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</div>

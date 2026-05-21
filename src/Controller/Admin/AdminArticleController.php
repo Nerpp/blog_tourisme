@@ -27,6 +27,7 @@ use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
+use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -55,6 +56,7 @@ final class AdminArticleController extends AbstractController
         private readonly MediaVariantService $mediaVariantService,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly ParameterBagInterface $parameterBag,
+        private readonly PublicationNotificationMailer $publicationNotificationMailer,
     ) {
     }
 
@@ -82,6 +84,7 @@ final class AdminArticleController extends AbstractController
             }
 
             if ($this->updateArticleFromRequest($article, $request)) {
+                $shouldNotifyPublication = $article->getPublishedAt() !== null && $article->getStatus() === ContentStatus::Published;
                 $article->setSlug($this->createUniqueSlug($article->getTitle() ?? 'article', Article::class));
                 $this->syncArticleRelations($article, $request);
                 $orphanCandidates = $this->handleArticleMediaFromRequest($article, $request);
@@ -93,6 +96,7 @@ final class AdminArticleController extends AbstractController
                 $this->entityManager->persist($article);
                 $this->entityManager->flush();
                 $this->cleanupDetachedMedia($orphanCandidates);
+                $this->notifyNewPublication($article, $shouldNotifyPublication);
                 $this->addFlash('success', 'Article créé.');
 
                 return $this->redirectToRoute('admin_articles_index');
@@ -125,11 +129,14 @@ final class AdminArticleController extends AbstractController
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
             }
 
+            $hadPublishedAt = $article->getPublishedAt() !== null;
             if ($this->updateArticleFromRequest($article, $request)) {
+                $shouldNotifyPublication = !$hadPublishedAt && $article->getPublishedAt() !== null && $article->getStatus() === ContentStatus::Published;
                 $this->syncArticleRelations($article, $request);
                 $orphanCandidates = $this->handleArticleMediaFromRequest($article, $request);
                 $this->entityManager->flush();
                 $this->cleanupDetachedMedia($orphanCandidates);
+                $this->notifyNewPublication($article, $shouldNotifyPublication);
                 $this->addFlash('success', 'Article enregistré.');
 
                 return $this->redirectToRoute('admin_articles_index');
@@ -209,6 +216,18 @@ final class AdminArticleController extends AbstractController
         }
 
         return true;
+    }
+
+    private function notifyNewPublication(Article $article, bool $shouldNotify): void
+    {
+        if (!$shouldNotify) {
+            return;
+        }
+
+        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($article);
+        if ($report['errorCount'] > 0) {
+            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
+        }
     }
 
     /** @param class-string $entityClass */

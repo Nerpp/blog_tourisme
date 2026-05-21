@@ -3,40 +3,52 @@
 {% block title %}Mot de passe oublié - Blog Tourisme{% endblock %}
 
 {% block body %}
-    <main class="login-page">
-        <section class="login-shell" aria-labelledby="reset-request-title">
-            <aside class="login-hero" aria-label="Réinitialisation sécurisée">
-                <div class="login-hero__content">
+    <main class="login-page auth-reset-page auth-reset-page--request">
+        <section class="login-shell auth-reset-shell" aria-labelledby="reset-request-title">
+            <aside class="login-hero auth-reset-hero" aria-label="Réinitialisation sécurisée">
+                <div class="login-hero__content auth-reset-hero__content">
                     <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
                     <p class="login-eyebrow">Accès sécurisé</p>
-                    <h1 id="reset-request-title">Réinitialiser votre mot de passe</h1>
-                    <p class="login-hero__text">
-                        Recevez un lien temporaire pour choisir un nouveau mot de passe et retrouver votre espace.
+                    <h1 id="reset-request-title" class="auth-reset-title">Réinitialiser votre mot de passe</h1>
+                    <p class="login-hero__text auth-reset-subtitle">
+                        Indiquez votre adresse email et nous vous enverrons un lien sécurisé pour créer un nouveau mot de passe.
                     </p>
+
+                    <div class="login-badges auth-reset-badges" aria-label="Garanties de sécurité">
+                        <span>Lien temporaire</span>
+                        <span>Accès protégé</span>
+                        <span>Retour au calme</span>
+                    </div>
+                </div>
+
+                <div class="auth-reset-visual" aria-hidden="true">
+                    <span class="auth-reset-visual__sun"></span>
+                    <span class="auth-reset-visual__ridge auth-reset-visual__ridge--back"></span>
+                    <span class="auth-reset-visual__ridge auth-reset-visual__ridge--front"></span>
+                    <span class="auth-reset-visual__shield"></span>
                 </div>
             </aside>
 
             <section class="login-panel" aria-label="Formulaire de demande de réinitialisation">
-                <div class="login-card">
+                <div class="login-card auth-reset-card">
                     <div class="login-card__header">
                         <p class="login-card__kicker">Mot de passe oublié</p>
-                        <h2>Recevoir un lien</h2>
-                        <p>Indiquez l’adresse email de votre compte.</p>
+                        <h2>Recevoir un lien sécurisé</h2>
+                        <p>Une étape simple pour retrouver votre accès sans exposer les informations de votre compte.</p>
                     </div>
 
                     {{ form_start(request_form, { attr: { class: 'login-form', novalidate: 'novalidate' } }) }}
                         <div class="login-field">
                             {{ form_label(request_form.email) }}
-                            {{ form_widget(request_form.email, { attr: { class: 'login-input', autocomplete: 'email', autofocus: true } }) }}
+                            {{ form_widget(request_form.email, { attr: { class: 'login-input', autocomplete: 'email', autofocus: true, placeholder: 'vous@exemple.fr' } }) }}
                             {{ form_errors(request_form.email) }}
                         </div>
 
-                        <button class="login-button" type="submit">Envoyer le lien</button>
+                        <button class="login-button" type="submit">Recevoir le lien de réinitialisation</button>
                     {{ form_end(request_form) }}
 
-                    <div class="login-links" aria-label="Liens utiles">
+                    <div class="login-links auth-reset-actions" aria-label="Liens utiles">
                         <a href="{{ path('app_login') }}">Retour à la connexion</a>
-                        <a href="{{ path('app_register') }}">Créer un compte</a>
                     </div>
                 </div>
             </section>

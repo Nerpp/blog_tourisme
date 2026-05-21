@@ -26,6 +26,8 @@ use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\VideoThumbnailGenerator;
+use App\Service\PublicationNotificationMailer;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -59,6 +61,7 @@ final class HikeStudioController extends AbstractController
         private readonly MediaVariantService $mediaVariantService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
+        private readonly PublicationNotificationMailer $publicationNotificationMailer,
     ) {
     }
 
@@ -74,8 +77,11 @@ final class HikeStudioController extends AbstractController
                 return $this->redirectToStudio($hikeDraft);
             }
 
+            $hadFinishedAt = $hikeDraft->getFinishedAt() !== null;
             $this->updateDraftFromRequest($hikeDraft, $request);
+            $shouldNotifyPublication = !$hadFinishedAt && $hikeDraft->getFinishedAt() !== null && $this->isPublicStatus($hikeDraft->getStatus());
             $this->entityManager->flush();
+            $this->notifyNewPublication($hikeDraft, $shouldNotifyPublication);
             $this->addFlash('success', 'La randonnée rapide a été enregistrée.');
 
             return $this->redirectToStudio($hikeDraft);
@@ -402,10 +408,32 @@ final class HikeStudioController extends AbstractController
         }
 
         $destinationId = $this->nullableInt($request->request->get('destination'));
+        $status = HikeDraftStatus::tryFrom($request->request->getString('status')) ?? $hikeDraft->getStatus();
         $hikeDraft
-            ->setStatus(HikeDraftStatus::tryFrom($request->request->getString('status')) ?? $hikeDraft->getStatus())
+            ->setStatus($status)
             ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
             ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+
+        if ($this->isPublicStatus($status) && $hikeDraft->getFinishedAt() === null) {
+            $hikeDraft->setFinishedAt(new DateTimeImmutable());
+        }
+    }
+
+    private function isPublicStatus(HikeDraftStatus $status): bool
+    {
+        return in_array($status, [HikeDraftStatus::Finished, HikeDraftStatus::Converted], true);
+    }
+
+    private function notifyNewPublication(HikeDraft $hikeDraft, bool $shouldNotify): void
+    {
+        if (!$shouldNotify) {
+            return;
+        }
+
+        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($hikeDraft);
+        if ($report['errorCount'] > 0) {
+            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
+        }
     }
 
     /**

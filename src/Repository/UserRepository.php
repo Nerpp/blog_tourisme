@@ -23,4 +23,19 @@ class UserRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['googleId' => $googleId]);
     }
+
+    /** @return list<User> */
+    public function findUsersSubscribedToPublicationEmails(): array
+    {
+        return $this->createQueryBuilder('u')
+            ->andWhere('u.receivePublicationEmails = :enabled')
+            ->andWhere('u.isVerified = :verified')
+            ->andWhere('u.isBanned = :banned')
+            ->setParameter('enabled', true)
+            ->setParameter('verified', true)
+            ->setParameter('banned', false)
+            ->orderBy('u.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

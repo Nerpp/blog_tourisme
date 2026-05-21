@@ -13,6 +13,7 @@ use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickHikeVoter;
+use App\Service\PublicationNotificationMailer;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -36,6 +37,7 @@ final class QuickHikeController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly SluggerInterface $slugger,
+        private readonly PublicationNotificationMailer $publicationNotificationMailer,
     ) {
     }
 
@@ -164,14 +166,28 @@ final class QuickHikeController extends AbstractController
             return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
         }
 
+        $hadFinishedAt = $hikeDraft->getFinishedAt() !== null;
         $hikeDraft
             ->setStatus(HikeDraftStatus::Finished)
-            ->setFinishedAt(new DateTimeImmutable());
+            ->setFinishedAt($hikeDraft->getFinishedAt() ?? new DateTimeImmutable());
 
         $this->entityManager->flush();
+        $this->notifyNewPublication($hikeDraft, !$hadFinishedAt && $hikeDraft->getFinishedAt() !== null);
         $this->addFlash('success', 'Randonnée rapide terminée.');
 
         return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
+    }
+
+    private function notifyNewPublication(HikeDraft $hikeDraft, bool $shouldNotify): void
+    {
+        if (!$shouldNotify) {
+            return;
+        }
+
+        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($hikeDraft);
+        if ($report['errorCount'] > 0) {
+            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
+        }
     }
 
     private function denyUnlessAdmin(): ?RedirectResponse

@@ -979,6 +979,254 @@ textarea {
   color: #12615c;
 }
 
+.auth-reset-page {
+  background:
+    linear-gradient(135deg, rgba(16, 74, 95, 0.13), rgba(18, 97, 92, 0.12)),
+    radial-gradient(circle at 16% 14%, rgba(142, 203, 217, 0.36), transparent 28%),
+    radial-gradient(circle at 84% 12%, rgba(243, 201, 117, 0.42), transparent 29%),
+    radial-gradient(circle at 72% 82%, rgba(91, 161, 106, 0.2), transparent 31%),
+    #f8f4ec;
+}
+
+.auth-reset-shell {
+  align-items: stretch;
+}
+
+.auth-reset-hero {
+  background:
+    linear-gradient(145deg, rgba(8, 42, 58, 0.95), rgba(18, 97, 92, 0.82) 58%, rgba(75, 137, 131, 0.78)),
+    #12615c;
+}
+
+.auth-reset-hero::before {
+  opacity: 0.56;
+}
+
+.auth-reset-hero__content {
+  max-width: 610px;
+}
+
+.auth-reset-title {
+  max-width: 700px;
+}
+
+.auth-reset-subtitle {
+  max-width: 560px;
+}
+
+.auth-reset-badges span {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.auth-reset-visual {
+  position: relative;
+  z-index: 2;
+  min-height: 260px;
+  margin-top: 34px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(142, 203, 217, 0.22), rgba(255, 255, 255, 0.04) 54%),
+    linear-gradient(125deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+}
+
+.auth-reset-visual__sun,
+.auth-reset-visual__ridge,
+.auth-reset-visual__shield,
+.auth-reset-visual__mail {
+  position: absolute;
+  display: block;
+}
+
+.auth-reset-visual__sun {
+  right: 42px;
+  top: 34px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #f3c975;
+  box-shadow: 0 0 0 18px rgba(243, 201, 117, 0.13);
+}
+
+.auth-reset-visual__ridge {
+  bottom: -70px;
+  border-radius: 28px;
+  transform: rotate(45deg);
+}
+
+.auth-reset-visual__ridge--back {
+  left: 12%;
+  width: 240px;
+  height: 240px;
+  background: linear-gradient(135deg, #77b6ad, #e4c679);
+  opacity: 0.88;
+}
+
+.auth-reset-visual__ridge--front {
+  right: 9%;
+  width: 300px;
+  height: 300px;
+  background: linear-gradient(135deg, #2f766d, #86b97d);
+}
+
+.auth-reset-visual__shield {
+  left: 50%;
+  top: 50%;
+  width: 86px;
+  height: 96px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 32px 32px 40px 40px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
+    rgba(9, 54, 57, 0.34);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+  transform: translate(-50%, -38%);
+}
+
+.auth-reset-visual__shield::before {
+  position: absolute;
+  inset: 20px 26px 34px;
+  border: 3px solid rgba(243, 201, 117, 0.95);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  content: "";
+}
+
+.auth-reset-visual__shield::after {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f3c975;
+  box-shadow: 0 10px 0 #f3c975;
+  content: "";
+  transform: translate(-50%, -50%);
+}
+
+.auth-reset-visual__mail {
+  left: 50%;
+  top: 50%;
+  width: 132px;
+  height: 86px;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, transparent 49%, rgba(243, 201, 117, 0.95) 50% 52%, transparent 53%),
+    linear-gradient(215deg, transparent 49%, rgba(243, 201, 117, 0.95) 50% 52%, transparent 53%),
+    rgba(9, 54, 57, 0.28);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18);
+  transform: translate(-50%, -38%);
+}
+
+.auth-reset-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 253, 248, 0.9)),
+    #fff;
+}
+
+.auth-reset-card::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #12615c, #77b6ad, #f3c975);
+  content: "";
+}
+
+.auth-reset-card .login-card__header {
+  position: relative;
+}
+
+.auth-reset-card .login-form > ul,
+.auth-reset-card .login-field ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: #9b2f2f;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.auth-reset-card .login-input {
+  background: #fffdf8;
+}
+
+.auth-reset-card .login-input::placeholder {
+  color: #8b9994;
+}
+
+.auth-reset-actions {
+  justify-content: flex-start;
+}
+
+.auth-reset-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.auth-reset-icon {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e5f0ed, #fff3d4);
+}
+
+.auth-reset-icon--mail::before {
+  width: 30px;
+  height: 20px;
+  border: 2px solid #12615c;
+  border-radius: 5px;
+  background:
+    linear-gradient(145deg, transparent 47%, #12615c 49% 51%, transparent 53%),
+    linear-gradient(215deg, transparent 47%, #12615c 49% 51%, transparent 53%);
+  content: "";
+}
+
+.reset-check-card {
+  align-self: center;
+}
+
+.password-guidelines {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgba(18, 97, 92, 0.18);
+  border-radius: 8px;
+  background: rgba(229, 240, 237, 0.52);
+}
+
+.password-guidelines p {
+  margin: 0;
+  color: #243532;
+  font-size: 0.92rem;
+  font-weight: 850;
+}
+
+.password-guidelines ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: #51605b;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.password-guidelines li::marker {
+  color: #12615c;
+}
+
 .register-page {
   position: relative;
   overflow: hidden;
@@ -1274,6 +1522,32 @@ textarea {
     justify-content: stretch;
   }
 
+  .auth-reset-visual {
+    min-height: 190px;
+    margin-top: 24px;
+  }
+
+  .auth-reset-visual__sun {
+    right: 28px;
+    top: 26px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .auth-reset-visual__shield {
+    width: 72px;
+    height: 82px;
+  }
+
+  .auth-reset-visual__mail {
+    width: 112px;
+    height: 72px;
+  }
+
+  .auth-reset-actions {
+    justify-content: stretch;
+  }
+
   .register-page {
     min-height: auto;
     padding: 24px 12px 44px;
@@ -1313,5 +1587,18 @@ textarea {
 
   .login-map {
     display: none;
+  }
+
+  .auth-reset-page {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .auth-reset-visual {
+    display: none;
+  }
+
+  .password-guidelines {
+    padding: 14px;
   }
 }

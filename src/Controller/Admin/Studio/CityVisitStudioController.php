@@ -25,6 +25,8 @@ use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\VideoThumbnailGenerator;
+use App\Service\PublicationNotificationMailer;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -58,6 +60,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly MediaVariantService $mediaVariantService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
+        private readonly PublicationNotificationMailer $publicationNotificationMailer,
     ) {
     }
 
@@ -73,8 +76,11 @@ final class CityVisitStudioController extends AbstractController
                 return $this->redirectToStudio($cityVisitDraft);
             }
 
+            $hadFinishedAt = $cityVisitDraft->getFinishedAt() !== null;
             $this->updateDraftFromRequest($cityVisitDraft, $request);
+            $shouldNotifyPublication = !$hadFinishedAt && $cityVisitDraft->getFinishedAt() !== null && $this->isPublicStatus($cityVisitDraft->getStatus());
             $this->entityManager->flush();
+            $this->notifyNewPublication($cityVisitDraft, $shouldNotifyPublication);
             $this->addFlash('success', 'La visite de ville rapide a été enregistrée.');
 
             return $this->redirectToStudio($cityVisitDraft);
@@ -300,14 +306,36 @@ final class CityVisitStudioController extends AbstractController
         $destinationId = $this->nullableInt($request->request->get('destination'));
         $destination = $destinationId !== null ? $this->destinationRepository->find($destinationId) : null;
         $notes = $this->nullIfBlank($request->request->getString('notes'));
+        $status = CityVisitDraftStatus::tryFrom($request->request->getString('status')) ?? $cityVisitDraft->getStatus();
 
         $cityVisitDraft
-            ->setStatus(CityVisitDraftStatus::tryFrom($request->request->getString('status')) ?? $cityVisitDraft->getStatus())
+            ->setStatus($status)
             ->setDestination($destination)
             ->setNotes($notes);
 
+        if ($this->isPublicStatus($status) && $cityVisitDraft->getFinishedAt() === null) {
+            $cityVisitDraft->setFinishedAt(new DateTimeImmutable());
+        }
+
         if ($destination !== null) {
             $destination->setDescription($notes);
+        }
+    }
+
+    private function isPublicStatus(CityVisitDraftStatus $status): bool
+    {
+        return in_array($status, [CityVisitDraftStatus::Finished, CityVisitDraftStatus::Converted], true);
+    }
+
+    private function notifyNewPublication(CityVisitDraft $cityVisitDraft, bool $shouldNotify): void
+    {
+        if (!$shouldNotify) {
+            return;
+        }
+
+        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($cityVisitDraft);
+        if ($report['errorCount'] > 0) {
+            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
         }
     }
 

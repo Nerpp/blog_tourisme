@@ -13,6 +13,7 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickCityVisitVoter;
+use App\Service\PublicationNotificationMailer;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -36,6 +37,7 @@ final class QuickCityVisitController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly SluggerInterface $slugger,
+        private readonly PublicationNotificationMailer $publicationNotificationMailer,
     ) {
     }
 
@@ -156,15 +158,29 @@ final class QuickCityVisitController extends AbstractController
             return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $cityVisitDraft->getId()]);
         }
 
+        $hadFinishedAt = $cityVisitDraft->getFinishedAt() !== null;
         $cityVisitDraft
             ->setStatus(CityVisitDraftStatus::Finished)
-            ->setFinishedAt(new DateTimeImmutable())
+            ->setFinishedAt($cityVisitDraft->getFinishedAt() ?? new DateTimeImmutable())
             ->setGoogleMapsUrl($this->generateGoogleMapsUrl($cityVisitDraft));
 
         $this->entityManager->flush();
+        $this->notifyNewPublication($cityVisitDraft, !$hadFinishedAt && $cityVisitDraft->getFinishedAt() !== null);
         $this->addFlash('success', 'Visite de ville terminée.');
 
         return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $cityVisitDraft->getId()]);
+    }
+
+    private function notifyNewPublication(CityVisitDraft $cityVisitDraft, bool $shouldNotify): void
+    {
+        if (!$shouldNotify) {
+            return;
+        }
+
+        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($cityVisitDraft);
+        if ($report['errorCount'] > 0) {
+            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
+        }
     }
 
     private function denyUnlessAdmin(): ?RedirectResponse
