@@ -298,10 +298,17 @@ final class CityVisitStudioController extends AbstractController
         }
 
         $destinationId = $this->nullableInt($request->request->get('destination'));
+        $destination = $destinationId !== null ? $this->destinationRepository->find($destinationId) : null;
+        $notes = $this->nullIfBlank($request->request->getString('notes'));
+
         $cityVisitDraft
             ->setStatus(CityVisitDraftStatus::tryFrom($request->request->getString('status')) ?? $cityVisitDraft->getStatus())
-            ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
-            ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+            ->setDestination($destination)
+            ->setNotes($notes);
+
+        if ($destination !== null) {
+            $destination->setDescription($notes);
+        }
     }
 
     /** @return array<string, string> */
