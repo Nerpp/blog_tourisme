@@ -1,119 +1,126 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Inscription - Blog Tourisme{% endblock %}
+{% block title %}Inscription - Blog Tourisme
+{% endblock %}
 
 {% block body %}
-    <main class="register-page">
-        <section class="register-shell" aria-labelledby="register-title">
-            <aside class="register-hero" aria-label="Présentation de l’espace Blog Tourisme">
-                <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
-                <p class="login-eyebrow">Rejoindre l’exploration</p>
-                <h1 id="register-title">Créer un compte</h1>
-                <p>
-                    Rejoignez l’espace Blog Tourisme pour commenter, signaler et suivre vos découvertes.
-                </p>
-                <div class="login-badges" aria-label="Usages du compte">
-                    <span>Commentaires</span>
-                    <span>Signalements</span>
-                    <span>Découvertes</span>
-                    <span>Avatar voyageur</span>
-                </div>
-            </aside>
+	<main class="register-page">
+		<section class="register-shell" aria-labelledby="register-title">
+			<aside class="register-hero" aria-label="Présentation de l’espace Blog Tourisme">
+				<a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+				<p class="login-eyebrow">Rejoindre l’exploration</p>
+				<h1 id="register-title">Créer un compte</h1>
+				<p>
+					Rejoignez l’espace Blog Tourisme pour commenter, signaler et suivre vos découvertes.
+				</p>
+				<div class="login-badges" aria-label="Usages du compte">
+					<span>Commentaires</span>
+					<span>Signalements</span>
+					<span>Découvertes</span>
+					<span>Avatar voyageur</span>
+				</div>
+			</aside>
 
-            <section class="register-panel" aria-label="Formulaire d’inscription">
-                <div class="register-card">
-                    <div class="login-card__header">
-                        <p class="login-card__kicker">Compte personnel</p>
-                        <h2>Créer un compte</h2>
-                        <p>Ajoutez vos informations et une image de profil optionnelle.</p>
-                    </div>
+			<section class="register-panel" aria-label="Formulaire d’inscription">
+				<div class="register-card">
+					<div class="login-card__header">
+						<p class="login-card__kicker">Compte personnel</p>
+						<h2>Créer un compte</h2>
+						<p>Ajoutez vos informations et une image de profil optionnelle.</p>
+					</div>
 
-                    <a class="oauth-button oauth-button--google" href="{{ path('connect_google_start') }}">
-                        <span class="oauth-button__mark" aria-hidden="true">G</span>
-                        S’inscrire avec Google
-                    </a>
+					<a class="oauth-button oauth-button--google" href="{{ path('connect_google_start') }}">
+						<span class="oauth-button__mark" aria-hidden="true">G</span>
+						S’inscrire avec Google
+					</a>
 
-                    <div class="auth-separator"><span>ou</span></div>
+					<p class="oauth-help">
+						Connexion sécurisée avec Google. Votre email doit être vérifié par Google.
+					</p>
 
-                    {{ form_start(registration_form, { attr: { class: 'register-form', novalidate: 'novalidate' } }) }}
-                        {{ form_errors(registration_form) }}
+					<div class="auth-separator">
+						<span>ou</span>
+					</div>
 
-                        <div class="register-field">
-                            {{ form_label(registration_form.email, 'Adresse email') }}
-                            {{ form_widget(registration_form.email, { attr: { class: 'login-input', autocomplete: 'email' } }) }}
-                            {{ form_errors(registration_form.email) }}
-                        </div>
+					{{ form_start(registration_form, { attr: { class: 'register-form', novalidate: 'novalidate' } }) }}
+					{{ form_errors(registration_form) }}
 
-                        <div class="register-field">
-                            {{ form_label(registration_form.displayName, 'Nom affiché') }}
-                            {{ form_widget(registration_form.displayName, { attr: { class: 'login-input', autocomplete: 'name' } }) }}
-                            {{ form_errors(registration_form.displayName) }}
-                        </div>
+					<div class="register-field">
+						{{ form_label(registration_form.email, 'Adresse email') }}
+						{{ form_widget(registration_form.email, { attr: { class: 'login-input', autocomplete: 'email' } }) }}
+						{{ form_errors(registration_form.email) }}
+					</div>
 
-                        <div class="register-upload">
-                            <div class="register-avatar-preview" data-avatar-preview aria-hidden="true">
-                                <span>BT</span>
-                                <img alt="" data-avatar-preview-image hidden>
-                            </div>
-                            <div class="register-upload__field">
-                                {{ form_label(registration_form.avatarFile, 'Image de profil') }}
-                                {{ form_widget(registration_form.avatarFile, { attr: { class: 'register-file-input', accept: 'image/jpeg,image/png,image/webp', 'data-avatar-input': 'true' } }) }}
-                                <p>Formats acceptés : JPG, PNG, WebP. Taille maximum : 5 Mo. L’image sera automatiquement recadrée en avatar léger.</p>
-                                {{ form_errors(registration_form.avatarFile) }}
-                            </div>
-                        </div>
+					<div class="register-field">
+						{{ form_label(registration_form.displayName, 'Nom affiché') }}
+						{{ form_widget(registration_form.displayName, { attr: { class: 'login-input', autocomplete: 'name' } }) }}
+						{{ form_errors(registration_form.displayName) }}
+					</div>
 
-                        <div class="register-field">
-                            {{ form_label(registration_form.plainPassword.first, 'Mot de passe') }}
-                            {{ form_widget(registration_form.plainPassword.first, { attr: { class: 'login-input', autocomplete: 'new-password' } }) }}
-                            {{ form_errors(registration_form.plainPassword.first) }}
-                        </div>
+					<div class="register-upload">
+						<div class="register-avatar-preview" data-avatar-preview aria-hidden="true">
+							<span>BT</span>
+							<img alt="" data-avatar-preview-image hidden>
+						</div>
+						<div class="register-upload__field">
+							{{ form_label(registration_form.avatarFile, 'Image de profil') }}
+							{{ form_widget(registration_form.avatarFile, { attr: { class: 'register-file-input', accept: 'image/jpeg,image/png,image/webp', 'data-avatar-input': 'true' } }) }}
+							<p>Formats acceptés : JPG, PNG, WebP. Taille maximum : 5 Mo. L’image sera automatiquement recadrée en avatar léger.</p>
+							{{ form_errors(registration_form.avatarFile) }}
+						</div>
+					</div>
 
-                        <div class="register-field">
-                            {{ form_label(registration_form.plainPassword.second, 'Confirmation du mot de passe') }}
-                            {{ form_widget(registration_form.plainPassword.second, { attr: { class: 'login-input', autocomplete: 'new-password' } }) }}
-                            {{ form_errors(registration_form.plainPassword.second) }}
-                            {{ form_errors(registration_form.plainPassword) }}
-                        </div>
+					<div class="register-field">
+						{{ form_label(registration_form.plainPassword.first, 'Mot de passe') }}
+						{{ form_widget(registration_form.plainPassword.first, { attr: { class: 'login-input', autocomplete: 'new-password' } }) }}
+						{{ form_errors(registration_form.plainPassword.first) }}
+					</div>
 
-                        {{ form_widget(registration_form.submit, { attr: { class: 'login-button' } }) }}
+					<div class="register-field">
+						{{ form_label(registration_form.plainPassword.second, 'Confirmation du mot de passe') }}
+						{{ form_widget(registration_form.plainPassword.second, { attr: { class: 'login-input', autocomplete: 'new-password' } }) }}
+						{{ form_errors(registration_form.plainPassword.second) }}
+						{{ form_errors(registration_form.plainPassword) }}
+					</div>
 
-                        <div class="login-links">
-                            <a href="{{ path('app_login') }}">Déjà un compte ? Se connecter</a>
-                            <a href="{{ path('app_home') }}">Retour à l’accueil</a>
-                        </div>
-                    {{ form_end(registration_form) }}
-                </div>
-            </section>
-        </section>
-    </main>
+					{{ form_widget(registration_form.submit, { attr: { class: 'login-button' } }) }}
+
+					<div class="login-links">
+						<a href="{{ path('app_login') }}">Déjà un compte ? Se connecter</a>
+						<a href="{{ path('app_home') }}">Retour à l’accueil</a>
+					</div>
+					{{ form_end(registration_form) }}
+				</div>
+			</section>
+		</section>
+	</main>
 {% endblock %}
 
 {% block javascripts %}
-    {{ parent() }}
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const input = document.querySelector('[data-avatar-input]');
-            const preview = document.querySelector('[data-avatar-preview]');
-            const image = document.querySelector('[data-avatar-preview-image]');
+	{{ parent() }}
+	<script>
+		document.addEventListener('DOMContentLoaded', () => {
+const input = document.querySelector('[data-avatar-input]');
+const preview = document.querySelector('[data-avatar-preview]');
+const image = document.querySelector('[data-avatar-preview-image]');
 
-            if (!input || !preview || !image) {
-                return;
-            }
+if (! input || ! preview || ! image) {
+return;
+}
 
-            input.addEventListener('change', () => {
-                const file = input.files && input.files[0] ? input.files[0] : null;
-                if (!file || !file.type.startsWith('image/')) {
-                    image.hidden = true;
-                    image.removeAttribute('src');
-                    preview.classList.remove('has-image');
-                    return;
-                }
+input.addEventListener('change', () => {
+const file = input.files && input.files[0] ? input.files[0] : null;
+if (! file || ! file.type.startsWith('image/')) {
+image.hidden = true;
+image.removeAttribute('src');
+preview.classList.remove('has-image');
+return;
+}
 
-                image.src = URL.createObjectURL(file);
-                image.hidden = false;
-                preview.classList.add('has-image');
-            });
-        });
-    </script>
+image.src = URL.createObjectURL(file);
+image.hidden = false;
+preview.classList.add('has-image');
+});
+});
+	</script>
 {% endblock %}

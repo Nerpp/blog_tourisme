@@ -31,8 +31,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly RouterInterface $router,
-    ) {
-    }
+    ) {}
 
     public function supports(Request $request): ?bool
     {
@@ -63,7 +62,11 @@ final class GoogleAuthenticator extends OAuth2Authenticator
 
     public function onAuthenticationFailure(Request $request, AuthenticationException $exception): ?Response
     {
-        $request->getSession()->getFlashBag()->add('error', 'La connexion Google a échoué. Réessayez ou utilisez votre mot de passe.');
+        $message = $exception instanceof CustomUserMessageAuthenticationException
+            ? $exception->getMessage()
+            : 'La connexion Google a échoué. Réessayez ou utilisez votre mot de passe.';
+
+        $request->getSession()->getFlashBag()->add('error', $message);
 
         return new RedirectResponse($this->router->generate('app_login'));
     }
@@ -78,6 +81,11 @@ final class GoogleAuthenticator extends OAuth2Authenticator
 
         $email = mb_strtolower($email);
         $emailVerified = $googleUser->getEmailVerified() === true;
+
+        if (!$emailVerified) {
+            throw new CustomUserMessageAuthenticationException('Votre email doit être vérifié par Google.');
+        }
+
         $user = $this->userRepository->findOneByGoogleId($googleId);
 
         if (!$user instanceof User) {
@@ -103,9 +111,8 @@ final class GoogleAuthenticator extends OAuth2Authenticator
             $user->setGoogleId($googleId);
         }
 
-        if ($emailVerified) {
-            $user->setIsVerified(true);
-        }
+        $user->setIsVerified(true);
+
 
         $this->entityManager->flush();
 

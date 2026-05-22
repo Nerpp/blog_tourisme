@@ -1,102 +1,93 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Connexion - Blog Tourisme{% endblock %}
+{% block title %}Connexion - Blog Tourisme
+{% endblock %}
 
 {% block body %}
-    <main class="login-page">
-        <section class="login-shell" aria-labelledby="login-title">
-            <aside class="login-hero" aria-label="Présentation Blog Tourisme">
-                <div class="login-hero__content">
-                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
-                    <p class="login-eyebrow">Carnet de voyage intelligent</p>
-                    <h1 id="login-title">Votre carnet de voyage intelligent</h1>
-                    <p class="login-hero__text">
-                        Centralisez vos articles, repérages, randonnées, visites de ville, photos, vidéos et médias immersifs.
-                    </p>
+	<main class="login-page">
+		<section class="login-shell" aria-labelledby="login-title">
+			<aside class="login-hero" aria-label="Présentation Blog Tourisme">
+				<div class="login-hero__content">
+					<a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+					<p class="login-eyebrow">Carnet de voyage intelligent</p>
+					<h1 id="login-title">Votre carnet de voyage intelligent</h1>
+					<p class="login-hero__text">
+						Centralisez vos articles, repérages, randonnées, visites de ville, photos, vidéos et médias immersifs.
+					</p>
 
-                    <div class="login-badges" aria-label="Fonctionnalités">
-                        <span>Points GPS</span>
-                        <span>Photos 360°</span>
-                        <span>Visites de ville</span>
-                        <span>Blog tourisme</span>
-                    </div>
-                </div>
+					<div class="login-badges" aria-label="Fonctionnalités">
+						<span>Points GPS</span>
+						<span>Photos 360°</span>
+						<span>Visites de ville</span>
+						<span>Blog tourisme</span>
+					</div>
+				</div>
 
-                <div class="login-map" aria-hidden="true">
-                    <div class="login-map__route"></div>
-                    <span class="login-map__pin login-map__pin--one"></span>
-                    <span class="login-map__pin login-map__pin--two"></span>
-                    <span class="login-map__pin login-map__pin--three"></span>
-                    <div class="login-compass">
-                        <span>N</span>
-                    </div>
-                    <div class="login-landscape">
-                        <span></span>
-                        <span></span>
-                    </div>
-                </div>
-            </aside>
+				<div class="login-map" aria-hidden="true">
+					<div class="login-map__route"></div>
+					<span class="login-map__pin login-map__pin--one"></span>
+					<span class="login-map__pin login-map__pin--two"></span>
+					<span class="login-map__pin login-map__pin--three"></span>
+					<div class="login-compass">
+						<span>N</span>
+					</div>
+					<div class="login-landscape">
+						<span></span>
+						<span></span>
+					</div>
+				</div>
+			</aside>
 
-            <section class="login-panel" aria-label="Formulaire de connexion">
-                <div class="login-card">
-                    <div class="login-card__header">
-                        <p class="login-card__kicker">Espace sécurisé</p>
-                        <h2>Connexion</h2>
-                        <p>Connectez-vous pour gérer vos contenus touristiques.</p>
-                    </div>
+			<section class="login-panel" aria-label="Formulaire de connexion">
+				<div class="login-card">
+					<div class="login-card__header">
+						<p class="login-card__kicker">Espace sécurisé</p>
+						<h2>Connexion</h2>
+						<p>Connectez-vous pour gérer vos contenus touristiques.</p>
+					</div>
 
-                    {% if error %}
-                        <div class="login-error" role="alert">
-                            {{ error.messageKey|trans(error.messageData, 'security') }}
-                        </div>
-                    {% endif %}
+					{% if error %}
+						<div class="login-error" role="alert">
+							{{ error.messageKey|trans(error.messageData, 'security') }}
+						</div>
+					{% endif %}
 
-                    <form class="login-form" method="post" action="{{ path('app_login') }}">
-                        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+					<form class="login-form" method="post" action="{{ path('app_login') }}">
+						<input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
 
-                        <div class="login-field">
-                            <label for="username">Adresse email</label>
-                            <input
-                                class="login-input"
-                                type="email"
-                                id="username"
-                                name="_username"
-                                value="{{ last_username }}"
-                                autocomplete="email"
-                                required
-                                autofocus
-                            >
-                        </div>
+						<div class="login-field">
+							<label for="username">Adresse email</label>
+							<input class="login-input" type="email" id="username" name="_username" value="{{ last_username }}" autocomplete="email" required autofocus>
+						</div>
 
-                        <div class="login-field">
-                            <label for="password">Mot de passe</label>
-                            <input
-                                class="login-input"
-                                type="password"
-                                id="password"
-                                name="_password"
-                                autocomplete="current-password"
-                                required
-                            >
-                            <a class="login-help-link" href="{{ path('app_forgot_password_request') }}">Mot de passe oublié ?</a>
-                        </div>
+						<div class="login-field">
+							<label for="password">Mot de passe</label>
+							<input class="login-input" type="password" id="password" name="_password" autocomplete="current-password" required>
+							<a class="login-help-link" href="{{ path('app_forgot_password_request') }}">Mot de passe oublié ?</a>
+						</div>
 
-                        <button class="login-button" type="submit">Se connecter</button>
-                    </form>
+						<button class="login-button" type="submit">Se connecter</button>
+					</form>
 
-                    <div class="auth-separator"><span>ou</span></div>
+					<div class="auth-separator">
+						<span>ou</span>
+					</div>
 
-                    <a class="oauth-button oauth-button--google" href="{{ path('connect_google_start') }}">
-                        <span class="oauth-button__mark" aria-hidden="true">G</span>
-                        Continuer avec Google
-                    </a>
+					<a class="oauth-button oauth-button--google" href="{{ path('connect_google_start') }}">
+						<span class="oauth-button__mark" aria-hidden="true">G</span>
+						Continuer avec Google
+					</a>
 
-                    <div class="login-links" aria-label="Liens utiles">
-                        <a href="{{ path('app_home') }}">Retour à l’accueil</a>
-                        <a href="{{ path('app_register') }}">Créer un compte</a>
-                    </div>
-                </div>
-            </section>
-        </section>
-    </main>
+					<p class="oauth-help">
+						Connexion sécurisée avec Google. Votre email doit être vérifié par Google.
+					</p>
+
+					<div class="login-links" aria-label="Liens utiles">
+						<a href="{{ path('app_home') }}">Retour à l’accueil</a>
+						<a href="{{ path('app_register') }}">Créer un compte</a>
+					</div>
+				</div>
+			</section>
+		</section>
+	</main>
 {% endblock %}
