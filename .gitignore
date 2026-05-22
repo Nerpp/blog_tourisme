@@ -21,3 +21,5 @@ public/uploads/media/posters/*
 !public/uploads/media/posters/.gitkeep
 npm-debug.log*
 yarn-error.log*
+### Symfony secrets / vault ###
+/config/secrets/*/*decrypt.private.php
