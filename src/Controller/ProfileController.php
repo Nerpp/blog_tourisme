@@ -35,9 +35,12 @@ final class ProfileController extends AbstractController
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
             }
 
-            $avatarUploadService->delete($user->getAvatarPath());
+            $previousAvatarPath = $user->getAvatarPath();
+
             $user->setAvatarPath(null);
             $entityManager->flush();
+
+            $avatarUploadService->delete($previousAvatarPath);
 
             $this->addFlash('success', 'Votre avatar a été supprimé.');
 
@@ -49,23 +52,39 @@ final class ProfileController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             $avatarFile = $form->get('avatarFile')->getData();
+            $previousAvatarPath = null;
+            $newAvatarPath = null;
 
-            if ($avatarFile instanceof UploadedFile) {
-                $previousAvatarPath = $user->getAvatarPath();
-
-                try {
-                    $user->setAvatarPath($avatarUploadService->upload($avatarFile));
-                    $avatarUploadService->delete($previousAvatarPath);
-                } catch (InvalidArgumentException|RuntimeException $exception) {
-                    $form->get('avatarFile')->addError(new FormError($exception->getMessage()));
-
-                    return $this->render('profile/index.html.twig', [
-                        'profile_form' => $form->createView(),
-                    ], new Response(status: Response::HTTP_UNPROCESSABLE_ENTITY));
+            try {
+                if ($avatarFile instanceof UploadedFile) {
+                    $previousAvatarPath = $user->getAvatarPath();
+                    $newAvatarPath = $avatarUploadService->upload($avatarFile);
+                    $user->setAvatarPath($newAvatarPath);
                 }
+
+                $entityManager->flush();
+
+                if ($avatarFile instanceof UploadedFile) {
+                    $avatarUploadService->delete($previousAvatarPath);
+                }
+            } catch (InvalidArgumentException | RuntimeException $exception) {
+                if ($newAvatarPath !== null) {
+                    $avatarUploadService->delete($newAvatarPath);
+                }
+
+                $form->get('avatarFile')->addError(new FormError($exception->getMessage()));
+
+                return $this->render('profile/index.html.twig', [
+                    'profile_form' => $form->createView(),
+                ], new Response(status: Response::HTTP_UNPROCESSABLE_ENTITY));
+            } catch (\Throwable $exception) {
+                if ($newAvatarPath !== null) {
+                    $avatarUploadService->delete($newAvatarPath);
+                }
+
+                throw $exception;
             }
 
-            $entityManager->flush();
             $this->addFlash('success', 'Votre profil a été mis à jour.');
 
             return $this->redirectToRoute('app_profile');

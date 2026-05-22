@@ -3,6 +3,8 @@
 {% set profile_user = app.user %}
 {% set profile_name = profile_user.displayName ?: profile_user.userIdentifier %}
 {% set profile_initial = profile_name|first|upper %}
+{% set avatar_version = profile_user.updatedAt ? profile_user.updatedAt|date('U') : profile_user.id %}
+{% set avatar_src = profile_user.avatarPath ? asset(profile_user.avatarPath) ~ '?v=' ~ avatar_version : '' %}
 
 {% block title %}Profil - Blog Tourisme{% endblock %}
 
@@ -10,12 +12,21 @@
     <main class="profile-page">
         <div class="profile-shell">
             <section class="profile-hero" aria-labelledby="profile-title">
-                <div class="profile-hero__avatar">
-                    {% if profile_user.avatarPath %}
-                        <img class="profile-avatar profile-avatar--large" src="{{ asset(profile_user.avatarPath) }}" alt="">
-                    {% else %}
-                        <span class="profile-avatar profile-avatar--large profile-avatar--initials" aria-hidden="true">{{ profile_initial }}</span>
-                    {% endif %}
+                <div class="profile-hero__avatar" data-avatar-preview-root>
+                    <img
+                        class="profile-avatar profile-avatar--large {{ profile_user.avatarPath ? '' : 'is-hidden' }}"
+                        src="{{ avatar_src }}"
+                        alt=""
+                        data-avatar-preview-image
+                    >
+
+                    <span
+                        class="profile-avatar profile-avatar--large profile-avatar--initials {{ profile_user.avatarPath ? 'is-hidden' : '' }}"
+                        aria-hidden="true"
+                        data-avatar-preview-initials
+                    >
+                        {{ profile_initial }}
+                    </span>
                 </div>
 
                 <div class="profile-hero__content">
@@ -68,17 +79,38 @@
                                 <h2 id="profile-avatar-title">Image de profil</h2>
                             </div>
 
-                            <div class="profile-avatar-editor">
-                                {% if profile_user.avatarPath %}
-                                    <img class="profile-avatar profile-avatar--editor" src="{{ asset(profile_user.avatarPath) }}" alt="">
-                                {% else %}
-                                    <span class="profile-avatar profile-avatar--editor profile-avatar--initials" aria-hidden="true">{{ profile_initial }}</span>
-                                {% endif %}
+                            <div class="profile-avatar-editor" data-avatar-preview-root>
+                                <img
+                                    class="profile-avatar profile-avatar--editor {{ profile_user.avatarPath ? '' : 'is-hidden' }}"
+                                    src="{{ avatar_src }}"
+                                    alt=""
+                                    data-avatar-preview-image
+                                >
+
+                                <span
+                                    class="profile-avatar profile-avatar--editor profile-avatar--initials {{ profile_user.avatarPath ? 'is-hidden' : '' }}"
+                                    aria-hidden="true"
+                                    data-avatar-preview-initials
+                                >
+                                    {{ profile_initial }}
+                                </span>
 
                                 <div class="profile-avatar-editor__field">
                                     {{ form_label(profile_form.avatarFile, 'Changer l’avatar') }}
-                                    {{ form_widget(profile_form.avatarFile, { attr: { class: 'profile-file-input', accept: 'image/jpeg,image/png,image/webp' } }) }}
+                                    {{ form_widget(profile_form.avatarFile, {
+                                        attr: {
+                                            class: 'profile-file-input',
+                                            accept: 'image/jpeg,image/png,image/webp',
+                                            'data-avatar-preview-input': 'true'
+                                        }
+                                    }) }}
+
                                     <p>Formats acceptés : JPG, PNG, WebP. Taille maximum : 5 Mo. L’image sera automatiquement recadrée en avatar léger.</p>
+
+                                    <p class="profile-avatar-preview-message is-hidden" role="status" data-avatar-preview-message>
+                                        Nouvelle image sélectionnée. Pensez à enregistrer les modifications.
+                                    </p>
+
                                     {{ form_errors(profile_form.avatarFile) }}
                                 </div>
                             </div>

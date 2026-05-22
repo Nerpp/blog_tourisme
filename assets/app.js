@@ -14,6 +14,7 @@ import { initPanoramaViewers } from './js/panorama-viewer.js';
 import { initRelatedArticleModals } from './js/related-article-modal.js';
 import { initArticleSearch } from './js/article-search.js';
 import { initDestinationShowSearch } from './js/destination-show-search.js';
+import { initProfileAvatarPreview } from './js/profile-avatar-preview.js';
 
 initNavbar();
 initPublicDetailGallery();
@@ -22,6 +23,8 @@ initPanoramaViewers();
 initRelatedArticleModals();
 initArticleSearch();
 initDestinationShowSearch();
+initProfileAvatarPreview();
+
 const vueRoot = document.querySelector('#app');
 
 if (vueRoot) {
