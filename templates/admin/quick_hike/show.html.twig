@@ -57,12 +57,6 @@
 
 	{% if hike.status.value == 'draft' and hike.finishedAt is null %}
 
-		<section class="field-card">
-			<h2 class="field-subtitle">Sortie terrain terminée</h2>
-			<p>La randonnée est conservée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus dans le studio.</p>
-			<a class="field-button" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir le studio randonnée</a>
-		</section>
-
 		{% if not has_start_point %}
 			<section class="field-card">
 				<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form>
@@ -83,6 +77,14 @@
 				</form>
 			</section>
 		{% endif %}
+
+        {% if hike.status.value == 'draft' and hike.finishedAt is not null %}
+    <section class="field-card">
+        <h2 class="field-subtitle">Sortie terrain terminée</h2>
+        <p>La randonnée est conservée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus dans le studio.</p>
+        <a class="field-button" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir le studio randonnée</a>
+    </section>
+{% endif %}
 
 		<section class="field-card">
 			<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form>
