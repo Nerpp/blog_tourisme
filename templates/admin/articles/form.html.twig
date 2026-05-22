@@ -74,7 +74,7 @@
                     <div class="admin-field">
                         <label for="article-gallery-images">Ajouter des images</label>
                         <input id="article-gallery-images" type="file" name="galleryImages[]" accept="image/jpeg,image/png,image/webp" multiple>
-                        <span class="admin-muted">Les images sont renommées, nettoyées et optimisées automatiquement. Après enregistrement, vous pourrez les insérer dans le contenu.</span>
+                        <span class="admin-muted">Formats acceptés : JPG, PNG, WebP. Taille maximum : 30 Mo par photo. Les images sont renommées, nettoyées et optimisées automatiquement.</span>
                     </div>
 
                     {% set article_image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
@@ -163,7 +163,7 @@
                     <div class="admin-field">
                         <label for="article-cover-image">Importer / remplacer</label>
                         <input id="article-cover-image" type="file" name="coverImage" accept="image/jpeg,image/png,image/webp">
-                        <span class="admin-muted">Utilisée sur la page article, dans le modal et les cartes liées.</span>
+                        <span class="admin-muted">JPG, PNG ou WebP, 30 Mo maximum. Utilisée sur la page article, dans le modal et les cartes liées.</span>
                     </div>
                 </section>
 

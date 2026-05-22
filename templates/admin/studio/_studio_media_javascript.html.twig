@@ -2,8 +2,17 @@
     (() => {
         const videoToggle = document.querySelector('[data-video-toggle]');
         const videoForm = document.querySelector('[data-video-form]');
-        const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
         const panoramaImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        const imageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+        const formatBytes = (bytes) => {
+            if (!Number.isFinite(bytes) || bytes <= 0) {
+                return '0 Mo';
+            }
+
+            return `${(bytes / 1024 / 1024).toFixed(bytes >= 10 * 1024 * 1024 ? 1 : 2)} Mo`;
+        };
 
         const buildOptions = (options, selected) => Object.entries(options)
             .map(([value, label]) => `<option value="${value}"${value === selected ? ' selected' : ''}>${label}</option>`)
@@ -68,31 +77,154 @@
             return 'standard';
         };
 
+        const extensionForFile = (file) => {
+            const parts = (file.name || '').toLowerCase().split('.');
+
+            return parts.length > 1 ? parts.pop() : '';
+        };
+
+        const statusLabel = (item) => {
+            if (item.status === 'uploading') {
+                return `envoi ${item.progress}%`;
+            }
+
+            if (item.status === 'processing') {
+                return 'traitement';
+            }
+
+            if (item.status === 'done') {
+                return 'terminé';
+            }
+
+            if (item.status === 'error') {
+                return 'erreur';
+            }
+
+            return 'en attente';
+        };
+
+        const sendItem = (form, token, item, onProgress) => new Promise((resolve) => {
+            const formData = new FormData();
+            formData.append('_token', token);
+            formData.append('ajax', '1');
+            formData.append('photos[]', item.file, item.file.name);
+            formData.append('photoCaptions[]', item.caption);
+            formData.append('photoImageTypes[]', item.imageType);
+            formData.append('photoAssociations[]', item.association);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', form.dataset.bulkAction || form.action);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('Accept', 'application/json');
+
+            xhr.upload.addEventListener('progress', (event) => {
+                if (!event.lengthComputable) {
+                    return;
+                }
+
+                onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)), 'uploading');
+            });
+
+            xhr.addEventListener('load', () => {
+                onProgress(100, 'processing');
+
+                let payload = null;
+                try {
+                    payload = JSON.parse(xhr.responseText || '{}');
+                } catch (error) {
+                    resolve({ success: false, error: 'Réponse serveur illisible.' });
+
+                    return;
+                }
+
+                if (xhr.status >= 200 && xhr.status < 300 && payload.success === true) {
+                    resolve(payload);
+
+                    return;
+                }
+
+                resolve({ success: false, error: payload.error || 'Upload refusé.' });
+            });
+
+            xhr.addEventListener('error', () => resolve({ success: false, error: 'Erreur réseau pendant l’envoi.' }));
+            xhr.addEventListener('abort', () => resolve({ success: false, error: 'Envoi annulé.' }));
+            xhr.send(formData);
+        });
+
         document.querySelectorAll('[data-photo-upload-form]').forEach((form) => {
             const fileInput = form.querySelector('[data-photo-input]');
             const preview = form.querySelector('[data-photo-preview]');
             const submitButton = form.querySelector('[data-photo-submit]');
-            if (!fileInput || !preview || !submitButton) {
+            const summary = form.querySelector('[data-photo-upload-summary]');
+            const tokenInput = form.querySelector('input[name="_token"]');
+            if (!fileInput || !preview || !submitButton || !tokenInput) {
                 return;
             }
 
             const imageTypeOptions = JSON.parse(preview.dataset.imageTypes || '{}');
             const associationOptions = JSON.parse(preview.dataset.associations || '{"gallery":"Galerie générale"}');
+            const maxFiles = Number.parseInt(form.dataset.maxFiles || '50', 10);
+            const classicMaxFileSize = Number.parseInt(form.dataset.maxFileSize || '31457280', 10);
+            const panoramaMaxFileSize = Number.parseInt(form.dataset.panoramaMaxFileSize || '52428800', 10);
             const selectedFiles = [];
+            let isUploading = false;
+
             const imageTypeLabel = (value) => imageTypeOptions[value] || value;
 
             const syncInputFiles = () => {
                 const transfer = new DataTransfer();
-                selectedFiles.forEach((item) => transfer.items.add(item.file));
+                selectedFiles
+                    .filter((item) => item.status !== 'error')
+                    .forEach((item) => transfer.items.add(item.file));
                 fileInput.files = transfer.files;
-                submitButton.disabled = selectedFiles.length === 0;
+                submitButton.disabled = isUploading || selectedFiles.filter((item) => item.status === 'pending').length === 0;
+            };
+
+            const validateItem = (item) => {
+                const extension = extensionForFile(item.file);
+                if (!imageExtensions.includes(extension) || !allowedImageTypes.includes(item.file.type)) {
+                    item.status = 'error';
+                    item.error = 'Format refusé. Utilisez JPG, PNG ou WebP.';
+                    item.validationError = true;
+
+                    return;
+                }
+
+                const sizeLimit = item.imageType === '360' ? panoramaMaxFileSize : classicMaxFileSize;
+                if (item.file.size > sizeLimit) {
+                    item.status = 'error';
+                    item.error = item.imageType === '360'
+                        ? `Image 360° trop lourde : maximum ${formatBytes(panoramaMaxFileSize)}.`
+                        : `Photo trop lourde : maximum ${formatBytes(classicMaxFileSize)}.`;
+                    item.validationError = true;
+
+                    return;
+                }
+
+                if (item.validationError && item.status === 'error') {
+                    item.status = 'pending';
+                    item.error = null;
+                    item.validationError = false;
+                }
+            };
+
+            const setSummary = (message, type = 'info') => {
+                if (!summary) {
+                    return;
+                }
+
+                summary.hidden = false;
+                summary.className = `studio-upload-summary studio-upload-summary--${type}`;
+                summary.textContent = message;
             };
 
             const renderPreview = () => {
                 preview.innerHTML = '';
                 selectedFiles.forEach((item, index) => {
+                    validateItem(item);
+
                     const card = document.createElement('article');
-                    card.className = 'studio-preview';
+                    card.className = `studio-preview studio-preview--${item.status}`;
 
                     const image = document.createElement('img');
                     const url = URL.createObjectURL(item.file);
@@ -108,12 +240,30 @@
 
                     const dimensions = document.createElement('span');
                     dimensions.className = 'studio-preview__meta';
+                    const sizeText = formatBytes(item.file.size);
                     if (item.width && item.height) {
-                        dimensions.textContent = `${item.width} × ${item.height}px · ratio ${(item.width / item.height).toFixed(2)}:1`;
+                        dimensions.textContent = `${item.width} × ${item.height}px · ${sizeText} · ratio ${(item.width / item.height).toFixed(2)}:1`;
                     } else {
-                        dimensions.textContent = 'Dimensions en cours de détection';
+                        dimensions.textContent = `Dimensions en cours de détection · ${sizeText}`;
                     }
                     card.appendChild(dimensions);
+
+                    const status = document.createElement('span');
+                    status.className = `studio-preview__status studio-preview__status--${item.status}`;
+                    status.textContent = statusLabel(item);
+                    card.appendChild(status);
+
+                    const progress = document.createElement('div');
+                    progress.className = 'studio-progress';
+                    progress.innerHTML = `<span style="width: ${item.progress}%"></span>`;
+                    card.appendChild(progress);
+
+                    if (item.error) {
+                        const error = document.createElement('p');
+                        error.className = 'studio-preview__notice is-warning';
+                        error.textContent = item.error;
+                        card.appendChild(error);
+                    }
 
                     const captionField = document.createElement('label');
                     captionField.className = 'studio-field';
@@ -123,6 +273,7 @@
                     captionInput.name = 'photoCaptions[]';
                     captionInput.rows = 3;
                     captionInput.value = item.caption;
+                    captionInput.disabled = isUploading || item.status === 'done';
                     const captionHelp = document.createElement('span');
                     captionHelp.className = 'studio-help';
                     captionHelp.textContent = 'Cette légende pourra être affichée sous la photo.';
@@ -137,11 +288,11 @@
                     row.innerHTML = `
                         <label class="studio-field">
                             <span>Type de média</span>
-                            <select name="photoImageTypes[]">${buildOptions(imageTypeOptions, item.imageType)}</select>
+                            <select name="photoImageTypes[]" ${isUploading || item.status === 'done' ? 'disabled' : ''}>${buildOptions(imageTypeOptions, item.imageType)}</select>
                         </label>
                         <label class="studio-field">
                             <span>Associer à</span>
-                            <select name="photoAssociations[]">${buildOptions(associationOptions, item.association)}</select>
+                            <select name="photoAssociations[]" ${isUploading || item.status === 'done' ? 'disabled' : ''}>${buildOptions(associationOptions, item.association)}</select>
                         </label>
                     `;
                     const imageTypeSelect = row.querySelector('select[name="photoImageTypes[]"]');
@@ -150,6 +301,8 @@
                     imageTypeSelect.addEventListener('change', () => {
                         item.imageType = imageTypeSelect.value;
                         item.imageTypeManuallyChanged = true;
+                        validateItem(item);
+                        syncInputFiles();
                         renderPreview();
                     });
                     associationSelect.addEventListener('change', () => {
@@ -170,14 +323,14 @@
 
                         if (!panoramaImageTypes.includes(item.file.type)) {
                             panoramaNotice.classList.add('is-warning');
-                            panoramaNotice.textContent = 'Une image 360° doit être en JPG, PNG ou WebP. Les GIF et SVG seront refusés.';
+                            panoramaNotice.textContent = 'Une image 360° doit être en JPG, PNG ou WebP.';
                         } else if (item.width && item.height && !ratioLooksLikePanorama(item.width, item.height)) {
                             panoramaNotice.classList.add('is-warning');
                             panoramaNotice.textContent = 'Cette image ne ressemble pas à une photo 360° équirectangulaire : la largeur devrait être environ deux fois plus grande que la hauteur.';
                         } else if (item.width && item.height) {
                             panoramaNotice.textContent = 'Image 360° compatible : le panorama sera conservé et affiché dans une vue immersive.';
                         } else {
-                            panoramaNotice.textContent = 'Utilisez ce type pour les photos 360° prises avec un drone DJI ou une caméra 360. L’image sera affichée dans une vue immersive.';
+                            panoramaNotice.textContent = 'Utilisez ce type pour les photos 360° prises avec un drone DJI ou une caméra 360.';
                         }
 
                         card.appendChild(panoramaNotice);
@@ -186,7 +339,8 @@
                     const removeButton = document.createElement('button');
                     removeButton.className = 'admin-button admin-button--secondary studio-button-danger';
                     removeButton.type = 'button';
-                    removeButton.textContent = 'Retirer';
+                    removeButton.textContent = item.status === 'done' ? 'Masquer' : 'Retirer';
+                    removeButton.disabled = isUploading && ['uploading', 'processing'].includes(item.status);
                     removeButton.addEventListener('click', () => {
                         selectedFiles.splice(index, 1);
                         syncInputFiles();
@@ -198,9 +352,11 @@
                 });
             };
 
-            fileInput.addEventListener('change', () => {
-                Array.from(fileInput.files || []).forEach((file) => {
-                    if (!allowedImageTypes.includes(file.type)) {
+            const addFiles = (files) => {
+                Array.from(files || []).forEach((file) => {
+                    if (selectedFiles.length >= maxFiles) {
+                        setSummary(`Sélection limitée à ${maxFiles} fichiers.`, 'warning');
+
                         return;
                     }
 
@@ -213,8 +369,13 @@
                         association: 'gallery',
                         width: null,
                         height: null,
+                        status: 'pending',
+                        progress: 0,
+                        error: null,
+                        validationError: false,
                     };
 
+                    validateItem(item);
                     selectedFiles.push(item);
                     readImageDimensions(file).then((dimensions) => {
                         item.width = dimensions.width;
@@ -223,10 +384,91 @@
                         if (!item.imageTypeManuallyChanged) {
                             item.imageType = item.detectedImageType;
                         }
+                        validateItem(item);
+                        syncInputFiles();
                         renderPreview();
                     });
                 });
                 syncInputFiles();
+                renderPreview();
+            };
+
+            fileInput.addEventListener('change', () => {
+                addFiles(fileInput.files);
+            });
+
+            form.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                form.classList.add('is-drag-over');
+            });
+
+            form.addEventListener('dragleave', (event) => {
+                if (!form.contains(event.relatedTarget)) {
+                    form.classList.remove('is-drag-over');
+                }
+            });
+
+            form.addEventListener('drop', (event) => {
+                event.preventDefault();
+                form.classList.remove('is-drag-over');
+                addFiles(event.dataTransfer ? event.dataTransfer.files : []);
+            });
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (isUploading) {
+                    return;
+                }
+
+                const pendingItems = selectedFiles.filter((item) => item.status === 'pending');
+                if (pendingItems.length === 0) {
+                    setSummary('Aucun fichier en attente.', 'warning');
+
+                    return;
+                }
+
+                isUploading = true;
+                submitButton.disabled = true;
+                let sent = 0;
+                let failed = selectedFiles.filter((item) => item.status === 'error').length;
+
+                for (const item of pendingItems) {
+                    validateItem(item);
+                    if (item.status === 'error') {
+                        failed += 1;
+                        renderPreview();
+                        continue;
+                    }
+
+                    item.status = 'uploading';
+                    item.progress = 0;
+                    renderPreview();
+
+                    const payload = await sendItem(form, tokenInput.value, item, (progress, status) => {
+                        item.progress = progress;
+                        item.status = status;
+                        renderPreview();
+                    });
+
+                    if (payload.success === true) {
+                        item.status = 'done';
+                        item.progress = 100;
+                        item.mediaId = payload.mediaId || null;
+                        sent += 1;
+                    } else {
+                        item.status = 'error';
+                        item.error = payload.error || 'Upload refusé.';
+                        item.validationError = false;
+                        failed += 1;
+                    }
+
+                    setSummary(`${sent} envoyé${sent > 1 ? 's' : ''}, ${failed} échoué${failed > 1 ? 's' : ''}, ${selectedFiles.length} au total.`, failed > 0 ? 'warning' : 'success');
+                    renderPreview();
+                }
+
+                isUploading = false;
+                syncInputFiles();
+                setSummary(`${sent} envoyé${sent > 1 ? 's' : ''}, ${failed} échoué${failed > 1 ? 's' : ''}, ${selectedFiles.length} au total.`, failed > 0 ? 'warning' : 'success');
                 renderPreview();
             });
         });

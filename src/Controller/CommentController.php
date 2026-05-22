@@ -11,7 +11,6 @@ use App\Repository\ArticleRepository;
 use App\Repository\CommentReportRepository;
 use App\Repository\PlaceRepository;
 use App\Security\ActionRateLimiter;
-use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\CommentVoter;
 use App\Service\CommentModerationService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -51,6 +50,12 @@ final class CommentController extends AbstractController
             return $this->redirectToRoute('app_article_show', ['slug' => $article->getSlug()]);
         }
 
+        if (!$this->canUseCommentActions($author)) {
+            $this->addFlash('warning', 'Votre email doit être confirmé pour publier un commentaire.');
+
+            return $this->redirectToRoute('app_article_show', ['slug' => $article->getSlug()]);
+        }
+
         if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentCreate($request, $author))) {
             return $this->redirectToRoute('app_article_show', ['slug' => $article->getSlug()]);
         }
@@ -79,7 +84,6 @@ final class CommentController extends AbstractController
 
     #[Route('/places/{slug}/comments', name: 'app_place_comment_create', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
-    #[IsGranted(AdminAccessVoter::ACCESS)]
     public function createForPlace(
         string $slug,
         Request $request,
@@ -95,6 +99,12 @@ final class CommentController extends AbstractController
         $author = $this->getAuthenticatedUser();
         if ($this->isBannedCommenter($author)) {
             $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+
+            return $this->redirectToRoute('app_place_show', ['slug' => $place->getSlug()]);
+        }
+
+        if (!$this->canUseCommentActions($author)) {
+            $this->addFlash('warning', 'Votre email doit être confirmé pour publier un commentaire.');
 
             return $this->redirectToRoute('app_place_show', ['slug' => $place->getSlug()]);
         }
@@ -254,6 +264,11 @@ final class CommentController extends AbstractController
     private function isBannedCommenter(User $user): bool
     {
         return $user->isBanned() && !in_array('ROLE_ADMIN', $user->getRoles(), true);
+    }
+
+    private function canUseCommentActions(User $user): bool
+    {
+        return $user->isVerified();
     }
 
     private function acceptRateLimit(RateLimit $limit): bool

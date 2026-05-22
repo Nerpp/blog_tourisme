@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Form\RegistrationFormType;
+use App\Security\EmailVerifier;
 use App\Service\AvatarUploadService;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -24,6 +25,7 @@ final class RegistrationController extends AbstractController
         EntityManagerInterface $entityManager,
         UserPasswordHasherInterface $passwordHasher,
         AvatarUploadService $avatarUploadService,
+        EmailVerifier $emailVerifier,
     ): Response {
         if ($this->getUser() !== null) {
             return $this->redirectToRoute('app_profile');
@@ -55,7 +57,9 @@ final class RegistrationController extends AbstractController
             $entityManager->persist($user);
             $entityManager->flush();
 
-            $this->addFlash('success', 'Votre compte a ete cree. Vous pouvez vous connecter.');
+            $emailVerifier->sendEmailConfirmation($user);
+
+            $this->addFlash('success', 'Votre compte a été créé. Vérifiez votre adresse email pour activer votre compte.');
 
             return $this->redirectToRoute('app_login');
         }

@@ -9,14 +9,11 @@ use App\Repository\CommentRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\PlaceRepository;
 use App\Repository\TagRepository;
-use App\Security\Voter\AdminAccessVoter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-#[IsGranted(AdminAccessVoter::ACCESS)]
 final class PlaceController extends AbstractController
 {
     #[Route('/places', name: 'app_place_index', methods: ['GET'])]

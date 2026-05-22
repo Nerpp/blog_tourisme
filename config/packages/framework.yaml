@@ -37,6 +37,10 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '15 minutes'
+        email_verification_resend:
+            policy: sliding_window
+            limit: 3
+            interval: '15 minutes'
 
     mailer:
         dsn: '%env(MAILER_DSN)%'

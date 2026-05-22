@@ -50,6 +50,7 @@ class CommentVoter extends Voter
             self::DELETE => $subject->getStatus() !== CommentStatus::Deleted
                 && ($this->isOwner($subject, $user) || $this->isAdmin($user)),
             self::REPORT => $subject->getStatus() === CommentStatus::Approved
+                && ($user->isVerified() || $this->isAdmin($user))
                 && !$this->isOwner($subject, $user),
             default => false,
         };
@@ -63,6 +64,6 @@ class CommentVoter extends Voter
 
     private function isAdmin(User $user): bool
     {
-        return in_array('ROLE_ADMIN', $user->getRoles(), true);
+        return in_array('ROLE_ADMIN', $user->getRoles(), true) && $user->isVerified();
     }
 }

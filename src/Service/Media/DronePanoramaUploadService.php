@@ -11,7 +11,7 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 final class DronePanoramaUploadService
 {
     private const PUBLIC_DIRECTORY = '/uploads/media/360';
-    private const MAX_BYTES = 26_214_400;
+    private const MAX_BYTES = BulkMediaUploadService::PANORAMA_MAX_BYTES;
     private const MAX_PIXELS = 80_000_000;
     private const MAX_VIEWER_WIDTH = 8192;
     private const MOBILE_VIEWER_WIDTH = 4096;
@@ -163,7 +163,7 @@ final class DronePanoramaUploadService
         }
 
         if ($fileSize > self::MAX_BYTES) {
-            throw new InvalidArgumentException('la taille maximale autorisée pour une image 360° est 25 Mo.');
+            throw new InvalidArgumentException('la taille maximale autorisée pour une image 360° est 50 Mo.');
         }
 
         $clientExtension = strtolower($file->getClientOriginalExtension());

@@ -28,6 +28,13 @@
 			{% endfor %}
 		{% endfor %}
 
+		{% if app.user and app.user.verified is defined and not app.user.verified %}
+			<div class="flash flash-warning">
+				Votre email n’est pas encore confirmé. Certaines actions comme commenter seront limitées.
+				<a href="{{ path('app_verify_email_resend') }}">Renvoyer l’email de confirmation</a>
+			</div>
+		{% endif %}
+
 		{% block body %}{% endblock %}
 
 		{% block site_footer %}

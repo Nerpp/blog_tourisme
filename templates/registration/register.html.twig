@@ -58,7 +58,7 @@
                             <div class="register-upload__field">
                                 {{ form_label(registration_form.avatarFile, 'Image de profil') }}
                                 {{ form_widget(registration_form.avatarFile, { attr: { class: 'register-file-input', accept: 'image/jpeg,image/png,image/webp', 'data-avatar-input': 'true' } }) }}
-                                <p>Formats acceptés : JPG, PNG, WebP. Taille maximum : 2 Mo, dimensions maximum : 4000 x 4000 px. L’image sera recadrée automatiquement en avatar.</p>
+                                <p>Formats acceptés : JPG, PNG, WebP. Taille maximum : 5 Mo. L’image sera automatiquement recadrée en avatar léger.</p>
                                 {{ form_errors(registration_form.avatarFile) }}
                             </div>
                         </div>

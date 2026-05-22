@@ -1,0 +1,70 @@
+<div style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent;">
+    Confirmez votre adresse email Blog Tourisme.
+</div>
+
+<div style="margin: 0; padding: 28px 12px; background: #eef7fb; font-family: Inter, Arial, Helvetica, sans-serif; color: #17211f;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; max-width: 600px; overflow: hidden; border-collapse: separate; border-spacing: 0; border: 1px solid #d4e8e2; border-radius: 16px; background: #fffdf8;">
+                    <tr>
+                        <td style="padding: 30px 30px 34px; background: linear-gradient(135deg, #0b5f75 0%, #12816f 55%, #8ecae6 100%); color: #ffffff;">
+                            <p style="margin: 0 0 12px; color: #ffe08a; font-size: 12px; font-weight: 800; letter-spacing: 0; text-transform: uppercase;">
+                                Blog Tourisme
+                            </p>
+                            <h1 style="margin: 0; color: #ffffff; font-size: 30px; line-height: 1.15; font-weight: 850;">
+                                Confirmez votre adresse email
+                            </h1>
+                            <p style="margin: 14px 0 0; color: #edfaff; font-size: 16px; line-height: 1.65;">
+                                Bienvenue sur Blog Tourisme.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 32px 30px 12px;">
+                            <p style="margin: 0 0 18px; color: #31413d; font-size: 16px; line-height: 1.7;">
+                                Activez votre compte pour profiter d’un espace de voyage plus sûr, prêt pour vos commentaires et découvertes.
+                            </p>
+
+                            <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 24px 0;">
+                                <tr>
+                                    <td style="border-radius: 10px; background: #12615c;">
+                                        <a href="{{ signedUrl }}" style="display: inline-block; padding: 15px 22px; color: #ffffff; font-size: 16px; font-weight: 800; text-decoration: none;">
+                                            Confirmer mon adresse email
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="margin: 0 0 16px; color: #5f6f6a; font-size: 14px; line-height: 1.65;">
+                                Ce lien expire dans {{ expiresInMinutes }} minute{{ expiresInMinutes > 1 ? 's' : '' }}.
+                            </p>
+
+                            <div style="margin: 22px 0; padding: 16px; border: 1px solid #d4e8e2; border-left: 4px solid #12615c; border-radius: 10px; background: #f3faf7;">
+                                <p style="margin: 0; color: #31413d; font-size: 14px; line-height: 1.65;">
+                                    Si vous n’êtes pas à l’origine de cette inscription, vous pouvez ignorer cet email.
+                                </p>
+                            </div>
+
+                            <p style="margin: 0 0 8px; color: #5f6f6a; font-size: 13px; line-height: 1.6;">
+                                Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :
+                            </p>
+                            <p style="margin: 0; color: #12615c; font-size: 13px; line-height: 1.6; word-break: break-all;">
+                                <a href="{{ signedUrl }}" style="color: #12615c; text-decoration: underline;">{{ signedUrl }}</a>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td style="padding: 22px 30px 30px;">
+                            <p style="margin: 0; color: #31413d; font-size: 15px; line-height: 1.7;">
+                                L’équipe Blog Tourisme
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</div>

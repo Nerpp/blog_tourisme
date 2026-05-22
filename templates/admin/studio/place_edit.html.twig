@@ -214,6 +214,65 @@
             font-weight: 750;
         }
 
+        .studio-preview__status {
+            justify-self: start;
+            min-height: 26px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #eef0ee;
+            color: var(--admin-muted);
+            font-size: 0.8rem;
+            font-weight: 800;
+        }
+
+        .studio-preview__status--done {
+            background: #e6f5ec;
+            color: #16703b;
+        }
+
+        .studio-preview__status--error {
+            background: var(--admin-warning-soft);
+            color: var(--admin-warning);
+        }
+
+        .studio-progress {
+            overflow: hidden;
+            height: 7px;
+            border-radius: 999px;
+            background: #e3e8e3;
+        }
+
+        .studio-progress span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--admin-primary);
+            transition: width 0.18s ease;
+        }
+
+        .studio-upload-form.is-drag-over {
+            outline: 2px dashed var(--admin-primary);
+            outline-offset: 6px;
+        }
+
+        .studio-upload-summary {
+            padding: 10px 12px;
+            border-radius: var(--admin-radius);
+            background: var(--admin-info-soft);
+            color: var(--admin-info);
+            font-weight: 800;
+        }
+
+        .studio-upload-summary--success {
+            background: #e6f5ec;
+            color: #16703b;
+        }
+
+        .studio-upload-summary--warning {
+            background: var(--admin-warning-soft);
+            color: var(--admin-warning);
+        }
+
         .studio-preview__notice {
             margin: 0;
             padding: 10px 12px;
@@ -528,10 +587,12 @@
 
             {% include 'admin/studio/_photo_upload_form.html.twig' with {
                 action: path('admin_studio_place_media_photos', { id: place.id }),
+                bulk_action: path('admin_studio_place_media_photos_bulk', { id: place.id }),
                 csrf_token_id: 'studio_place_photos_' ~ place.id,
                 input_id: 'studio-photo-input',
                 image_type_options: image_type_options,
-                association_options: photo_usage_options
+                association_options: photo_usage_options,
+                upload_policy: bulk_upload_policy
             } only %}
 
             {% if photo_links %}

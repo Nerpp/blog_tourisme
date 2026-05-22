@@ -1,4 +1,9 @@
-{% if comment_form %}
+{% if app.user and app.user.verified is defined and not app.user.verified %}
+    <p class="login-callout">
+        Votre email doit être confirmé pour laisser un commentaire.
+        <a href="{{ path('app_verify_email_resend') }}">Renvoyer l’email de confirmation</a>
+    </p>
+{% elseif comment_form %}
     <section class="comment-form-panel">
         <h2>Laisser un commentaire</h2>
         {{ form_start(comment_form, { attr: { class: 'comment-form' } }) }}

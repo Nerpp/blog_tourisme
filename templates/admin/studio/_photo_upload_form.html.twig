@@ -1,13 +1,25 @@
-<form class="studio-upload-form" method="post" action="{{ action }}" enctype="multipart/form-data" data-photo-upload-form>
+{% set upload_policy = upload_policy|default({ maxFiles: 50, classicMaxBytes: 31457280, panoramaMaxBytes: 52428800 }) %}
+<form
+    class="studio-upload-form"
+    method="post"
+    action="{{ action }}"
+    enctype="multipart/form-data"
+    data-photo-upload-form
+    data-bulk-action="{{ bulk_action|default(action) }}"
+    data-max-files="{{ upload_policy.maxFiles }}"
+    data-max-file-size="{{ upload_policy.classicMaxBytes }}"
+    data-panorama-max-file-size="{{ upload_policy.panoramaMaxBytes }}"
+>
     {% set point_target_options = point_target_options|default({}) %}
     {% set association_options = association_options|default(photo_usage_options|default({ 'gallery': 'Galerie générale' })) %}
     <input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
     <div class="studio-upload">
         <label class="admin-button" for="{{ input_id }}">Ajouter des photos</label>
-        <input class="studio-file-input" id="{{ input_id }}" data-photo-input type="file" name="photos[]" accept=".jpg,.jpeg,.png,.webp,.gif" multiple>
+        <input class="studio-file-input" id="{{ input_id }}" data-photo-input type="file" name="photos[]" accept=".jpg,.jpeg,.png,.webp" multiple>
         <button class="admin-button admin-button--secondary" type="submit" data-photo-submit disabled>Importer</button>
     </div>
-    <p class="studio-help">Ajoutez un commentaire, choisissez le type de média et associez chaque photo à l’image principale, à la galerie générale ou à un point GPS. Pour les photos DJI 360°, choisissez Image 360°. Le blog gardera le panorama et l’affichera dans une vue immersive.</p>
+    <p class="studio-help">Formats acceptés : JPG, PNG, WebP. 30 Mo par photo classique, 50 Mo pour une image 360°. Sélection maximum : {{ upload_policy.maxFiles }} fichiers. Les photos sont optimisées sans recadrage destructeur.</p>
+    <div class="studio-upload-summary" data-photo-upload-summary hidden></div>
     <div
         class="studio-preview-list"
         data-photo-preview

@@ -10,15 +10,15 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 final class ImageVariantGenerator
 {
     private const PUBLIC_VARIANT_DIRECTORY = '/uploads/media/variants';
-    private const JPEG_QUALITY = 90;
-    private const WEBP_QUALITY = 88;
-    private const AVIF_QUALITY = 62;
+    private const JPEG_QUALITY = 92;
+    private const WEBP_QUALITY = 90;
+    private const AVIF_QUALITY = 66;
 
     /** @var array<string, int> */
     private const SIZES = [
-        'thumb' => 480,
-        'medium' => 960,
-        'large' => 1600,
+        'thumb' => 600,
+        'medium' => 1920,
+        'large' => 2560,
     ];
 
     /** @var array<string, string> */

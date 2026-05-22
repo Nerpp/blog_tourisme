@@ -33,6 +33,15 @@
         .studio-preview, .studio-media-card, .studio-point { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fbfcfb; }
         .studio-preview__name { color: var(--admin-text); font-weight: 800; word-break: break-word; }
         .studio-preview__meta { color: var(--admin-muted); font-size: .86rem; font-weight: 750; }
+        .studio-preview__status { justify-self: start; min-height: 26px; padding: 4px 8px; border-radius: 999px; background: #eef0ee; color: var(--admin-muted); font-size: .8rem; font-weight: 800; }
+        .studio-preview__status--done { background: #e6f5ec; color: #16703b; }
+        .studio-preview__status--error { background: var(--admin-warning-soft); color: var(--admin-warning); }
+        .studio-progress { overflow: hidden; height: 7px; border-radius: 999px; background: #e3e8e3; }
+        .studio-progress span { display: block; height: 100%; border-radius: inherit; background: var(--admin-primary); transition: width .18s ease; }
+        .studio-upload-form.is-drag-over { outline: 2px dashed var(--admin-primary); outline-offset: 6px; }
+        .studio-upload-summary { padding: 10px 12px; border-radius: var(--admin-radius); background: var(--admin-info-soft); color: var(--admin-info); font-weight: 800; }
+        .studio-upload-summary--success { background: #e6f5ec; color: #16703b; }
+        .studio-upload-summary--warning { background: var(--admin-warning-soft); color: var(--admin-warning); }
         .studio-preview__notice { margin: 0; padding: 10px 12px; border-radius: var(--admin-radius); background: var(--admin-info-soft); color: var(--admin-info); font-size: .9rem; font-weight: 750; }
         .studio-preview__notice.is-warning { background: var(--admin-warning-soft); color: var(--admin-warning); }
         .studio-preview img, .studio-media-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
@@ -232,11 +241,13 @@
             </div>
             {% include 'admin/studio/_photo_upload_form.html.twig' with {
                 action: path('admin_studio_hike_media_photos', { id: hike.id }),
+                bulk_action: path('admin_studio_hike_media_photos_bulk', { id: hike.id }),
                 csrf_token_id: 'studio_hike_photos_' ~ hike.id,
                 input_id: 'studio-hike-photo-input',
                 image_type_options: image_type_options,
                 association_options: photo_association_options,
-                point_target_options: point_target_options
+                point_target_options: point_target_options,
+                upload_policy: bulk_upload_policy
             } only %}
             <h3 class="studio-subtitle">Image principale</h3>
             {% include 'admin/studio/_media_cards.html.twig' with {

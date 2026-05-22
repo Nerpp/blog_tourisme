@@ -126,11 +126,13 @@
             </div>
             {% include 'admin/studio/_photo_upload_form.html.twig' with {
                 action: path('admin_studio_city_visit_media_photos', { id: city_visit.id }),
+                bulk_action: path('admin_studio_city_visit_media_photos_bulk', { id: city_visit.id }),
                 csrf_token_id: 'studio_city_visit_photos_' ~ city_visit.id,
                 input_id: 'studio-city-visit-photo-input',
                 image_type_options: image_type_options,
                 association_options: photo_association_options,
-                point_target_options: point_target_options
+                point_target_options: point_target_options,
+                upload_policy: bulk_upload_policy
             } only %}
             <h3 class="studio-subtitle">Image principale</h3>
             {% include 'admin/studio/_media_cards.html.twig' with {

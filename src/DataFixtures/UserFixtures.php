@@ -29,13 +29,15 @@ final class UserFixtures extends Fixture
                 'displayName' => 'Admin Blog Tourisme',
                 'trustedCommenter' => true,
                 'approvedCommentsCount' => 10,
+                'isVerified' => false,
             ],
             self::USER_REFERENCE => [
                 'email' => 'user@blog-tourisme.local',
                 'roles' => ['ROLE_USER'],
-                'displayName' => 'Voyageur Test',
+                'displayName' => 'Voyageur Non Vérifié',
                 'trustedCommenter' => false,
                 'approvedCommentsCount' => 0,
+                'isVerified' => false,
             ],
             self::TRUSTED_REFERENCE => [
                 'email' => 'trusted@blog-tourisme.local',
@@ -43,6 +45,7 @@ final class UserFixtures extends Fixture
                 'displayName' => 'Voyageur Confirmé',
                 'trustedCommenter' => true,
                 'approvedCommentsCount' => 5,
+                'isVerified' => true,
             ],
         ];
 
@@ -51,6 +54,7 @@ final class UserFixtures extends Fixture
                 ->setEmail($data['email'])
                 ->setRoles($data['roles'])
                 ->setDisplayName($data['displayName'])
+                ->setIsVerified($data['isVerified'])
                 ->setTrustedCommenter($data['trustedCommenter'])
                 ->setApprovedCommentsCount($data['approvedCommentsCount']);
 

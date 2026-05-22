@@ -57,7 +57,7 @@
     {% endif %}
 </a>
 
-                        {% if is_granted('ADMIN_ACCESS') %}
+                        {% if app.user.verified and is_granted('ROLE_ADMIN') %}
                             <a class="nav-link" href="{{ path('admin') }}">Administration</a>
                         {% endif %}
 

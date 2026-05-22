@@ -9,12 +9,14 @@ use App\Enum\MediaType;
 use App\Enum\VideoType;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimit;
 
 /**
  * @property-read \App\Service\Media\ImageTypeDetector $imageTypeDetector
  * @property-read \App\Service\Media\VideoThumbnailGenerator $videoThumbnailGenerator
+ * @property-read \App\Service\Media\BulkMediaUploadService $bulkMediaUploadService
  */
 trait StudioMediaHelperTrait
 {
@@ -46,12 +48,15 @@ trait StudioMediaHelperTrait
         ?string $caption = null,
         ?ImageType $imageType = null,
         object|string|null $context = null,
+        ?string &$error = null,
     ): ?MediaAsset {
+        $error = null;
         $imageType ??= $this->imageTypeDetector->detectFromUpload($file);
 
         try {
             $storedFile = $this->storeImageByType($file, $imageType, $context);
         } catch (InvalidArgumentException $exception) {
+            $error = $exception->getMessage();
             $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
 
             return null;
@@ -79,6 +84,30 @@ trait StudioMediaHelperTrait
         }
 
         return $media;
+    }
+
+    private function wantsJsonUploadResponse(Request $request): bool
+    {
+        return $request->isXmlHttpRequest()
+            || str_contains((string) $request->headers->get('Accept'), 'application/json')
+            || $request->request->getBoolean('ajax');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $results
+     */
+    private function uploadJsonResponse(array $results, int $status = 200): JsonResponse
+    {
+        $successes = array_values(array_filter($results, static fn (array $result): bool => ($result['success'] ?? false) === true));
+        $failures = count($results) - count($successes);
+        $firstResult = $results[0] ?? ['success' => false, 'error' => 'Aucun fichier reçu.'];
+
+        return $this->json($firstResult + [
+            'results' => $results,
+            'sent' => count($successes),
+            'failed' => $failures,
+            'total' => count($results),
+        ], $status);
     }
 
     private function createVideoAssetFromRequest(Request $request, object|string|null $context = null): ?MediaAsset

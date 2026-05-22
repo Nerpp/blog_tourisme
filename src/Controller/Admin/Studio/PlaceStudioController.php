@@ -22,6 +22,7 @@ use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
+use App\Service\Media\BulkMediaUploadService;
 use App\Service\Media\DronePanoramaUploadService;
 use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
@@ -34,6 +35,7 @@ use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -62,6 +64,7 @@ final class PlaceStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly BulkMediaUploadService $bulkMediaUploadService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
     ) {
@@ -91,28 +94,63 @@ final class PlaceStudioController extends AbstractController
     }
 
     #[Route('/places/{id}/media/photos', name: 'admin_studio_place_media_photos', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function uploadPhotos(Place $place, Request $request): RedirectResponse
+    #[Route('/places/{id}/media/photos/bulk-upload', name: 'admin_studio_place_media_photos_bulk', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function uploadPhotos(Place $place, Request $request): RedirectResponse|JsonResponse
     {
         $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+        $wantsJson = $this->wantsJsonUploadResponse($request);
 
         if (!$this->isCsrfTokenValid('studio_place_photos_'.$place->getId(), (string) $request->request->get('_token'))) {
+            if ($wantsJson) {
+                return $this->uploadJsonResponse([
+                    ['success' => false, 'error' => 'Le formulaire photo a expiré. Réessayez.'],
+                ], 419);
+            }
+
             $this->addFlash('error', 'Le formulaire photo a expiré. Réessayez.');
 
             return $this->redirectToStudio($place);
         }
 
         if (!$this->consumeUploadRateLimit($request)) {
+            if ($wantsJson) {
+                return $this->uploadJsonResponse([
+                    ['success' => false, 'error' => 'Trop d’envois de médias. Réessayez plus tard.'],
+                ], 429);
+            }
+
             return $this->redirectToStudio($place);
         }
 
         $files = $this->normalizeUploadedFiles($request->files->get('photos', []));
         if ($files === []) {
+            if ($wantsJson) {
+                return $this->uploadJsonResponse([
+                    ['success' => false, 'error' => 'Aucune photo valide n’a été reçue.'],
+                ], 422);
+            }
+
             $this->addFlash('error', 'Aucune photo valide n’a été reçue.');
 
             return $this->redirectToStudio($place);
         }
 
+        if (count($files) > BulkMediaUploadService::MAX_FILES_PER_SELECTION) {
+            $results = [
+                ['success' => false, 'error' => sprintf('Sélection limitée à %d fichiers.', BulkMediaUploadService::MAX_FILES_PER_SELECTION)],
+            ];
+            if ($wantsJson) {
+                return $this->uploadJsonResponse($results, 413);
+            }
+
+            $this->addFlash('error', $results[0]['error']);
+
+            return $this->redirectToStudio($place);
+        }
+
         $createdCount = 0;
+        $results = [];
+        $createdMedia = [];
         $nextPosition = $this->nextMediaPosition($place);
         $captions = $this->requestArray($request, 'photoCaptions');
         $imageTypes = $this->requestArray($request, 'photoImageTypes');
@@ -126,6 +164,7 @@ final class PlaceStudioController extends AbstractController
             try {
                 $storedFile = $this->storeImageByType($file, $imageType, $place);
             } catch (InvalidArgumentException $exception) {
+                $results[] = $this->bulkMediaUploadService->errorPayload($file, $exception->getMessage());
                 $this->addFlash('warning', sprintf('Image "%s" ignorée : %s', $file->getClientOriginalName(), $exception->getMessage()));
 
                 continue;
@@ -167,15 +206,30 @@ final class PlaceStudioController extends AbstractController
             }
             $nextPosition = max($nextPosition, $position + 1);
             ++$createdCount;
+            $createdMedia[] = [$media, $file];
         }
 
         if ($createdCount === 0) {
+            if ($wantsJson) {
+                return $this->uploadJsonResponse($results !== [] ? $results : [
+                    ['success' => false, 'error' => 'Aucune image n’a pu être ajoutée.'],
+                ], 422);
+            }
+
             $this->addFlash('error', 'Aucune image n’a pu être ajoutée.');
 
             return $this->redirectToStudio($place);
         }
 
         $this->entityManager->flush();
+        foreach ($createdMedia as [$media, $file]) {
+            $results[] = $this->bulkMediaUploadService->successPayload($media, $file);
+        }
+
+        if ($wantsJson) {
+            return $this->uploadJsonResponse($results, ($results[0]['success'] ?? false) ? 200 : 207);
+        }
+
         $this->addFlash('success', sprintf('%d photo%s ajoutée%s.', $createdCount, $createdCount > 1 ? 's' : '', $createdCount > 1 ? 's' : ''));
 
         return $this->redirectToStudio($place);
@@ -365,6 +419,7 @@ final class PlaceStudioController extends AbstractController
                 'panorama' => 'Image panoramique',
                 'wide_angle' => 'Grand angle',
             ]),
+            'bulk_upload_policy' => $this->bulkMediaUploadService->clientPolicy(),
             'photo_usage_options' => $this->photoUsageOptions(),
             'video_type_options' => $this->enumChoices([VideoType::Youtube, VideoType::Vimeo, VideoType::Dailymotion, VideoType::External], [
                 'youtube' => 'YouTube',
@@ -543,6 +598,30 @@ final class PlaceStudioController extends AbstractController
             'Trop d’envois de médias. Réessayez à partir de %s.',
             $limit->getRetryAfter()->format('H:i'),
         ));
+    }
+
+    private function wantsJsonUploadResponse(Request $request): bool
+    {
+        return $request->isXmlHttpRequest()
+            || str_contains((string) $request->headers->get('Accept'), 'application/json')
+            || $request->request->getBoolean('ajax');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $results
+     */
+    private function uploadJsonResponse(array $results, int $status = 200): JsonResponse
+    {
+        $successes = array_values(array_filter($results, static fn (array $result): bool => ($result['success'] ?? false) === true));
+        $failures = count($results) - count($successes);
+        $firstResult = $results[0] ?? ['success' => false, 'error' => 'Aucun fichier reçu.'];
+
+        return $this->json($firstResult + [
+            'results' => $results,
+            'sent' => count($successes),
+            'failed' => $failures,
+            'total' => count($results),
+        ], $status);
     }
 
     /** @return list<PlaceMedia> */

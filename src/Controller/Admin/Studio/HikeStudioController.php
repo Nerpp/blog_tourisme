@@ -21,6 +21,7 @@ use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\DronePanoramaUploadService;
+use App\Service\Media\BulkMediaUploadService;
 use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
@@ -31,6 +32,7 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -59,6 +61,7 @@ final class HikeStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly BulkMediaUploadService $bulkMediaUploadService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
@@ -91,41 +94,73 @@ final class HikeStudioController extends AbstractController
     }
 
     #[Route('/hikes/{id}/media/photos', name: 'admin_studio_hike_media_photos', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function uploadPhotos(HikeDraft $hikeDraft, Request $request): RedirectResponse
+    #[Route('/hikes/{id}/media/photos/bulk-upload', name: 'admin_studio_hike_media_photos_bulk', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function uploadPhotos(HikeDraft $hikeDraft, Request $request): RedirectResponse|JsonResponse
     {
         $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
+        $wantsJson = $this->wantsJsonUploadResponse($request);
 
         if (!$this->isCsrfTokenValid('studio_hike_photos_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+            if ($wantsJson) {
+                return $this->uploadJsonResponse([
+                    ['success' => false, 'error' => 'Le formulaire photo a expiré. Réessayez.'],
+                ], 419);
+            }
+
             $this->addFlash('error', 'Le formulaire photo a expiré. Réessayez.');
 
             return $this->redirectToStudio($hikeDraft);
         }
 
         if (!$this->consumeUploadRateLimit($request)) {
+            if ($wantsJson) {
+                return $this->uploadJsonResponse([
+                    ['success' => false, 'error' => 'Trop d’envois de médias. Réessayez plus tard.'],
+                ], 429);
+            }
+
             return $this->redirectToStudio($hikeDraft);
         }
 
         $createdCount = 0;
+        $results = [];
+        $createdMedia = [];
         $nextPosition = $this->nextMediaPosition($hikeDraft);
         $captions = $this->requestArray($request, 'photoCaptions');
         $imageTypes = $this->requestArray($request, 'photoImageTypes');
         $associations = $this->requestArray($request, 'photoAssociations');
         $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
-        foreach ($this->normalizeUploadedFiles($request->files->get('photos', [])) as $index => $file) {
+        $files = $this->normalizeUploadedFiles($request->files->get('photos', []));
+        if (count($files) > BulkMediaUploadService::MAX_FILES_PER_SELECTION) {
+            $results[] = ['success' => false, 'error' => sprintf('Sélection limitée à %d fichiers.', BulkMediaUploadService::MAX_FILES_PER_SELECTION)];
+            if ($wantsJson) {
+                return $this->uploadJsonResponse($results, 413);
+            }
+
+            $this->addFlash('error', $results[0]['error']);
+
+            return $this->redirectToStudio($hikeDraft);
+        }
+
+        foreach ($files as $index => $file) {
             $association = (string) ($associations[$index] ?? self::MEDIA_ASSOCIATION_GALLERY);
             $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
             if ($targetPoint instanceof HikePoint && !$pointMediaEnabled) {
+                $results[] = $this->bulkMediaUploadService->errorPayload($file, 'La liaison aux points GPS nécessite la migration des médias de points.');
                 $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
                 continue;
             }
 
+            $error = null;
             $media = $this->createImageAssetFromUpload(
                 $file,
                 (string) ($captions[$index] ?? ''),
                 ImageType::tryFrom((string) ($imageTypes[$index] ?? '')),
                 $hikeDraft,
+                $error,
             );
             if (!$media instanceof MediaAsset) {
+                $results[] = $this->bulkMediaUploadService->errorPayload($file, $error ?? 'Image refusée.');
                 continue;
             }
 
@@ -143,15 +178,30 @@ final class HikeStudioController extends AbstractController
                 ++$nextPosition;
             }
             ++$createdCount;
+            $createdMedia[] = [$media, $file];
         }
 
         if ($createdCount === 0) {
+            if ($wantsJson) {
+                return $this->uploadJsonResponse($results !== [] ? $results : [
+                    ['success' => false, 'error' => 'Aucune image n’a pu être ajoutée.'],
+                ], 422);
+            }
+
             $this->addFlash('error', 'Aucune image n’a pu être ajoutée.');
 
             return $this->redirectToStudio($hikeDraft);
         }
 
         $this->entityManager->flush();
+        foreach ($createdMedia as [$media, $file]) {
+            $results[] = $this->bulkMediaUploadService->successPayload($media, $file);
+        }
+
+        if ($wantsJson) {
+            return $this->uploadJsonResponse($results, ($results[0]['success'] ?? false) ? 200 : 207);
+        }
+
         $this->addFlash('success', sprintf('%d photo%s ajoutée%s.', $createdCount, $createdCount > 1 ? 's' : '', $createdCount > 1 ? 's' : ''));
 
         return $this->redirectToStudio($hikeDraft);
@@ -389,6 +439,7 @@ final class HikeStudioController extends AbstractController
             'point_type_options' => $this->pointTypeOptions(),
             'image_type_options' => $this->imageTypeOptions(),
             'video_type_options' => $this->videoTypeOptions(),
+            'bulk_upload_policy' => $this->bulkMediaUploadService->clientPolicy(),
             'photo_association_options' => $this->photoAssociationOptions($pointTargetOptions),
             'video_association_options' => $this->videoAssociationOptions($pointTargetOptions),
             'point_target_options' => $pointTargetOptions,

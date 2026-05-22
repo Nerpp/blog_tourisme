@@ -1,0 +1,40 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Renvoyer l’email de confirmation - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main class="login-page">
+        <section class="login-shell" aria-labelledby="verify-resend-title">
+            <aside class="login-hero" aria-label="Confirmation email Blog Tourisme">
+                <div class="login-hero__content">
+                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <p class="login-eyebrow">Compte voyageur</p>
+                    <h1 id="verify-resend-title">Confirmer votre email</h1>
+                    <p class="login-hero__text">
+                        Recevez un nouveau lien sécurisé pour activer votre compte.
+                    </p>
+                </div>
+            </aside>
+
+            <section class="login-panel" aria-label="Renvoi de l’email de confirmation">
+                <div class="login-card">
+                    <div class="login-card__header">
+                        <p class="login-card__kicker">Adresse email</p>
+                        <h2>Renvoyer le lien</h2>
+                        <p>Un nouveau lien de confirmation sera envoyé à l’adresse de votre compte.</p>
+                    </div>
+
+                    <form class="login-form" method="post" action="{{ path('app_verify_email_resend') }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('resend-email-verification') }}">
+                        <button class="login-button" type="submit">Renvoyer l’email de confirmation</button>
+                    </form>
+
+                    <div class="login-links" aria-label="Liens utiles">
+                        <a href="{{ path('app_profile') }}">Retour au profil</a>
+                        <a href="{{ path('app_home') }}">Retour à l’accueil</a>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+{% endblock %}

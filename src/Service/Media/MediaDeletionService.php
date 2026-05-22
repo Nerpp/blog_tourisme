@@ -115,6 +115,7 @@ final class MediaDeletionService
             $media->getFilePath(),
             $media->getThumbnailPath(),
             ...$this->variantPaths($media->getVariants()),
+            ...$this->metadataPaths($media->getMetadata()),
         ], static fn (?string $path): bool => is_string($path) && $path !== '');
 
         $files = [];
@@ -141,6 +142,24 @@ final class MediaDeletionService
                 $paths[] = $value;
             }
         });
+
+        return $paths;
+    }
+
+    /** @return list<string> */
+    private function metadataPaths(mixed $metadata): array
+    {
+        if (!is_array($metadata)) {
+            return [];
+        }
+
+        $paths = [];
+        foreach (['originalPath', 'mobilePath'] as $key) {
+            $value = $metadata[$key] ?? null;
+            if (is_string($value) && str_starts_with($value, '/uploads/')) {
+                $paths[] = $value;
+            }
+        }
 
         return $paths;
     }

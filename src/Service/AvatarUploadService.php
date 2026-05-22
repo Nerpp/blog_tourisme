@@ -9,10 +9,11 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class AvatarUploadService
 {
-    private const MAX_BYTES = 2_097_152;
-    private const MAX_WIDTH = 4000;
-    private const MAX_HEIGHT = 4000;
+    private const MAX_BYTES = 5_242_880;
+    private const MAX_WIDTH = 6000;
+    private const MAX_HEIGHT = 6000;
     private const AVATAR_SIZE = 256;
+    private const WEBP_QUALITY = 82;
     private const UPLOAD_DIRECTORY = 'public/uploads/avatars';
     private const PUBLIC_DIRECTORY = '/uploads/avatars';
 
@@ -54,13 +55,20 @@ final class AvatarUploadService
         $targetPath = $targetDirectory.'/'.$filename;
 
         $source = $this->createImageResource($file->getPathname(), $inspection['mimeType']);
-        $avatar = imagecreatetruecolor(self::AVATAR_SIZE, self::AVATAR_SIZE);
-        if ($source === false || $avatar === false) {
+        if ($source === false) {
             throw new InvalidArgumentException('L’image de profil ne peut pas être lue.');
         }
 
-        imagealphablending($avatar, true);
+        $avatar = imagecreatetruecolor(self::AVATAR_SIZE, self::AVATAR_SIZE);
+        if ($avatar === false) {
+            imagedestroy($source);
+
+            throw new RuntimeException('L’avatar n’a pas pu être préparé.');
+        }
+
+        imagealphablending($avatar, false);
         imagesavealpha($avatar, true);
+        imagefill($avatar, 0, 0, imagecolorallocatealpha($avatar, 0, 0, 0, 127));
 
         $sourceWidth = $inspection['width'];
         $sourceHeight = $inspection['height'];
@@ -81,9 +89,12 @@ final class AvatarUploadService
             $side,
         );
 
-        if (!$resized || !imagewebp($avatar, $targetPath, 86)) {
+        if (!$resized || !imagewebp($avatar, $targetPath, self::WEBP_QUALITY)) {
             imagedestroy($source);
             imagedestroy($avatar);
+            if (is_file($targetPath)) {
+                @unlink($targetPath);
+            }
 
             throw new RuntimeException('L’avatar n’a pas pu être enregistré.');
         }
@@ -135,7 +146,7 @@ final class AvatarUploadService
         }
 
         if ($size > self::MAX_BYTES) {
-            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 2 Mo.');
+            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 5 Mo.');
         }
 
         $extension = strtolower((string) $file->getClientOriginalExtension());
@@ -165,7 +176,7 @@ final class AvatarUploadService
         }
 
         if ($width > self::MAX_WIDTH || $height > self::MAX_HEIGHT) {
-            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 4000 x 4000 px.');
+            throw new InvalidArgumentException('L’image de profil ne doit pas dépasser 6000 x 6000 px.');
         }
 
         return [

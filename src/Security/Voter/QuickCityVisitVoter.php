@@ -20,6 +20,8 @@ final class QuickCityVisitVoter extends Voter
     {
         $user = $token->getUser();
 
-        return $user instanceof User && in_array('ROLE_ADMIN', $user->getRoles(), true);
+        return $user instanceof User
+            && in_array('ROLE_ADMIN', $user->getRoles(), true)
+            && $user->isVerified();
     }
 }

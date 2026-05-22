@@ -2,20 +2,28 @@
 
 namespace App\Service;
 
+use App\Service\Media\BulkMediaUploadService;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class ImageUploadSecurity
 {
-    private const MAX_BYTES = 8_388_608;
-    private const MAX_PIXELS = 40_000_000;
+    private const MAX_WIDTH = 10_000;
+    private const MAX_HEIGHT = 10_000;
+    private const MAX_PIXELS = 60_000_000;
+
+    /** @var array<string, list<string>> */
+    private const ALLOWED_MIME_EXTENSIONS = [
+        'image/jpeg' => ['jpg', 'jpeg'],
+        'image/png' => ['png'],
+        'image/webp' => ['webp'],
+    ];
 
     /** @var array<string, string> */
-    private const ALLOWED_MIME_EXTENSIONS = [
+    private const CANONICAL_EXTENSIONS = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
         'image/webp' => 'webp',
-        'image/gif' => 'gif',
     ];
 
     /**
@@ -32,13 +40,22 @@ final class ImageUploadSecurity
             throw new InvalidArgumentException('le fichier est vide.');
         }
 
-        if ($fileSize > self::MAX_BYTES) {
-            throw new InvalidArgumentException('la taille maximale autorisée est 8 Mo.');
+        if ($fileSize > BulkMediaUploadService::CLASSIC_MAX_BYTES) {
+            throw new InvalidArgumentException('la taille maximale autorisée est 30 Mo pour une photo classique.');
+        }
+
+        $clientExtension = strtolower($file->getClientOriginalExtension() ?: pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION));
+        if ($clientExtension === '' || !$this->isAllowedExtension($clientExtension)) {
+            throw new InvalidArgumentException('seuls les fichiers JPG, PNG et WebP sont acceptés.');
         }
 
         $mimeType = (string) $file->getMimeType();
         if (!isset(self::ALLOWED_MIME_EXTENSIONS[$mimeType])) {
-            throw new InvalidArgumentException('seuls les fichiers JPEG, PNG, WebP et GIF sont acceptés.');
+            throw new InvalidArgumentException('seuls les fichiers JPG, PNG et WebP sont acceptés.');
+        }
+
+        if (!in_array($clientExtension, self::ALLOWED_MIME_EXTENSIONS[$mimeType], true)) {
+            throw new InvalidArgumentException('l’extension du fichier ne correspond pas au type réel de l’image.');
         }
 
         $imageSize = @getimagesize($file->getPathname());
@@ -53,7 +70,13 @@ final class ImageUploadSecurity
 
         $width = (int) $imageSize[0];
         $height = (int) $imageSize[1];
-        if ($width < 1 || $height < 1 || ($width * $height) > self::MAX_PIXELS) {
+        if (
+            $width < 1
+            || $height < 1
+            || $width > self::MAX_WIDTH
+            || $height > self::MAX_HEIGHT
+            || ($width * $height) > self::MAX_PIXELS
+        ) {
             throw new InvalidArgumentException('les dimensions de l’image sont invalides ou trop grandes.');
         }
 
@@ -62,7 +85,18 @@ final class ImageUploadSecurity
             'fileSize' => $fileSize,
             'width' => $width,
             'height' => $height,
-            'extension' => self::ALLOWED_MIME_EXTENSIONS[$mimeType],
+            'extension' => self::CANONICAL_EXTENSIONS[$mimeType],
         ];
+    }
+
+    private function isAllowedExtension(string $extension): bool
+    {
+        foreach (self::ALLOWED_MIME_EXTENSIONS as $extensions) {
+            if (in_array($extension, $extensions, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

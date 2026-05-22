@@ -79,10 +79,10 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         return $this->toPublicUrl(
-            $media->getFilePath()
-                ?? $media->getExternalUrl()
+            $this->variantPath($media->getVariants(), 'large', 'webp')
                 ?? $this->variantPath($media->getVariants(), 'large', 'fallback')
-                ?? $this->variantPath($media->getVariants(), 'large', 'webp')
+                ?? $media->getFilePath()
+                ?? $media->getExternalUrl()
                 ?? $media->getThumbnailPath(),
         );
     }
