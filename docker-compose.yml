@@ -78,7 +78,7 @@ services:
     container_name: blog_tourisme_node
     user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     working_dir: /var/www/html
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    command: sh -c "npm install && npm run dev"
     ports:
       - "5173:5173"
     volumes:
