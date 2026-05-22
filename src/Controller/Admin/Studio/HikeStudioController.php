@@ -65,8 +65,7 @@ final class HikeStudioController extends AbstractController
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
-    ) {
-    }
+    ) {}
 
     #[Route('/hikes/{id}/edit', name: 'admin_studio_hike_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(HikeDraft $hikeDraft, Request $request): Response
@@ -74,17 +73,21 @@ final class HikeStudioController extends AbstractController
         $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
 
         if ($request->isMethod('POST')) {
-            if (!$this->isCsrfTokenValid('studio_hike_edit_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+            if (!$this->isCsrfTokenValid('studio_hike_edit_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
                 $this->addFlash('error', 'Le formulaire a expiré. Réessayez.');
 
                 return $this->redirectToStudio($hikeDraft);
             }
 
-            $hadFinishedAt = $hikeDraft->getFinishedAt() !== null;
+            $wasPublicStatus = $this->isPublicStatus($hikeDraft->getStatus());
+
             $this->updateDraftFromRequest($hikeDraft, $request);
-            $shouldNotifyPublication = !$hadFinishedAt && $hikeDraft->getFinishedAt() !== null && $this->isPublicStatus($hikeDraft->getStatus());
+
+            $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($hikeDraft->getStatus());
+
             $this->entityManager->flush();
             $this->notifyNewPublication($hikeDraft, $shouldNotifyPublication);
+
             $this->addFlash('success', 'La randonnée rapide a été enregistrée.');
 
             return $this->redirectToStudio($hikeDraft);
@@ -100,7 +103,7 @@ final class HikeStudioController extends AbstractController
         $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
         $wantsJson = $this->wantsJsonUploadResponse($request);
 
-        if (!$this->isCsrfTokenValid('studio_hike_photos_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_hike_photos_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
             if ($wantsJson) {
                 return $this->uploadJsonResponse([
                     ['success' => false, 'error' => 'Le formulaire photo a expiré. Réessayez.'],
@@ -212,7 +215,7 @@ final class HikeStudioController extends AbstractController
     {
         $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
 
-        if (!$this->isCsrfTokenValid('studio_hike_video_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_hike_video_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire vidéo a expiré. Réessayez.');
 
             return $this->redirectToStudio($hikeDraft);
@@ -262,7 +265,7 @@ final class HikeStudioController extends AbstractController
 
         $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
 
-        if (!$this->isCsrfTokenValid('studio_hike_point_update_'.$point->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_hike_point_update_' . $point->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire du point GPS a expiré. Réessayez.');
 
             return $this->redirectToStudio($hikeDraft);
@@ -307,7 +310,7 @@ final class HikeStudioController extends AbstractController
     {
         $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
 
-        if (!$this->isCsrfTokenValid('studio_hike_destination_update_'.$hikeDraft->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_hike_destination_update_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire de destination a expiré. Réessayez.');
 
             return $this->redirectToStudio($hikeDraft);
@@ -358,7 +361,7 @@ final class HikeStudioController extends AbstractController
             throw $this->createNotFoundException('Randonnée introuvable.');
         }
 
-        if (!$this->isCsrfTokenValid('studio_hike_media_update_'.$mediaLink->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_hike_media_update_' . $mediaLink->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire média a expiré. Réessayez.');
 
             return $this->redirectToStudio($hikeDraft);
@@ -381,7 +384,7 @@ final class HikeStudioController extends AbstractController
             throw $this->createNotFoundException('Randonnée introuvable.');
         }
 
-        if (!$this->isCsrfTokenValid('studio_hike_media_delete_'.$mediaLink->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_hike_media_delete_' . $mediaLink->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'La suppression a expiré. Réessayez.');
 
             return $this->redirectToStudio($hikeDraft);
@@ -412,7 +415,7 @@ final class HikeStudioController extends AbstractController
 
             return $mediaId === null || !isset($mediaPointTargets[$mediaId]);
         }));
-        $photoLinks = array_values(array_filter($generalMediaLinks, fn (HikeDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image));
+        $photoLinks = array_values(array_filter($generalMediaLinks, fn(HikeDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image));
 
         return $this->render('admin/studio/hike_edit.html.twig', [
             'hike' => $hikeDraft,
@@ -426,13 +429,13 @@ final class HikeStudioController extends AbstractController
             'google_maps_url' => $this->generateGoogleMapsUrl($hikeDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
-            'cover_photo_links' => array_values(array_filter($photoLinks, static fn (HikeDraftMedia $link): bool => $link->getRole() === MediaRole::Cover)),
-            'gallery_photo_links' => array_values(array_filter($photoLinks, static fn (HikeDraftMedia $link): bool => $link->getRole() !== MediaRole::Cover)),
-            'video_links' => array_values(array_filter($generalMediaLinks, fn (HikeDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Video)),
+            'cover_photo_links' => array_values(array_filter($photoLinks, static fn(HikeDraftMedia $link): bool => $link->getRole() === MediaRole::Cover)),
+            'gallery_photo_links' => array_values(array_filter($photoLinks, static fn(HikeDraftMedia $link): bool => $link->getRole() !== MediaRole::Cover)),
+            'video_links' => array_values(array_filter($generalMediaLinks, fn(HikeDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Video)),
             'immersive_links' => array_values(array_filter($generalMediaLinks, $this->isImmersiveLink(...))),
             'status_options' => $this->enumChoices(HikeDraftStatus::cases(), [
                 'draft' => 'Brouillon',
-                'finished' => 'Terminé terrain',
+                'finished' => 'Publié',
                 'converted' => 'Converti',
                 'archived' => 'Archivé',
             ]),
@@ -517,7 +520,7 @@ final class HikeStudioController extends AbstractController
             $hikeDraft->getDetectedCommuneName(),
             $hikeDraft->getDetectedDepartmentName(),
             $hikeDraft->getDetectedRegionName(),
-        ], static fn (?string $value): bool => $value !== null && $value !== ''));
+        ], static fn(?string $value): bool => $value !== null && $value !== ''));
     }
 
     /** @return list<string> */
@@ -720,7 +723,7 @@ final class HikeStudioController extends AbstractController
         }
 
         $expectedBaseSlug = trim(strtolower((string) $this->slugger->slug($title)), '-') ?: 'randonnee';
-        if ($currentSlug === $expectedBaseSlug || preg_match('/^'.preg_quote($expectedBaseSlug, '/').'-\d+$/', $currentSlug) === 1) {
+        if ($currentSlug === $expectedBaseSlug || preg_match('/^' . preg_quote($expectedBaseSlug, '/') . '-\d+$/', $currentSlug) === 1) {
             return false;
         }
 
@@ -853,7 +856,7 @@ final class HikeStudioController extends AbstractController
     private function sortedMediaLinks(HikeDraft $hikeDraft): array
     {
         $mediaLinks = $hikeDraft->getMediaLinks()->toArray();
-        usort($mediaLinks, static fn (HikeDraftMedia $a, HikeDraftMedia $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($mediaLinks, static fn(HikeDraftMedia $a, HikeDraftMedia $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
 
         return $mediaLinks;
     }
@@ -885,17 +888,17 @@ final class HikeStudioController extends AbstractController
             return null;
         }
 
-        $coordinates = array_map(static fn (HikePoint $point): string => $point->getLatitude().','.$point->getLongitude(), $points);
+        $coordinates = array_map(static fn(HikePoint $point): string => $point->getLatitude() . ',' . $point->getLongitude(), $points);
         if (count($coordinates) === 1) {
-            return 'https://www.google.com/maps/search/?api=1&query='.$coordinates[0];
+            return 'https://www.google.com/maps/search/?api=1&query=' . $coordinates[0];
         }
 
         $origin = array_shift($coordinates);
         $destination = array_pop($coordinates);
-        $url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin='.rawurlencode((string) $origin).'&destination='.rawurlencode((string) $destination);
+        $url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=' . rawurlencode((string) $origin) . '&destination=' . rawurlencode((string) $destination);
 
         if ($coordinates !== []) {
-            $url .= '&waypoints='.rawurlencode(implode('|', $coordinates));
+            $url .= '&waypoints=' . rawurlencode(implode('|', $coordinates));
         }
 
         return $url;
@@ -917,7 +920,7 @@ final class HikeStudioController extends AbstractController
     private function sortedPoints(HikeDraft $hikeDraft): array
     {
         $points = $hikeDraft->getPoints()->toArray();
-        usort($points, static fn (HikePoint $a, HikePoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($points, static fn(HikePoint $a, HikePoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
 
         return $points;
     }
@@ -959,7 +962,7 @@ final class HikeStudioController extends AbstractController
     {
         $options = [];
         foreach ($pointTargetOptions as $pointId => $label) {
-            $options[self::MEDIA_ASSOCIATION_POINT_PREFIX.$pointId] = $label;
+            $options[self::MEDIA_ASSOCIATION_POINT_PREFIX . $pointId] = $label;
         }
 
         return $options;

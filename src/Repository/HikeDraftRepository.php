@@ -24,6 +24,7 @@ class HikeDraftRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('h')
             ->andWhere('h.createdBy = :user')
             ->andWhere('h.status = :status')
+            ->andWhere('h.finishedAt IS NULL')
             ->setParameter('user', $user)
             ->setParameter('status', HikeDraftStatus::Draft)
             ->orderBy('h.updatedAt', 'DESC')

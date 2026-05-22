@@ -13,7 +13,6 @@ use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickHikeVoter;
-use App\Service\PublicationNotificationMailer;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -37,9 +36,7 @@ final class QuickHikeController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly SluggerInterface $slugger,
-        private readonly PublicationNotificationMailer $publicationNotificationMailer,
-    ) {
-    }
+    ) {}
 
     #[Route('', name: 'index', methods: ['GET'])]
     public function index(): Response
@@ -110,8 +107,8 @@ final class QuickHikeController extends AbstractController
             return $redirect;
         }
 
-        if ($hikeDraft->getStatus() !== HikeDraftStatus::Draft) {
-            return $this->pointError($request, 'Cette randonnée n’est plus en brouillon.', $hikeDraft);
+        if ($hikeDraft->getStatus() !== HikeDraftStatus::Draft || $hikeDraft->getFinishedAt() !== null) {
+            return $this->pointError($request, 'Cette sortie terrain est terminée. Modifiez la randonnée depuis le studio.', $hikeDraft);
         }
 
         $formData = $this->submittedPointFormData($request);
@@ -161,33 +158,22 @@ final class QuickHikeController extends AbstractController
         }
 
         if (!$this->hasStartPoint($hikeDraft)) {
-            $this->addFlash('warning', 'Enregistrez le point de départ avant de terminer.');
+            $this->addFlash('warning', 'Enregistrez le point de départ avant de terminer la sortie terrain.');
 
             return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
         }
 
-        $hadFinishedAt = $hikeDraft->getFinishedAt() !== null;
         $hikeDraft
-            ->setStatus(HikeDraftStatus::Finished)
+            ->setStatus(HikeDraftStatus::Draft)
             ->setFinishedAt($hikeDraft->getFinishedAt() ?? new DateTimeImmutable());
 
         $this->entityManager->flush();
-        $this->notifyNewPublication($hikeDraft, !$hadFinishedAt && $hikeDraft->getFinishedAt() !== null);
-        $this->addFlash('success', 'Randonnée rapide terminée.');
 
-        return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
-    }
+        $this->addFlash('success', 'Sortie terrain enregistrée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus avant publication.');
 
-    private function notifyNewPublication(HikeDraft $hikeDraft, bool $shouldNotify): void
-    {
-        if (!$shouldNotify) {
-            return;
-        }
-
-        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($hikeDraft);
-        if ($report['errorCount'] > 0) {
-            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
-        }
+        return $this->redirectToRoute('admin_studio_hike_edit', [
+            'id' => $hikeDraft->getId(),
+        ]);
     }
 
     private function denyUnlessAdmin(): ?RedirectResponse
