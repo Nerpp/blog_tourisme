@@ -13,7 +13,6 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickCityVisitVoter;
-use App\Service\PublicationNotificationMailer;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -37,9 +36,7 @@ final class QuickCityVisitController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly SluggerInterface $slugger,
-        private readonly PublicationNotificationMailer $publicationNotificationMailer,
-    ) {
-    }
+    ) {}
 
     #[Route('', name: 'index', methods: ['GET'])]
     public function index(): Response
@@ -110,8 +107,8 @@ final class QuickCityVisitController extends AbstractController
             return $redirect;
         }
 
-        if ($cityVisitDraft->getStatus() !== CityVisitDraftStatus::Draft) {
-            return $this->pointError($request, 'Cette visite n’est plus en brouillon.', $cityVisitDraft);
+        if ($cityVisitDraft->getStatus() !== CityVisitDraftStatus::Draft || $cityVisitDraft->getFinishedAt() !== null) {
+            return $this->pointError($request, 'Cette sortie terrain est terminée. Modifiez la visite depuis le studio.', $cityVisitDraft);
         }
 
         $formData = $this->submittedPointFormData($request);
@@ -146,6 +143,7 @@ final class QuickCityVisitController extends AbstractController
     }
 
     #[Route('/{id}/finish', name: 'finish', requirements: ['id' => '\d+'], methods: ['POST'])]
+    #[Route('/{id}/finish', name: 'finish', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function finish(Request $request, CityVisitDraft $cityVisitDraft): Response
     {
         if ($redirect = $this->denyUnlessAdmin()) {
@@ -158,30 +156,21 @@ final class QuickCityVisitController extends AbstractController
             return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $cityVisitDraft->getId()]);
         }
 
-        $hadFinishedAt = $cityVisitDraft->getFinishedAt() !== null;
         $cityVisitDraft
-            ->setStatus(CityVisitDraftStatus::Finished)
+            ->setStatus(CityVisitDraftStatus::Draft)
             ->setFinishedAt($cityVisitDraft->getFinishedAt() ?? new DateTimeImmutable())
             ->setGoogleMapsUrl($this->generateGoogleMapsUrl($cityVisitDraft));
 
         $this->entityManager->flush();
-        $this->notifyNewPublication($cityVisitDraft, !$hadFinishedAt && $cityVisitDraft->getFinishedAt() !== null);
-        $this->addFlash('success', 'Visite de ville terminée.');
 
-        return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $cityVisitDraft->getId()]);
+        $this->addFlash('success', 'Sortie terrain terminée. La visite reste en brouillon pour ajouter les photos et préparer la publication.');
+
+        return $this->redirectToRoute('admin_studio_city_visit_edit', [
+            'id' => $cityVisitDraft->getId(),
+        ]);
     }
 
-    private function notifyNewPublication(CityVisitDraft $cityVisitDraft, bool $shouldNotify): void
-    {
-        if (!$shouldNotify) {
-            return;
-        }
 
-        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($cityVisitDraft);
-        if ($report['errorCount'] > 0) {
-            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
-        }
-    }
 
     private function denyUnlessAdmin(): ?RedirectResponse
     {
@@ -378,7 +367,7 @@ final class QuickCityVisitController extends AbstractController
     private function generateGoogleMapsUrl(CityVisitDraft $draft): ?string
     {
         $points = $draft->getPoints()->toArray();
-        usort($points, static fn (CityVisitPoint $a, CityVisitPoint $b): int => $a->getPosition() <=> $b->getPosition());
+        usort($points, static fn(CityVisitPoint $a, CityVisitPoint $b): int => $a->getPosition() <=> $b->getPosition());
 
         if (\count($points) < 2) {
             return null;
@@ -399,10 +388,10 @@ final class QuickCityVisitController extends AbstractController
         );
 
         if ($waypoints !== []) {
-            $url .= '&waypoints='.implode('|', $waypoints);
+            $url .= '&waypoints=' . implode('|', $waypoints);
         }
 
-        return $url.'&travelmode=walking';
+        return $url . '&travelmode=walking';
     }
 
     private function formatCoordinates(CityVisitPoint $point): string

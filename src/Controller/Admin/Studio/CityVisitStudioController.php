@@ -64,8 +64,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
-    ) {
-    }
+    ) {}
 
     #[Route('/city-visits/{id}/edit', name: 'admin_studio_city_visit_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(CityVisitDraft $cityVisitDraft, Request $request): Response
@@ -73,17 +72,22 @@ final class CityVisitStudioController extends AbstractController
         $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $cityVisitDraft);
 
         if ($request->isMethod('POST')) {
-            if (!$this->isCsrfTokenValid('studio_city_visit_edit_'.$cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
+            if (!$this->isCsrfTokenValid('studio_city_visit_edit_' . $cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
                 $this->addFlash('error', 'Le formulaire a expiré. Réessayez.');
 
                 return $this->redirectToStudio($cityVisitDraft);
             }
 
-            $hadFinishedAt = $cityVisitDraft->getFinishedAt() !== null;
+            $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
+
             $this->updateDraftFromRequest($cityVisitDraft, $request);
-            $shouldNotifyPublication = !$hadFinishedAt && $cityVisitDraft->getFinishedAt() !== null && $this->isPublicStatus($cityVisitDraft->getStatus());
+
+            $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
+
             $this->entityManager->flush();
             $this->notifyNewPublication($cityVisitDraft, $shouldNotifyPublication);
+
+
             $this->addFlash('success', 'La visite de ville rapide a été enregistrée.');
 
             return $this->redirectToStudio($cityVisitDraft);
@@ -99,7 +103,7 @@ final class CityVisitStudioController extends AbstractController
         $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
         $wantsJson = $this->wantsJsonUploadResponse($request);
 
-        if (!$this->isCsrfTokenValid('studio_city_visit_photos_'.$cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_city_visit_photos_' . $cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
             if ($wantsJson) {
                 return $this->uploadJsonResponse([
                     ['success' => false, 'error' => 'Le formulaire photo a expiré. Réessayez.'],
@@ -211,7 +215,7 @@ final class CityVisitStudioController extends AbstractController
     {
         $this->denyAccessUnlessGranted(AdminAccessVoter::ACCESS);
 
-        if (!$this->isCsrfTokenValid('studio_city_visit_video_'.$cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_city_visit_video_' . $cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire vidéo a expiré. Réessayez.');
 
             return $this->redirectToStudio($cityVisitDraft);
@@ -261,7 +265,7 @@ final class CityVisitStudioController extends AbstractController
             throw $this->createNotFoundException('Visite introuvable.');
         }
 
-        if (!$this->isCsrfTokenValid('studio_city_visit_media_update_'.$mediaLink->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_city_visit_media_update_' . $mediaLink->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire média a expiré. Réessayez.');
 
             return $this->redirectToStudio($cityVisitDraft);
@@ -284,7 +288,7 @@ final class CityVisitStudioController extends AbstractController
             throw $this->createNotFoundException('Visite introuvable.');
         }
 
-        if (!$this->isCsrfTokenValid('studio_city_visit_media_delete_'.$mediaLink->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid('studio_city_visit_media_delete_' . $mediaLink->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'La suppression a expiré. Réessayez.');
 
             return $this->redirectToStudio($cityVisitDraft);
@@ -314,7 +318,7 @@ final class CityVisitStudioController extends AbstractController
 
             return $mediaId === null || !isset($mediaPointTargets[$mediaId]);
         }));
-        $photoLinks = array_values(array_filter($generalMediaLinks, fn (CityVisitDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image));
+        $photoLinks = array_values(array_filter($generalMediaLinks, fn(CityVisitDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image));
 
         return $this->render('admin/studio/city_visit_edit.html.twig', [
             'city_visit' => $cityVisitDraft,
@@ -325,13 +329,13 @@ final class CityVisitStudioController extends AbstractController
             'google_maps_url' => $this->generateGoogleMapsUrl($cityVisitDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
-            'cover_photo_links' => array_values(array_filter($photoLinks, static fn (CityVisitDraftMedia $link): bool => $link->getRole() === MediaRole::Cover)),
-            'gallery_photo_links' => array_values(array_filter($photoLinks, static fn (CityVisitDraftMedia $link): bool => $link->getRole() !== MediaRole::Cover)),
-            'video_links' => array_values(array_filter($generalMediaLinks, fn (CityVisitDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Video)),
+            'cover_photo_links' => array_values(array_filter($photoLinks, static fn(CityVisitDraftMedia $link): bool => $link->getRole() === MediaRole::Cover)),
+            'gallery_photo_links' => array_values(array_filter($photoLinks, static fn(CityVisitDraftMedia $link): bool => $link->getRole() !== MediaRole::Cover)),
+            'video_links' => array_values(array_filter($generalMediaLinks, fn(CityVisitDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Video)),
             'immersive_links' => array_values(array_filter($generalMediaLinks, $this->isImmersiveLink(...))),
             'status_options' => $this->enumChoices(CityVisitDraftStatus::cases(), [
                 'draft' => 'Brouillon',
-                'finished' => 'Terminé terrain',
+                'finished' => 'Publié',
                 'converted' => 'Converti',
                 'archived' => 'Archivé',
             ]),
@@ -488,7 +492,7 @@ final class CityVisitStudioController extends AbstractController
     private function sortedMediaLinks(CityVisitDraft $cityVisitDraft): array
     {
         $mediaLinks = $cityVisitDraft->getMediaLinks()->toArray();
-        usort($mediaLinks, static fn (CityVisitDraftMedia $a, CityVisitDraftMedia $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($mediaLinks, static fn(CityVisitDraftMedia $a, CityVisitDraftMedia $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
 
         return $mediaLinks;
     }
@@ -520,13 +524,13 @@ final class CityVisitStudioController extends AbstractController
             return null;
         }
 
-        $coordinates = array_map(static fn (CityVisitPoint $point): string => $point->getLatitude().','.$point->getLongitude(), $points);
+        $coordinates = array_map(static fn(CityVisitPoint $point): string => $point->getLatitude() . ',' . $point->getLongitude(), $points);
         $origin = array_shift($coordinates);
         $destination = array_pop($coordinates);
-        $url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin='.rawurlencode((string) $origin).'&destination='.rawurlencode((string) $destination);
+        $url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=' . rawurlencode((string) $origin) . '&destination=' . rawurlencode((string) $destination);
 
         if ($coordinates !== []) {
-            $url .= '&waypoints='.rawurlencode(implode('|', $coordinates));
+            $url .= '&waypoints=' . rawurlencode(implode('|', $coordinates));
         }
 
         return $url;
@@ -548,7 +552,7 @@ final class CityVisitStudioController extends AbstractController
     private function sortedPoints(CityVisitDraft $cityVisitDraft): array
     {
         $points = $cityVisitDraft->getPoints()->toArray();
-        usort($points, static fn (CityVisitPoint $a, CityVisitPoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($points, static fn(CityVisitPoint $a, CityVisitPoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
 
         return $points;
     }
@@ -590,7 +594,7 @@ final class CityVisitStudioController extends AbstractController
     {
         $options = [];
         foreach ($pointTargetOptions as $pointId => $label) {
-            $options[self::MEDIA_ASSOCIATION_POINT_PREFIX.$pointId] = $label;
+            $options[self::MEDIA_ASSOCIATION_POINT_PREFIX . $pointId] = $label;
         }
 
         return $options;

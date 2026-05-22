@@ -24,6 +24,7 @@ class CityVisitDraftRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('c')
             ->andWhere('c.createdBy = :user')
             ->andWhere('c.status = :status')
+            ->andWhere('c.finishedAt IS NULL')
             ->setParameter('user', $user)
             ->setParameter('status', CityVisitDraftStatus::Draft)
             ->orderBy('c.updatedAt', 'DESC')

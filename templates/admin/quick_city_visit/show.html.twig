@@ -55,7 +55,7 @@
         </div>
     {% endif %}
 
-    {% if city_visit.status.value == 'draft' %}
+    {% if city_visit.status.value == 'draft' and city_visit.finishedAt is null %}
         <section class="field-card">
             <form class="field-stack" method="post" action="{{ path('admin_quick_city_visit_point', { id: city_visit.id }) }}" data-gps-form>
                 <input type="hidden" name="quick_city_visit_point[_token]" value="{{ csrf_token('quick_city_visit_point_' ~ city_visit.id) }}">
@@ -89,9 +89,17 @@
 
         <form method="post" action="{{ path('admin_quick_city_visit_finish', { id: city_visit.id }) }}" onsubmit="return confirm('Terminer cette visite terrain ?');">
             <input type="hidden" name="_token" value="{{ csrf_token('quick_city_visit_finish_' ~ city_visit.id) }}">
-            <button class="field-button field-button--danger" type="submit">Terminer</button>
+            <button class="field-button field-button--danger" type="submit">Terminer la sortie terrain</button>
         </form>
     {% endif %}
+
+    {% if city_visit.status.value == 'draft' and city_visit.finishedAt is not null %}
+    <section class="field-card">
+        <h2 class="field-subtitle">Sortie terrain terminée</h2>
+        <p>La visite est conservée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus dans le studio.</p>
+        <a class="field-button" href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}">Ouvrir le studio visite</a>
+    </section>
+{% endif %}
 
     <section class="field-card">
         <h2 class="field-subtitle">Points ajoutés</h2>
