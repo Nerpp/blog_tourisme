@@ -36,7 +36,7 @@ final class ChangePasswordFormType extends AbstractType
                 ),
                 new PasswordStrength(
                     minScore: PasswordStrength::STRENGTH_MEDIUM,
-                    message: 'Votre mot de passe est trop faible. Utilisez une phrase ou une combinaison plus longue.',
+                    message: 'Votre mot de passe est trop prévisible. Utilisez une phrase plus longue, avec plusieurs mots, chiffres ou symboles.',
                 ),
                 new NotCompromisedPassword(message: 'Ce mot de passe est connu dans des fuites de données. Choisissez-en un autre.'),
             ],
