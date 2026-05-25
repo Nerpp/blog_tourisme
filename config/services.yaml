@@ -1,5 +1,5 @@
 parameters:
-    vite_dev_server_url: 'http://localhost:5173'
+    vite_dev_server_url: ''
 
 services:
     _defaults:
