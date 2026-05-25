@@ -29,7 +29,7 @@ final class UserFixtures extends Fixture
                 'displayName' => 'Admin Blog Tourisme',
                 'trustedCommenter' => true,
                 'approvedCommentsCount' => 10,
-                'isVerified' => false,
+                'isVerified' => true,
             ],
             self::USER_REFERENCE => [
                 'email' => 'user@blog-tourisme.local',

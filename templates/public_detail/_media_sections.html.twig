@@ -189,6 +189,12 @@
 {% endif %}
 
 {% if video_media_links|length > 0 %}
+    {% set fallback_video_poster_media = standard_media_links|length > 0 ? (standard_media_links|first).mediaAsset : null %}
+    {% set fallback_video_poster_url = fallback_video_poster_media
+        ? media_image_url(fallback_video_poster_media, 'medium')
+        : asset('images/home/hero-sea-mountain.webp')
+    %}
+
     <section id="{{ gallery_id }}-videos" class="media-section media-section--dark">
         <div class="media-header">
             <div>
@@ -213,7 +219,7 @@
             </div>
         </div>
 
-        <div class="video-gallery-grid">
+        <div class="video-gallery-grid {{ video_media_links|length == 1 ? 'video-gallery-grid--single' : '' }}">
             {% for mediaLink in video_media_links|slice(0, 5) %}
                 {% set media = mediaLink.mediaAsset %}
 
@@ -222,18 +228,32 @@
                     {% set embed_url = media|video_embed_url %}
                     {% set external_video = media.externalUrl %}
                     {% set poster_url = media_poster_url(media, 'medium') %}
+                    {% set video_poster_url = poster_url ? poster_url : fallback_video_poster_url %}
+
+                    {% set video_shape = 'unknown' %}
+                    {% if media.width and media.height %}
+                        {% if media.height > media.width %}
+                            {% set video_shape = 'portrait' %}
+                        {% elseif media.width > media.height %}
+                            {% set video_shape = 'landscape' %}
+                        {% else %}
+                            {% set video_shape = 'square' %}
+                        {% endif %}
+                    {% elseif external_video is not empty and '/shorts/' in external_video %}
+                        {% set video_shape = 'portrait' %}
+                    {% endif %}
 
                     {% if embed_url or local_video or external_video %}
                         <button
                             type="button"
-                            class="video-gallery-card {{ loop.first ? 'video-gallery-card--large' : '' }} {{ poster_url ? 'has-poster' : 'has-placeholder' }}"
+                            class="video-gallery-card video-gallery-card--{{ video_shape }} {{ loop.first ? 'video-gallery-card--large' : '' }} {{ video_poster_url ? 'has-poster' : 'has-placeholder' }}"
                             aria-label="Afficher la vidéo en grand"
                             data-gallery-target="#{{ gallery_id }}-video-gallery"
                             data-gallery-index="{{ loop.index0 }}"
                         >
-                            {% if poster_url %}
+                            {% if video_poster_url %}
                                 <img
-                                    src="{{ poster_url }}"
+                                    src="{{ video_poster_url }}"
                                     alt="{{ media_public_alt(media, item, media_public_title(media, item, video_fallback_title)) }}"
                                     loading="lazy"
                                     decoding="async"
@@ -242,7 +262,9 @@
                             {% else %}
                                 <span class="video-gallery-card__placeholder">
                                     <span class="video-gallery-card__play" aria-hidden="true">▶</span>
-                                    <span class="video-gallery-card__title">{{ media_public_title(media, item, video_fallback_title) }}</span>
+                                    <span class="video-gallery-card__title">
+                                        {{ media_public_title(media, item, video_fallback_title) }}
+                                    </span>
                                 </span>
                             {% endif %}
 
@@ -312,11 +334,27 @@
                             {% set embed_url = media|video_embed_url %}
                             {% set external_video = media.externalUrl %}
                             {% set poster_url = media_poster_url(media, 'medium') %}
+                            {% set video_poster_url = poster_url ? poster_url : fallback_video_poster_url %}
                             {% set has_caption = media.caption is not empty %}
 
+                            {% set video_shape = 'unknown' %}
+                            {% if media.width and media.height %}
+                                {% if media.height > media.width %}
+                                    {% set video_shape = 'portrait' %}
+                                {% elseif media.width > media.height %}
+                                    {% set video_shape = 'landscape' %}
+                                {% else %}
+                                    {% set video_shape = 'square' %}
+                                {% endif %}
+                            {% elseif external_video is not empty and '/shorts/' in external_video %}
+                                {% set video_shape = 'portrait' %}
+                            {% endif %}
+
+                            {% set video_source_type = embed_url ? 'embed' : (local_video ? 'local' : 'external') %}
+
                             {% if embed_url or local_video or external_video %}
-                                <article class="gallery-modal__slide gallery-modal__slide--video js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
-                                    <figure class="gallery-modal__media gallery-modal__video-frame">
+                                <article class="gallery-modal__slide gallery-modal__slide--video gallery-modal__slide--video-{{ video_shape }} gallery-modal__slide--video-{{ video_source_type }} js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                    <figure class="gallery-modal__media gallery-modal__video-frame gallery-modal__video-frame--{{ video_shape }} gallery-modal__video-frame--{{ video_source_type }}">
                                         {% if embed_url %}
                                             <iframe
                                                 data-video-src="{{ embed_url }}"
@@ -334,8 +372,8 @@
                                                 preload="none"
                                                 data-video-src="{{ local_video_url }}"
                                                 data-video-type="{{ media.mimeType ?: 'video/mp4' }}"
-                                                {% if poster_url %}
-                                                    poster="{{ poster_url }}"
+                                                {% if video_poster_url %}
+                                                    poster="{{ video_poster_url }}"
                                                 {% endif %}
                                             >
                                                 Votre navigateur ne supporte pas la lecture vidéo.

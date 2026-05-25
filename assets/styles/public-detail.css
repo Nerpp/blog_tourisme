@@ -347,6 +347,12 @@
   max-width: 100%;
 }
 
+.video-gallery-grid.video-gallery-grid--single {
+  grid-template-columns: minmax(0, 520px);
+  grid-auto-rows: auto;
+  justify-content: start;
+}
+
 .video-gallery-card {
   position: relative;
   display: block;
@@ -369,12 +375,39 @@
   grid-row: span 2;
 }
 
+.video-gallery-grid--single .video-gallery-card {
+  min-height: 340px;
+  aspect-ratio: 16 / 9;
+}
+
+.video-gallery-grid--single .video-gallery-card--large {
+  grid-column: auto;
+  grid-row: auto;
+}
+
+.video-gallery-card.has-poster {
+  background: #07140f;
+}
+
+.video-gallery-card.has-poster::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(to top, rgba(2, 6, 23, 0.55), transparent 46%),
+    radial-gradient(circle at center, rgba(2, 6, 23, 0.12), transparent 42%);
+  content: "";
+  pointer-events: none;
+}
+
 .video-gallery-card img {
+  position: relative;
+  z-index: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.88;
+  opacity: 0.9;
   transition:
     opacity 0.25s ease,
     transform 0.45s ease;
@@ -412,11 +445,11 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  z-index: 2;
+  z-index: 3;
   width: 62px;
   height: 62px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
   color: #10271f;
   font-size: 1.35rem;
   transform: translate(-50%, -50%);
@@ -1579,5 +1612,150 @@ html.has-related-article-modal {
   .related-article-modal__footer,
   .related-article-modal__content {
     padding: 18px;
+  }
+}
+
+
+/* ==========================================================
+   FIX MODALE VIDÉO : commentaire compact
+   ========================================================== */
+
+.gallery-modal__dialog--video {
+  width: min(1040px, calc(100vw - 32px));
+}
+
+.gallery-modal__dialog--video .gallery-modal__body {
+  padding: 0 72px 22px;
+}
+
+.gallery-modal__slide--video.is-active {
+  display: grid;
+  grid-template-columns: minmax(220px, max-content) minmax(220px, 340px);
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 0 24px 48px;
+}
+
+.gallery-modal__slide--video.gallery-modal__slide--image-only.is-active {
+  grid-template-columns: minmax(220px, max-content);
+}
+
+/* Vidéo */
+.gallery-modal__slide--video .gallery-modal__video-frame {
+  width: 100%;
+  height: min(70vh, 640px);
+  max-height: calc(100vh - 230px);
+  margin: 0 auto;
+}
+
+.gallery-modal__slide--video .gallery-modal__video-frame--portrait {
+  width: min(360px, 100%);
+  max-width: 360px;
+  aspect-ratio: 9 / 16;
+}
+
+.gallery-modal__slide--video .gallery-modal__video-frame--landscape {
+  width: min(760px, 100%);
+  max-width: 760px;
+  aspect-ratio: 16 / 9;
+}
+
+.gallery-modal__slide--video .gallery-modal__video-frame--square {
+  width: min(520px, 100%);
+  max-width: 520px;
+  aspect-ratio: 1 / 1;
+}
+
+.gallery-modal__slide--video .gallery-modal__video-frame--unknown {
+  width: min(680px, 100%);
+  max-width: 680px;
+  aspect-ratio: 16 / 9;
+}
+
+.gallery-modal__slide--video .gallery-modal__video-frame iframe,
+.gallery-modal__slide--video .gallery-modal__video-frame video {
+  width: 100%;
+  height: 100%;
+  max-height: calc(100vh - 230px);
+  object-fit: contain;
+}
+
+/* Commentaire vidéo compact */
+.gallery-modal__caption--video {
+  width: min(100%, 340px);
+  max-width: 340px;
+  max-height: min(52vh, 340px);
+  align-self: center;
+  justify-self: start;
+  overflow-y: auto;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.gallery-modal__caption--video p {
+  margin: 0;
+  color: rgba(245, 247, 243, 0.78);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+/* Si vidéo portrait avec commentaire : on garde un ensemble serré */
+.gallery-modal__slide--video-portrait.is-active {
+  grid-template-columns: minmax(220px, 360px) minmax(220px, 320px);
+}
+
+/* Si vidéo paysage avec commentaire : on autorise un peu plus large */
+.gallery-modal__slide--video-landscape.is-active {
+  grid-template-columns: minmax(420px, 760px) minmax(220px, 320px);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .gallery-modal__dialog--video {
+    width: min(720px, calc(100vw - 20px));
+  }
+
+  .gallery-modal__dialog--video .gallery-modal__body {
+    padding: 0 14px 18px;
+  }
+
+  .gallery-modal__slide--video.is-active,
+  .gallery-modal__slide--video.gallery-modal__slide--image-only.is-active,
+  .gallery-modal__slide--video-portrait.is-active,
+  .gallery-modal__slide--video-landscape.is-active {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 0 12px 72px;
+  }
+
+  .gallery-modal__slide--video .gallery-modal__video-frame--portrait {
+    width: min(330px, 100%);
+    max-width: 330px;
+    height: min(62vh, 560px);
+  }
+
+  .gallery-modal__slide--video .gallery-modal__video-frame--landscape,
+  .gallery-modal__slide--video .gallery-modal__video-frame--square,
+  .gallery-modal__slide--video .gallery-modal__video-frame--unknown {
+    width: 100%;
+    max-width: 100%;
+    height: min(56vh, 520px);
+  }
+
+  .gallery-modal__caption--video {
+    width: 100%;
+    max-width: 100%;
+    max-height: 120px;
+    justify-self: stretch;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+
+  .gallery-modal__caption--video p {
+    font-size: 0.84rem;
+    line-height: 1.4;
   }
 }

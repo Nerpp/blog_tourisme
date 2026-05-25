@@ -9,10 +9,10 @@ Découvrez des randonnées, villages, villes et paysages méditerranéens à tra
 {% block body %}
     <main class="travel-home">
         {% include 'home/partials/_hero.html.twig' with {
-             latest_homepage_item: latest_homepage_item
+            latest_homepage_item: latest_homepage_item
         } only %}
 
-        <section class="home-destinations-section">
+        <section id="derniers-articles" class="home-destinations-section">
             <div class="home-container">
                 <div class="home-section-header">
                     <div>
@@ -37,7 +37,5 @@ Découvrez des randonnées, villages, villes et paysages méditerranéens à tra
                 </div>
             </div>
         </section>
-
-        {% include 'home/partials/_newsletter.html.twig' only %}
     </main>
 {% endblock %}
