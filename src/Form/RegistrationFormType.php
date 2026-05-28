@@ -15,6 +15,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\File;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Constraints\NotCompromisedPassword;
+use Symfony\Component\Validator\Constraints\PasswordStrength;
 use Symfony\Component\Validator\Constraints\Regex;
 
 class RegistrationFormType extends AbstractType
@@ -52,7 +54,7 @@ class RegistrationFormType extends AbstractType
                 'invalid_message' => 'Les mots de passe ne correspondent pas.',
                 'first_options' => [
                     'label' => 'Mot de passe',
-                    'help' => 'Utilisez au moins 12 caractères, avec des lettres et des chiffres. Évitez les mots de passe simples comme 12345678.',
+                    'help' => 'Utilisez au moins 12 caractères. Une phrase courte avec plusieurs mots est souvent plus sûre qu’un mot simple.',
                 ],
                 'second_options' => [
                     'label' => 'Confirmer le mot de passe',
@@ -68,9 +70,12 @@ class RegistrationFormType extends AbstractType
                         pattern: '/^(?=.*[A-Za-zÀ-ÿ])(?=.*\d).+$/u',
                         message: 'Le mot de passe doit contenir au moins une lettre et un chiffre.',
                     ),
-                    new Regex(
-                        pattern: '/^(?!.*(?:123456|12345678|123456789|password|azerty|qwerty|motdepasse)).*$/i',
-                        message: 'Ce mot de passe est trop courant. Choisissez un mot de passe plus difficile à deviner.',
+                    new PasswordStrength(
+                        minScore: PasswordStrength::STRENGTH_STRONG,
+                        message: 'Votre mot de passe est trop faible. Utilisez une phrase plus longue ou une combinaison plus difficile à deviner.',
+                    ),
+                    new NotCompromisedPassword(
+                        message: 'Ce mot de passe est connu dans des fuites de données. Choisissez-en un autre.',
                     ),
                 ],
             ])
