@@ -38,4 +38,44 @@ class UserRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @param list<string> $handles
+     *
+     * @return list<User>
+     */
+    public function findMentionableUsersByHandles(array $handles): array
+    {
+        $handles = array_values(array_unique(array_filter(array_map(
+            static fn (string $handle): string => mb_strtolower(trim($handle, '@ ')),
+            $handles,
+        ))));
+
+        if ($handles === []) {
+            return [];
+        }
+
+        $users = $this->createQueryBuilder('u')
+            ->andWhere('u.isBanned = :banned')
+            ->setParameter('banned', false)
+            ->orderBy('u.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $handleLookup = array_fill_keys($handles, true);
+        $matchedUsers = [];
+
+        foreach ($users as $user) {
+            if (!$user instanceof User) {
+                continue;
+            }
+
+            $mentionHandle = $user->getMentionHandle();
+            if (isset($handleLookup[$mentionHandle]) && !isset($matchedUsers[$mentionHandle])) {
+                $matchedUsers[$mentionHandle] = $user;
+            }
+        }
+
+        return array_values($matchedUsers);
+    }
 }

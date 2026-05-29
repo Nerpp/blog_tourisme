@@ -1,54 +1,121 @@
-<article class="comment" id="comment-{{ comment.id }}">
-    <div class="comment-content">{{ comment.content|nl2br }}</div>
-    <footer class="comment-meta">
-        {% if comment.author.avatarPath %}
-            <img class="avatar avatar--comment" src="{{ asset(comment.author.avatarPath) }}" alt="">
-        {% else %}
-            <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ (comment.author.displayName ?: comment.author.email)|first|upper }}</span>
-        {% endif %}
-        <span>
-            Par {{ comment.author.displayName ?: comment.author.email }}
-            {% if comment.publishedAt %}
-                le {{ comment.publishedAt|date('d/m/Y H:i') }}
-            {% endif %}
-        </span>
-    </footer>
+{% set level = level|default(1) %}
+{% set is_deleted = comment.status.value == 'deleted' %}
+{% set is_owner_preview = app.user and comment.author.id == app.user.id and comment.status.value in ['pending', 'rejected', 'spam'] %}
+{% set author_name = comment.author.displayName ?: comment.author.email %}
 
-    {% if app.user %}
-        <div class="comment-actions">
-            {% if is_granted('COMMENT_EDIT', comment) %}
-                <a href="{{ path('app_comment_edit', { id: comment.id }) }}">Modifier</a>
-            {% endif %}
-
-            {% if is_granted('COMMENT_DELETE', comment) %}
-                <form method="post" action="{{ path('app_comment_delete', { id: comment.id }) }}" onsubmit="return confirm('Supprimer ce commentaire ?');">
-                    <input type="hidden" name="_token" value="{{ csrf_token('delete-comment-' ~ comment.id) }}">
-                    <button type="submit">Supprimer</button>
-                </form>
-            {% endif %}
-
-            {% if is_granted('COMMENT_REPORT', comment) %}
-                <form method="post" action="{{ path('app_comment_report', { id: comment.id }) }}">
-                    <input type="hidden" name="_token" value="{{ csrf_token('report-comment-' ~ comment.id) }}">
-                    <input type="hidden" name="reason" value="inappropriate">
-                    <button type="submit">Signaler</button>
-                </form>
+<article class="comment {{ level == 2 ? 'comment--reply' : '' }} {{ is_deleted ? 'comment--deleted' : '' }}" id="comment-{{ comment.id }}">
+    <div class="comment-body">
+        <div class="comment-content">
+            {% if is_deleted %}
+                <em>Commentaire supprimé</em>
+            {% else %}
+                {{ comment_content_html(comment.content) }}
             {% endif %}
         </div>
-    {% endif %}
 
-    {% set approved_children = [] %}
-    {% for child in comment.children %}
-        {% if child.status.value == 'approved' %}
-            {% set approved_children = approved_children|merge([child]) %}
+        <footer class="comment-meta">
+            {% if comment.author.avatarPath %}
+                <img class="avatar avatar--comment" src="{{ asset(comment.author.avatarPath) }}" alt="">
+            {% else %}
+                <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ author_name|first|upper }}</span>
+            {% endif %}
+            <span>
+                Par <a href="{{ path('app_public_profile', { id: comment.author.id }) }}">{{ author_name }}</a>
+                <span class="comment-handle">@{{ comment.author.mentionHandle }}</span>
+                {% if comment.publishedAt %}
+                    le {{ comment.publishedAt|date('d/m/Y H:i') }}
+                {% endif %}
+                {% if comment.editedAt and not is_deleted %}
+                    · modifié
+                {% endif %}
+                {% if is_owner_preview %}
+                    · <span class="comment-status-badge">
+                        {% if comment.status.value == 'pending' %}
+                            En attente
+                        {% elseif comment.status.value == 'rejected' %}
+                            Refusé
+                        {% else %}
+                            Spam
+                        {% endif %}
+                    </span>
+                {% endif %}
+            </span>
+        </footer>
+
+        {% if app.user %}
+            <div class="comment-actions">
+                {% if level == 1 and comment.status.value == 'approved' and app.user.verified is defined and app.user.verified %}
+                    <details class="comment-action-panel">
+                        <summary>Répondre</summary>
+                        <form class="comment-inline-form" method="post" action="{{ path('app_comment_reply', { id: comment.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('reply-comment-' ~ comment.id) }}">
+                            <label for="reply-content-{{ comment.id }}">Votre réponse</label>
+                            <textarea id="reply-content-{{ comment.id }}" name="content" rows="4" maxlength="5000" required></textarea>
+                            <button type="submit">Publier la réponse</button>
+                        </form>
+                    </details>
+                {% endif %}
+
+                {% if is_granted('COMMENT_EDIT', comment) %}
+                    <details class="comment-action-panel">
+                        <summary>Modifier</summary>
+                        <form class="comment-inline-form" method="post" action="{{ path('app_comment_edit', { id: comment.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('edit-comment-' ~ comment.id) }}">
+                            <label for="edit-content-{{ comment.id }}">Votre commentaire</label>
+                            <textarea id="edit-content-{{ comment.id }}" name="content" rows="4" maxlength="5000" required>{{ comment.content }}</textarea>
+                            <button type="submit">Enregistrer</button>
+                        </form>
+                    </details>
+                {% endif %}
+
+                {% if is_granted('COMMENT_DELETE', comment) %}
+                    <form method="post" action="{{ path('app_comment_delete', { id: comment.id }) }}" onsubmit="return confirm('Supprimer ce commentaire ?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('delete-comment-' ~ comment.id) }}">
+                        <button type="submit">Supprimer</button>
+                    </form>
+                {% endif %}
+
+                {% if is_granted('COMMENT_REPORT', comment) %}
+                    <details class="comment-action-panel">
+                        <summary>Signaler</summary>
+                        <form class="comment-inline-form" method="post" action="{{ path('app_comment_report', { id: comment.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('report-comment-' ~ comment.id) }}">
+                            <label for="report-reason-{{ comment.id }}">Raison</label>
+                            <select id="report-reason-{{ comment.id }}" name="reason">
+                                <option value="spam">Spam</option>
+                                <option value="offensive">Offensant</option>
+                                <option value="harassment">Harcèlement</option>
+                                <option value="inappropriate">Inapproprié</option>
+                                <option value="false_information">Fausse information</option>
+                                <option value="other">Autre</option>
+                            </select>
+                            <label for="report-message-{{ comment.id }}">Message facultatif</label>
+                            <textarea id="report-message-{{ comment.id }}" name="message" rows="3" maxlength="2000"></textarea>
+                            <button type="submit">Envoyer le signalement</button>
+                        </form>
+                    </details>
+                {% endif %}
+            </div>
         {% endif %}
-    {% endfor %}
+    </div>
 
-    {% if approved_children|length > 0 %}
-        <div class="comment-children">
-            {% for child in approved_children %}
-                {% include 'partials/_comment_item.html.twig' with { comment: child } %}
-            {% endfor %}
-        </div>
+    {% if level == 1 %}
+        {% set visible_children = [] %}
+        {% for child in comment.children %}
+            {% if child.status.value == 'approved'
+                or (child.status.value == 'deleted' and child.publishedAt)
+                or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected', 'spam', 'deleted'])
+            %}
+                {% set visible_children = visible_children|merge([child]) %}
+            {% endif %}
+        {% endfor %}
+
+        {% if visible_children|length > 0 %}
+            <div class="comment-children">
+                {% for child in visible_children %}
+                    {% include 'partials/_comment_item.html.twig' with { comment: child, level: 2 } %}
+                {% endfor %}
+            </div>
+        {% endif %}
     {% endif %}
 </article>

@@ -46,9 +46,9 @@ class CommentVoter extends Voter
 
         return match ($attribute) {
             self::EDIT => $subject->getStatus() !== CommentStatus::Deleted
-                && ($this->isOwner($subject, $user) || $this->isAdmin($user)),
+                && $this->isOwner($subject, $user),
             self::DELETE => $subject->getStatus() !== CommentStatus::Deleted
-                && ($this->isOwner($subject, $user) || $this->isAdmin($user)),
+                && $this->isOwner($subject, $user),
             self::REPORT => $subject->getStatus() === CommentStatus::Approved
                 && ($user->isVerified() || $this->isAdmin($user))
                 && !$this->isOwner($subject, $user),

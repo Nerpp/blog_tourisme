@@ -152,11 +152,48 @@
 /* AVATAR / PROFIL */
 
 .navbar-avatar-link,
-.navbar-profile-chip {
+.navbar-profile-chip,
+.navbar-notification-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.navbar-notification-link {
+  position: relative;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #18322a;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.navbar-notification-link:hover {
+  background: rgba(229, 240, 237, 0.95);
+  text-decoration: none;
+}
+
+.navbar-notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border: 2px solid #f6f7f2;
+  border-radius: 999px;
+  background: #b13b3b;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
 }
 
 .navbar-profile-chip {
@@ -300,6 +337,12 @@
     gap: 6px;
   }
 
+  .navbar-notification-link {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+
   .navbar-profile-chip {
     min-width: 40px;
     min-height: 40px;
@@ -380,6 +423,10 @@
   }
 
   .navbar-account .navbar-profile-chip {
+    display: none;
+  }
+
+  .navbar-account .navbar-notification-link {
     display: none;
   }
 

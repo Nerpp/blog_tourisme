@@ -1,0 +1,48 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Réponses reçues - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main class="comment-notifications-page">
+        <section class="comment-notifications">
+            <header class="comment-notifications__header">
+                <p class="eyebrow">Commentaires</p>
+                <h1>Réponses reçues</h1>
+            </header>
+
+            <div class="comment-notification-list">
+                {% for notification in notifications %}
+                    {% set comment = notification.comment %}
+                    {% set author = notification.triggeredBy ?: comment.author %}
+                    <article class="comment-notification {{ notification.id in unread_notification_ids ? 'is-unread' : '' }}">
+                        <div>
+                            <p class="comment-notification__title">
+                                {% if notification.kind == 'mention' %}
+                                    {{ author.displayName ?: author.userIdentifier }} vous a mentionné.
+                                {% else %}
+                                    {{ author.displayName ?: author.userIdentifier }} a répondu à votre commentaire.
+                                {% endif %}
+                            </p>
+                            <p class="comment-notification__meta">
+                                {{ notification.createdAt ? notification.createdAt|date('d/m/Y H:i') : '' }}
+                                {% if comment.article %}
+                                    · {{ comment.article.title }}
+                                {% elseif comment.place %}
+                                    · {{ comment.place.name }}
+                                {% endif %}
+                            </p>
+                            <p class="comment-notification__excerpt">
+                                {{ comment.content|striptags|length > 180 ? comment.content|striptags|slice(0, 180) ~ '...' : comment.content|striptags }}
+                            </p>
+                        </div>
+                        <a class="comment-notification__link" href="{{ path('app_comment_notification_open', { id: notification.id }) }}">
+                            Voir
+                        </a>
+                    </article>
+                {% else %}
+                    <p class="login-callout">Aucune réponse reçue pour le moment.</p>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+{% endblock %}

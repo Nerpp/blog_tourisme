@@ -18,6 +18,14 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 final class ProfileController extends AbstractController
 {
+    #[Route('/users/{id}', name: 'app_public_profile', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function showPublic(User $user): Response
+    {
+        return $this->render('profile/public.html.twig', [
+            'profile_user' => $user,
+        ]);
+    }
+
     #[Route('/profile', name: 'app_profile', methods: ['GET', 'POST'])]
     #[IsGranted('ROLE_USER')]
     public function index(

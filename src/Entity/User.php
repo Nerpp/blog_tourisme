@@ -185,6 +185,25 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->displayName;
     }
 
+    public function getMentionHandle(): string
+    {
+        $source = trim((string) ($this->displayName ?: preg_replace('/@.*/', '', (string) $this->email)));
+        if ($source === '') {
+            return sprintf('user%d', $this->id ?? 0);
+        }
+
+        if (function_exists('transliterator_transliterate')) {
+            $source = transliterator_transliterate('Any-Latin; Latin-ASCII; Lower()', $source) ?: mb_strtolower($source);
+        } else {
+            $source = mb_strtolower($source);
+        }
+
+        $handle = preg_replace('/[^a-z0-9_.-]+/', '_', $source) ?? '';
+        $handle = trim($handle, '_.-');
+
+        return $handle === '' ? sprintf('user%d', $this->id ?? 0) : $handle;
+    }
+
     public function setDisplayName(?string $displayName): static
     {
         $this->displayName = $displayName;

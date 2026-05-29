@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Comment;
+use App\Entity\User;
 use App\Form\CommentType;
 use App\Repository\CategoryRepository;
 use App\Repository\CommentRepository;
@@ -65,9 +66,11 @@ final class PlaceController extends AbstractController
                 'action' => $this->generateUrl('app_place_comment_create', ['slug' => $place->getSlug()]),
             ])->createView();
 
+        $viewer = $this->getUser();
+
         return $this->render('place/show.html.twig', [
             'place' => $place,
-            'comments' => $commentRepository->findApprovedForPlace($place),
+            'comments' => $commentRepository->findApprovedForPlace($place, $viewer instanceof User ? $viewer : null),
             'comment_form' => $commentForm,
         ]);
     }

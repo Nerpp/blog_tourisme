@@ -19,13 +19,22 @@ class CommentRepository extends ServiceEntityRepository
     }
 
     /** @return list<Comment> */
-    public function findApprovedForArticle(Article $article): array
+    public function findApprovedForArticle(Article $article, ?User $viewer = null): array
     {
-        return $this->createQueryBuilder('c')
-            ->andWhere('c.article = :article')
-            ->andWhere('c.status = :status')
+        $queryBuilder = $this->createQueryBuilder('c')
+            ->where('c.article = :article AND (c.status = :approved OR (c.status = :deleted AND c.publishedAt IS NOT NULL))')
             ->setParameter('article', $article)
-            ->setParameter('status', CommentStatus::Approved)
+            ->setParameter('approved', CommentStatus::Approved)
+            ->setParameter('deleted', CommentStatus::Deleted);
+
+        if ($viewer instanceof User) {
+            $queryBuilder
+                ->orWhere('c.article = :article AND c.author = :viewer AND c.status IN (:owner_statuses)')
+                ->setParameter('viewer', $viewer)
+                ->setParameter('owner_statuses', [CommentStatus::Pending, CommentStatus::Rejected, CommentStatus::Spam, CommentStatus::Deleted]);
+        }
+
+        return $queryBuilder
             ->orderBy('c.publishedAt', 'ASC')
             ->addOrderBy('c.createdAt', 'ASC')
             ->getQuery()
@@ -33,13 +42,22 @@ class CommentRepository extends ServiceEntityRepository
     }
 
     /** @return list<Comment> */
-    public function findApprovedForPlace(Place $place): array
+    public function findApprovedForPlace(Place $place, ?User $viewer = null): array
     {
-        return $this->createQueryBuilder('c')
-            ->andWhere('c.place = :place')
-            ->andWhere('c.status = :status')
+        $queryBuilder = $this->createQueryBuilder('c')
+            ->where('c.place = :place AND (c.status = :approved OR (c.status = :deleted AND c.publishedAt IS NOT NULL))')
             ->setParameter('place', $place)
-            ->setParameter('status', CommentStatus::Approved)
+            ->setParameter('approved', CommentStatus::Approved)
+            ->setParameter('deleted', CommentStatus::Deleted);
+
+        if ($viewer instanceof User) {
+            $queryBuilder
+                ->orWhere('c.place = :place AND c.author = :viewer AND c.status IN (:owner_statuses)')
+                ->setParameter('viewer', $viewer)
+                ->setParameter('owner_statuses', [CommentStatus::Pending, CommentStatus::Rejected, CommentStatus::Spam, CommentStatus::Deleted]);
+        }
+
+        return $queryBuilder
             ->orderBy('c.publishedAt', 'ASC')
             ->addOrderBy('c.createdAt', 'ASC')
             ->getQuery()

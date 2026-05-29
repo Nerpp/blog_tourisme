@@ -1,0 +1,52 @@
+<?php
+
+namespace App\Repository;
+
+use App\Entity\Comment;
+use App\Entity\CommentReplyNotification;
+use App\Entity\User;
+use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\Persistence\ManagerRegistry;
+
+/** @extends ServiceEntityRepository<CommentReplyNotification> */
+class CommentReplyNotificationRepository extends ServiceEntityRepository
+{
+    public function __construct(ManagerRegistry $registry)
+    {
+        parent::__construct($registry, CommentReplyNotification::class);
+    }
+
+    public function countUnreadForRecipient(User $recipient): int
+    {
+        return (int) $this->createQueryBuilder('n')
+            ->select('COUNT(n.id)')
+            ->andWhere('n.recipient = :recipient')
+            ->andWhere('n.readAt IS NULL')
+            ->setParameter('recipient', $recipient)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /** @return list<CommentReplyNotification> */
+    public function findRecentForRecipient(User $recipient, int $limit = 50): array
+    {
+        return $this->createQueryBuilder('n')
+            ->addSelect('c', 'a')
+            ->leftJoin('n.comment', 'c')
+            ->leftJoin('c.author', 'a')
+            ->andWhere('n.recipient = :recipient')
+            ->setParameter('recipient', $recipient)
+            ->orderBy('n.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function findOneByRecipientAndComment(User $recipient, Comment $comment): ?CommentReplyNotification
+    {
+        return $this->findOneBy([
+            'recipient' => $recipient,
+            'comment' => $comment,
+        ]);
+    }
+}

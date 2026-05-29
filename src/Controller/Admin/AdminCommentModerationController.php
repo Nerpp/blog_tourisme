@@ -8,8 +8,9 @@ use App\Enum\CommentStatus;
 use App\Repository\CommentRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\AdminModerationVoter;
-use App\Service\ModerationActionLogger;
 use App\Service\CommentModerationAdminService;
+use App\Service\CommentReplyNotificationService;
+use App\Service\ModerationActionLogger;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -48,12 +49,20 @@ final class AdminCommentModerationController extends AbstractController
     }
 
     #[Route('/admin/comments/{id}/approve', name: 'admin_comments_approve', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function approve(Comment $comment, Request $request): RedirectResponse
+    public function approve(
+        Comment $comment,
+        Request $request,
+        CommentReplyNotificationService $notificationService,
+    ): RedirectResponse
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_APPROVE, $comment);
         $this->validateCommentToken($comment, $request);
+        $wasApproved = $comment->getStatus() === CommentStatus::Approved;
         $admin = $this->getAdminUser();
         $this->moderationService->approve($comment, $admin);
+        if (!$wasApproved) {
+            $notificationService->createForApprovedComment($comment);
+        }
         $this->moderationLogger->log('comment.approve', $admin, 'comment', $comment->getId(), null, $request, $comment->getAuthor());
         $this->entityManager->flush();
         $this->addFlash('success', 'Commentaire accepté.');

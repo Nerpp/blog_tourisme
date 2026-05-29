@@ -1,3 +1,5 @@
+{% set unread_comment_notifications = app.user ? comment_unread_notification_count(app.user) : 0 %}
+
 <header class="site-header">
     <nav class="navbar" aria-label="Navigation principale">
         <div class="navbar-container">
@@ -8,6 +10,12 @@
 
             <div class="navbar-mobile-account">
                 {% if app.user %}
+                    <a class="navbar-notification-link" href="{{ path('app_comment_notifications') }}" aria-label="Réponses reçues">
+                        <span aria-hidden="true">✉</span>
+                        {% if unread_comment_notifications > 0 %}
+                            <span class="navbar-notification-badge">{{ unread_comment_notifications > 99 ? '99+' : unread_comment_notifications }}</span>
+                        {% endif %}
+                    </a>
                     <a class="navbar-avatar-link" href="{{ path('app_profile') }}" aria-label="Voir mon profil">
                         {% if app.user.avatarPath %}
                             <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
@@ -42,6 +50,12 @@
 
                 {% if app.user %}
                     <div class="navbar-account">
+                        <a class="navbar-notification-link" href="{{ path('app_comment_notifications') }}" aria-label="Réponses reçues">
+                            <span aria-hidden="true">✉</span>
+                            {% if unread_comment_notifications > 0 %}
+                                <span class="navbar-notification-badge">{{ unread_comment_notifications > 99 ? '99+' : unread_comment_notifications }}</span>
+                            {% endif %}
+                        </a>
                        <a
     class="navbar-profile-chip"
     href="{{ path('app_profile') }}"

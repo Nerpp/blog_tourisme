@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Comment;
+use App\Entity\User;
 use App\Form\CommentType;
 use App\Repository\ArticleRepository;
 use App\Repository\CommentRepository;
@@ -34,9 +35,11 @@ final class ArticleController extends AbstractController
                 'action' => $this->generateUrl('app_article_comment_create', ['slug' => $article->getSlug()]),
             ])->createView();
 
+        $viewer = $this->getUser();
+
         return $this->render('article/show.html.twig', [
             'article' => $article,
-            'comments' => $commentRepository->findApprovedForArticle($article),
+            'comments' => $commentRepository->findApprovedForArticle($article, $viewer instanceof User ? $viewer : null),
             'comment_form' => $commentForm,
         ]);
     }

@@ -1,4 +1,4 @@
-<section class="comments-section">
+<section class="comments-section" id="comments">
     <h2>Commentaires</h2>
 
     {% set top_level_comments = [] %}
@@ -9,8 +9,8 @@
     {% endfor %}
 
     {% for comment in top_level_comments %}
-        {% include 'partials/_comment_item.html.twig' with { comment: comment } %}
+        {% include 'partials/_comment_item.html.twig' with { comment: comment, level: 1 } %}
     {% else %}
-        <p>Aucun commentaire approuve pour le moment.</p>
+        <p>Aucun commentaire approuvé pour le moment.</p>
     {% endfor %}
 </section>
