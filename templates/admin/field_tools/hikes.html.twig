@@ -2,6 +2,16 @@
 
 {% block title %}Randonnées rapides{% endblock %}
 
+{% block stylesheets %}
+    <style>
+        .studio-hike-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+    </style>
+{% endblock %}
+
 {% block body %}
     <header class="admin-header">
         <div>
@@ -21,7 +31,7 @@
                     <th>Destination</th>
                     <th>Points</th>
                     <th>Création</th>
-                    <th>Studio</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -33,7 +43,15 @@
                         <td>{{ hike.destination ?: '-' }}</td>
                         <td>{{ hike.points|length }}</td>
                         <td>{{ hike.createdAt ? hike.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
-                        <td><a class="admin-button admin-button--secondary" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir</a></td>
+                        <td>
+                            <div class="studio-hike-actions">
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir</a>
+                                <form method="post" action="{{ path('admin_studio_hike_delete', { id: hike.id }) }}" onsubmit="return confirm('Supprimer définitivement cette randonnée ? Cette action est irréversible.');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_delete_' ~ hike.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger-soft" type="submit">Supprimer</button>
+                                </form>
+                            </div>
+                        </td>
                     </tr>
                 {% else %}
                     <tr><td colspan="7">Aucune randonnée rapide.</td></tr>

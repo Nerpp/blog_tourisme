@@ -96,6 +96,28 @@ final class HikeStudioController extends AbstractController
         return $this->renderStudio($hikeDraft);
     }
 
+    #[Route('/hikes/{id}/delete', name: 'admin_studio_hike_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function delete(HikeDraft $hikeDraft, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(ContentEditVoter::DELETE, $hikeDraft);
+
+        if (!$this->isCsrfTokenValid('studio_hike_delete_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'La suppression n’a pas pu être validée. Réessayez.');
+
+            return $this->redirectToRoute('admin_field_tools_hikes');
+        }
+
+        foreach ($hikeDraft->getArticleLinks() as $articleLink) {
+            $this->entityManager->remove($articleLink);
+        }
+
+        $this->entityManager->remove($hikeDraft);
+        $this->entityManager->flush();
+        $this->addFlash('success', 'La randonnée a bien été supprimée.');
+
+        return $this->redirectToRoute('admin_field_tools_hikes');
+    }
+
     #[Route('/hikes/{id}/media/photos', name: 'admin_studio_hike_media_photos', requirements: ['id' => '\d+'], methods: ['POST'])]
     #[Route('/hikes/{id}/media/photos/bulk-upload', name: 'admin_studio_hike_media_photos_bulk', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function uploadPhotos(HikeDraft $hikeDraft, Request $request): RedirectResponse|JsonResponse

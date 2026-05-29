@@ -20,7 +20,8 @@ final class ContentEditVoter extends Voter
     protected function supports(string $attribute, mixed $subject): bool
     {
         if ($attribute === self::DELETE) {
-            return $subject instanceof Place;
+            return $subject instanceof Place
+                || $subject instanceof HikeDraft;
         }
 
         return $attribute === self::EDIT
