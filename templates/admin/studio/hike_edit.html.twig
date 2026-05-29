@@ -57,6 +57,8 @@
         .studio-link { color: var(--admin-primary); font-weight: 800; }
         .studio-hidden { display: none; }
         .studio-button-danger { border: 1px solid #dba0a0; background: #fff5f5; color: #8c1d18; }
+        .studio-section, .studio-media-card, .studio-point { scroll-margin-top: 18px; }
+        .studio-section:target, .studio-media-card:target, .studio-point:target { outline: 2px solid rgba(46, 125, 90, 0.35); box-shadow: 0 0 0 6px rgba(46, 125, 90, 0.08); }
         .quick-destination { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fbfcfb; }
         .quick-destination__title { margin: 0; font-size: 1.05rem; }
         .quick-destination__text { margin: 4px 0 0; color: var(--admin-muted); }
@@ -72,6 +74,7 @@
 {% block body %}
     <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_hike_edit', { id: hike.id }) }}"></form>
     <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_hike_edit_' ~ hike.id) }}">
+    <input form="{{ main_form_id }}" type="hidden" name="_redirect_anchor" value="section-publication">
 
     <div class="studio-page">
         <section class="studio-hero">
@@ -99,7 +102,7 @@
             </div>
         </section>
 
-        <section class="studio-section">
+        <section id="section-publication" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Préparation publication</h2>
@@ -145,11 +148,12 @@
                 current_destination_update_token: csrf_token('studio_hike_destination_update_' ~ hike.id),
                 destination_quick_create: destination_quick_create,
                 destination_type_options: destination_type_options,
-                destination_parent_options: destination_parent_options
+                destination_parent_options: destination_parent_options,
+                redirect_anchor: 'section-publication'
             } only %}
         </section>
 
-        <section class="studio-section">
+        <section id="section-points" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Points GPS</h2>
@@ -162,9 +166,10 @@
             <div class="studio-media-grid">
                 {% for point in hike.points %}
                     {% set point_has_valid_coordinates = point.latitude is not null and point.longitude is not null and point.latitude >= -90 and point.latitude <= 90 and point.longitude >= -180 and point.longitude <= 180 %}
-                    <article class="studio-point">
+                    <article id="point-{{ point.id }}" class="studio-point">
                         <form class="studio-media-card__body" method="post" action="{{ path('admin_studio_hike_point_update', { id: point.id }) }}">
                             <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_point_update_' ~ point.id) }}">
+                            <input type="hidden" name="_redirect_anchor" value="point-{{ point.id }}">
 
                             <div class="studio-field">
                                 <label for="hike-point-title-{{ point.id }}">Titre</label>
@@ -238,7 +243,7 @@
             </div>
         </section>
 
-        <section class="studio-section">
+        <section id="section-photos" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Photos</h2>
@@ -253,7 +258,8 @@
                 image_type_options: image_type_options,
                 association_options: photo_association_options,
                 point_target_options: point_target_options,
-                upload_policy: bulk_upload_policy
+                upload_policy: bulk_upload_policy,
+                redirect_anchor: 'section-photos'
             } only %}
             <h3 class="studio-subtitle">Image principale</h3>
             {% include 'admin/studio/_media_cards.html.twig' with {
@@ -264,6 +270,8 @@
                 video_type_options: video_type_options,
                 association_options: photo_association_options,
                 media_point_targets: media_point_targets,
+                card_anchor_prefix: 'photo',
+                delete_redirect_anchor: 'section-photos',
                 update_route: 'admin_studio_hike_media_update',
                 delete_route: 'admin_studio_hike_media_delete',
                 update_token_prefix: 'studio_hike_media_update_',
@@ -279,6 +287,8 @@
                 video_type_options: video_type_options,
                 association_options: photo_association_options,
                 media_point_targets: media_point_targets,
+                card_anchor_prefix: 'photo',
+                delete_redirect_anchor: 'section-photos',
                 update_route: 'admin_studio_hike_media_update',
                 delete_route: 'admin_studio_hike_media_delete',
                 update_token_prefix: 'studio_hike_media_update_',
@@ -287,7 +297,7 @@
             } only %}
         </section>
 
-        <section class="studio-section">
+        <section id="section-videos" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Galerie générale - vidéos</h2>
@@ -297,6 +307,7 @@
             </div>
             <form class="studio-video-form studio-hidden" method="post" action="{{ path('admin_studio_hike_media_video', { id: hike.id }) }}" data-video-form>
                 <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_video_' ~ hike.id) }}">
+                <input type="hidden" name="_redirect_anchor" value="section-videos">
                 {% include 'admin/studio/_video_form_fields.html.twig' with { video_type_options: video_type_options, association_options: video_association_options } only %}
             </form>
             {% include 'admin/studio/_media_cards.html.twig' with {
@@ -307,6 +318,8 @@
                 video_type_options: video_type_options,
                 association_options: video_association_options,
                 media_point_targets: media_point_targets,
+                card_anchor_prefix: 'video',
+                delete_redirect_anchor: 'section-videos',
                 update_route: 'admin_studio_hike_media_update',
                 delete_route: 'admin_studio_hike_media_delete',
                 update_token_prefix: 'studio_hike_media_update_',
@@ -315,7 +328,7 @@
             } only %}
         </section>
 
-        <section class="studio-section">
+        <section id="section-panoramas" class="studio-section">
             <h2>Images 360° / 180°</h2>
             {% include 'admin/studio/_immersive_cards.html.twig' with { media_links: immersive_links, image_type_options: image_type_options, subject_label: hike.title } only %}
         </section>

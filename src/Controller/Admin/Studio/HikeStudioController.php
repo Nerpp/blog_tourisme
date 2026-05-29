@@ -76,7 +76,7 @@ final class HikeStudioController extends AbstractController
             if (!$this->isCsrfTokenValid('studio_hike_edit_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
                 $this->addFlash('error', 'Le formulaire a expiré. Réessayez.');
 
-                return $this->redirectToStudio($hikeDraft);
+                return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
             }
 
             $wasPublicStatus = $this->isPublicStatus($hikeDraft->getStatus());
@@ -90,7 +90,7 @@ final class HikeStudioController extends AbstractController
 
             $this->addFlash('success', 'La randonnée rapide a été enregistrée.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
         }
 
         return $this->renderStudio($hikeDraft);
@@ -134,7 +134,7 @@ final class HikeStudioController extends AbstractController
 
             $this->addFlash('error', 'Le formulaire photo a expiré. Réessayez.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
         }
 
         if (!$this->consumeUploadRateLimit($request)) {
@@ -144,7 +144,7 @@ final class HikeStudioController extends AbstractController
                 ], 429);
             }
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
         }
 
         $createdCount = 0;
@@ -164,7 +164,7 @@ final class HikeStudioController extends AbstractController
 
             $this->addFlash('error', $results[0]['error']);
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
         }
 
         foreach ($files as $index => $file) {
@@ -215,7 +215,7 @@ final class HikeStudioController extends AbstractController
 
             $this->addFlash('error', 'Aucune image n’a pu être ajoutée.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
         }
 
         $this->entityManager->flush();
@@ -229,7 +229,7 @@ final class HikeStudioController extends AbstractController
 
         $this->addFlash('success', sprintf('%d photo%s ajoutée%s.', $createdCount, $createdCount > 1 ? 's' : '', $createdCount > 1 ? 's' : ''));
 
-        return $this->redirectToStudio($hikeDraft);
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
     }
 
     #[Route('/hikes/{id}/media/video', name: 'admin_studio_hike_media_video', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -240,14 +240,14 @@ final class HikeStudioController extends AbstractController
         if (!$this->isCsrfTokenValid('studio_hike_video_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire vidéo a expiré. Réessayez.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
         }
 
         $media = $this->createVideoAssetFromRequest($request, $hikeDraft);
         if (!$media instanceof MediaAsset) {
             $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
         }
 
         $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
@@ -256,7 +256,7 @@ final class HikeStudioController extends AbstractController
         if ($targetPoint instanceof HikePoint && !$pointMediaEnabled) {
             $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
         }
 
         $this->entityManager->persist($media);
@@ -274,7 +274,7 @@ final class HikeStudioController extends AbstractController
         $this->entityManager->flush();
         $this->addFlash('success', 'La vidéo a été ajoutée à la randonnée.');
 
-        return $this->redirectToStudio($hikeDraft);
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
     }
 
     #[Route('/hike-points/{id}/update', name: 'admin_studio_hike_point_update', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -290,20 +290,20 @@ final class HikeStudioController extends AbstractController
         if (!$this->isCsrfTokenValid('studio_hike_point_update_' . $point->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire du point GPS a expiré. Réessayez.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
         }
 
         $latitude = $this->coordinateFromRequest($request, 'latitude', -90, 90, 'La latitude GPS');
         $longitude = $this->coordinateFromRequest($request, 'longitude', -180, 180, 'La longitude GPS');
         if ($latitude === null || $longitude === null) {
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
         }
 
         $position = $this->nullableInt($request->request->get('position'));
         if ($position !== null && $position < 1) {
             $this->addFlash('error', 'La position du point doit être supérieure ou égale à 1.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
         }
 
         $point
@@ -324,7 +324,7 @@ final class HikeStudioController extends AbstractController
         $this->entityManager->flush();
         $this->addFlash('success', 'Point GPS enregistré.');
 
-        return $this->redirectToStudio($hikeDraft);
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
     }
 
     #[Route('/hikes/{id}/destination/update', name: 'admin_studio_hike_destination_update', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -335,14 +335,14 @@ final class HikeStudioController extends AbstractController
         if (!$this->isCsrfTokenValid('studio_hike_destination_update_' . $hikeDraft->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire de destination a expiré. Réessayez.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
         }
 
         $destination = $hikeDraft->getDestination();
         if (!$destination instanceof Destination) {
             $this->addFlash('error', 'Aucune destination n’est associée à cette randonnée.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
         }
 
         $type = DestinationType::tryFrom($request->request->getString('type')) ?? $destination->getType();
@@ -350,13 +350,13 @@ final class HikeStudioController extends AbstractController
         if ($name === '') {
             $this->addFlash('error', 'Renseignez le nom correspondant au type de destination.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
         }
 
         $latitude = $this->nullableCoordinateFromRequest($request, 'latitude', -90, 90, 'La latitude GPS');
         $longitude = $this->nullableCoordinateFromRequest($request, 'longitude', -180, 180, 'La longitude GPS');
         if ($latitude === false || $longitude === false) {
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
         }
 
         $destination
@@ -370,7 +370,7 @@ final class HikeStudioController extends AbstractController
         $this->entityManager->flush();
         $this->addFlash('success', 'Destination associée enregistrée.');
 
-        return $this->redirectToStudio($hikeDraft);
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
     }
 
     #[Route('/hike-media/{id}/update', name: 'admin_studio_hike_media_update', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -386,14 +386,14 @@ final class HikeStudioController extends AbstractController
         if (!$this->isCsrfTokenValid('studio_hike_media_update_' . $mediaLink->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'Le formulaire média a expiré. Réessayez.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request);
         }
 
         $this->updateMediaFromRequest($mediaLink, $request);
         $this->entityManager->flush();
         $this->addFlash('success', 'Le média a été mis à jour.');
 
-        return $this->redirectToStudio($hikeDraft);
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request);
     }
 
     #[Route('/hike-media/{id}/delete', name: 'admin_studio_hike_media_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -409,7 +409,7 @@ final class HikeStudioController extends AbstractController
         if (!$this->isCsrfTokenValid('studio_hike_media_delete_' . $mediaLink->getId(), (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'La suppression a expiré. Réessayez.');
 
-            return $this->redirectToStudio($hikeDraft);
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request);
         }
 
         $media = $mediaLink->getMediaAsset();
@@ -421,7 +421,7 @@ final class HikeStudioController extends AbstractController
         $this->entityManager->flush();
         $this->addFlash('success', 'Le média a été retiré de cette fiche. Le fichier reste disponible dans la médiathèque.');
 
-        return $this->redirectToStudio($hikeDraft);
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
     }
 
     private function renderStudio(HikeDraft $hikeDraft): Response
@@ -840,10 +840,15 @@ final class HikeStudioController extends AbstractController
         }
 
         if ($media->getMediaType() === MediaType::Video) {
+            $previousExternalUrl = $media->getExternalUrl();
+            $externalUrl = $this->nullIfBlank($request->request->getString('externalUrl'));
             $videoType = VideoType::tryFrom($request->request->getString('videoType')) ?? $media->getVideoType() ?? VideoType::External;
             $media
                 ->setVideoType($videoType === VideoType::Local ? VideoType::External : $videoType)
-                ->setExternalUrl($this->nullIfBlank($request->request->getString('externalUrl')));
+                ->setExternalUrl($externalUrl);
+            if ($externalUrl !== $previousExternalUrl) {
+                $media->setThumbnailPath(null);
+            }
             if ($media->getThumbnailPath() === null || $media->getThumbnailPath() === '') {
                 $this->videoThumbnailGenerator->generateForMedia($media);
             }
@@ -1132,8 +1137,30 @@ final class HikeStudioController extends AbstractController
         ]);
     }
 
-    private function redirectToStudio(HikeDraft $hikeDraft): RedirectResponse
+    private function redirectToStudio(HikeDraft $hikeDraft, ?string $anchor = null): RedirectResponse
     {
-        return $this->redirectToRoute('admin_studio_hike_edit', ['id' => $hikeDraft->getId()]);
+        $parameters = ['id' => $hikeDraft->getId()];
+        if ($this->isSafeRedirectAnchor($anchor)) {
+            $parameters['_fragment'] = $anchor;
+        }
+
+        return $this->redirectToRoute('admin_studio_hike_edit', $parameters);
+    }
+
+    private function redirectToStudioAfterRequest(HikeDraft $hikeDraft, Request $request, ?string $fallbackAnchor = null): RedirectResponse
+    {
+        return $this->redirectToStudio($hikeDraft, $this->redirectAnchorFromRequest($request) ?? $fallbackAnchor);
+    }
+
+    private function redirectAnchorFromRequest(Request $request): ?string
+    {
+        $anchor = $request->request->get('_redirect_anchor');
+
+        return is_string($anchor) && $this->isSafeRedirectAnchor($anchor) ? $anchor : null;
+    }
+
+    private function isSafeRedirectAnchor(?string $anchor): bool
+    {
+        return is_string($anchor) && preg_match('/^[a-zA-Z0-9_-]+$/', $anchor) === 1;
     }
 }

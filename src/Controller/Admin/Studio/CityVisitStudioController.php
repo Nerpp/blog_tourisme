@@ -454,10 +454,15 @@ final class CityVisitStudioController extends AbstractController
         }
 
         if ($media->getMediaType() === MediaType::Video) {
+            $previousExternalUrl = $media->getExternalUrl();
+            $externalUrl = $this->nullIfBlank($request->request->getString('externalUrl'));
             $videoType = VideoType::tryFrom($request->request->getString('videoType')) ?? $media->getVideoType() ?? VideoType::External;
             $media
                 ->setVideoType($videoType === VideoType::Local ? VideoType::External : $videoType)
-                ->setExternalUrl($this->nullIfBlank($request->request->getString('externalUrl')));
+                ->setExternalUrl($externalUrl);
+            if ($externalUrl !== $previousExternalUrl) {
+                $media->setThumbnailPath(null);
+            }
             if ($media->getThumbnailPath() === null || $media->getThumbnailPath() === '') {
                 $this->videoThumbnailGenerator->generateForMedia($media);
             }

@@ -12,7 +12,11 @@
 >
     {% set point_target_options = point_target_options|default({}) %}
     {% set association_options = association_options|default(photo_usage_options|default({ 'gallery': 'Galerie générale' })) %}
+    {% set redirect_anchor = redirect_anchor|default(null) %}
     <input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
+    {% if redirect_anchor %}
+        <input type="hidden" name="_redirect_anchor" value="{{ redirect_anchor }}">
+    {% endif %}
     <div class="studio-upload">
         <label class="admin-button" for="{{ input_id }}">Ajouter des photos</label>
         <input class="studio-file-input" id="{{ input_id }}" data-photo-input type="file" name="photos[]" accept=".jpg,.jpeg,.png,.webp" multiple>

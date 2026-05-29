@@ -16,6 +16,7 @@
 {% set current_destination = current_destination|default(null) %}
 {% set context_type = destination_quick_create.contextType|default(destination_quick_create.targetType|default('')) %}
 {% set context_id = destination_quick_create.contextId|default(destination_quick_create.targetId|default('')) %}
+{% set redirect_anchor = redirect_anchor|default(null) %}
 
 <section class="{{ container_class }}" data-quick-destination>
     <div class="quick-destination__header">
@@ -45,6 +46,9 @@
     {% if current_destination and current_destination_update_action %}
         <form class="quick-destination__form" method="post" action="{{ current_destination_update_action }}" data-current-destination-form hidden>
             <input type="hidden" name="_token" value="{{ current_destination_update_token }}">
+            {% if redirect_anchor %}
+                <input type="hidden" name="_redirect_anchor" value="{{ redirect_anchor }}">
+            {% endif %}
 
             <div class="quick-destination__grid">
                 <div class="{{ row_class }}">
@@ -115,7 +119,10 @@
         <input type="hidden" name="targetId" value="{{ context_id }}">
         <input type="hidden" name="name" value="{{ destination_quick_create.name|default('') }}">
         <input type="hidden" name="parent" value="{{ destination_quick_create.parent|default('') }}">
-        <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
+        <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}{{ redirect_anchor ? '#' ~ redirect_anchor : '' }}">
+        {% if redirect_anchor %}
+            <input type="hidden" name="_redirect_anchor" value="{{ redirect_anchor }}">
+        {% endif %}
 
         {% if current_destination %}
             <h3 class="quick-destination__title">Changer ou créer une autre destination</h3>

@@ -5,11 +5,14 @@
     <div class="studio-media-grid">
         {% for media_link in media_links %}
             {% set media = media_link.mediaAsset %}
+            {% set card_anchor_prefix = card_anchor_prefix|default(media.mediaType.value == 'video' ? 'video' : 'media') %}
+            {% set card_anchor = card_anchor_prefix ~ '-' ~ media_link.id %}
+            {% set delete_redirect_anchor = delete_redirect_anchor|default('section-medias') %}
             {% set image_path = media.thumbnailPath ?: media.filePath %}
             {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
             {% set current_point_target = media.id and media_point_targets[media.id] is defined ? media_point_targets[media.id] : null %}
             {% set current_association = current_point_target ? 'point:' ~ current_point_target : (media_link.role.value == 'cover' ? 'main' : 'gallery') %}
-            <article class="studio-media-card {{ media.mediaType.value == 'video' ? 'studio-video-card' : '' }}" {% if media.mediaType.value == 'video' %}data-video-card{% endif %}>
+            <article id="{{ card_anchor }}" class="studio-media-card {{ media.mediaType.value == 'video' ? 'studio-video-card' : '' }}" {% if media.mediaType.value == 'video' %}data-video-card{% endif %}>
                 {% if media.mediaType.value == 'image' and image_src %}
                     <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: subject_label }}">
                 {% elseif media.mediaType.value == 'video' %}
@@ -20,6 +23,7 @@
                 {% endif %}
                 <form class="studio-media-card__body" method="post" action="{{ path(update_route, { id: media_link.id }) }}">
                     <input type="hidden" name="_token" value="{{ csrf_token(update_token_prefix ~ media_link.id) }}">
+                    <input type="hidden" name="_redirect_anchor" value="{{ card_anchor }}">
                     <div class="studio-field">
                         <label for="media-title-{{ media_link.id }}">Titre</label>
                         <input id="media-title-{{ media_link.id }}" name="title" value="{{ media.title }}">
@@ -73,6 +77,7 @@
                 </form>
                 <form method="post" action="{{ path(delete_route, { id: media_link.id }) }}" onsubmit="return confirm('Retirer ce média ?');">
                     <input type="hidden" name="_token" value="{{ csrf_token(delete_token_prefix ~ media_link.id) }}">
+                    <input type="hidden" name="_redirect_anchor" value="{{ delete_redirect_anchor }}">
                     <button class="admin-button admin-button--secondary studio-button-danger" type="submit">Retirer de cette fiche</button>
                 </form>
             </article>
