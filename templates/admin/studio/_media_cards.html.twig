@@ -9,11 +9,14 @@
             {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
             {% set current_point_target = media.id and media_point_targets[media.id] is defined ? media_point_targets[media.id] : null %}
             {% set current_association = current_point_target ? 'point:' ~ current_point_target : (media_link.role.value == 'cover' ? 'main' : 'gallery') %}
-            <article class="studio-media-card">
+            <article class="studio-media-card {{ media.mediaType.value == 'video' ? 'studio-video-card' : '' }}" {% if media.mediaType.value == 'video' %}data-video-card{% endif %}>
                 {% if media.mediaType.value == 'image' and image_src %}
                     <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: subject_label }}">
-                {% elseif media.externalUrl %}
-                    <a class="studio-link" href="{{ media.externalUrl }}" target="_blank" rel="noopener noreferrer">Ouvrir la vidéo</a>
+                {% elseif media.mediaType.value == 'video' %}
+                    {% include 'admin/studio/_video_thumbnail.html.twig' with { media: media, subject_label: subject_label } only %}
+                    {% if media.externalUrl %}
+                        <a class="studio-link" href="{{ media.externalUrl }}" target="_blank" rel="noopener noreferrer">Ouvrir la vidéo</a>
+                    {% endif %}
                 {% endif %}
                 <form class="studio-media-card__body" method="post" action="{{ path(update_route, { id: media_link.id }) }}">
                     <input type="hidden" name="_token" value="{{ csrf_token(update_token_prefix ~ media_link.id) }}">
@@ -29,7 +32,7 @@
                     {% else %}
                         <div class="studio-field">
                             <label for="media-url-{{ media_link.id }}">URL vidéo</label>
-                            <input id="media-url-{{ media_link.id }}" name="externalUrl" type="url" value="{{ media.externalUrl }}">
+                            <input id="media-url-{{ media_link.id }}" name="externalUrl" type="url" value="{{ media.externalUrl }}" data-video-url-input>
                         </div>
                     {% endif %}
                     <div class="studio-field">

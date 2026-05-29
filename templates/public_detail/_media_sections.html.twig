@@ -189,12 +189,6 @@
 {% endif %}
 
 {% if video_media_links|length > 0 %}
-    {% set fallback_video_poster_media = standard_media_links|length > 0 ? (standard_media_links|first).mediaAsset : null %}
-    {% set fallback_video_poster_url = fallback_video_poster_media
-        ? media_image_url(fallback_video_poster_media, 'medium')
-        : asset('images/home/hero-sea-mountain.webp')
-    %}
-
     <section id="{{ gallery_id }}-videos" class="media-section media-section--dark">
         <div class="media-header">
             <div>
@@ -228,7 +222,8 @@
                     {% set embed_url = media|video_embed_url %}
                     {% set external_video = media.externalUrl %}
                     {% set poster_url = media_poster_url(media, 'medium') %}
-                    {% set video_poster_url = poster_url ? poster_url : fallback_video_poster_url %}
+                    {% set youtube_thumbnail_url = video_thumbnail_url(external_video) %}
+                    {% set video_poster_url = poster_url ?: youtube_thumbnail_url %}
 
                     {% set video_shape = 'unknown' %}
                     {% if media.width and media.height %}
@@ -334,7 +329,8 @@
                             {% set embed_url = media|video_embed_url %}
                             {% set external_video = media.externalUrl %}
                             {% set poster_url = media_poster_url(media, 'medium') %}
-                            {% set video_poster_url = poster_url ? poster_url : fallback_video_poster_url %}
+                            {% set youtube_thumbnail_url = video_thumbnail_url(external_video) %}
+                            {% set video_poster_url = poster_url ?: youtube_thumbnail_url %}
                             {% set has_caption = media.caption is not empty %}
 
                             {% set video_shape = 'unknown' %}

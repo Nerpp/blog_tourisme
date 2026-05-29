@@ -103,8 +103,11 @@
                                         <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
                                         {% if linked_media.mediaType.value == 'image' and linked_image_src %}
                                             <img src="{{ linked_image_src }}" alt="{{ linked_media.altText ?: linked_media.title ?: (point_labels[point.id] ?? 'Point à visiter') }}">
-                                        {% elseif linked_media.externalUrl %}
-                                            <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
+                                        {% elseif linked_media.mediaType.value == 'video' %}
+                                            {% include 'admin/studio/_video_thumbnail.html.twig' with { media: linked_media, subject_label: point_labels[point.id] ?? 'Point à visiter' } only %}
+                                            {% if linked_media.externalUrl %}
+                                                <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
+                                            {% endif %}
                                         {% endif %}
                                     </article>
                                 {% endfor %}

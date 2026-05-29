@@ -312,6 +312,30 @@
             background: #fbfcfb;
         }
 
+        .studio-video-card__thumbnail {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            border-radius: var(--admin-radius);
+            background: #eef3ee;
+        }
+
+        .studio-video-card__thumbnail img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .studio-video-card__thumbnail-placeholder {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            place-items: center;
+            color: #5f6f64;
+            font-weight: 800;
+        }
+
         .studio-media-card__body,
         .studio-video-form {
             display: grid;
@@ -705,8 +729,9 @@
                 <div class="studio-media-grid">
                     {% for media_link in video_links %}
                         {% set media = media_link.mediaAsset %}
-                        <article class="studio-media-card">
+                        <article class="studio-media-card studio-video-card" data-video-card>
                             <div>
+                                {% include 'admin/studio/_video_thumbnail.html.twig' with { media: media, subject_label: place.name } only %}
                                 <span class="studio-badge">{{ media.videoType ? video_type_options[media.videoType.value] ?? media.videoType.value : 'Vidéo' }}</span>
                                 {% if media.externalUrl %}
                                     <a class="studio-link" href="{{ media.externalUrl }}" target="_blank" rel="noopener noreferrer">Ouvrir la vidéo</a>
@@ -720,7 +745,7 @@
                                 </div>
                                 <div class="studio-field">
                                     <label for="video-card-url-{{ media_link.id }}">URL vidéo</label>
-                                    <input id="video-card-url-{{ media_link.id }}" name="externalUrl" type="url" value="{{ media.externalUrl }}">
+                                    <input id="video-card-url-{{ media_link.id }}" name="externalUrl" type="url" value="{{ media.externalUrl }}" data-video-url-input>
                                 </div>
                                 <div class="studio-media-row">
                                     <div class="studio-field">
@@ -844,6 +869,7 @@
 {% endblock %}
 
 {% block javascripts %}
+    {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
     {% include 'admin/studio/_studio_media_javascript.html.twig' %}
     <script>
         (() => {

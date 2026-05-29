@@ -1,0 +1,10 @@
+{% set raw_thumbnail = media.thumbnailPath ?: video_thumbnail_url(media.externalUrl) %}
+{% set thumbnail_src = raw_thumbnail ? ((raw_thumbnail starts with 'http://' or raw_thumbnail starts with 'https://' or raw_thumbnail starts with '/') ? raw_thumbnail : asset(raw_thumbnail)) : null %}
+
+<div class="studio-video-card__thumbnail" data-video-thumbnail>
+    {% if thumbnail_src %}
+        <img src="{{ thumbnail_src }}" alt="Miniature de la vidéo {{ media.title ?: subject_label|default('') }}">
+    {% else %}
+        <div class="studio-video-card__thumbnail-placeholder">Vidéo</div>
+    {% endif %}
+</div>

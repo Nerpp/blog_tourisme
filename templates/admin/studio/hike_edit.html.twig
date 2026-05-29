@@ -45,6 +45,9 @@
         .studio-preview__notice { margin: 0; padding: 10px 12px; border-radius: var(--admin-radius); background: var(--admin-info-soft); color: var(--admin-info); font-size: .9rem; font-weight: 750; }
         .studio-preview__notice.is-warning { background: var(--admin-warning-soft); color: var(--admin-warning); }
         .studio-preview img, .studio-media-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
+        .studio-video-card__thumbnail { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--admin-radius); background: #eef3ee; }
+        .studio-video-card__thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
+        .studio-video-card__thumbnail-placeholder { width: 100%; height: 100%; display: grid; place-items: center; color: #5f6f64; font-weight: 800; }
         .studio-point-media { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
         .studio-point-media-card { display: grid; gap: 6px; }
         .studio-point-media-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
@@ -218,8 +221,11 @@
                                         <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
                                         {% if linked_media.mediaType.value == 'image' and linked_image_src %}
                                             <img src="{{ linked_image_src }}" alt="{{ linked_media.altText ?: linked_media.title ?: (point_labels[point.id] ?? 'Point à visiter') }}">
-                                        {% elseif linked_media.externalUrl %}
-                                            <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
+                                        {% elseif linked_media.mediaType.value == 'video' %}
+                                            {% include 'admin/studio/_video_thumbnail.html.twig' with { media: linked_media, subject_label: point_labels[point.id] ?? 'Point à visiter' } only %}
+                                            {% if linked_media.externalUrl %}
+                                                <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
+                                            {% endif %}
                                         {% endif %}
                                     </article>
                                 {% endfor %}
@@ -317,6 +323,7 @@
 {% endblock %}
 
 {% block javascripts %}
+    {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
     {% include 'admin/studio/_studio_media_javascript.html.twig' %}
     <script>
         (() => {

@@ -5,6 +5,7 @@ namespace App\Service\Media;
 use App\Entity\MediaAsset;
 use App\Enum\MediaType;
 use App\Enum\VideoType;
+use App\Service\VideoThumbnailResolver;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\Process\Exception\ExceptionInterface as ProcessExceptionInterface;
@@ -19,6 +20,7 @@ final class VideoThumbnailGenerator
         private readonly ParameterBagInterface $parameterBag,
         private readonly SluggerInterface $slugger,
         private readonly PublicMediaPathValidator $publicMediaPathValidator,
+        private readonly VideoThumbnailResolver $videoThumbnailResolver,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -122,36 +124,7 @@ final class VideoThumbnailGenerator
             return null;
         }
 
-        $youtubeId = $this->extractYoutubeId($media->getExternalUrl());
-
-        return $youtubeId !== null ? sprintf('https://img.youtube.com/vi/%s/hqdefault.jpg', $youtubeId) : null;
-    }
-
-    private function extractYoutubeId(string $url): ?string
-    {
-        $parts = parse_url($url);
-        if ($parts === false || empty($parts['host'])) {
-            return null;
-        }
-
-        $host = strtolower(preg_replace('/^www\./', '', $parts['host']));
-        $path = trim($parts['path'] ?? '', '/');
-        $id = null;
-
-        if ($host === 'youtu.be') {
-            $id = explode('/', $path)[0] ?? null;
-        }
-
-        if (str_contains($host, 'youtube.com') || str_contains($host, 'youtube-nocookie.com')) {
-            if ($path === 'watch') {
-                parse_str($parts['query'] ?? '', $query);
-                $id = $query['v'] ?? null;
-            } elseif (preg_match('#^(embed|shorts|live)/([^/?]+)#', $path, $matches)) {
-                $id = $matches[2];
-            }
-        }
-
-        return is_string($id) && preg_match('/^[A-Za-z0-9_-]{6,}$/', $id) ? $id : null;
+        return $this->videoThumbnailResolver->getThumbnailUrl($media->getExternalUrl());
     }
 
     private function resolveLocalPublicPath(?string $publicPath): ?string

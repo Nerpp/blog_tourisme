@@ -35,17 +35,17 @@
                     <span>{{ badge }}</span>
                 </div>
             {% endif %}
-        {% elseif type == 'video' %}
-            {% set poster_url = media_poster_url(media, 'thumb') %}
+    {% elseif type == 'video' %}
+        {% set poster_url = media_poster_url(media, 'thumb') ?: video_thumbnail_url(media.externalUrl) %}
 
-            {% if poster_url and not (poster_url starts with '/uploads/demo/') %}
-                <img src="{{ poster_url }}" alt="{{ public_media_alt ?: 'Video touristique' }}" loading="lazy" decoding="async">
-            {% else %}
-                <div class="media-placeholder media-placeholder-video" role="img" aria-label="{{ public_media_alt ?: 'Vidéo de demonstration' }}">
-                    <span>Vidéo</span>
-                </div>
-            {% endif %}
+        {% if poster_url and not (poster_url starts with '/uploads/demo/') %}
+            <img src="{{ poster_url }}" alt="{{ public_media_alt ?: 'Video touristique' }}" loading="lazy" decoding="async">
+        {% else %}
+            <div class="media-placeholder media-placeholder-video" role="img" aria-label="{{ public_media_alt ?: 'Vidéo de demonstration' }}">
+                <span>Vidéo</span>
+            </div>
         {% endif %}
+    {% endif %}
     </div>
 
     <div class="media-body">
