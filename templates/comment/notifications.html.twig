@@ -6,8 +6,19 @@
     <main class="comment-notifications-page">
         <section class="comment-notifications">
             <header class="comment-notifications__header">
-                <p class="eyebrow">Commentaires</p>
-                <h1>Notifications commentaires</h1>
+                <div>
+                    <p class="comment-notifications__eyebrow">Commentaires</p>
+                    <h1>Notifications commentaires</h1>
+                    <p class="comment-notifications__intro">
+                        Retrouvez les réponses et mentions liées à vos commentaires.
+                    </p>
+                </div>
+                {% if notifications|length > 0 %}
+                    <form method="post" action="{{ path('app_comment_notifications_clear') }}" onsubmit="return confirm('Vider toutes vos notifications commentaires ?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('clear-comment-notifications') }}">
+                        <button class="comment-notifications__clear" type="submit">Vider les notifications</button>
+                    </form>
+                {% endif %}
             </header>
 
             <div class="comment-notification-list">
@@ -42,7 +53,9 @@
                         </a>
                     </article>
                 {% else %}
-                    <p class="login-callout">Aucune réponse reçue pour le moment.</p>
+                    <section class="comment-notifications__empty">
+                        <p>Aucune notification commentaire pour le moment.</p>
+                    </section>
                 {% endfor %}
             </div>
         </section>

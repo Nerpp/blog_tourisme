@@ -59,6 +59,16 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
         ]);
     }
 
+    public function deleteAllForRecipient(User $recipient): int
+    {
+        return (int) $this->createQueryBuilder('n')
+            ->delete()
+            ->andWhere('n.recipient = :recipient')
+            ->setParameter('recipient', $recipient)
+            ->getQuery()
+            ->execute();
+    }
+
     /** @param list<Comment> $comments */
     public function deleteForComments(array $comments): void
     {
