@@ -189,6 +189,42 @@ final class AdminCommentModerationController extends AbstractController
         return $this->redirectBackToComments($request);
     }
 
+    #[Route('/admin/comments/{id}/pin', name: 'admin_comments_pin', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function pin(Comment $comment, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_MODERATE);
+        $this->validateCommentToken($comment, $request);
+
+        if ($comment->getParent() !== null) {
+            $this->addFlash('warning', 'Seuls les commentaires principaux peuvent être épinglés.');
+
+            return $this->redirectBackToComments($request);
+        }
+
+        if ($comment->getStatus() !== CommentStatus::Approved) {
+            $this->addFlash('warning', 'Vous ne pouvez épingler qu’un commentaire publié.');
+
+            return $this->redirectBackToComments($request);
+        }
+
+        $admin = $this->getAdminUser();
+        $wasPinned = $comment->isPinned();
+        $comment->togglePinned($admin);
+        $this->moderationLogger->log(
+            $wasPinned ? 'comment.unpin' : 'comment.pin',
+            $admin,
+            'comment',
+            $comment->getId(),
+            null,
+            $request,
+            $comment->getAuthor(),
+        );
+        $this->entityManager->flush();
+        $this->addFlash('success', $wasPinned ? 'Commentaire désépinglé.' : 'Commentaire épinglé.');
+
+        return $this->redirectBackToComments($request);
+    }
+
     private function renderComments(CommentRepository $commentRepository, ?string $requestedFilter): Response
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_MODERATE);

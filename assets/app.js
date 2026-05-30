@@ -16,6 +16,7 @@ import { initRelatedArticleModals } from './js/related-article-modal.js';
 import { initArticleSearch } from './js/article-search.js';
 import { initDestinationShowSearch } from './js/destination-show-search.js';
 import { initProfileAvatarPreview } from './js/profile-avatar-preview.js';
+import { initCommentReplies } from './js/comment-replies.js';
 
 initNavbar();
 initPublicDetailGallery();
@@ -25,6 +26,7 @@ initRelatedArticleModals();
 initArticleSearch();
 initDestinationShowSearch();
 initProfileAvatarPreview();
+initCommentReplies();
 
 const vueRoot = document.querySelector('#app');
 

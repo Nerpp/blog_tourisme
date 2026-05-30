@@ -365,6 +365,32 @@ final class CommentController extends AbstractController
         return $this->redirectToCommentTarget($comment);
     }
 
+    #[Route('/comments/{id}/pin', name: 'app_comment_pin_toggle', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
+    public function togglePin(Comment $comment, Request $request, EntityManagerInterface $entityManager): RedirectResponse
+    {
+        if (!$this->isCsrfTokenValid('pin-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Jeton CSRF invalide.');
+        }
+
+        if ($comment->getParent() !== null) {
+            $this->addFlash('warning', 'Seuls les commentaires principaux peuvent être épinglés.');
+
+            return $this->redirectToCommentTarget($comment);
+        }
+
+        if ($comment->getStatus() !== CommentStatus::Approved) {
+            $this->addFlash('warning', 'Vous ne pouvez épingler qu’un commentaire publié.');
+
+            return $this->redirectToCommentTarget($comment);
+        }
+
+        $comment->togglePinned($this->getAuthenticatedUser());
+        $entityManager->flush();
+
+        return $this->redirectToCommentTarget($comment);
+    }
+
     #[Route('/comments/{id}/report', name: 'app_comment_report', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function report(
@@ -469,7 +495,7 @@ final class CommentController extends AbstractController
             return 'comments';
         }
 
-        if (in_array($comment->getStatus(), [CommentStatus::Approved, CommentStatus::Deleted], true)) {
+        if ($comment->getStatus() === CommentStatus::Approved) {
             return 'comment-'.$comment->getId();
         }
 

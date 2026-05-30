@@ -1,5 +1,22 @@
 <section class="comments-section" id="comments">
-    <h2>Commentaires</h2>
+    {% set visible_count = comments_count|default(0) %}
+    {% set current_sort = comments_sort|default('recent') %}
+
+    <header class="comments-header">
+        <h2 class="comments-count">
+            {{ visible_count }}
+            {{ visible_count > 1 ? 'commentaires' : 'commentaire' }}
+        </h2>
+
+        <form class="comments-sort" method="get" action="#comments">
+            <label for="comments-sort-select">Trier par</label>
+            <select id="comments-sort-select" name="comments_sort" onchange="this.form.submit()">
+                <option value="recent" {{ current_sort == 'recent' ? 'selected' }}>Plus récents</option>
+                <option value="popular" {{ current_sort == 'popular' ? 'selected' }}>Plus populaires</option>
+            </select>
+            <button type="submit">Trier</button>
+        </form>
+    </header>
 
     {% include 'partials/_comment_form.html.twig' with { comment_form: comment_form|default(null) } %}
 
@@ -10,14 +27,16 @@
         {% endif %}
     {% endfor %}
 
-    {% for comment in top_level_comments %}
-        {% include 'partials/_comment_item.html.twig' with {
-            comment: comment,
-            level: 1,
-            comment_like_counts: comment_like_counts|default({}),
-            liked_comment_ids: liked_comment_ids|default([])
-        } %}
-    {% else %}
-        <p>Aucun commentaire pour le moment.</p>
-    {% endfor %}
+    <div class="comment-thread">
+        {% for comment in top_level_comments %}
+            {% include 'partials/_comment_item.html.twig' with {
+                comment: comment,
+                level: 1,
+                comment_like_counts: comment_like_counts|default({}),
+                liked_comment_ids: liked_comment_ids|default([])
+            } %}
+        {% else %}
+            <p class="comments-empty">Aucun commentaire pour le moment.</p>
+        {% endfor %}
+    </div>
 </section>

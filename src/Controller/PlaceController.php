@@ -56,6 +56,7 @@ final class PlaceController extends AbstractController
     #[Route('/places/{slug}', name: 'app_place_show', methods: ['GET'])]
     public function show(
         string $slug,
+        Request $request,
         PlaceRepository $placeRepository,
         CommentRepository $commentRepository,
         CommentReactionViewService $reactionViewService,
@@ -74,15 +75,25 @@ final class PlaceController extends AbstractController
             ])->createView();
 
         $viewer = $this->getUser();
-        $comments = $commentRepository->findApprovedForPlace($place, $viewer instanceof User ? $viewer : null);
+        $commentSort = $this->commentSort($request);
+        $comments = $commentRepository->findApprovedForPlace($place, $viewer instanceof User ? $viewer : null, $commentSort);
         $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
 
         return $this->render('place/show.html.twig', [
             'place' => $place,
             'comments' => $comments,
             'comment_form' => $commentForm,
+            'comments_sort' => $commentSort,
+            'comments_count' => $reactionContext['comment_count'],
             'comment_like_counts' => $reactionContext['like_counts'],
             'liked_comment_ids' => $reactionContext['liked_comment_ids'],
         ]);
+    }
+
+    private function commentSort(Request $request): string
+    {
+        $sort = $request->query->getString('comments_sort', 'recent');
+
+        return in_array($sort, ['recent', 'popular'], true) ? $sort : 'recent';
     }
 }

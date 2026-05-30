@@ -52,6 +52,9 @@
                         {% if comment.author.banned %}
                             <span class="admin-badge admin-badge--danger">Utilisateur banni</span>
                         {% endif %}
+                        {% if comment.pinnedAt %}
+                            <span class="admin-badge admin-badge--warning">Épinglé</span>
+                        {% endif %}
                         {% if comment.spamScore >= 70 %}
                             <span class="admin-badge admin-badge--danger">Spam suspect</span>
                         {% elseif comment.spamScore >= 25 %}
@@ -132,6 +135,15 @@
                             <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
                             <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
                             <button class="admin-button admin-button--small admin-button--secondary" type="submit">Signalements traités</button>
+                        </form>
+                    {% endif %}
+                    {% if comment.parent is null and comment.status.value == 'approved' %}
+                        <form method="post" action="{{ path('admin_comments_pin', { id: comment.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
+                            <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
+                            <button class="admin-button admin-button--small admin-button--secondary" type="submit">
+                                {{ comment.pinnedAt ? 'Désépingler' : 'Épingler' }}
+                            </button>
                         </form>
                     {% endif %}
                     <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_users_show', { id: comment.author.id }) }}">Voir utilisateur</a>

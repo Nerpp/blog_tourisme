@@ -21,23 +21,19 @@ class CommentRepository extends ServiceEntityRepository
     }
 
     /** @return list<Comment> */
-    public function findApprovedForArticle(Article $article, ?User $viewer = null): array
+    public function findApprovedForArticle(Article $article, ?User $viewer = null, string $sort = 'recent'): array
     {
-        return $this->createPublicCommentsQueryBuilder($viewer)
-            ->andWhere('c.article = :article')
-            ->setParameter('article', $article)
-            ->getQuery()
-            ->getResult();
+        $commentIds = $this->findVisibleRootIds('article', $article, $sort);
+
+        return $this->findVisibleCommentsByRootIds($commentIds, $viewer);
     }
 
     /** @return list<Comment> */
-    public function findApprovedForPlace(Place $place, ?User $viewer = null): array
+    public function findApprovedForPlace(Place $place, ?User $viewer = null, string $sort = 'recent'): array
     {
-        return $this->createPublicCommentsQueryBuilder($viewer)
-            ->andWhere('c.place = :place')
-            ->setParameter('place', $place)
-            ->getQuery()
-            ->getResult();
+        $commentIds = $this->findVisibleRootIds('place', $place, $sort);
+
+        return $this->findVisibleCommentsByRootIds($commentIds, $viewer);
     }
 
     /** @return list<Comment> */
@@ -147,6 +143,67 @@ class CommentRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    /**
+     * @param 'article'|'place' $targetField
+     * @return list<int>
+     */
+    private function findVisibleRootIds(string $targetField, Article|Place $target, string $sort): array
+    {
+        $queryBuilder = $this->createQueryBuilder('c')
+            ->select('c.id')
+            ->leftJoin('c.likes', 'sort_like')
+            ->andWhere(sprintf('c.%s = :target', $targetField))
+            ->andWhere('c.parent IS NULL')
+            ->andWhere('c.status = :approved')
+            ->setParameter('target', $target)
+            ->setParameter('approved', CommentStatus::Approved)
+            ->groupBy('c.id')
+            ->addGroupBy('c.pinnedAt')
+            ->addGroupBy('c.createdAt');
+
+        if ($sort === 'popular') {
+            $queryBuilder
+                ->addSelect('COUNT(sort_like.id) AS HIDDEN like_count')
+                ->orderBy('c.pinnedAt', 'DESC')
+                ->addOrderBy('like_count', 'DESC')
+                ->addOrderBy('c.createdAt', 'DESC');
+        } else {
+            $queryBuilder
+                ->orderBy('c.pinnedAt', 'DESC')
+                ->addOrderBy('c.createdAt', 'DESC');
+        }
+
+        return array_map(
+            static fn (array $row): int => (int) $row['id'],
+            $queryBuilder->getQuery()->getArrayResult(),
+        );
+    }
+
+    /**
+     * @param list<int> $commentIds
+     * @return list<Comment>
+     */
+    private function findVisibleCommentsByRootIds(array $commentIds, ?User $viewer): array
+    {
+        if ($commentIds === []) {
+            return [];
+        }
+
+        $comments = $this->createPublicCommentsQueryBuilder($viewer)
+            ->andWhere('c.id IN (:comment_ids)')
+            ->setParameter('comment_ids', $commentIds)
+            ->getQuery()
+            ->getResult();
+
+        $positions = array_flip($commentIds);
+        usort(
+            $comments,
+            static fn (Comment $left, Comment $right): int => ($positions[$left->getId()] ?? 0) <=> ($positions[$right->getId()] ?? 0),
+        );
+
+        return $comments;
+    }
+
     private function createPublicCommentsQueryBuilder(?User $viewer): QueryBuilder
     {
         $childVisibility = 'child.status = :approved';
@@ -170,9 +227,7 @@ class CommentRepository extends ServiceEntityRepository
             ->andWhere('c.parent IS NULL')
             ->andWhere(sprintf('(%s)', $rootVisibility))
             ->setParameter('approved', CommentStatus::Approved)
-            ->orderBy('c.publishedAt', 'ASC')
-            ->addOrderBy('c.createdAt', 'ASC')
-            ->addOrderBy('child.publishedAt', 'ASC')
+            ->orderBy('child.publishedAt', 'ASC')
             ->addOrderBy('child.createdAt', 'ASC');
 
         if ($viewer instanceof User) {

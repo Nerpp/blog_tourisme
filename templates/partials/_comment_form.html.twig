@@ -4,12 +4,26 @@
         <a href="{{ path('app_verify_email_resend') }}">Renvoyer l’email de confirmation</a>
     </p>
 {% elseif comment_form %}
-    <section class="comment-form-panel" id="comment-form">
-        <h2>Laisser un commentaire</h2>
-        {{ form_start(comment_form, { attr: { class: 'comment-form' } }) }}
+    <section class="comment-form-panel comment-composer" id="comment-form">
+        <div class="comment-composer__avatar">
+            {% set composer_name = app.user.displayName ?: app.user.userIdentifier %}
+            {% if app.user.avatarPath %}
+                <img class="avatar avatar--comment" src="{{ asset(app.user.avatarPath) }}" alt="">
+            {% else %}
+                <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ composer_name|first|upper }}</span>
+            {% endif %}
+        </div>
+
+        {{ form_start(comment_form, { attr: { class: 'comment-form comment-composer__form' } }) }}
             {{ form_errors(comment_form) }}
-            {{ form_row(comment_form.content) }}
-            {{ form_row(comment_form.submit) }}
+            <div class="comment-composer__field">
+                {{ form_label(comment_form.content) }}
+                {{ form_widget(comment_form.content, { attr: { rows: 1 } }) }}
+            </div>
+            <div class="comment-composer__actions">
+                <button type="reset" class="comment-button comment-button--ghost">Annuler</button>
+                {{ form_widget(comment_form.submit, { label: 'Envoyer', attr: { class: 'comment-button comment-button--primary' } }) }}
+            </div>
             {{ form_rest(comment_form) }}
         {{ form_end(comment_form, { render_rest: false }) }}
     </section>

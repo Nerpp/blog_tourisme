@@ -9,6 +9,7 @@ use App\Repository\ArticleRepository;
 use App\Repository\CommentRepository;
 use App\Service\CommentReactionViewService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -25,6 +26,7 @@ final class ArticleController extends AbstractController
     #[Route('/articles/{slug}', name: 'app_article_show', methods: ['GET'])]
     public function show(
         string $slug,
+        Request $request,
         ArticleRepository $articleRepository,
         CommentRepository $commentRepository,
         CommentReactionViewService $reactionViewService,
@@ -43,15 +45,25 @@ final class ArticleController extends AbstractController
             ])->createView();
 
         $viewer = $this->getUser();
-        $comments = $commentRepository->findApprovedForArticle($article, $viewer instanceof User ? $viewer : null);
+        $commentSort = $this->commentSort($request);
+        $comments = $commentRepository->findApprovedForArticle($article, $viewer instanceof User ? $viewer : null, $commentSort);
         $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
 
         return $this->render('article/show.html.twig', [
             'article' => $article,
             'comments' => $comments,
             'comment_form' => $commentForm,
+            'comments_sort' => $commentSort,
+            'comments_count' => $reactionContext['comment_count'],
             'comment_like_counts' => $reactionContext['like_counts'],
             'liked_comment_ids' => $reactionContext['liked_comment_ids'],
         ]);
+    }
+
+    private function commentSort(Request $request): string
+    {
+        $sort = $request->query->getString('comments_sort', 'recent');
+
+        return in_array($sort, ['recent', 'popular'], true) ? $sort : 'recent';
     }
 }

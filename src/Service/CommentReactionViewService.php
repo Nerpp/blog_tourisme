@@ -15,13 +15,14 @@ final class CommentReactionViewService
 
     /**
      * @param list<Comment> $comments
-     * @return array{like_counts: array<int, int>, liked_comment_ids: list<int>}
+     * @return array{comment_count: int, like_counts: array<int, int>, liked_comment_ids: list<int>}
      */
     public function buildContext(array $comments, ?User $viewer): array
     {
         $commentIds = $this->collectCommentIds($comments);
 
         return [
+            'comment_count' => count($commentIds),
             'like_counts' => $this->likeRepository->countByCommentIds($commentIds),
             'liked_comment_ids' => $viewer instanceof User
                 ? $this->likeRepository->findLikedCommentIdsForUser($viewer, $commentIds)

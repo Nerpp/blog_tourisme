@@ -20,10 +20,12 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 #[ORM\Index(name: 'idx_comment_approved_at', fields: ['approvedAt'])]
 #[ORM\Index(name: 'idx_comment_author', fields: ['author'])]
 #[ORM\Index(name: 'idx_comment_article', fields: ['article'])]
-    #[ORM\Index(name: 'idx_comment_place', fields: ['place'])]
-    #[ORM\Index(name: 'idx_comment_parent', fields: ['parent'])]
-    #[ORM\Index(name: 'idx_comment_reported_count', fields: ['reportedCount'])]
-    #[ORM\Index(name: 'idx_comment_admin_hearted_by', fields: ['adminHeartedBy'])]
+#[ORM\Index(name: 'idx_comment_place', fields: ['place'])]
+#[ORM\Index(name: 'idx_comment_parent', fields: ['parent'])]
+#[ORM\Index(name: 'idx_comment_reported_count', fields: ['reportedCount'])]
+#[ORM\Index(name: 'idx_comment_admin_hearted_by', fields: ['adminHeartedBy'])]
+#[ORM\Index(name: 'idx_comment_pinned_at', fields: ['pinnedAt'])]
+#[ORM\Index(name: 'idx_comment_pinned_by', fields: ['pinnedBy'])]
 #[ORM\HasLifecycleCallbacks]
 class Comment
 {
@@ -113,6 +115,13 @@ class Comment
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?User $adminHeartedBy = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?DateTimeImmutable $pinnedAt = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    private ?User $pinnedBy = null;
 
     public function __construct()
     {
@@ -404,6 +413,50 @@ class Comment
 
         $this->adminHeartedAt = new DateTimeImmutable();
         $this->adminHeartedBy = $admin;
+
+        return $this;
+    }
+
+    public function getPinnedAt(): ?DateTimeImmutable
+    {
+        return $this->pinnedAt;
+    }
+
+    public function setPinnedAt(?DateTimeImmutable $pinnedAt): static
+    {
+        $this->pinnedAt = $pinnedAt;
+
+        return $this;
+    }
+
+    public function getPinnedBy(): ?User
+    {
+        return $this->pinnedBy;
+    }
+
+    public function setPinnedBy(?User $pinnedBy): static
+    {
+        $this->pinnedBy = $pinnedBy;
+
+        return $this;
+    }
+
+    public function isPinned(): bool
+    {
+        return $this->pinnedAt !== null;
+    }
+
+    public function togglePinned(User $admin): static
+    {
+        if ($this->isPinned()) {
+            $this->pinnedAt = null;
+            $this->pinnedBy = null;
+
+            return $this;
+        }
+
+        $this->pinnedAt = new DateTimeImmutable();
+        $this->pinnedBy = $admin;
 
         return $this;
     }

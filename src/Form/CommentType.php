@@ -19,6 +19,10 @@ class CommentType extends AbstractType
                 'attr' => [
                     'rows' => 5,
                     'maxlength' => 5000,
+                    'placeholder' => 'Ajoutez un commentaire…',
+                ],
+                'label_attr' => [
+                    'class' => 'sr-only',
                 ],
             ])
             ->add('submit', SubmitType::class, [

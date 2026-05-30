@@ -98,6 +98,8 @@
             {% include 'partials/_comments.html.twig' with {
                 comments: comments,
                 comment_form: comment_form,
+                comments_count: comments_count,
+                comments_sort: comments_sort,
                 comment_like_counts: comment_like_counts,
                 liked_comment_ids: liked_comment_ids
             } %}
