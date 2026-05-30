@@ -38,29 +38,14 @@ class CommentModerationService
     {
         [$score, $reasons] = $this->analyze($comment->getContent() ?? '');
 
-        $status = match (true) {
-            $score >= self::HIGH_SPAM_SCORE => CommentStatus::Spam,
-            $score >= self::MEDIUM_SPAM_SCORE => CommentStatus::Pending,
-            $this->canAutoApprove($comment->getAuthor()) => CommentStatus::Approved,
-            default => CommentStatus::Pending,
-        };
-
-        $this->applyModeration($comment, $status, $score, $reasons);
+        $this->applyModeration($comment, CommentStatus::Approved, $score, $reasons);
     }
 
     public function moderateEdited(Comment $comment, User $editor, bool $isAdmin, CommentStatus $previousStatus): void
     {
         [$score, $reasons] = $this->analyze($comment->getContent() ?? '');
 
-        $status = match (true) {
-            $score >= self::HIGH_SPAM_SCORE => CommentStatus::Spam,
-            $score >= self::MEDIUM_SPAM_SCORE => CommentStatus::Pending,
-            $isAdmin && $previousStatus === CommentStatus::Approved => CommentStatus::Approved,
-            $this->sameUser($comment->getAuthor(), $editor) && $this->canAutoApprove($editor) => CommentStatus::Approved,
-            default => CommentStatus::Pending,
-        };
-
-        $this->applyModeration($comment, $status, $score, $reasons);
+        $this->applyModeration($comment, CommentStatus::Approved, $score, $reasons);
     }
 
     public function applyReportThreshold(Comment $comment): void
@@ -74,7 +59,6 @@ class CommentModerationService
         }
 
         $comment
-            ->setStatus(CommentStatus::Pending)
             ->setModerationReason('Seuil de signalements atteint.')
             ->setModeratedAt(new DateTimeImmutable());
     }
@@ -168,18 +152,4 @@ class CommentModerationService
         }
     }
 
-    private function canAutoApprove(?User $user): bool
-    {
-        if (!$user instanceof User) {
-            return false;
-        }
-
-        return $user->isTrustedCommenter()
-            || $user->getApprovedCommentsCount() >= $this->autoApproveAfter;
-    }
-
-    private function sameUser(?User $left, User $right): bool
-    {
-        return $left?->getId() !== null && $left->getId() === $right->getId();
-    }
 }

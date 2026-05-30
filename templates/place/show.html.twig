@@ -95,8 +95,12 @@
         </aside>
 
         <div class="full-span">
-            {% include 'partials/_comments.html.twig' with { comments: comments } %}
-            {% include 'partials/_comment_form.html.twig' with { comment_form: comment_form } %}
+            {% include 'partials/_comments.html.twig' with {
+                comments: comments,
+                comment_form: comment_form,
+                comment_like_counts: comment_like_counts,
+                liked_comment_ids: liked_comment_ids
+            } %}
         </div>
     </main>
 {% endblock %}

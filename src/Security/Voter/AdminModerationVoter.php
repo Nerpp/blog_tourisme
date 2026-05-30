@@ -14,6 +14,8 @@ final class AdminModerationVoter extends Voter
     public const COMMENT_REJECT = 'COMMENT_REJECT';
     public const COMMENT_DELETE = 'COMMENT_DELETE';
     public const COMMENT_SPAM = 'COMMENT_SPAM';
+    public const COMMENT_RESTORE = 'COMMENT_RESTORE';
+    public const COMMENT_REPORT_REVIEW = 'COMMENT_REPORT_REVIEW';
 
     private const ATTRIBUTES = [
         self::COMMENT_MODERATE,
@@ -21,6 +23,8 @@ final class AdminModerationVoter extends Voter
         self::COMMENT_REJECT,
         self::COMMENT_DELETE,
         self::COMMENT_SPAM,
+        self::COMMENT_RESTORE,
+        self::COMMENT_REPORT_REVIEW,
     ];
 
     protected function supports(string $attribute, mixed $subject): bool

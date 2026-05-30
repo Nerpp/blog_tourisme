@@ -74,6 +74,28 @@ final class CommentModerationAdminService
         $this->warnAuthor($comment, $admin, $reason, false);
     }
 
+    public function hide(Comment $comment, User $admin, ?string $reason = null): void
+    {
+        $comment
+            ->setStatus(CommentStatus::Spam)
+            ->setModerationReason(trim((string) $reason) ?: 'Commentaire masqué par la modération.')
+            ->setModeratedAt(new DateTimeImmutable())
+            ->setModeratedBy($admin);
+    }
+
+    public function restore(Comment $comment, User $admin): void
+    {
+        $now = new DateTimeImmutable();
+
+        $comment
+            ->setStatus(CommentStatus::Approved)
+            ->setModerationReason(null)
+            ->setModeratedAt($now)
+            ->setModeratedBy($admin)
+            ->setPublishedAt($comment->getPublishedAt() ?? $now)
+            ->setApprovedAt($comment->getApprovedAt() ?? $now);
+    }
+
     public function softDelete(Comment $comment, User $admin, ?string $reason = null): void
     {
         $comment

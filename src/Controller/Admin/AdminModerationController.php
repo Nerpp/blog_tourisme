@@ -17,7 +17,7 @@ final class AdminModerationController extends AbstractController
     public function reports(CommentReportRepository $commentReportRepository): Response
     {
         return $this->render('admin/comments/reports.html.twig', [
-            'reports' => $commentReportRepository->findBy([], ['createdAt' => 'DESC'], 50),
+            'reports' => $commentReportRepository->findRecentForAdmin(),
         ]);
     }
 

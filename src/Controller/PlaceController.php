@@ -10,6 +10,7 @@ use App\Repository\CommentRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\PlaceRepository;
 use App\Repository\TagRepository;
+use App\Service\CommentReactionViewService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -53,7 +54,12 @@ final class PlaceController extends AbstractController
     }
 
     #[Route('/places/{slug}', name: 'app_place_show', methods: ['GET'])]
-    public function show(string $slug, PlaceRepository $placeRepository, CommentRepository $commentRepository): Response
+    public function show(
+        string $slug,
+        PlaceRepository $placeRepository,
+        CommentRepository $commentRepository,
+        CommentReactionViewService $reactionViewService,
+    ): Response
     {
         $place = $placeRepository->findPublishedBySlug($slug);
         if ($place === null) {
@@ -64,14 +70,19 @@ final class PlaceController extends AbstractController
             ? null
             : $this->createForm(CommentType::class, new Comment(), [
                 'action' => $this->generateUrl('app_place_comment_create', ['slug' => $place->getSlug()]),
+                'method' => 'POST',
             ])->createView();
 
         $viewer = $this->getUser();
+        $comments = $commentRepository->findApprovedForPlace($place, $viewer instanceof User ? $viewer : null);
+        $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
 
         return $this->render('place/show.html.twig', [
             'place' => $place,
-            'comments' => $commentRepository->findApprovedForPlace($place, $viewer instanceof User ? $viewer : null),
+            'comments' => $comments,
             'comment_form' => $commentForm,
+            'comment_like_counts' => $reactionContext['like_counts'],
+            'liked_comment_ids' => $reactionContext['liked_comment_ids'],
         ]);
     }
 }

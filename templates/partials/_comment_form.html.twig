@@ -7,9 +7,11 @@
     <section class="comment-form-panel" id="comment-form">
         <h2>Laisser un commentaire</h2>
         {{ form_start(comment_form, { attr: { class: 'comment-form' } }) }}
+            {{ form_errors(comment_form) }}
             {{ form_row(comment_form.content) }}
             {{ form_row(comment_form.submit) }}
-        {{ form_end(comment_form) }}
+            {{ form_rest(comment_form) }}
+        {{ form_end(comment_form, { render_rest: false }) }}
     </section>
 {% else %}
     <p class="login-callout"><a href="{{ path('app_login') }}">Connectez-vous</a> pour laisser un commentaire.</p>

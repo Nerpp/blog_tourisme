@@ -3,20 +3,25 @@
 namespace App\Controller;
 
 use App\Entity\Comment;
+use App\Entity\CommentLike;
 use App\Entity\CommentReport;
 use App\Entity\User;
 use App\Enum\CommentReportReason;
 use App\Enum\CommentStatus;
 use App\Form\CommentType;
 use App\Repository\ArticleRepository;
+use App\Repository\CommentLikeRepository;
 use App\Repository\CommentReportRepository;
 use App\Repository\PlaceRepository;
 use App\Security\ActionRateLimiter;
 use App\Security\Voter\CommentVoter;
+use App\Service\CommentDeletionService;
 use App\Service\CommentModerationService;
 use App\Service\CommentReplyNotificationService;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimit;
@@ -69,25 +74,32 @@ final class CommentController extends AbstractController
             ->setIpAddress($request->getClientIp())
             ->setUserAgent($request->headers->get('User-Agent'));
 
-        $form = $this->createForm(CommentType::class, $comment);
+        $form = $this->createForm(CommentType::class, $comment, [
+            'action' => $this->generateUrl('app_article_comment_create', ['slug' => $article->getSlug()]),
+            'method' => 'POST',
+        ]);
         $form->handleRequest($request);
 
-        if ($form->isSubmitted() && $form->isValid()) {
+        if (!$form->isSubmitted()) {
+            $this->addFlash('error', 'Formulaire non soumis.');
+
+            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
+        }
+
+        if ($form->isValid()) {
             $moderationService->moderateNew($comment);
             $entityManager->persist($comment);
             $notificationService->createForApprovedComment($comment);
             $entityManager->flush();
 
-            $this->addFlash('success', $comment->getStatus() === CommentStatus::Approved
-                ? 'Votre commentaire a été publié.'
-                : 'Votre commentaire a été envoyé et sera visible après modération.');
+            $this->addFlash('success', 'Votre commentaire a été publié.');
 
             return $this->redirectToCommentTarget($comment);
-        } else {
-            $this->addFlash('error', 'Votre commentaire n’a pas pu être envoyé.');
         }
 
-        return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comments');
+        $this->addCommentFormErrorFlashes($form);
+
+        return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
     }
 
     #[Route('/places/{slug}/comments', name: 'app_place_comment_create', methods: ['POST'])]
@@ -128,25 +140,32 @@ final class CommentController extends AbstractController
             ->setIpAddress($request->getClientIp())
             ->setUserAgent($request->headers->get('User-Agent'));
 
-        $form = $this->createForm(CommentType::class, $comment);
+        $form = $this->createForm(CommentType::class, $comment, [
+            'action' => $this->generateUrl('app_place_comment_create', ['slug' => $place->getSlug()]),
+            'method' => 'POST',
+        ]);
         $form->handleRequest($request);
 
-        if ($form->isSubmitted() && $form->isValid()) {
+        if (!$form->isSubmitted()) {
+            $this->addFlash('error', 'Formulaire non soumis.');
+
+            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
+        }
+
+        if ($form->isValid()) {
             $moderationService->moderateNew($comment);
             $entityManager->persist($comment);
             $notificationService->createForApprovedComment($comment);
             $entityManager->flush();
 
-            $this->addFlash('success', $comment->getStatus() === CommentStatus::Approved
-                ? 'Votre commentaire a été publié.'
-                : 'Votre commentaire a été envoyé et sera visible après modération.');
+            $this->addFlash('success', 'Votre commentaire a été publié.');
 
             return $this->redirectToCommentTarget($comment);
-        } else {
-            $this->addFlash('error', 'Votre commentaire n’a pas pu être envoyé.');
         }
 
-        return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comments');
+        $this->addCommentFormErrorFlashes($form);
+
+        return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
     }
 
     #[Route('/comments/{id}/reply', name: 'app_comment_reply', methods: ['POST'])]
@@ -213,9 +232,7 @@ final class CommentController extends AbstractController
         $notificationService->createForApprovedComment($reply);
         $entityManager->flush();
 
-        $this->addFlash('success', $reply->getStatus() === CommentStatus::Approved
-            ? 'Votre réponse a été publiée.'
-            : 'Votre réponse a été envoyée et sera visible après modération.');
+        $this->addFlash('success', 'Votre réponse a été publiée.');
 
         return $this->redirectToCommentTarget($reply);
     }
@@ -258,16 +275,19 @@ final class CommentController extends AbstractController
         $notificationService->createForApprovedComment($comment);
 
         $entityManager->flush();
-        $this->addFlash('success', $comment->getStatus() === CommentStatus::Approved
-            ? 'Votre commentaire a été modifié.'
-            : 'Votre modification a été envoyée en modération.');
+        $this->addFlash('success', 'Votre commentaire a été modifié.');
 
         return $this->redirectToCommentTarget($comment);
     }
 
     #[Route('/comments/{id}/delete', name: 'app_comment_delete', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
-    public function delete(Comment $comment, Request $request, EntityManagerInterface $entityManager): RedirectResponse
+    public function delete(
+        Comment $comment,
+        Request $request,
+        EntityManagerInterface $entityManager,
+        CommentDeletionService $deletionService,
+    ): RedirectResponse
     {
         $this->denyAccessUnlessGranted(CommentVoter::DELETE, $comment);
 
@@ -275,10 +295,72 @@ final class CommentController extends AbstractController
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
 
-        $comment->markDeleted();
+        $redirect = $this->redirectAfterPhysicalDelete($comment);
+        $deletionService->deletePhysically($comment);
         $entityManager->flush();
 
         $this->addFlash('success', 'Votre commentaire a été supprimé.');
+
+        return $redirect;
+    }
+
+    #[Route('/comments/{id}/like', name: 'app_comment_like_toggle', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function toggleLike(
+        Comment $comment,
+        Request $request,
+        CommentLikeRepository $likeRepository,
+        EntityManagerInterface $entityManager,
+    ): RedirectResponse {
+        if (!$this->isCsrfTokenValid('like-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Jeton CSRF invalide.');
+        }
+
+        if ($comment->getStatus() !== CommentStatus::Approved) {
+            $this->addFlash('warning', 'Vous ne pouvez aimer qu’un commentaire publié.');
+
+            return $this->redirectToCommentTarget($comment);
+        }
+
+        $user = $this->getAuthenticatedUser();
+        $existingLike = $likeRepository->findOneByCommentAndUser($comment, $user);
+        if ($existingLike instanceof CommentLike) {
+            $entityManager->remove($existingLike);
+            $entityManager->flush();
+
+            return $this->redirectToCommentTarget($comment);
+        }
+
+        $like = (new CommentLike())
+            ->setComment($comment)
+            ->setUser($user);
+
+        try {
+            $entityManager->persist($like);
+            $entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            $entityManager->clear(CommentLike::class);
+        }
+
+        return $this->redirectToCommentTarget($comment);
+    }
+
+    #[Route('/comments/{id}/admin-heart', name: 'app_comment_admin_heart_toggle', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
+    public function toggleAdminHeart(Comment $comment, Request $request, EntityManagerInterface $entityManager): RedirectResponse
+    {
+        if (!$this->isCsrfTokenValid('admin-heart-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Jeton CSRF invalide.');
+        }
+
+        if ($comment->getStatus() !== CommentStatus::Approved) {
+            $this->addFlash('warning', 'Vous ne pouvez mettre un cœur qu’à un commentaire publié.');
+
+            return $this->redirectToCommentTarget($comment);
+        }
+
+        $comment->toggleAdminHeart($this->getAuthenticatedUser());
+        $entityManager->flush();
 
         return $this->redirectToCommentTarget($comment);
     }
@@ -326,7 +408,7 @@ final class CommentController extends AbstractController
         $entityManager->persist($report);
         $entityManager->flush();
 
-        $this->addFlash('success', 'Merci, votre signalement a été enregistré.');
+        $this->addFlash('success', 'Merci, le commentaire a été signalé à la modération.');
 
         return $this->redirectToCommentTarget($comment);
     }
@@ -344,6 +426,25 @@ final class CommentController extends AbstractController
     private function redirectToCommentTarget(Comment $comment): RedirectResponse
     {
         $fragment = $this->commentFragment($comment);
+
+        if ($comment->getArticle() !== null) {
+            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $comment->getArticle()->getSlug()], $fragment);
+        }
+
+        if ($comment->getPlace() !== null) {
+            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $comment->getPlace()->getSlug()], $fragment);
+        }
+
+        return $this->redirectToRoute('app_home');
+    }
+
+    private function redirectAfterPhysicalDelete(Comment $comment): RedirectResponse
+    {
+        $fragment = 'comments';
+        $parent = $comment->getParent();
+        if ($parent instanceof Comment && $parent->getId() !== null) {
+            $fragment = 'comment-'.$parent->getId();
+        }
 
         if ($comment->getArticle() !== null) {
             return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $comment->getArticle()->getSlug()], $fragment);
@@ -407,5 +508,25 @@ final class CommentController extends AbstractController
         ));
 
         return false;
+    }
+
+    private function addCommentFormErrorFlashes(FormInterface $form): void
+    {
+        $messages = [];
+
+        foreach ($form->getErrors(true) as $error) {
+            $messages[] = $error->getMessage();
+        }
+
+        $messages = array_values(array_unique(array_filter($messages)));
+        if ($messages === []) {
+            $this->addFlash('error', 'Votre commentaire n’a pas pu être envoyé.');
+
+            return;
+        }
+
+        foreach (array_slice($messages, 0, 3) as $message) {
+            $this->addFlash('error', $message);
+        }
     }
 }

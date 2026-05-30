@@ -45,7 +45,7 @@ class CommentVoter extends Voter
         }
 
         return match ($attribute) {
-            self::EDIT => $subject->getStatus() !== CommentStatus::Deleted
+            self::EDIT => !in_array($subject->getStatus(), [CommentStatus::Deleted, CommentStatus::Spam], true)
                 && $this->isOwner($subject, $user),
             self::DELETE => $subject->getStatus() !== CommentStatus::Deleted
                 && $this->isOwner($subject, $user),

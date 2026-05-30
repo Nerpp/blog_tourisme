@@ -503,6 +503,20 @@ textarea {
   line-height: 1.65;
 }
 
+.comment-admin-heart {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 10px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #fff0f4;
+  color: #b21f4b;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
 .comment-mention {
   color: #12615c;
   font-weight: 850;
@@ -559,10 +573,12 @@ textarea {
 }
 
 .comment-actions button,
+.comment-actions a,
 .comment-action-panel summary,
 .comment-notification__link {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   justify-content: center;
   min-height: 32px;
   padding: 0 10px;
@@ -578,10 +594,26 @@ textarea {
 }
 
 .comment-actions button:hover,
+.comment-actions a:hover,
 .comment-action-panel summary:hover,
 .comment-notification__link:hover {
   background: #e5f0ed;
   text-decoration: none;
+}
+
+.comment-like-button.is-active {
+  background: #e5f0ed;
+  color: #0e4f4b;
+}
+
+.comment-heart-button.is-active,
+.comment-heart-button:hover {
+  background: #fff0f4;
+  color: #b21f4b;
+}
+
+.comment-login-like {
+  color: #68736f;
 }
 
 .comment-action-panel {

@@ -20,9 +20,10 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 #[ORM\Index(name: 'idx_comment_approved_at', fields: ['approvedAt'])]
 #[ORM\Index(name: 'idx_comment_author', fields: ['author'])]
 #[ORM\Index(name: 'idx_comment_article', fields: ['article'])]
-#[ORM\Index(name: 'idx_comment_place', fields: ['place'])]
-#[ORM\Index(name: 'idx_comment_parent', fields: ['parent'])]
-#[ORM\Index(name: 'idx_comment_reported_count', fields: ['reportedCount'])]
+    #[ORM\Index(name: 'idx_comment_place', fields: ['place'])]
+    #[ORM\Index(name: 'idx_comment_parent', fields: ['parent'])]
+    #[ORM\Index(name: 'idx_comment_reported_count', fields: ['reportedCount'])]
+    #[ORM\Index(name: 'idx_comment_admin_hearted_by', fields: ['adminHeartedBy'])]
 #[ORM\HasLifecycleCallbacks]
 class Comment
 {
@@ -46,8 +47,13 @@ class Comment
     private ?Place $place = null;
 
     #[ORM\Column(type: Types::TEXT)]
-    #[Assert\NotBlank]
-    #[Assert\Length(min: 10, max: 5000)]
+    #[Assert\NotBlank(message: 'Le commentaire ne peut pas être vide.')]
+    #[Assert\Length(
+        min: 10,
+        max: 5000,
+        minMessage: 'Le commentaire doit contenir au moins {{ limit }} caractères.',
+        maxMessage: 'Le commentaire ne peut pas dépasser {{ limit }} caractères.',
+    )]
     private ?string $content = null;
 
     #[ORM\Column(length: 20, enumType: CommentStatus::class)]
@@ -97,10 +103,22 @@ class Comment
     #[ORM\OneToMany(mappedBy: 'comment', targetEntity: CommentReport::class)]
     private Collection $reports;
 
+    /** @var Collection<int, CommentLike> */
+    #[ORM\OneToMany(mappedBy: 'comment', targetEntity: CommentLike::class)]
+    private Collection $likes;
+
+    #[ORM\Column(nullable: true)]
+    private ?DateTimeImmutable $adminHeartedAt = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    private ?User $adminHeartedBy = null;
+
     public function __construct()
     {
         $this->children = new ArrayCollection();
         $this->reports = new ArrayCollection();
+        $this->likes = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -338,6 +356,56 @@ class Comment
     public function getReports(): Collection
     {
         return $this->reports;
+    }
+
+    /** @return Collection<int, CommentLike> */
+    public function getLikes(): Collection
+    {
+        return $this->likes;
+    }
+
+    public function getAdminHeartedAt(): ?DateTimeImmutable
+    {
+        return $this->adminHeartedAt;
+    }
+
+    public function setAdminHeartedAt(?DateTimeImmutable $adminHeartedAt): static
+    {
+        $this->adminHeartedAt = $adminHeartedAt;
+
+        return $this;
+    }
+
+    public function getAdminHeartedBy(): ?User
+    {
+        return $this->adminHeartedBy;
+    }
+
+    public function setAdminHeartedBy(?User $adminHeartedBy): static
+    {
+        $this->adminHeartedBy = $adminHeartedBy;
+
+        return $this;
+    }
+
+    public function hasAdminHeart(): bool
+    {
+        return $this->adminHeartedAt !== null;
+    }
+
+    public function toggleAdminHeart(User $admin): static
+    {
+        if ($this->hasAdminHeart()) {
+            $this->adminHeartedAt = null;
+            $this->adminHeartedBy = null;
+
+            return $this;
+        }
+
+        $this->adminHeartedAt = new DateTimeImmutable();
+        $this->adminHeartedBy = $admin;
+
+        return $this;
     }
 
     public function markDeleted(): static

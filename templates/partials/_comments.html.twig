@@ -1,6 +1,8 @@
 <section class="comments-section" id="comments">
     <h2>Commentaires</h2>
 
+    {% include 'partials/_comment_form.html.twig' with { comment_form: comment_form|default(null) } %}
+
     {% set top_level_comments = [] %}
     {% for comment in comments %}
         {% if comment.parent is null %}
@@ -9,8 +11,13 @@
     {% endfor %}
 
     {% for comment in top_level_comments %}
-        {% include 'partials/_comment_item.html.twig' with { comment: comment, level: 1 } %}
+        {% include 'partials/_comment_item.html.twig' with {
+            comment: comment,
+            level: 1,
+            comment_like_counts: comment_like_counts|default({}),
+            liked_comment_ids: liked_comment_ids|default([])
+        } %}
     {% else %}
-        <p>Aucun commentaire approuvé pour le moment.</p>
+        <p>Aucun commentaire pour le moment.</p>
     {% endfor %}
 </section>

@@ -49,4 +49,19 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
             'comment' => $comment,
         ]);
     }
+
+    /** @param list<Comment> $comments */
+    public function deleteForComments(array $comments): void
+    {
+        if ($comments === []) {
+            return;
+        }
+
+        $this->createQueryBuilder('n')
+            ->delete()
+            ->andWhere('n.comment IN (:comments)')
+            ->setParameter('comments', $comments)
+            ->getQuery()
+            ->execute();
+    }
 }

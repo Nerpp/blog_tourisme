@@ -1,17 +1,21 @@
 {% set level = level|default(1) %}
-{% set is_deleted = comment.status.value == 'deleted' %}
-{% set is_owner_preview = app.user and comment.author.id == app.user.id and comment.status.value in ['pending', 'rejected', 'spam'] %}
+{% set is_owner_preview = app.user and comment.author.id == app.user.id and comment.status.value in ['pending', 'rejected'] %}
 {% set author_name = comment.author.displayName ?: comment.author.email %}
+{% set like_count = comment_like_counts[comment.id]|default(0) %}
+{% set has_liked = comment.id in liked_comment_ids|default([]) %}
 
-<article class="comment {{ level == 2 ? 'comment--reply' : '' }} {{ is_deleted ? 'comment--deleted' : '' }}" id="comment-{{ comment.id }}">
+<article class="comment {{ level == 2 ? 'comment--reply' : '' }}" id="comment-{{ comment.id }}">
     <div class="comment-body">
         <div class="comment-content">
-            {% if is_deleted %}
-                <em>Commentaire supprimé</em>
-            {% else %}
-                {{ comment_content_html(comment.content) }}
-            {% endif %}
+            {{ comment_content_html(comment.content) }}
         </div>
+
+        {% if comment.adminHeartedAt %}
+            <div class="comment-admin-heart" title="Cœur de l’équipe">
+                <span aria-hidden="true">♥</span>
+                <span>Cœur de l’équipe</span>
+            </div>
+        {% endif %}
 
         <footer class="comment-meta">
             {% if comment.author.avatarPath %}
@@ -25,17 +29,15 @@
                 {% if comment.publishedAt %}
                     le {{ comment.publishedAt|date('d/m/Y H:i') }}
                 {% endif %}
-                {% if comment.editedAt and not is_deleted %}
+                {% if comment.editedAt %}
                     · modifié
                 {% endif %}
                 {% if is_owner_preview %}
                     · <span class="comment-status-badge">
                         {% if comment.status.value == 'pending' %}
                             En attente
-                        {% elseif comment.status.value == 'rejected' %}
-                            Refusé
                         {% else %}
-                            Spam
+                            Refusé
                         {% endif %}
                     </span>
                 {% endif %}
@@ -44,6 +46,23 @@
 
         {% if app.user %}
             <div class="comment-actions">
+                <form method="post" action="{{ path('app_comment_like_toggle', { id: comment.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('like-comment-' ~ comment.id) }}">
+                    <button class="comment-like-button {{ has_liked ? 'is-active' }}" type="submit" aria-pressed="{{ has_liked ? 'true' : 'false' }}">
+                        <span aria-hidden="true">👍</span>
+                        <span>{{ like_count }}</span>
+                    </button>
+                </form>
+
+                {% if is_granted('ROLE_ADMIN') and comment.status.value == 'approved' %}
+                    <form method="post" action="{{ path('app_comment_admin_heart_toggle', { id: comment.id }) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('admin-heart-comment-' ~ comment.id) }}">
+                        <button class="comment-heart-button {{ comment.adminHeartedAt ? 'is-active' }}" type="submit">
+                            {{ comment.adminHeartedAt ? 'Retirer le cœur' : 'Mettre un cœur' }}
+                        </button>
+                    </form>
+                {% endif %}
+
                 {% if level == 1 and comment.status.value == 'approved' and app.user.verified is defined and app.user.verified %}
                     <details class="comment-action-panel">
                         <summary>Répondre</summary>
@@ -96,6 +115,13 @@
                     </details>
                 {% endif %}
             </div>
+        {% else %}
+            <div class="comment-actions">
+                <a class="comment-login-like" href="{{ path('app_login') }}">
+                    <span aria-hidden="true">👍</span>
+                    <span>{{ like_count }}</span>
+                </a>
+            </div>
         {% endif %}
     </div>
 
@@ -103,8 +129,7 @@
         {% set visible_children = [] %}
         {% for child in comment.children %}
             {% if child.status.value == 'approved'
-                or (child.status.value == 'deleted' and child.publishedAt)
-                or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected', 'spam', 'deleted'])
+                or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected'])
             %}
                 {% set visible_children = visible_children|merge([child]) %}
             {% endif %}
@@ -113,7 +138,12 @@
         {% if visible_children|length > 0 %}
             <div class="comment-children">
                 {% for child in visible_children %}
-                    {% include 'partials/_comment_item.html.twig' with { comment: child, level: 2 } %}
+                    {% include 'partials/_comment_item.html.twig' with {
+                        comment: child,
+                        level: 2,
+                        comment_like_counts: comment_like_counts|default({}),
+                        liked_comment_ids: liked_comment_ids|default([])
+                    } %}
                 {% endfor %}
             </div>
         {% endif %}

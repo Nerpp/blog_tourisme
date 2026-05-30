@@ -21,6 +21,10 @@ class CommentReportRepository extends ServiceEntityRepository
     public function findPendingReports(): array
     {
         return $this->createQueryBuilder('r')
+            ->addSelect('c', 'a', 'reporter')
+            ->leftJoin('r.comment', 'c')
+            ->leftJoin('c.author', 'a')
+            ->leftJoin('r.reporter', 'reporter')
             ->andWhere('r.status = :status')
             ->setParameter('status', CommentReportStatus::Pending)
             ->orderBy('r.createdAt', 'ASC')
@@ -34,5 +38,34 @@ class CommentReportRepository extends ServiceEntityRepository
             'comment' => $comment,
             'reporter' => $reporter,
         ]);
+    }
+
+    /** @return list<CommentReport> */
+    public function findRecentForAdmin(int $limit = 50): array
+    {
+        return $this->createQueryBuilder('r')
+            ->addSelect('c', 'a', 'reporter')
+            ->leftJoin('r.comment', 'c')
+            ->leftJoin('c.author', 'a')
+            ->leftJoin('r.reporter', 'reporter')
+            ->orderBy('r.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /** @param list<Comment> $comments */
+    public function deleteForComments(array $comments): void
+    {
+        if ($comments === []) {
+            return;
+        }
+
+        $this->createQueryBuilder('r')
+            ->delete()
+            ->andWhere('r.comment IN (:comments)')
+            ->setParameter('comments', $comments)
+            ->getQuery()
+            ->execute();
     }
 }

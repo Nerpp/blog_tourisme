@@ -4,13 +4,16 @@ namespace App\Controller\Admin;
 
 use App\Entity\Comment;
 use App\Entity\User;
+use App\Enum\CommentReportStatus;
 use App\Enum\CommentStatus;
 use App\Repository\CommentRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\AdminModerationVoter;
+use App\Service\CommentDeletionService;
 use App\Service\CommentModerationAdminService;
 use App\Service\CommentReplyNotificationService;
 use App\Service\ModerationActionLogger;
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -33,7 +36,7 @@ final class AdminCommentModerationController extends AbstractController
     #[Route('/admin/comments', name: 'admin_comments_index', methods: ['GET'])]
     public function index(Request $request, CommentRepository $commentRepository): Response
     {
-        return $this->renderComments($commentRepository, $request->query->getString('filter', 'all'));
+        return $this->renderComments($commentRepository, $request->query->get('filter'));
     }
 
     #[Route('/admin/comments/pending', name: 'admin_comments_pending', methods: ['GET'])]
@@ -94,15 +97,17 @@ final class AdminCommentModerationController extends AbstractController
     }
 
     #[Route('/admin/comments/{id}/delete', name: 'admin_comments_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function delete(Comment $comment, Request $request): RedirectResponse
+    public function delete(Comment $comment, Request $request, CommentDeletionService $deletionService): RedirectResponse
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_DELETE, $comment);
         $this->validateCommentToken($comment, $request);
         $admin = $this->getAdminUser();
-        $this->moderationService->softDelete($comment, $admin);
-        $this->moderationLogger->log('comment.delete', $admin, 'comment', $comment->getId(), null, $request, $comment->getAuthor());
+        $commentId = $comment->getId();
+        $author = $comment->getAuthor();
+        $this->moderationLogger->log('comment.delete', $admin, 'comment', $commentId, null, $request, $author);
+        $deletionService->deletePhysically($comment);
         $this->entityManager->flush();
-        $this->addFlash('success', 'Commentaire supprimé.');
+        $this->addFlash('success', 'Commentaire supprimé définitivement.');
 
         return $this->redirectBackToComments($request);
     }
@@ -122,19 +127,86 @@ final class AdminCommentModerationController extends AbstractController
         return $this->redirectBackToComments($request);
     }
 
-    private function renderComments(CommentRepository $commentRepository, string $filter): Response
+    #[Route('/admin/comments/{id}/hide', name: 'admin_comments_hide', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function hide(Comment $comment, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_SPAM, $comment);
+        $this->validateCommentToken($comment, $request);
+        $admin = $this->getAdminUser();
+        $reason = $request->request->getString('reason');
+        $this->moderationService->hide($comment, $admin, $reason);
+        $this->moderationLogger->log('comment.hide', $admin, 'comment', $comment->getId(), $reason, $request, $comment->getAuthor());
+        $this->entityManager->flush();
+        $this->addFlash('warning', 'Commentaire masqué.');
+
+        return $this->redirectBackToComments($request);
+    }
+
+    #[Route('/admin/comments/{id}/restore', name: 'admin_comments_restore', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function restore(Comment $comment, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_RESTORE, $comment);
+        $this->validateCommentToken($comment, $request);
+        if ($comment->getStatus() !== CommentStatus::Spam) {
+            $this->addFlash('warning', 'Seuls les commentaires masqués peuvent être restaurés.');
+
+            return $this->redirectBackToComments($request);
+        }
+
+        $admin = $this->getAdminUser();
+        $this->moderationService->restore($comment, $admin);
+        $this->moderationLogger->log('comment.restore', $admin, 'comment', $comment->getId(), null, $request, $comment->getAuthor());
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Commentaire restauré.');
+
+        return $this->redirectBackToComments($request);
+    }
+
+    #[Route('/admin/comments/{id}/reports/review', name: 'admin_comments_reports_review', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function reviewReports(Comment $comment, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_REPORT_REVIEW, $comment);
+        $this->validateCommentToken($comment, $request);
+        $admin = $this->getAdminUser();
+        $now = new DateTimeImmutable();
+
+        foreach ($comment->getReports() as $report) {
+            if ($report->getStatus() !== CommentReportStatus::Pending) {
+                continue;
+            }
+
+            $report
+                ->setStatus(CommentReportStatus::Reviewed)
+                ->setReviewedBy($admin)
+                ->setReviewedAt($now);
+        }
+
+        $comment->setReportedCount(0);
+        $this->moderationLogger->log('comment.reports.review', $admin, 'comment', $comment->getId(), null, $request, $comment->getAuthor());
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Signalements marqués comme traités.');
+
+        return $this->redirectBackToComments($request);
+    }
+
+    private function renderComments(CommentRepository $commentRepository, ?string $requestedFilter): Response
     {
         $this->denyAccessUnlessGranted(AdminModerationVoter::COMMENT_MODERATE);
 
-        $filter = in_array($filter, ['all', 'pending', 'approved', 'reported', 'spam', 'deleted'], true) ? $filter : 'all';
+        $filter = $requestedFilter;
+        if ($filter === null || $filter === '') {
+            $filter = $commentRepository->countReportedForModeration() > 0 ? 'reported' : 'recent';
+        }
+
+        $filter = in_array($filter, ['reported', 'recent', 'approved', 'hidden', 'all', 'pending'], true) ? $filter : 'recent';
 
         $comments = match ($filter) {
-            'pending' => $commentRepository->findBy(['status' => CommentStatus::Pending], ['createdAt' => 'ASC'], 100),
-            'approved' => $commentRepository->findBy(['status' => CommentStatus::Approved], ['createdAt' => 'DESC'], 100),
             'reported' => $commentRepository->findReportedForModeration(),
-            'spam' => $commentRepository->findBy(['status' => CommentStatus::Spam], ['spamScore' => 'DESC', 'createdAt' => 'DESC'], 100),
-            'deleted' => $commentRepository->findBy(['status' => CommentStatus::Deleted], ['createdAt' => 'DESC'], 100),
-            default => $commentRepository->findBy([], ['createdAt' => 'DESC'], 100),
+            'approved' => $commentRepository->findApprovedForModeration(),
+            'hidden' => $commentRepository->findSpam(),
+            'all' => $commentRepository->findAllForModeration(),
+            'pending' => $commentRepository->findPendingForModeration(),
+            default => $commentRepository->findRecentForModeration(),
         };
 
         return $this->render('admin/comments/index.html.twig', [
@@ -178,7 +250,7 @@ final class AdminCommentModerationController extends AbstractController
             CommentStatus::Pending->value => 'En attente',
             CommentStatus::Approved->value => 'Approuvé',
             CommentStatus::Rejected->value => 'Refusé',
-            CommentStatus::Spam->value => 'Spam',
+            CommentStatus::Spam->value => 'Masqué',
             CommentStatus::Deleted->value => 'Supprimé',
         ];
     }
