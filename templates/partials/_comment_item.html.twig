@@ -79,9 +79,15 @@
                 {% endif %}
 
                 {% if level == 1 and comment.status.value == 'approved' and app.user.verified is defined and app.user.verified %}
-                    <details class="comment-action-panel">
-                        <summary>Répondre</summary>
-                        <div class="comment-item__reply">
+                    <details class="comment-action-panel comment-reply-panel" data-comment-reply-panel>
+                        <summary
+                            data-comment-reply-toggle
+                            aria-controls="reply-form-{{ comment.id }}"
+                            aria-expanded="false"
+                        >
+                            Répondre
+                        </summary>
+                        <div id="reply-form-{{ comment.id }}" class="comment-item__reply">
                             <div class="comment-composer__avatar">
                                 {% set reply_author_name = app.user.displayName ?: app.user.userIdentifier %}
                                 {% if app.user.avatarPath %}
@@ -90,12 +96,12 @@
                                     <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ reply_author_name|first|upper }}</span>
                                 {% endif %}
                             </div>
-                            <form class="comment-inline-form comment-composer__form" method="post" action="{{ path('app_comment_reply', { id: comment.id }) }}">
+                            <form class="comment-inline-form comment-composer__form" method="post" action="{{ path('app_comment_reply', { id: comment.id }) }}" data-comment-reply-form>
                                 <input type="hidden" name="_token" value="{{ csrf_token('reply-comment-' ~ comment.id) }}">
                                 <label class="sr-only" for="reply-content-{{ comment.id }}">Votre réponse</label>
                                 <textarea id="reply-content-{{ comment.id }}" name="content" rows="1" maxlength="5000" required placeholder="Ajoutez une réponse…"></textarea>
                                 <div class="comment-composer__actions">
-                                    <button type="reset" class="comment-button comment-button--ghost">Annuler</button>
+                                    <button type="button" class="comment-button comment-button--ghost" data-comment-reply-cancel>Annuler</button>
                                     <button type="submit" class="comment-button comment-button--primary">Répondre</button>
                                 </div>
                             </form>

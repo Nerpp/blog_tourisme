@@ -17,6 +17,7 @@ import { initArticleSearch } from './js/article-search.js';
 import { initDestinationShowSearch } from './js/destination-show-search.js';
 import { initProfileAvatarPreview } from './js/profile-avatar-preview.js';
 import { initCommentReplies } from './js/comment-replies.js';
+import { initCommentReplyForms } from './js/comment-reply-forms.js';
 
 initNavbar();
 initPublicDetailGallery();
@@ -27,6 +28,7 @@ initArticleSearch();
 initDestinationShowSearch();
 initProfileAvatarPreview();
 initCommentReplies();
+initCommentReplyForms();
 
 const vueRoot = document.querySelector('#app');
 
