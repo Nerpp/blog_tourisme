@@ -1,19 +1,20 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Réponses reçues - Blog Tourisme{% endblock %}
+{% block title %}Notifications commentaires - Blog Tourisme{% endblock %}
 
 {% block body %}
     <main class="comment-notifications-page">
         <section class="comment-notifications">
             <header class="comment-notifications__header">
                 <p class="eyebrow">Commentaires</p>
-                <h1>Réponses reçues</h1>
+                <h1>Notifications commentaires</h1>
             </header>
 
             <div class="comment-notification-list">
                 {% for notification in notifications %}
                     {% set comment = notification.comment %}
                     {% set author = notification.triggeredBy ?: comment.author %}
+                    {% set is_unread = notification.id in unread_notification_ids %}
                     <article class="comment-notification {{ notification.id in unread_notification_ids ? 'is-unread' : '' }}">
                         <div>
                             <p class="comment-notification__title">
@@ -22,6 +23,7 @@
                                 {% else %}
                                     {{ author.displayName ?: author.userIdentifier }} a répondu à votre commentaire.
                                 {% endif %}
+                                <span class="comment-notification__state">{{ is_unread ? 'Non lue' : 'Lue' }}</span>
                             </p>
                             <p class="comment-notification__meta">
                                 {{ notification.createdAt ? notification.createdAt|date('d/m/Y H:i') : '' }}

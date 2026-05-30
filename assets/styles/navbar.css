@@ -177,6 +177,12 @@
   text-decoration: none;
 }
 
+.navbar-notification-icon {
+  width: 21px;
+  height: 21px;
+  fill: currentColor;
+}
+
 .navbar-notification-badge {
   position: absolute;
   top: -4px;
@@ -308,6 +314,7 @@
 /* DESKTOP : connecté */
 
 @media (min-width: 992px) {
+  .navbar-mobile-account .navbar-notification-link,
   .navbar-mobile-account .navbar-avatar-link {
     display: none;
   }

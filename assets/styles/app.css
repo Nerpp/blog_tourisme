@@ -1001,6 +1001,24 @@ textarea {
   font-weight: 900;
 }
 
+.comment-notification__state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2ef;
+  color: #68736f;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.comment-notification.is-unread .comment-notification__state {
+  background: #e5f0ed;
+  color: #12615c;
+}
+
 .comment-notification__meta {
   margin-top: 4px;
   color: #68736f;

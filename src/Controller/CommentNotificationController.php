@@ -20,7 +20,6 @@ final class CommentNotificationController extends AbstractController
     #[Route('/notifications/commentaires', name: 'app_comment_notifications', methods: ['GET'])]
     public function index(
         CommentReplyNotificationRepository $notificationRepository,
-        EntityManagerInterface $entityManager,
     ): Response {
         $user = $this->getAuthenticatedUser();
         $notifications = $notificationRepository->findRecentForRecipient($user);
@@ -29,12 +28,7 @@ final class CommentNotificationController extends AbstractController
         foreach ($notifications as $notification) {
             if (!$notification->isRead() && $notification->getId() !== null) {
                 $unreadNotificationIds[] = $notification->getId();
-                $notification->markRead();
             }
-        }
-
-        if ($unreadNotificationIds !== []) {
-            $entityManager->flush();
         }
 
         return $this->render('comment/notifications.html.twig', [
@@ -51,10 +45,19 @@ final class CommentNotificationController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
+        $comment = $notification->getComment();
+        if (!$comment instanceof Comment || $comment->getStatus() !== CommentStatus::Approved) {
+            $entityManager->remove($notification);
+            $entityManager->flush();
+            $this->addFlash('warning', 'Cette discussion n’est plus disponible.');
+
+            return $this->redirectToRoute('app_comment_notifications');
+        }
+
         $notification->markRead();
         $entityManager->flush();
 
-        return $this->redirect($this->commentUrl($notification->getComment()));
+        return $this->redirect($this->commentUrl($comment));
     }
 
     private function getAuthenticatedUser(): User
@@ -73,8 +76,7 @@ final class CommentNotificationController extends AbstractController
             return $this->generateUrl('app_home');
         }
 
-        $fragment = in_array($comment->getStatus(), [CommentStatus::Approved, CommentStatus::Deleted], true)
-            && $comment->getId() !== null
+        $fragment = $comment->getStatus() === CommentStatus::Approved && $comment->getId() !== null
             ? 'comment-'.$comment->getId()
             : 'comments';
 

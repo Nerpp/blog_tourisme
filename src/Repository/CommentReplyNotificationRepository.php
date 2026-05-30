@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Comment;
 use App\Entity\CommentReplyNotification;
 use App\Entity\User;
+use App\Enum\CommentStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -20,9 +21,12 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
     {
         return (int) $this->createQueryBuilder('n')
             ->select('COUNT(n.id)')
+            ->innerJoin('n.comment', 'c')
             ->andWhere('n.recipient = :recipient')
             ->andWhere('n.readAt IS NULL')
+            ->andWhere('c.status = :approved')
             ->setParameter('recipient', $recipient)
+            ->setParameter('approved', CommentStatus::Approved)
             ->getQuery()
             ->getSingleScalarResult();
     }
@@ -31,11 +35,16 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
     public function findRecentForRecipient(User $recipient, int $limit = 50): array
     {
         return $this->createQueryBuilder('n')
-            ->addSelect('c', 'a')
-            ->leftJoin('n.comment', 'c')
+            ->addSelect('c', 'a', 'triggered_by', 'article', 'place')
+            ->innerJoin('n.comment', 'c')
             ->leftJoin('c.author', 'a')
+            ->leftJoin('n.triggeredBy', 'triggered_by')
+            ->leftJoin('c.article', 'article')
+            ->leftJoin('c.place', 'place')
             ->andWhere('n.recipient = :recipient')
+            ->andWhere('c.status = :approved')
             ->setParameter('recipient', $recipient)
+            ->setParameter('approved', CommentStatus::Approved)
             ->orderBy('n.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
