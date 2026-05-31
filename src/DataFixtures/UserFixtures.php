@@ -8,8 +8,9 @@ use App\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 
-final class UserFixtures extends Fixture
+final class UserFixtures extends Fixture implements FixtureGroupInterface
 {
     public const ADMIN_REFERENCE = 'user.admin';
     public const USER_REFERENCE = 'user.normal';
@@ -17,7 +18,11 @@ final class UserFixtures extends Fixture
 
     public function __construct(
         private readonly UserPasswordHasherInterface $passwordHasher,
-    ) {
+    ) {}
+
+    public static function getGroups(): array
+    {
+        return ['user'];
     }
 
     public function load(ObjectManager $manager): void
