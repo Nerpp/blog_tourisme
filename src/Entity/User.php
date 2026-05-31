@@ -18,6 +18,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\HasLifecycleCallbacks]
 #[UniqueEntity(fields: ['email'], message: 'Cet email est deja utilise.')]
 #[UniqueEntity(fields: ['googleId'], message: 'Ce compte Google est deja associe a un utilisateur.')]
+#[UniqueEntity(fields: ['displayName'], message: 'Ce nom d\'utilisateur est deja utilise.')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     use TimestampableTrait;
@@ -44,7 +45,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
 
-    #[ORM\Column(length: 120, nullable: true)]
+    #[ORM\Column(length: 120, unique: true)]
+    #[Assert\NotBlank(message: 'Veuillez choisir un nom affiché.')]
+    #[Assert\Length(
+        min: 3,
+        max: 120,
+        minMessage: 'Le nom affiché doit contenir au moins {{ limit }} caractères.',
+        maxMessage: 'Le nom affiché ne peut pas dépasser {{ limit }} caractères.'
+    )]
     private ?string $displayName = null;
 
     #[ORM\Column(length: 255, nullable: true)]

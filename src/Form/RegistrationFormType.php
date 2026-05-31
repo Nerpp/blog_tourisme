@@ -29,7 +29,8 @@ class RegistrationFormType extends AbstractType
             ])
             ->add('displayName', TextType::class, [
                 'label' => 'Nom affiché',
-                'required' => false,
+                'required' => true,
+                'help' => 'Ce nom sera visible publiquement sur vos commentaires.',
             ])
             ->add('avatarFile', FileType::class, [
                 'label' => 'Image de profil',
