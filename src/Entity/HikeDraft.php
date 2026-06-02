@@ -40,6 +40,10 @@ class HikeDraft
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?Destination $destination = null;
 
+    #[ORM\ManyToOne(targetEntity: Destination::class)]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    private ?Destination $geographicDestination = null;
+
     #[ORM\Column(length: 150, nullable: true)]
     private ?string $detectedCommuneName = null;
 
@@ -146,6 +150,18 @@ class HikeDraft
     public function setDestination(?Destination $destination): static
     {
         $this->destination = $destination;
+
+        return $this;
+    }
+
+    public function getGeographicDestination(): ?Destination
+    {
+        return $this->geographicDestination;
+    }
+
+    public function setGeographicDestination(?Destination $geographicDestination): static
+    {
+        $this->geographicDestination = $geographicDestination;
 
         return $this;
     }

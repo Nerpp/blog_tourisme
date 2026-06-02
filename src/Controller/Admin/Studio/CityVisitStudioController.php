@@ -25,7 +25,10 @@ use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\MediaDeletionService;
 use App\Service\Media\VideoThumbnailGenerator;
+use App\Service\GeographicHierarchyResolver;
+use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -60,8 +63,11 @@ final class CityVisitStudioController extends AbstractController
         private readonly MediaVariantService $mediaVariantService,
         private readonly BulkMediaUploadService $bulkMediaUploadService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
+        private readonly MediaDeletionService $mediaDeletionService,
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
+        private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
+        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
     ) {}
 
     #[Route('/city-visits/{id}/edit', name: 'admin_studio_city_visit_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -92,6 +98,40 @@ final class CityVisitStudioController extends AbstractController
         }
 
         return $this->renderStudio($cityVisitDraft);
+    }
+
+    #[Route('/city-visits/{id}/delete', name: 'admin_studio_city_visit_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function delete(CityVisitDraft $cityVisitDraft, Request $request): RedirectResponse
+    {
+        $this->denyAccessUnlessGranted(ContentEditVoter::DELETE, $cityVisitDraft);
+
+        if (!$this->isCsrfTokenValid('studio_city_visit_delete_' . $cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'La suppression n’a pas pu être validée. Réessayez.');
+
+            return $this->redirectToRoute('admin_field_tools_city_visits');
+        }
+
+        $orphanCandidates = $this->cityVisitMediaCandidates($cityVisitDraft);
+        $destinationCandidate = $cityVisitDraft->getDestination();
+        $geographicDestinationCandidate = $cityVisitDraft->getGeographicDestination();
+
+        foreach ($cityVisitDraft->getArticleLinks() as $articleLink) {
+            $this->entityManager->remove($articleLink);
+        }
+
+        $this->entityManager->remove($cityVisitDraft);
+        $this->entityManager->flush();
+
+        foreach ($orphanCandidates as $media) {
+            $this->mediaDeletionService->deleteIfOrphan($media);
+        }
+        $this->orphanLocationCleanupService->cleanupDestinationIfOrphan($destinationCandidate);
+        $this->orphanLocationCleanupService->cleanupDestinationIfOrphan($geographicDestinationCandidate);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'La visite de ville a bien été supprimée.');
+
+        return $this->redirectToRoute('admin_field_tools_city_visits');
     }
 
     #[Route('/city-visits/{id}/media/photos', name: 'admin_studio_city_visit_media_photos', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -364,7 +404,18 @@ final class CityVisitStudioController extends AbstractController
         $cityVisitDraft
             ->setStatus($status)
             ->setDestination($destination)
+            ->setDetectedCommuneName($this->nullIfBlank($request->request->getString('detectedCommuneName')))
+            ->setDetectedCommuneCode($this->nullIfBlank($request->request->getString('detectedCommuneCode')))
+            ->setDetectedDepartmentName($this->nullIfBlank($request->request->getString('detectedDepartmentName')))
+            ->setDetectedRegionName($this->nullIfBlank($request->request->getString('detectedRegionName')))
             ->setNotes($notes);
+
+        $cityVisitDraft->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
+            $cityVisitDraft->getDetectedCommuneName(),
+            $cityVisitDraft->getDetectedCommuneCode(),
+            $cityVisitDraft->getDetectedDepartmentName(),
+            $cityVisitDraft->getDetectedRegionName(),
+        ));
 
         if ($this->isPublicStatus($status) && $cityVisitDraft->getFinishedAt() === null) {
             $cityVisitDraft->setFinishedAt(new DateTimeImmutable());
@@ -498,6 +549,30 @@ final class CityVisitStudioController extends AbstractController
         usort($mediaLinks, static fn(CityVisitDraftMedia $a, CityVisitDraftMedia $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
 
         return $mediaLinks;
+    }
+
+    /** @return list<MediaAsset> */
+    private function cityVisitMediaCandidates(CityVisitDraft $cityVisitDraft): array
+    {
+        $candidates = [];
+
+        foreach ($cityVisitDraft->getMediaLinks() as $mediaLink) {
+            $media = $mediaLink->getMediaAsset();
+            if ($media instanceof MediaAsset) {
+                $candidates[$media->getId() ?? spl_object_id($media)] = $media;
+            }
+        }
+
+        foreach ($cityVisitDraft->getPoints() as $point) {
+            foreach ($point->getMediaLinks() as $pointMediaLink) {
+                $media = $pointMediaLink->getMediaAsset();
+                if ($media instanceof MediaAsset) {
+                    $candidates[$media->getId() ?? spl_object_id($media)] = $media;
+                }
+            }
+        }
+
+        return array_values($candidates);
     }
 
     private function isImmersiveLink(CityVisitDraftMedia $mediaLink): bool

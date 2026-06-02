@@ -279,12 +279,14 @@
                 <div class="destination-content-grid">
                     {% for hike in hikes %}
                         {% set hike_url = path('app_hike_show', { slug: hike.slug }) %}
-                        {% set hike_department = hike.destination and department_context_by_destination_id[hike.destination.id] is defined ? department_context_by_destination_id[hike.destination.id] : null %}
+                        {% set hike_geographic_destination = hike.geographicDestination ?: hike.destination %}
+                        {% set hike_department = hike_geographic_destination and department_context_by_destination_id[hike_geographic_destination.id] is defined ? department_context_by_destination_id[hike_geographic_destination.id] : null %}
                         {% set hike_search %}
                             {{ hike.title }}
                             {{ hike.notes }}
                             Randonnée
-                            {{ hike.destination ? hike.destination.name : hike.detectedCommuneName }}
+                            {{ hike_geographic_destination ? hike_geographic_destination.name : hike.detectedCommuneName }}
+                            {{ hike.destination ? hike.destination.name : '' }}
                             {{ hike_department ? hike_department.name : '' }}
                             {{ hike.detectedDepartmentName }}
                             {{ hike.detectedRegionName }}
@@ -297,7 +299,7 @@
                             data-title="{{ hike.title|e('html_attr') }}"
                             data-url="{{ hike_url }}"
                             data-meta="Randonnée"
-                            data-context="{{ hike_department ? 'dans ' ~ hike_department.name : (hike.destination ? hike.destination.name : '') }}"
+                            data-context="{{ hike_department ? 'dans ' ~ hike_department.name : (hike_geographic_destination ? hike_geographic_destination.name : '') }}"
                             data-department-id="{{ hike_department ? hike_department.id : '' }}"
                             data-department-name="{{ hike_department ? hike_department.name|e('html_attr') : '' }}"
                             data-search="{{ hike_search|striptags|trim|e('html_attr') }}"
@@ -312,6 +314,7 @@
                             <div class="destination-resource-card__body">
                                 <div class="destination-resource-card__badges">
                                     <span>Randonnée</span>
+                                    {% if hike_geographic_destination %}<span>{{ hike_geographic_destination.name }}</span>{% endif %}
                                     {% if hike.destination %}<span>{{ hike.destination.name }}</span>{% endif %}
                                 </div>
                                 <h3>
@@ -345,12 +348,14 @@
                 <div class="destination-content-grid">
                     {% for city_visit in city_visits %}
                         {% set city_visit_url = path('app_city_visit_show', { slug: city_visit.slug }) %}
-                        {% set city_visit_department = city_visit.destination and department_context_by_destination_id[city_visit.destination.id] is defined ? department_context_by_destination_id[city_visit.destination.id] : null %}
+                        {% set city_visit_geographic_destination = city_visit.geographicDestination ?: city_visit.destination %}
+                        {% set city_visit_department = city_visit_geographic_destination and department_context_by_destination_id[city_visit_geographic_destination.id] is defined ? department_context_by_destination_id[city_visit_geographic_destination.id] : null %}
                         {% set city_visit_search %}
                             {{ city_visit.title }}
                             {{ city_visit.notes }}
                             Visite de ville
-                            {{ city_visit.destination ? city_visit.destination.name : city_visit.detectedCommuneName }}
+                            {{ city_visit_geographic_destination ? city_visit_geographic_destination.name : city_visit.detectedCommuneName }}
+                            {{ city_visit.destination ? city_visit.destination.name : '' }}
                             {{ city_visit_department ? city_visit_department.name : '' }}
                             {{ city_visit.detectedDepartmentName }}
                             {{ city_visit.detectedRegionName }}
@@ -363,7 +368,7 @@
                             data-title="{{ city_visit.title|e('html_attr') }}"
                             data-url="{{ city_visit_url }}"
                             data-meta="Visite"
-                            data-context="{{ city_visit_department ? 'dans ' ~ city_visit_department.name : (city_visit.destination ? city_visit.destination.name : '') }}"
+                            data-context="{{ city_visit_department ? 'dans ' ~ city_visit_department.name : (city_visit_geographic_destination ? city_visit_geographic_destination.name : '') }}"
                             data-department-id="{{ city_visit_department ? city_visit_department.id : '' }}"
                             data-department-name="{{ city_visit_department ? city_visit_department.name|e('html_attr') : '' }}"
                             data-search="{{ city_visit_search|striptags|trim|e('html_attr') }}"
@@ -378,6 +383,7 @@
                             <div class="destination-resource-card__body">
                                 <div class="destination-resource-card__badges">
                                     <span>Visite de ville</span>
+                                    {% if city_visit_geographic_destination %}<span>{{ city_visit_geographic_destination.name }}</span>{% endif %}
                                     {% if city_visit.destination %}<span>{{ city_visit.destination.name }}</span>{% endif %}
                                 </div>
                                 <h3>

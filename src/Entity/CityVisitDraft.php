@@ -48,6 +48,10 @@ class CityVisitDraft
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?Destination $destination = null;
 
+    #[ORM\ManyToOne(targetEntity: Destination::class)]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    private ?Destination $geographicDestination = null;
+
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?User $createdBy = null;
@@ -185,6 +189,18 @@ class CityVisitDraft
     public function setDestination(?Destination $destination): static
     {
         $this->destination = $destination;
+
+        return $this;
+    }
+
+    public function getGeographicDestination(): ?Destination
+    {
+        return $this->geographicDestination;
+    }
+
+    public function setGeographicDestination(?Destination $geographicDestination): static
+    {
+        $this->geographicDestination = $geographicDestination;
 
         return $this;
     }

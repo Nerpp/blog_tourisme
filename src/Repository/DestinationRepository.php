@@ -73,7 +73,8 @@ class DestinationRepository extends ServiceEntityRepository
                 'city_visits' => $cityVisits[$destinationId] ?? 0,
                 'total' => 0,
             ];
-            $directCounts[$destinationId]['total'] = $directCounts[$destinationId]['articles']
+            $directCounts[$destinationId]['total'] = $directCounts[$destinationId]['places']
+                + $directCounts[$destinationId]['articles']
                 + $directCounts[$destinationId]['hikes']
                 + $directCounts[$destinationId]['city_visits'];
         }
@@ -370,11 +371,11 @@ class DestinationRepository extends ServiceEntityRepository
     {
         $rows = $this->getEntityManager()->getConnection()->executeQuery(
             <<<'SQL'
-                SELECT h.destination_id, COUNT(h.id) AS content_count
+                SELECT COALESCE(h.geographic_destination_id, h.destination_id) AS destination_id, COUNT(h.id) AS content_count
                 FROM hike_draft h
-                WHERE h.destination_id IN (:destinationIds)
+                WHERE COALESCE(h.geographic_destination_id, h.destination_id) IN (:destinationIds)
                 AND h.status IN (:statuses)
-                GROUP BY h.destination_id
+                GROUP BY COALESCE(h.geographic_destination_id, h.destination_id)
             SQL,
             [
                 'destinationIds' => $destinationIds,
@@ -401,11 +402,11 @@ class DestinationRepository extends ServiceEntityRepository
     {
         $rows = $this->getEntityManager()->getConnection()->executeQuery(
             <<<'SQL'
-                SELECT c.destination_id, COUNT(c.id) AS content_count
+                SELECT COALESCE(c.geographic_destination_id, c.destination_id) AS destination_id, COUNT(c.id) AS content_count
                 FROM city_visit_draft c
-                WHERE c.destination_id IN (:destinationIds)
+                WHERE COALESCE(c.geographic_destination_id, c.destination_id) IN (:destinationIds)
                 AND c.status IN (:statuses)
-                GROUP BY c.destination_id
+                GROUP BY COALESCE(c.geographic_destination_id, c.destination_id)
             SQL,
             [
                 'destinationIds' => $destinationIds,
@@ -468,7 +469,7 @@ class DestinationRepository extends ServiceEntityRepository
             $counts['city_visits'] += $childCounts['city_visits'];
         }
 
-        $counts['total'] = $counts['articles'] + $counts['hikes'] + $counts['city_visits'];
+        $counts['total'] = $counts['places'] + $counts['articles'] + $counts['hikes'] + $counts['city_visits'];
         $memo[$destinationId] = $counts;
 
         return $counts;

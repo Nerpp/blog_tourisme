@@ -13,6 +13,7 @@ use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickHikeVoter;
+use App\Service\GeographicHierarchyResolver;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -40,6 +41,7 @@ final class QuickHikeController extends AbstractController
         private readonly DestinationRepository $destinationRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
+        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
         private readonly SluggerInterface $slugger,
     ) {}
 
@@ -86,6 +88,15 @@ final class QuickHikeController extends AbstractController
 
         if ($preparedCommune !== null) {
             $this->applyPreparedCommune($draft, $preparedCommune);
+            $draft->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
+                $preparedCommune['communeName'],
+                $preparedCommune['communeInseeCode'],
+                $preparedCommune['departmentName'],
+                $preparedCommune['regionName'],
+                $preparedCommune['country'],
+                $preparedCommune['latitude'],
+                $preparedCommune['longitude'],
+            ));
         }
 
         $user = $this->getUser();
@@ -184,7 +195,7 @@ final class QuickHikeController extends AbstractController
         }
 
         $location = $this->terrainLocationResolver->resolve((float) $formData['latitude'], (float) $formData['longitude']);
-        $this->applyDraftLocation($hikeDraft, $location['geocoding'], $location['destination']);
+        $this->applyDraftLocation($hikeDraft, $location['geocoding']);
 
         $point = $this->createPoint(
             $hikeDraft,
@@ -340,7 +351,7 @@ final class QuickHikeController extends AbstractController
     }
 
     /** @param array<string, string>|null $geocoding */
-    private function applyDraftLocation(HikeDraft $draft, ?array $geocoding, ?Destination $destination): void
+    private function applyDraftLocation(HikeDraft $draft, ?array $geocoding): void
     {
         if (null !== $geocoding && null === $draft->getDetectedCommuneName()) {
             $draft
@@ -350,8 +361,13 @@ final class QuickHikeController extends AbstractController
                 ->setDetectedRegionName($geocoding['regionName']);
         }
 
-        if (null === $draft->getDestination() && $destination instanceof Destination) {
-            $draft->setDestination($destination);
+        if (null !== $geocoding && null === $draft->getGeographicDestination()) {
+            $draft->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
+                $geocoding['communeName'],
+                $geocoding['communeCode'],
+                $geocoding['departmentName'],
+                $geocoding['regionName'],
+            ));
         }
     }
 

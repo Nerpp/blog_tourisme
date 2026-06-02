@@ -2,6 +2,16 @@
 
 {% block title %}Visites de ville rapides{% endblock %}
 
+{% block stylesheets %}
+    <style>
+        .studio-city-visit-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+    </style>
+{% endblock %}
+
 {% block body %}
     <header class="admin-header">
         <div>
@@ -22,7 +32,7 @@
                     <th>Points</th>
                     <th>Google Maps</th>
                     <th>Création</th>
-                    <th>Studio</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -41,7 +51,15 @@
                             {% endif %}
                         </td>
                         <td>{{ city_visit.createdAt ? city_visit.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
-                        <td><a class="admin-button admin-button--secondary" href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}">Ouvrir</a></td>
+                        <td>
+                            <div class="studio-city-visit-actions">
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}">Ouvrir</a>
+                                <form method="post" action="{{ path('admin_studio_city_visit_delete', { id: city_visit.id }) }}" onsubmit="return confirm('Supprimer cette visite de ville ? Les images locales inutilisées et les destinations devenues orphelines pourront aussi être supprimées.');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_delete_' ~ city_visit.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger-soft" type="submit">Supprimer</button>
+                                </form>
+                            </div>
+                        </td>
                     </tr>
                 {% else %}
                     <tr><td colspan="8">Aucune visite de ville rapide.</td></tr>

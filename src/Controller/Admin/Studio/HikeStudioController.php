@@ -28,6 +28,8 @@ use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\VideoThumbnailGenerator;
+use App\Service\GeographicHierarchyResolver;
+use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -67,6 +69,8 @@ final class HikeStudioController extends AbstractController
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
+        private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
+        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
     ) {}
 
     #[Route('/hikes/{id}/edit', name: 'admin_studio_hike_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -110,6 +114,8 @@ final class HikeStudioController extends AbstractController
         }
 
         $orphanCandidates = $this->hikeMediaCandidates($hikeDraft);
+        $destinationCandidate = $hikeDraft->getDestination();
+        $geographicDestinationCandidate = $hikeDraft->getGeographicDestination();
 
         foreach ($hikeDraft->getArticleLinks() as $articleLink) {
             $this->entityManager->remove($articleLink);
@@ -121,6 +127,8 @@ final class HikeStudioController extends AbstractController
         foreach ($orphanCandidates as $media) {
             $this->mediaDeletionService->deleteIfOrphan($media);
         }
+        $this->orphanLocationCleanupService->cleanupDestinationIfOrphan($destinationCandidate);
+        $this->orphanLocationCleanupService->cleanupDestinationIfOrphan($geographicDestinationCandidate);
         $this->entityManager->flush();
 
         $this->addFlash('success', 'La randonnée a bien été supprimée.');
@@ -498,7 +506,18 @@ final class HikeStudioController extends AbstractController
         $hikeDraft
             ->setStatus($status)
             ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
+            ->setDetectedCommuneName($this->nullIfBlank($request->request->getString('detectedCommuneName')))
+            ->setDetectedCommuneCode($this->nullIfBlank($request->request->getString('detectedCommuneCode')))
+            ->setDetectedDepartmentName($this->nullIfBlank($request->request->getString('detectedDepartmentName')))
+            ->setDetectedRegionName($this->nullIfBlank($request->request->getString('detectedRegionName')))
             ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+
+        $hikeDraft->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
+            $hikeDraft->getDetectedCommuneName(),
+            $hikeDraft->getDetectedCommuneCode(),
+            $hikeDraft->getDetectedDepartmentName(),
+            $hikeDraft->getDetectedRegionName(),
+        ));
 
         if ($this->isPublicStatus($status) && $hikeDraft->getFinishedAt() === null) {
             $hikeDraft->setFinishedAt(new DateTimeImmutable());
@@ -543,7 +562,7 @@ final class HikeStudioController extends AbstractController
     /** @return list<string> */
     private function hikeLocationBadges(HikeDraft $hikeDraft): array
     {
-        $destination = $hikeDraft->getDestination();
+        $destination = $hikeDraft->getGeographicDestination();
         if ($destination instanceof Destination) {
             return $this->destinationLocationBadges($destination);
         }

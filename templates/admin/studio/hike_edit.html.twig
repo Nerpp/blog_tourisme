@@ -149,6 +149,22 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="studio-field">
+                    <label for="hike-commune">Commune</label>
+                    <input form="{{ main_form_id }}" id="hike-commune" name="detectedCommuneName" value="{{ hike.detectedCommuneName }}">
+                </div>
+                <div class="studio-field">
+                    <label for="hike-commune-code">Code INSEE</label>
+                    <input form="{{ main_form_id }}" id="hike-commune-code" name="detectedCommuneCode" value="{{ hike.detectedCommuneCode }}">
+                </div>
+                <div class="studio-field">
+                    <label for="hike-department">Département</label>
+                    <input form="{{ main_form_id }}" id="hike-department" name="detectedDepartmentName" value="{{ hike.detectedDepartmentName }}">
+                </div>
+                <div class="studio-field">
+                    <label for="hike-region">Région</label>
+                    <input form="{{ main_form_id }}" id="hike-region" name="detectedRegionName" value="{{ hike.detectedRegionName }}">
+                </div>
                 <div class="studio-field studio-field--full">
                     <label for="hike-notes">Notes</label>
                     <textarea form="{{ main_form_id }}" id="hike-notes" name="notes" rows="8">{{ hike.notes }}</textarea>

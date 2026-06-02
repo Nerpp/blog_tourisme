@@ -46,7 +46,7 @@
                         <td>
                             <div class="studio-hike-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir</a>
-                                <form method="post" action="{{ path('admin_studio_hike_delete', { id: hike.id }) }}" onsubmit="return confirm('Supprimer cette randonnée ? Les images locales qui ne sont utilisées nulle part ailleurs seront aussi supprimées.');">
+                                <form method="post" action="{{ path('admin_studio_hike_delete', { id: hike.id }) }}" onsubmit="return confirm('Supprimer cette randonnée ? Les images locales inutilisées et les destinations devenues orphelines pourront aussi être supprimées.');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_delete_' ~ hike.id) }}">
                                     <button class="admin-button admin-button--small admin-button--danger-soft" type="submit">Supprimer</button>
                                 </form>

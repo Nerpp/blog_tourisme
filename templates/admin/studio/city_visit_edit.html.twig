@@ -17,6 +17,9 @@
                 <div class="studio-meta">
                     <span class="studio-badge">{{ status_options[city_visit.status.value] ?? city_visit.status.value }}</span>
                     <span class="studio-badge studio-badge--muted">{{ city_visit.detectedCommuneName ?: 'Commune non détectée' }}</span>
+                    {% if city_visit.geographicDestination %}
+                        <span class="studio-badge studio-badge--muted">Hiérarchie : {{ city_visit.geographicDestination.name }}</span>
+                    {% endif %}
                     <span class="studio-badge studio-badge--muted">{{ city_visit.destination ? city_visit.destination.name : 'Destination non associée' }}</span>
                 </div>
             </div>
@@ -60,6 +63,22 @@
                             <option value="{{ destination.id }}" {% if city_visit.destination and city_visit.destination.id == destination.id %}selected{% endif %}>{{ destination.name }} · {{ destination.type.value }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-commune">Commune</label>
+                    <input form="{{ main_form_id }}" id="city-visit-commune" name="detectedCommuneName" value="{{ city_visit.detectedCommuneName }}">
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-commune-code">Code INSEE</label>
+                    <input form="{{ main_form_id }}" id="city-visit-commune-code" name="detectedCommuneCode" value="{{ city_visit.detectedCommuneCode }}">
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-department">Département</label>
+                    <input form="{{ main_form_id }}" id="city-visit-department" name="detectedDepartmentName" value="{{ city_visit.detectedDepartmentName }}">
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-region">Région</label>
+                    <input form="{{ main_form_id }}" id="city-visit-region" name="detectedRegionName" value="{{ city_visit.detectedRegionName }}">
                 </div>
                 <div class="studio-field studio-field--full">
                     <label for="city-visit-notes">Introduction publique</label>

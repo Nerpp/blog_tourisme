@@ -39,7 +39,7 @@
                             <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_places_edit', { id: place.id }) }}">Modifier</a>
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_place_edit', { id: place.id }) }}">Ouvrir dans le Studio</a>
-                                <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Supprimer ce repérage ? Cette action est définitive. Les médias non utilisés ailleurs seront aussi supprimés.');">
+                                <form method="post" action="{{ path('admin_places_delete', { id: place.id }) }}" onsubmit="return confirm('Supprimer ce repérage ? Cette action est définitive. Les médias inutilisés et les destinations devenues orphelines pourront aussi être supprimés.');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('admin_place_delete_' ~ place.id) }}">
                                     <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer</button>
                                 </form>

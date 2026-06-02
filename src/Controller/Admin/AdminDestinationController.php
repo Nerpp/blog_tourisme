@@ -7,6 +7,7 @@ use App\Enum\DestinationType;
 use App\Repository\DestinationRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
+use App\Service\OrphanLocationCleanupService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -22,6 +23,7 @@ final class AdminDestinationController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly SluggerInterface $slugger,
+        private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
     ) {
     }
 
@@ -90,13 +92,13 @@ final class AdminDestinationController extends AbstractController
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
 
-        if ($destination->getChildren()->count() > 0 || $destination->getPlaces()->count() > 0 || $destination->getArticleLinks()->count() > 0) {
-            $this->addFlash('warning', 'Cette destination est encore utilisée et ne peut pas être supprimée.');
+        $result = $this->orphanLocationCleanupService->cleanupDestinationIfOrphan($destination);
+        if ($result['status'] !== 'deleted') {
+            $this->addFlash('warning', 'Cette destination est encore utilisée ou possède des enfants et ne peut pas être supprimée.');
 
             return $this->redirectToRoute('admin_destinations_index');
         }
 
-        $this->entityManager->remove($destination);
         $this->entityManager->flush();
         $this->addFlash('success', 'Destination supprimée.');
 

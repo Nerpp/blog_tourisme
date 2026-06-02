@@ -65,8 +65,12 @@ class CityVisitDraftRepository extends ServiceEntityRepository
     public function findPublicBySlug(string $slug): ?CityVisitDraft
     {
         return $this->createQueryBuilder('c')
-            ->addSelect('destination', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
+            ->addSelect('destination', 'geographicDestination', 'geographicDestinationParent', 'geographicDestinationGrandParent', 'geographicDestinationGreatGrandParent', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('c.destination', 'destination')
+            ->leftJoin('c.geographicDestination', 'geographicDestination')
+            ->leftJoin('geographicDestination.parent', 'geographicDestinationParent')
+            ->leftJoin('geographicDestinationParent.parent', 'geographicDestinationGrandParent')
+            ->leftJoin('geographicDestinationGrandParent.parent', 'geographicDestinationGreatGrandParent')
             ->leftJoin('destination.parent', 'destinationParent')
             ->leftJoin('destinationParent.parent', 'destinationGrandParent')
             ->leftJoin('destinationGrandParent.parent', 'destinationGreatGrandParent')
@@ -99,7 +103,8 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->addSelect('mediaLinks', 'mediaAssets')
             ->innerJoin('c.mediaLinks', 'mediaLinks')
             ->innerJoin('mediaLinks.mediaAsset', 'mediaAssets', 'WITH', 'mediaAssets.mediaType = :mediaType')
-            ->andWhere('c.destination = :destination')
+            ->leftJoin('c.geographicDestination', 'geographicDestination')
+            ->andWhere('geographicDestination = :destination OR (geographicDestination IS NULL AND c.destination = :destination)')
             ->andWhere('c.status IN (:statuses)')
             ->setParameter('destination', $destination)
             ->setParameter('mediaType', MediaType::Image)
@@ -127,8 +132,9 @@ class CityVisitDraftRepository extends ServiceEntityRepository
         }
 
         return $this->createQueryBuilder('c')
-            ->addSelect('destination', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
+            ->addSelect('destination', 'geographicDestination', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('c.destination', 'destination')
+            ->leftJoin('c.geographicDestination', 'geographicDestination')
             ->leftJoin('c.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
             ->leftJoin('c.articleLinks', 'articleLinks')
@@ -137,7 +143,7 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
             ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
             ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
-            ->andWhere('destination.id IN (:destinationIds)')
+            ->andWhere('geographicDestination.id IN (:destinationIds) OR (geographicDestination.id IS NULL AND destination.id IN (:destinationIds))')
             ->andWhere('c.status IN (:statuses)')
             ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
             ->setParameter('statuses', [

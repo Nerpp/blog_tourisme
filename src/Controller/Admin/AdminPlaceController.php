@@ -15,6 +15,7 @@ use App\Repository\PlaceRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\Media\MediaDeletionService;
+use App\Service\OrphanLocationCleanupService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -31,6 +32,7 @@ final class AdminPlaceController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly SluggerInterface $slugger,
         private readonly MediaDeletionService $mediaDeletionService,
+        private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
     ) {
     }
 
@@ -99,6 +101,7 @@ final class AdminPlaceController extends AbstractController
         }
 
         $orphanCandidates = $this->placeMediaCandidates($place);
+        $destinationCandidate = $place->getDestination();
         foreach ($place->getArticleLinks() as $articleLink) {
             $this->entityManager->remove($articleLink);
         }
@@ -124,6 +127,7 @@ final class AdminPlaceController extends AbstractController
             foreach ($orphanCandidates as $media) {
                 $this->mediaDeletionService->deleteIfOrphan($media);
             }
+            $this->orphanLocationCleanupService->cleanupDestinationIfOrphan($destinationCandidate);
             $this->entityManager->flush();
         } catch (\Throwable $exception) {
             $this->addFlash('error', 'Le repérage n’a pas pu être supprimé.');

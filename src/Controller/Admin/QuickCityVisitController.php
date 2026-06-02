@@ -13,6 +13,7 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickCityVisitVoter;
+use App\Service\GeographicHierarchyResolver;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -38,6 +39,7 @@ final class QuickCityVisitController extends AbstractController
         private readonly DestinationRepository $destinationRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
+        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
         private readonly SluggerInterface $slugger,
     ) {}
 
@@ -151,7 +153,7 @@ final class QuickCityVisitController extends AbstractController
 
         $pointType = CityVisitPointType::tryFrom($formData['type']) ?? CityVisitPointType::Other;
         $location = $this->terrainLocationResolver->resolve((float) $formData['latitude'], (float) $formData['longitude']);
-        $this->applyDraftLocation($cityVisitDraft, $location['geocoding'], $location['destination']);
+        $this->applyDraftLocation($cityVisitDraft, $location['geocoding']);
 
         $point = $this->createPoint(
             $cityVisitDraft,
@@ -297,7 +299,7 @@ final class QuickCityVisitController extends AbstractController
     }
 
     /** @param array<string, string>|null $geocoding */
-    private function applyDraftLocation(CityVisitDraft $draft, ?array $geocoding, ?Destination $destination): void
+    private function applyDraftLocation(CityVisitDraft $draft, ?array $geocoding): void
     {
         if (null !== $geocoding && null === $draft->getDetectedCommuneName()) {
             $draft
@@ -307,8 +309,13 @@ final class QuickCityVisitController extends AbstractController
                 ->setDetectedRegionName($geocoding['regionName']);
         }
 
-        if (null === $draft->getDestination() && $destination instanceof Destination) {
-            $draft->setDestination($destination);
+        if (null !== $geocoding && null === $draft->getGeographicDestination()) {
+            $draft->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
+                $geocoding['communeName'],
+                $geocoding['communeCode'],
+                $geocoding['departmentName'],
+                $geocoding['regionName'],
+            ));
         }
     }
 

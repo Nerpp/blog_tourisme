@@ -49,9 +49,10 @@ final class DestinationController extends AbstractController
         $destinationIds = $destinationRepository->findDestinationAndDescendantIds($destination);
         $contentDestinationIds = $this->contentDestinationIds($destination, $destinationIds);
         $destinationsInScope = $destinationRepository->findWithParentsByIds($destinationIds);
+        $destinationCounts = $destinationRepository->findCumulativeContentCountsForTree([$destination]);
         $departmentByDestinationId = $this->departmentByDestinationId($destination, $destinationsInScope);
         $departmentContextByDestinationId = $this->departmentContextByDestinationId($departmentByDestinationId);
-        $exploreDestinations = $this->exploreDestinations($destination);
+        $exploreDestinations = $this->exploreDestinations($destination, $destinationCounts);
         $isContentLevel = $this->isContentLevel($destination);
         $articles = $isContentLevel ? $articleRepository->findPublishedByDestinationIds($contentDestinationIds) : [];
         $hikes = $isContentLevel ? $hikeDraftRepository->findPublicByDestinationIds($contentDestinationIds) : [];
@@ -164,7 +165,12 @@ final class DestinationController extends AbstractController
 
         foreach ($article->getHikeLinks() as $link) {
             $hike = $link->getHikeDraft();
-            if (!$hike instanceof HikeDraft || !$this->isPublicHike($hike) || !$this->destinationMatches($hike->getDestination(), $destinationIds)) {
+            if (!$hike instanceof HikeDraft || !$this->isPublicHike($hike)) {
+                continue;
+            }
+
+            $hikeDestination = $this->contentGeographicDestination($hike);
+            if (!$this->destinationMatches($hikeDestination, $destinationIds)) {
                 continue;
             }
 
@@ -172,13 +178,18 @@ final class DestinationController extends AbstractController
                 'context_label' => sprintf('Article lié à la randonnée %s', $hike->getTitle()),
                 'context_title' => $hike->getTitle(),
                 'role_label' => $this->roleLabel($link->getRole()),
-                'context_destination' => $hike->getDestination(),
+                'context_destination' => $hikeDestination,
             ];
         }
 
         foreach ($article->getCityVisitLinks() as $link) {
             $cityVisit = $link->getCityVisitDraft();
-            if (!$cityVisit instanceof CityVisitDraft || !$this->isPublicCityVisit($cityVisit) || !$this->destinationMatches($cityVisit->getDestination(), $destinationIds)) {
+            if (!$cityVisit instanceof CityVisitDraft || !$this->isPublicCityVisit($cityVisit)) {
+                continue;
+            }
+
+            $cityVisitDestination = $this->contentGeographicDestination($cityVisit);
+            if (!$this->destinationMatches($cityVisitDestination, $destinationIds)) {
                 continue;
             }
 
@@ -186,7 +197,7 @@ final class DestinationController extends AbstractController
                 'context_label' => sprintf('Article lié à la visite %s', $cityVisit->getTitle()),
                 'context_title' => $cityVisit->getTitle(),
                 'role_label' => $this->roleLabel($link->getRole()),
-                'context_destination' => $cityVisit->getDestination(),
+                'context_destination' => $cityVisitDestination,
             ];
         }
 
@@ -273,9 +284,21 @@ final class DestinationController extends AbstractController
     /**
      * @return list<Destination>
      */
-    private function exploreDestinations(Destination $destination): array
+    /**
+     * @param array<int, array{total: int}> $destinationCounts
+     *
+     * @return list<Destination>
+     */
+    private function exploreDestinations(Destination $destination, array $destinationCounts): array
     {
-        $children = $destination->getChildren()->toArray();
+        $children = array_values(array_filter(
+            $destination->getChildren()->toArray(),
+            static function (Destination $child) use ($destinationCounts): bool {
+                $childId = $child->getId();
+
+                return $childId !== null && ($destinationCounts[$childId]['total'] ?? 0) > 0;
+            },
+        ));
 
         if ($destination->getType() !== DestinationType::Region) {
             return $children;
@@ -420,14 +443,14 @@ final class DestinationController extends AbstractController
         }
 
         foreach ($hikes as $hike) {
-            $departmentId = $this->departmentForDestination($hike->getDestination(), $departmentByDestinationId)?->getId();
+            $departmentId = $this->departmentForDestination($this->contentGeographicDestination($hike), $departmentByDestinationId)?->getId();
             if ($departmentId !== null && isset($summaries[$departmentId])) {
                 ++$summaries[$departmentId]['hikes'];
             }
         }
 
         foreach ($cityVisits as $cityVisit) {
-            $departmentId = $this->departmentForDestination($cityVisit->getDestination(), $departmentByDestinationId)?->getId();
+            $departmentId = $this->departmentForDestination($this->contentGeographicDestination($cityVisit), $departmentByDestinationId)?->getId();
             if ($departmentId !== null && isset($summaries[$departmentId])) {
                 ++$summaries[$departmentId]['city_visits'];
             }
@@ -465,6 +488,11 @@ final class DestinationController extends AbstractController
     private function isPublicCityVisit(CityVisitDraft $cityVisit): bool
     {
         return in_array($cityVisit->getStatus(), [CityVisitDraftStatus::Finished, CityVisitDraftStatus::Converted], true);
+    }
+
+    private function contentGeographicDestination(HikeDraft|CityVisitDraft $content): ?Destination
+    {
+        return $content->getGeographicDestination() ?? $content->getDestination();
     }
 
     private function roleLabel(string $role): ?string
@@ -507,7 +535,7 @@ final class DestinationController extends AbstractController
             $summary['city_visits'] += $destinationCounts[$id]['city_visits'];
         }
 
-        $summary['total'] = $summary['articles'] + $summary['hikes'] + $summary['city_visits'];
+        $summary['total'] = $summary['places'] + $summary['articles'] + $summary['hikes'] + $summary['city_visits'];
 
         return $summary;
     }

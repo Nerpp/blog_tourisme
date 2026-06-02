@@ -14,6 +14,7 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
+use App\Service\GeographicHierarchyResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -39,6 +40,7 @@ final class QuickDestinationController extends AbstractController
         private readonly DestinationRepository $destinationRepository,
         private readonly HikeDraftRepository $hikeDraftRepository,
         private readonly CityVisitDraftRepository $cityVisitDraftRepository,
+        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
         private readonly SluggerInterface $slugger,
     ) {
     }
@@ -160,7 +162,16 @@ final class QuickDestinationController extends AbstractController
             ->setDetectedCommuneName($commune['communeName'])
             ->setDetectedCommuneCode($commune['communeInseeCode'])
             ->setDetectedDepartmentName($commune['departmentName'])
-            ->setDetectedRegionName($commune['regionName']);
+            ->setDetectedRegionName($commune['regionName'])
+            ->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
+                $commune['communeName'],
+                $commune['communeInseeCode'],
+                $commune['departmentName'],
+                $commune['regionName'],
+                $commune['country'],
+                $commune['latitude'],
+                $commune['longitude'],
+            ));
 
         $user = $this->getUser();
         if ($user instanceof User) {
@@ -198,7 +209,16 @@ final class QuickDestinationController extends AbstractController
             ->setDetectedCommuneName($commune['communeName'])
             ->setDetectedCommuneCode($commune['communeInseeCode'])
             ->setDetectedDepartmentName($commune['departmentName'])
-            ->setDetectedRegionName($commune['regionName']);
+            ->setDetectedRegionName($commune['regionName'])
+            ->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
+                $commune['communeName'],
+                $commune['communeInseeCode'],
+                $commune['departmentName'],
+                $commune['regionName'],
+                $commune['country'],
+                $commune['latitude'],
+                $commune['longitude'],
+            ));
 
         $user = $this->getUser();
         if ($user instanceof User) {
