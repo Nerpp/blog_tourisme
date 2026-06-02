@@ -73,6 +73,18 @@
             "App\\Tests\\": "tests/"
         }
     },
+    "scripts": {
+        "test": "php vendor/bin/phpunit",
+        "test:unit": "php vendor/bin/phpunit --testsuite Unit",
+        "test:functional": "php vendor/bin/phpunit --testsuite Functional",
+        "quality": [
+            "php bin/console lint:container",
+            "php bin/console lint:twig templates",
+            "php bin/console doctrine:schema:validate --skip-sync",
+            "php vendor/bin/phpunit"
+        ],
+        "quality:frontend": "npm run build"
+    },
     "config": {
         "allow-plugins": {
             "symfony/runtime": true,

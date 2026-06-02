@@ -3,6 +3,7 @@
 /.env.*.local
 /vendor/
 /node_modules/
+/.phpunit.cache/
 /var/
 /public/build/
 /config/reference.php
