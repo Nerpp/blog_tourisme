@@ -26,6 +26,7 @@
 {% set quick_destination_skip_label = quick_destination_skip_label|default('Continuer sans destination') %}
 {% set quick_destination_submit_label = quick_destination_submit_label|default(null) %}
 {% set quick_destination_france_text = quick_destination_france_text|default('Recherchez une commune française. La région, le département, le code INSEE et les coordonnées seront complétés automatiquement.') %}
+{% set quick_destination_france_only = quick_destination_france_only|default(false) %}
 {% set redirect_anchor = redirect_anchor|default(null) %}
 
 <section class="{{ container_class }}" data-quick-destination>
@@ -170,10 +171,12 @@
             <h3 class="quick-destination__title">Changer ou créer une autre destination</h3>
         {% endif %}
 
-        <div class="quick-destination__mode-switch" role="group" aria-label="Type de destination">
-            <button class="quick-destination__mode-button is-active" type="button" data-destination-mode="france" aria-pressed="true">Destination en France</button>
-            <button class="quick-destination__mode-button" type="button" data-destination-mode="foreign" aria-pressed="false">Destination hors France</button>
-        </div>
+        {% if not quick_destination_france_only %}
+            <div class="quick-destination__mode-switch" role="group" aria-label="Type de destination">
+                <button class="quick-destination__mode-button is-active" type="button" data-destination-mode="france" aria-pressed="true">Destination en France</button>
+                <button class="quick-destination__mode-button" type="button" data-destination-mode="foreign" aria-pressed="false">Destination hors France</button>
+            </div>
+        {% endif %}
 
         <section class="quick-destination__panel" data-destination-panel="france">
             <p class="quick-destination__text">{{ quick_destination_france_text }}</p>
@@ -224,6 +227,7 @@
             </details>
         </section>
 
+        {% if not quick_destination_france_only %}
         <section class="quick-destination__panel" data-destination-panel="foreign" hidden>
             <p class="quick-destination__text">Pour une destination hors France, renseignez les informations principales manuellement.</p>
             <input type="hidden" name="type" value="area" data-destination-mode-field="foreign" disabled>
@@ -262,6 +266,7 @@
                 </div>
             </details>
         </section>
+        {% endif %}
 
         <p class="quick-destination__status" data-quick-destination-status aria-live="polite"></p>
         <div class="quick-destination__actions">

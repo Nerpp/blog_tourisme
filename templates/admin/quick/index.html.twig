@@ -1,0 +1,82 @@
+{% extends 'admin/field_tool/base.html.twig' %}
+
+{% block title %}Création rapide{% endblock %}
+
+{% block body %}
+    <section class="field-card">
+        <h1 class="field-title">Création rapide</h1>
+        <p class="field-subtitle">Que voulez-vous créer ?</p>
+
+        <div class="field-actions">
+            <a class="field-button {{ quick_type == 'hike' ? '' : 'field-button--secondary' }}" href="{{ path('admin_quick_index', { type: 'hike' }) }}">Randonnée</a>
+            <a class="field-button {{ quick_type == 'city_visit' ? '' : 'field-button--secondary' }}" href="{{ path('admin_quick_index', { type: 'city_visit' }) }}">Visite de ville</a>
+        </div>
+    </section>
+
+    {% if quick_type and quick_labels %}
+        {% if quick_mode is same as('terrain') %}
+            <section class="field-card">
+                <h1 class="field-title">{{ quick_labels.terrainTitle }}</h1>
+                <p class="field-subtitle">
+                    {% if quick_type == 'hike' %}
+                        Utilisez ce mode si vous êtes sur place. Votre position GPS servira à enregistrer le point de départ.
+                    {% else %}
+                        Utilisez ce mode si vous êtes sur place. Les lieux et étapes seront ajoutés ensuite avec votre position GPS.
+                    {% endif %}
+                </p>
+
+                <form class="field-stack" method="post" action="{{ path(start_route) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token(start_token_id) }}">
+                    <input type="hidden" name="title" value="{{ default_title }}">
+                    {% if quick_type == 'hike' %}
+                        <input type="hidden" name="creation_mode" value="field">
+                    {% endif %}
+
+                    <div class="field-row">
+                        <label class="field-label" for="quick-notes">{{ quick_labels.notesLabel }}</label>
+                        <textarea id="quick-notes" class="field-textarea" name="notes" placeholder="Optionnel"></textarea>
+                    </div>
+
+                    <button class="field-button" type="submit">{{ quick_labels.terrainButton }}</button>
+                </form>
+            </section>
+        {% elseif quick_mode is same as('distance') %}
+            <section class="field-card">
+                <h1 class="field-title">{{ quick_labels.distanceTitle }}</h1>
+                <p class="field-subtitle">Choisissez une commune, puis créez un brouillon à compléter dans l’administration.</p>
+            </section>
+
+            <div id="quick-distance"></div>
+            {% include 'admin/_quick_destination_form.html.twig' with {
+                ui_context: 'field',
+                current_destination: null,
+                quick_destination_title: quick_labels.locationTitle,
+                quick_destination_france_text: quick_labels.locationText,
+                quick_destination_france_only: true,
+                quick_destination_submit_label: quick_labels.locationSubmit,
+                quick_destination_allow_skip: false,
+                destination_quick_create: destination_quick_create,
+                destination_type_options: destination_type_options,
+                destination_parent_options: destination_parent_options
+            } only %}
+        {% else %}
+            <section class="field-card">
+                <h1 class="field-title">{{ quick_labels.terrainTitle }}</h1>
+                <p class="field-subtitle">
+                    {% if quick_type == 'hike' %}
+                        À utiliser quand vous êtes sur place. Le GPS sert à enregistrer le point de départ et les points utiles.
+                    {% else %}
+                        À utiliser quand vous êtes sur place. Le GPS sert à enregistrer les lieux à découvrir.
+                    {% endif %}
+                </p>
+                <a class="field-button" href="{{ path('admin_quick_index', { type: quick_type, mode: 'terrain' }) }}">{{ quick_labels.terrainButton }}</a>
+            </section>
+
+            <section class="field-card">
+                <h1 class="field-title">{{ quick_labels.distanceTitle }}</h1>
+                <p class="field-subtitle">Préparez un brouillon depuis une commune française, sans créer de destination éditoriale.</p>
+                <a class="field-button field-button--secondary" href="{{ path('admin_quick_index', { type: quick_type, mode: 'distance' }) }}#quick-distance">{{ quick_labels.distanceButton }}</a>
+            </section>
+        {% endif %}
+    {% endif %}
+{% endblock %}

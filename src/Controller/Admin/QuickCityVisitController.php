@@ -42,28 +42,17 @@ final class QuickCityVisitController extends AbstractController
     ) {}
 
     #[Route('', name: 'index', methods: ['GET'])]
-    public function index(Request $request): Response
+    public function index(Request $request): RedirectResponse
     {
         if ($redirect = $this->denyUnlessAdmin()) {
             return $redirect;
         }
 
-        $user = $this->getUser();
-        if ($user instanceof User && ($draft = $this->cityVisitDraftRepository->findCurrentDraftForUser($user)) instanceof CityVisitDraft) {
-            return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $draft->getId()]);
-        }
+        $mode = $request->query->getString('mode');
 
-        return $this->render('admin/quick_city_visit/index.html.twig', [
-            'default_title' => $this->defaultVisitTitle(),
-            'current_destination' => $this->preparedDestination($request),
-            'prepared_destination_postal_code' => $this->preparedDestinationPostalCode($request),
-            'quick_destination_title' => 'Destination préparée',
-            'quick_destination_prepared_text' => 'Cette destination sera utilisée pour créer un brouillon de visite.',
-            'quick_destination_skip_action' => $this->generateUrl('admin_quick_city_visit_clear_destination'),
-            'quick_destination_skip_token_id' => 'quick_city_visit_clear_destination',
-            'destination_type_options' => $this->destinationTypeOptions(),
-            'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
-            'destination_quick_create' => $this->emptyDestinationQuickCreateData(),
+        return $this->redirectToRoute('admin_quick_index', [
+            'type' => 'city_visit',
+            'mode' => in_array($mode, ['terrain', 'distance'], true) ? $mode : 'choice',
         ]);
     }
 
@@ -236,7 +225,7 @@ final class QuickCityVisitController extends AbstractController
             'destination_type_options' => $this->destinationTypeOptions(),
             'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
             'destination_quick_create' => $this->destinationQuickCreateData($cityVisitDraft),
-            'admin_back_url' => $this->generateUrl('admin_field_tools_index'),
+            'admin_back_url' => $this->generateUrl('admin_quick_index'),
         ], new Response(status: $status));
     }
 
@@ -335,27 +324,6 @@ final class QuickCityVisitController extends AbstractController
         ];
     }
 
-    /** @return array<string, float|int|string|null> */
-    private function emptyDestinationQuickCreateData(): array
-    {
-        return [
-            'contextType' => 'quick_city_visit',
-            'contextId' => null,
-            'targetType' => 'quick_city_visit',
-            'targetId' => null,
-            'name' => '',
-            'countryName' => '',
-            'regionName' => '',
-            'departmentName' => '',
-            'cityName' => '',
-            'parent' => null,
-            'type' => DestinationType::Area->value,
-            'code' => '',
-            'latitude' => null,
-            'longitude' => null,
-        ];
-    }
-
     private function preparedDestination(Request $request): ?Destination
     {
         $destinationId = $this->nullableInt($request->getSession()->get(self::PREPARED_DESTINATION_SESSION_KEY));
@@ -372,13 +340,6 @@ final class QuickCityVisitController extends AbstractController
         }
 
         return $destination;
-    }
-
-    private function preparedDestinationPostalCode(Request $request): ?string
-    {
-        $postalCode = trim((string) $request->getSession()->get(self::PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY, ''));
-
-        return $postalCode !== '' ? $postalCode : null;
     }
 
     private function clearPreparedDestination(Request $request): void

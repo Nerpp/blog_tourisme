@@ -632,10 +632,8 @@
                     </section>
                     <section>
                         <h2>Outils terrain</h2>
-                        <a href="{{ path('admin_quick_hike_index') }}">Nouvelle rando rapide</a>
-                        <a href="{{ path('admin_quick_city_visit_index') }}">Nouvelle visite de ville rapide</a>
-                        <a href="{{ path('admin_field_tools_hikes') }}" class="{{ route == 'admin_field_tools_hikes' or route starts with 'admin_studio_hike' ? 'is-active' }}">Studio randonnées</a>
-                        <a href="{{ path('admin_field_tools_city_visits') }}" class="{{ route == 'admin_field_tools_city_visits' or route starts with 'admin_studio_city_visit' ? 'is-active' }}">Studio visites de ville</a>
+                        <a href="{{ path('admin_quick_index') }}" class="{{ route starts with 'admin_quick' ? 'is-active' }}">Création rapide</a>
+                        <a href="{{ path('admin_studio_index') }}" class="{{ route == 'admin_studio_index' or route starts with 'admin_field_tools' or route starts with 'admin_studio_hike' or route starts with 'admin_studio_city_visit' ? 'is-active' }}">Studio</a>
                     </section>
                     <section>
                         <h2>Système</h2>

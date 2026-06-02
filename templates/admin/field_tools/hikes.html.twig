@@ -18,7 +18,7 @@
             <h1 class="admin-title">Randonnées rapides</h1>
             <p class="admin-subtitle">Brouillons et sorties terrain créés depuis le smartphone.</p>
         </div>
-        <a class="admin-button" href="{{ path('admin_quick_hike_index') }}">Nouvelle rando rapide</a>
+        <a class="admin-button" href="{{ path('admin_quick_index', { type: 'hike' }) }}">Créer une randonnée</a>
     </header>
 
     <section class="admin-card admin-table-wrap">

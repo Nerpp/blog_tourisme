@@ -9,8 +9,8 @@
             <p class="admin-subtitle">Base d’administration custom, prête pour les workflows métier.</p>
         </div>
         <div class="admin-actions">
-            <a class="admin-button" href="{{ path('admin_quick_hike_index') }}">Nouvelle rando rapide</a>
-            <a class="admin-button admin-button--secondary" href="{{ path('admin_quick_city_visit_index') }}">Nouvelle visite de ville rapide</a>
+            <a class="admin-button" href="{{ path('admin_quick_index') }}">Création rapide</a>
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_studio_index') }}">Studio</a>
         </div>
     </header>
 
@@ -31,8 +31,8 @@
             Les sorties créées depuis le smartphone peuvent maintenant être enrichies au calme avec photos, vidéos et médias immersifs.
         </p>
         <div class="admin-actions">
-            <a class="admin-button" href="{{ path('admin_field_tools_hikes') }}">Studio randonnées</a>
-            <a class="admin-button admin-button--secondary" href="{{ path('admin_field_tools_city_visits') }}">Studio visites de ville</a>
+            <a class="admin-button" href="{{ path('admin_studio_index') }}">Ouvrir le Studio</a>
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_quick_index') }}">Créer rapidement</a>
         </div>
     </section>
 {% endblock %}

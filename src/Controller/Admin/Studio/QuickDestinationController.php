@@ -7,8 +7,10 @@ use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\Place;
 use App\Entity\User;
+use App\Enum\CityVisitDraftStatus;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
+use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
@@ -36,6 +38,7 @@ final class QuickDestinationController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly DestinationRepository $destinationRepository,
         private readonly HikeDraftRepository $hikeDraftRepository,
+        private readonly CityVisitDraftRepository $cityVisitDraftRepository,
         private readonly SluggerInterface $slugger,
     ) {
     }
@@ -51,6 +54,10 @@ final class QuickDestinationController extends AbstractController
 
         if ($this->isQuickHikeFrenchCommune($request)) {
             return $this->createQuickHikeFromCommune($request);
+        }
+
+        if ($this->isQuickCityVisitFrenchCommune($request)) {
+            return $this->createQuickCityVisitFromCommune($request);
         }
 
         $requestedType = DestinationType::tryFrom($request->request->getString('type')) ?? DestinationType::Area;
@@ -131,9 +138,20 @@ final class QuickDestinationController extends AbstractController
             && $this->nullIfBlank($request->request->getString('code')) !== null;
     }
 
+    private function isQuickCityVisitFrenchCommune(Request $request): bool
+    {
+        $contextType = $request->request->getString('contextType') ?: $request->request->getString('targetType');
+
+        return $contextType === 'quick_city_visit'
+            && $request->request->getString('type') === DestinationType::City->value
+            && $this->truncate($request->request->getString('countryName'), 150) === 'France'
+            && $this->truncate($request->request->getString('cityName'), 150) !== ''
+            && $this->nullIfBlank($request->request->getString('code')) !== null;
+    }
+
     private function createQuickHikeFromCommune(Request $request): Response
     {
-        $commune = $this->quickHikeCommuneData($request);
+        $commune = $this->quickCommuneData($request);
         $title = sprintf('Randonnée à %s', $commune['communeName']);
         $draft = (new HikeDraft())
             ->setTitle($title)
@@ -169,6 +187,43 @@ final class QuickDestinationController extends AbstractController
         return $this->redirectToRoute('admin_studio_hike_edit', ['id' => $draft->getId()]);
     }
 
+    private function createQuickCityVisitFromCommune(Request $request): Response
+    {
+        $commune = $this->quickCommuneData($request);
+        $title = sprintf('Visite de ville à %s', $commune['communeName']);
+        $draft = (new CityVisitDraft())
+            ->setTitle($title)
+            ->setSlug($this->createUniqueCityVisitSlug($title))
+            ->setStatus(CityVisitDraftStatus::Draft)
+            ->setDetectedCommuneName($commune['communeName'])
+            ->setDetectedCommuneCode($commune['communeInseeCode'])
+            ->setDetectedDepartmentName($commune['departmentName'])
+            ->setDetectedRegionName($commune['regionName']);
+
+        $user = $this->getUser();
+        if ($user instanceof User) {
+            $draft->setCreatedBy($user);
+        }
+
+        $request->getSession()->remove(self::QUICK_CITY_VISIT_DESTINATION_SESSION_KEY);
+        $request->getSession()->remove(self::QUICK_CITY_VISIT_DESTINATION_POSTAL_CODE_SESSION_KEY);
+
+        $this->entityManager->persist($draft);
+        $this->entityManager->flush();
+
+        if ($this->wantsJson($request)) {
+            return new JsonResponse([
+                'ok' => true,
+                'commune' => $commune,
+                'redirect' => $this->generateUrl('admin_studio_city_visit_edit', ['id' => $draft->getId()]),
+            ]);
+        }
+
+        $this->addFlash('success', sprintf('Visite de ville créée dans la commune "%s".', $commune['communeName']));
+
+        return $this->redirectToRoute('admin_studio_city_visit_edit', ['id' => $draft->getId()]);
+    }
+
     /**
      * @return array{
      *     communeName: string,
@@ -182,7 +237,7 @@ final class QuickDestinationController extends AbstractController
      *     longitude: float|null
      * }
      */
-    private function quickHikeCommuneData(Request $request): array
+    private function quickCommuneData(Request $request): array
     {
         $communeCode = $this->truncate($request->request->getString('code'), 20);
 
@@ -216,6 +271,21 @@ final class QuickDestinationController extends AbstractController
         $suffix = 2;
 
         while ($this->hikeDraftRepository->findOneBy(['slug' => $slug]) instanceof HikeDraft) {
+            $slug = sprintf('%s-%d', $baseSlug, $suffix);
+            ++$suffix;
+        }
+
+        return $slug;
+    }
+
+    private function createUniqueCityVisitSlug(string $title): string
+    {
+        $baseSlug = strtolower((string) $this->slugger->slug($title));
+        $baseSlug = trim($baseSlug, '-') ?: 'visite-de-ville';
+        $slug = $baseSlug;
+        $suffix = 2;
+
+        while ($this->cityVisitDraftRepository->findOneBy(['slug' => $slug]) instanceof CityVisitDraft) {
             $slug = sprintf('%s-%d', $baseSlug, $suffix);
             ++$suffix;
         }

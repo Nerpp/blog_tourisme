@@ -44,36 +44,15 @@ final class QuickHikeController extends AbstractController
     ) {}
 
     #[Route('', name: 'index', methods: ['GET'])]
-    public function index(Request $request): Response
+    public function index(Request $request): RedirectResponse
     {
         if ($redirect = $this->denyUnlessAdmin()) {
             return $redirect;
         }
 
-        $quickHikeMode = $this->quickHikeMode($request);
-        $preparedDestination = $this->preparedDestination($request);
-        $preparedCommune = $this->preparedCommune($request);
-
-        if (!$preparedDestination instanceof Destination && $preparedCommune === null && $quickHikeMode !== 'distance') {
-            $user = $this->getUser();
-            if ($user instanceof User && ($draft = $this->activeFieldDraft($request, $user)) instanceof HikeDraft) {
-                return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
-            }
-        }
-
-        return $this->render('admin/quick_hike/index.html.twig', [
-            'default_title' => $this->defaultHikeTitle(),
-            'current_destination' => $preparedDestination,
-            'current_commune' => $preparedCommune,
-            'prepared_destination_postal_code' => $this->preparedDestinationPostalCode($request),
-            'quick_destination_title' => 'Destination préparée',
-            'quick_destination_prepared_text' => 'Cette destination sera utilisée pour créer un brouillon de rando.',
-            'quick_destination_skip_action' => $this->generateUrl('admin_quick_hike_clear_destination'),
-            'quick_destination_skip_token_id' => 'quick_hike_clear_destination',
-            'quick_hike_mode' => $quickHikeMode,
-            'destination_type_options' => $this->destinationTypeOptions(),
-            'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
-            'destination_quick_create' => $this->emptyDestinationQuickCreateData(),
+        return $this->redirectToRoute('admin_quick_index', [
+            'type' => 'hike',
+            'mode' => $this->quickHikeMode($request),
         ]);
     }
 
@@ -289,7 +268,7 @@ final class QuickHikeController extends AbstractController
                 HikePointType::End,
                 HikePointType::Other,
             ]),
-            'admin_back_url' => $this->generateUrl('admin_field_tools_index'),
+            'admin_back_url' => $this->generateUrl('admin_quick_index'),
         ], new Response(status: $status));
     }
 
@@ -388,27 +367,6 @@ final class QuickHikeController extends AbstractController
         ];
     }
 
-    /** @return array<string, float|int|string|null> */
-    private function emptyDestinationQuickCreateData(): array
-    {
-        return [
-            'contextType' => 'quick_hike',
-            'contextId' => null,
-            'targetType' => 'quick_hike',
-            'targetId' => null,
-            'name' => '',
-            'countryName' => '',
-            'regionName' => '',
-            'departmentName' => '',
-            'cityName' => '',
-            'parent' => null,
-            'type' => DestinationType::Area->value,
-            'code' => '',
-            'latitude' => null,
-            'longitude' => null,
-        ];
-    }
-
     private function preparedDestination(Request $request): ?Destination
     {
         $destinationId = $this->nullableInt($request->getSession()->get(self::PREPARED_DESTINATION_SESSION_KEY));
@@ -425,13 +383,6 @@ final class QuickHikeController extends AbstractController
         }
 
         return $destination;
-    }
-
-    private function preparedDestinationPostalCode(Request $request): ?string
-    {
-        $postalCode = trim((string) $request->getSession()->get(self::PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY, ''));
-
-        return $postalCode !== '' ? $postalCode : null;
     }
 
     private function clearPreparedDestination(Request $request): void
@@ -513,27 +464,6 @@ final class QuickHikeController extends AbstractController
             'distance' => 'distance',
             default => 'choice',
         };
-    }
-
-    private function activeFieldDraft(Request $request, User $user): ?HikeDraft
-    {
-        $draftId = $this->nullableInt($request->getSession()->get(self::ACTIVE_FIELD_DRAFT_SESSION_KEY));
-        if ($draftId === null) {
-            return null;
-        }
-
-        $draft = $this->hikeDraftRepository->find($draftId);
-        if (!$draft instanceof HikeDraft
-            || $draft->getStatus() !== HikeDraftStatus::Draft
-            || $draft->getFinishedAt() !== null
-            || $draft->getCreatedBy()?->getId() !== $user->getId()
-        ) {
-            $this->clearActiveFieldDraft($request);
-
-            return null;
-        }
-
-        return $draft;
     }
 
     private function rememberActiveFieldDraft(Request $request, HikeDraft $draft): void
