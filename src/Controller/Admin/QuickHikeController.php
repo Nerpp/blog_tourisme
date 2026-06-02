@@ -33,6 +33,7 @@ final class QuickHikeController extends AbstractController
     private const ACTIVE_FIELD_DRAFT_SESSION_KEY = 'quick_hike_active_field_draft_id';
     private const PREPARED_DESTINATION_SESSION_KEY = 'quick_hike_destination_id';
     private const PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY = 'quick_hike_destination_postal_code';
+    private const PREPARED_COMMUNE_SESSION_KEY = 'quick_hike_commune';
 
     public function __construct(
         private readonly HikeDraftRepository $hikeDraftRepository,
@@ -51,8 +52,9 @@ final class QuickHikeController extends AbstractController
 
         $quickHikeMode = $this->quickHikeMode($request);
         $preparedDestination = $this->preparedDestination($request);
+        $preparedCommune = $this->preparedCommune($request);
 
-        if (!$preparedDestination instanceof Destination && $quickHikeMode !== 'distance') {
+        if (!$preparedDestination instanceof Destination && $preparedCommune === null && $quickHikeMode !== 'distance') {
             $user = $this->getUser();
             if ($user instanceof User && ($draft = $this->activeFieldDraft($request, $user)) instanceof HikeDraft) {
                 return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
@@ -62,6 +64,7 @@ final class QuickHikeController extends AbstractController
         return $this->render('admin/quick_hike/index.html.twig', [
             'default_title' => $this->defaultHikeTitle(),
             'current_destination' => $preparedDestination,
+            'current_commune' => $preparedCommune,
             'prepared_destination_postal_code' => $this->preparedDestinationPostalCode($request),
             'quick_destination_title' => 'Destination préparée',
             'quick_destination_prepared_text' => 'Cette destination sera utilisée pour créer un brouillon de rando.',
@@ -97,8 +100,13 @@ final class QuickHikeController extends AbstractController
             ->setNotes($notes !== '' ? $notes : null);
 
         $preparedDestination = $this->preparedDestination($request);
+        $preparedCommune = $this->preparedCommune($request);
         if ($preparedDestination instanceof Destination) {
             $draft->setDestination($preparedDestination);
+        }
+
+        if ($preparedCommune !== null) {
+            $this->applyPreparedCommune($draft, $preparedCommune);
         }
 
         $user = $this->getUser();
@@ -110,7 +118,7 @@ final class QuickHikeController extends AbstractController
         $this->entityManager->flush();
         $this->clearPreparedDestination($request);
 
-        if ($preparedDestination instanceof Destination || $creationMode === 'remote') {
+        if ($preparedDestination instanceof Destination || $preparedCommune !== null || $creationMode === 'remote') {
             $this->clearActiveFieldDraft($request);
 
             return $this->redirectToRoute('admin_studio_hike_edit', ['id' => $draft->getId()]);
@@ -135,7 +143,7 @@ final class QuickHikeController extends AbstractController
         }
 
         $this->clearPreparedDestination($request);
-        $this->addFlash('success', 'La destination préparée a été retirée.');
+        $this->addFlash('success', 'La préparation a été retirée.');
 
         return $this->redirectToRoute('admin_quick_hike_index');
     }
@@ -431,6 +439,71 @@ final class QuickHikeController extends AbstractController
         $session = $request->getSession();
         $session->remove(self::PREPARED_DESTINATION_SESSION_KEY);
         $session->remove(self::PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY);
+        $session->remove(self::PREPARED_COMMUNE_SESSION_KEY);
+    }
+
+    /**
+     * @return array{
+     *     communeName: string,
+     *     communeInseeCode: string,
+     *     postalCode: string|null,
+     *     departmentName: string|null,
+     *     departmentCode: string|null,
+     *     regionName: string|null,
+     *     country: string,
+     *     latitude: float|null,
+     *     longitude: float|null
+     * }|null
+     */
+    private function preparedCommune(Request $request): ?array
+    {
+        $commune = $request->getSession()->get(self::PREPARED_COMMUNE_SESSION_KEY);
+        if (!is_array($commune)) {
+            return null;
+        }
+
+        $communeName = trim((string) ($commune['communeName'] ?? ''));
+        $communeInseeCode = trim((string) ($commune['communeInseeCode'] ?? ''));
+
+        if ($communeName === '' || $communeInseeCode === '') {
+            $request->getSession()->remove(self::PREPARED_COMMUNE_SESSION_KEY);
+
+            return null;
+        }
+
+        return [
+            'communeName' => $communeName,
+            'communeInseeCode' => $communeInseeCode,
+            'postalCode' => $this->stringOrNull($commune['postalCode'] ?? null),
+            'departmentName' => $this->stringOrNull($commune['departmentName'] ?? null),
+            'departmentCode' => $this->stringOrNull($commune['departmentCode'] ?? null),
+            'regionName' => $this->stringOrNull($commune['regionName'] ?? null),
+            'country' => $this->stringOrNull($commune['country'] ?? null) ?? 'France',
+            'latitude' => $this->floatOrNull($commune['latitude'] ?? null),
+            'longitude' => $this->floatOrNull($commune['longitude'] ?? null),
+        ];
+    }
+
+    /**
+     * @param array{
+     *     communeName: string,
+     *     communeInseeCode: string,
+     *     postalCode: string|null,
+     *     departmentName: string|null,
+     *     departmentCode: string|null,
+     *     regionName: string|null,
+     *     country: string,
+     *     latitude: float|null,
+     *     longitude: float|null
+     * } $commune
+     */
+    private function applyPreparedCommune(HikeDraft $draft, array $commune): void
+    {
+        $draft
+            ->setDetectedCommuneName($commune['communeName'])
+            ->setDetectedCommuneCode($commune['communeInseeCode'])
+            ->setDetectedDepartmentName($commune['departmentName'])
+            ->setDetectedRegionName($commune['regionName']);
     }
 
     private function quickHikeMode(Request $request): string
@@ -483,6 +556,22 @@ final class QuickHikeController extends AbstractController
         }
 
         return (int) $value;
+    }
+
+    private function stringOrNull(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function floatOrNull(mixed $value): ?float
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     /** @return array<string, float|int|string|null> */

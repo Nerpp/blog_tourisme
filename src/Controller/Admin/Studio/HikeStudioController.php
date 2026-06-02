@@ -24,6 +24,7 @@ use App\Service\Media\DronePanoramaUploadService;
 use App\Service\Media\BulkMediaUploadService;
 use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
+use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\VideoThumbnailGenerator;
@@ -61,6 +62,7 @@ final class HikeStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly MediaDeletionService $mediaDeletionService,
         private readonly BulkMediaUploadService $bulkMediaUploadService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
@@ -107,12 +109,20 @@ final class HikeStudioController extends AbstractController
             return $this->redirectToRoute('admin_field_tools_hikes');
         }
 
+        $orphanCandidates = $this->hikeMediaCandidates($hikeDraft);
+
         foreach ($hikeDraft->getArticleLinks() as $articleLink) {
             $this->entityManager->remove($articleLink);
         }
 
         $this->entityManager->remove($hikeDraft);
         $this->entityManager->flush();
+
+        foreach ($orphanCandidates as $media) {
+            $this->mediaDeletionService->deleteIfOrphan($media);
+        }
+        $this->entityManager->flush();
+
         $this->addFlash('success', 'La randonnée a bien été supprimée.');
 
         return $this->redirectToRoute('admin_field_tools_hikes');
@@ -886,6 +896,30 @@ final class HikeStudioController extends AbstractController
         usort($mediaLinks, static fn(HikeDraftMedia $a, HikeDraftMedia $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
 
         return $mediaLinks;
+    }
+
+    /** @return list<MediaAsset> */
+    private function hikeMediaCandidates(HikeDraft $hikeDraft): array
+    {
+        $candidates = [];
+
+        foreach ($hikeDraft->getMediaLinks() as $mediaLink) {
+            $media = $mediaLink->getMediaAsset();
+            if ($media instanceof MediaAsset) {
+                $candidates[$media->getId() ?? spl_object_id($media)] = $media;
+            }
+        }
+
+        foreach ($hikeDraft->getPoints() as $point) {
+            foreach ($point->getMediaLinks() as $pointMediaLink) {
+                $media = $pointMediaLink->getMediaAsset();
+                if ($media instanceof MediaAsset) {
+                    $candidates[$media->getId() ?? spl_object_id($media)] = $media;
+                }
+            }
+        }
+
+        return array_values($candidates);
     }
 
     private function isImmersiveLink(HikeDraftMedia $mediaLink): bool

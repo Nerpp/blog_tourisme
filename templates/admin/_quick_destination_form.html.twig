@@ -25,6 +25,7 @@
 {% set quick_destination_allow_skip = quick_destination_allow_skip|default(true) %}
 {% set quick_destination_skip_label = quick_destination_skip_label|default('Continuer sans destination') %}
 {% set quick_destination_submit_label = quick_destination_submit_label|default(null) %}
+{% set quick_destination_france_text = quick_destination_france_text|default('Recherchez une commune française. La région, le département, le code INSEE et les coordonnées seront complétés automatiquement.') %}
 {% set redirect_anchor = redirect_anchor|default(null) %}
 
 <section class="{{ container_class }}" data-quick-destination>
@@ -59,7 +60,7 @@
                 {% endif %}
             {% else %}
                 <p class="quick-destination__text">Aucune destination associée</p>
-                <p class="quick-destination__text">Recherchez une commune française. La région, le département, le code INSEE et les coordonnées seront complétés automatiquement.</p>
+                <p class="quick-destination__text">{{ quick_destination_france_text }}</p>
             {% endif %}
         </div>
     </div>
@@ -175,13 +176,14 @@
         </div>
 
         <section class="quick-destination__panel" data-destination-panel="france">
-            <p class="quick-destination__text">Recherchez une commune française. La région, le département, le code INSEE et les coordonnées seront complétés automatiquement.</p>
+            <p class="quick-destination__text">{{ quick_destination_france_text }}</p>
 
             <input type="hidden" name="type" value="city" data-destination-mode-field="france" data-france-field="type">
             <input type="hidden" name="name" value="{{ destination_quick_create.name|default(destination_quick_create.cityName|default('')) }}" data-destination-mode-field="france" data-france-field="name">
             <input type="hidden" name="countryName" value="{{ destination_quick_create.countryName|default('') }}" data-destination-mode-field="france" data-france-field="countryName">
             <input type="hidden" name="regionName" value="{{ destination_quick_create.regionName|default('') }}" data-destination-mode-field="france" data-france-field="regionName">
             <input type="hidden" name="departmentName" value="{{ destination_quick_create.departmentName|default('') }}" data-destination-mode-field="france" data-france-field="departmentName">
+            <input type="hidden" name="departmentCode" value="" data-destination-mode-field="france" data-france-field="departmentCode">
             <input type="hidden" name="cityName" value="{{ destination_quick_create.cityName|default('') }}" data-destination-mode-field="france" data-france-field="cityName">
             <input type="hidden" name="areaName" value="" data-destination-mode-field="france" data-france-field="areaName">
             <input type="hidden" name="code" value="{{ destination_quick_create.code|default('') }}" data-destination-mode-field="france" data-france-field="code">
@@ -342,6 +344,7 @@
             const renderSelection = () => {
                 const city = franceFields.cityName?.value || '';
                 const department = franceFields.departmentName?.value || '';
+                const departmentCode = franceFields.departmentCode?.value || '';
                 const region = franceFields.regionName?.value || '';
                 const code = franceFields.code?.value || '';
                 const postalCode = franceFields.postalCode?.value || '';
@@ -360,7 +363,8 @@
                     selectionName.textContent = city;
                 }
                 if (selectionPlace) {
-                    selectionPlace.textContent = [department, region].filter(Boolean).join(', ');
+                    const departmentLabel = [departmentCode, department].filter(Boolean).join(' ');
+                    selectionPlace.textContent = [departmentLabel, region].filter(Boolean).join(', ');
                 }
                 if (selectionCode) {
                     selectionCode.textContent = code || '-';
@@ -395,6 +399,7 @@
                 if (franceFields.countryName) franceFields.countryName.value = 'France';
                 if (franceFields.regionName) franceFields.regionName.value = commune.region?.nom || '';
                 if (franceFields.departmentName) franceFields.departmentName.value = commune.departement?.nom || '';
+                if (franceFields.departmentCode) franceFields.departmentCode.value = commune.departement?.code || '';
                 if (franceFields.cityName) franceFields.cityName.value = commune.nom || '';
                 if (franceFields.areaName) franceFields.areaName.value = '';
                 if (franceFields.code) franceFields.code.value = commune.code || '';

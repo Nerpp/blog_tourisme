@@ -6,8 +6,11 @@ use App\Entity\CityVisitDraft;
 use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\Place;
+use App\Entity\User;
 use App\Enum\DestinationType;
+use App\Enum\HikeDraftStatus;
 use App\Repository\DestinationRepository;
+use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,12 +28,14 @@ final class QuickDestinationController extends AbstractController
 {
     private const QUICK_HIKE_DESTINATION_SESSION_KEY = 'quick_hike_destination_id';
     private const QUICK_HIKE_DESTINATION_POSTAL_CODE_SESSION_KEY = 'quick_hike_destination_postal_code';
+    private const QUICK_HIKE_COMMUNE_SESSION_KEY = 'quick_hike_commune';
     private const QUICK_CITY_VISIT_DESTINATION_SESSION_KEY = 'quick_city_visit_destination_id';
     private const QUICK_CITY_VISIT_DESTINATION_POSTAL_CODE_SESSION_KEY = 'quick_city_visit_destination_postal_code';
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly DestinationRepository $destinationRepository,
+        private readonly HikeDraftRepository $hikeDraftRepository,
         private readonly SluggerInterface $slugger,
     ) {
     }
@@ -42,6 +47,10 @@ final class QuickDestinationController extends AbstractController
 
         if (!$this->isCsrfTokenValid('studio_destination_quick_create', (string) $request->request->get('_token'))) {
             return $this->errorResponse($request, 'Le formulaire a expiré. Réessayez.', Response::HTTP_BAD_REQUEST);
+        }
+
+        if ($this->isQuickHikeFrenchCommune($request)) {
+            return $this->createQuickHikeFromCommune($request);
         }
 
         $requestedType = DestinationType::tryFrom($request->request->getString('type')) ?? DestinationType::Area;
@@ -91,6 +100,7 @@ final class QuickDestinationController extends AbstractController
 
         if ($contextType === 'quick_hike') {
             $session->set(self::QUICK_HIKE_DESTINATION_SESSION_KEY, $destinationId);
+            $session->remove(self::QUICK_HIKE_COMMUNE_SESSION_KEY);
             if ($postalCode !== null) {
                 $session->set(self::QUICK_HIKE_DESTINATION_POSTAL_CODE_SESSION_KEY, $postalCode);
             } else {
@@ -108,6 +118,109 @@ final class QuickDestinationController extends AbstractController
                 $session->remove(self::QUICK_CITY_VISIT_DESTINATION_POSTAL_CODE_SESSION_KEY);
             }
         }
+    }
+
+    private function isQuickHikeFrenchCommune(Request $request): bool
+    {
+        $contextType = $request->request->getString('contextType') ?: $request->request->getString('targetType');
+
+        return $contextType === 'quick_hike'
+            && $request->request->getString('type') === DestinationType::City->value
+            && $this->truncate($request->request->getString('countryName'), 150) === 'France'
+            && $this->truncate($request->request->getString('cityName'), 150) !== ''
+            && $this->nullIfBlank($request->request->getString('code')) !== null;
+    }
+
+    private function createQuickHikeFromCommune(Request $request): Response
+    {
+        $commune = $this->quickHikeCommuneData($request);
+        $title = sprintf('Randonnée à %s', $commune['communeName']);
+        $draft = (new HikeDraft())
+            ->setTitle($title)
+            ->setSlug($this->createUniqueHikeSlug($title))
+            ->setStatus(HikeDraftStatus::Draft)
+            ->setDetectedCommuneName($commune['communeName'])
+            ->setDetectedCommuneCode($commune['communeInseeCode'])
+            ->setDetectedDepartmentName($commune['departmentName'])
+            ->setDetectedRegionName($commune['regionName']);
+
+        $user = $this->getUser();
+        if ($user instanceof User) {
+            $draft->setCreatedBy($user);
+        }
+
+        $request->getSession()->remove(self::QUICK_HIKE_DESTINATION_SESSION_KEY);
+        $request->getSession()->remove(self::QUICK_HIKE_DESTINATION_POSTAL_CODE_SESSION_KEY);
+        $request->getSession()->remove(self::QUICK_HIKE_COMMUNE_SESSION_KEY);
+
+        $this->entityManager->persist($draft);
+        $this->entityManager->flush();
+
+        if ($this->wantsJson($request)) {
+            return new JsonResponse([
+                'ok' => true,
+                'commune' => $commune,
+                'redirect' => $this->generateUrl('admin_studio_hike_edit', ['id' => $draft->getId()]),
+            ]);
+        }
+
+        $this->addFlash('success', sprintf('Randonnée créée dans la commune "%s".', $commune['communeName']));
+
+        return $this->redirectToRoute('admin_studio_hike_edit', ['id' => $draft->getId()]);
+    }
+
+    /**
+     * @return array{
+     *     communeName: string,
+     *     communeInseeCode: string,
+     *     postalCode: string|null,
+     *     departmentName: string|null,
+     *     departmentCode: string|null,
+     *     regionName: string|null,
+     *     country: string,
+     *     latitude: float|null,
+     *     longitude: float|null
+     * }
+     */
+    private function quickHikeCommuneData(Request $request): array
+    {
+        $communeCode = $this->truncate($request->request->getString('code'), 20);
+
+        return [
+            'communeName' => $this->truncate($request->request->getString('cityName'), 150),
+            'communeInseeCode' => $communeCode,
+            'postalCode' => $this->nullIfBlank($request->request->getString('postalCode')),
+            'departmentName' => $this->nullIfBlank($this->truncate($request->request->getString('departmentName'), 150)),
+            'departmentCode' => $this->nullIfBlank($request->request->getString('departmentCode')) ?? $this->departmentCodeFromCommuneCode($communeCode),
+            'regionName' => $this->nullIfBlank($this->truncate($request->request->getString('regionName'), 150)),
+            'country' => 'France',
+            'latitude' => $this->nullableFloat($request->request->get('latitude')),
+            'longitude' => $this->nullableFloat($request->request->get('longitude')),
+        ];
+    }
+
+    private function departmentCodeFromCommuneCode(string $communeCode): ?string
+    {
+        if ($communeCode === '') {
+            return null;
+        }
+
+        return str_starts_with($communeCode, '97') ? substr($communeCode, 0, 3) : substr($communeCode, 0, 2);
+    }
+
+    private function createUniqueHikeSlug(string $title): string
+    {
+        $baseSlug = strtolower((string) $this->slugger->slug($title));
+        $baseSlug = trim($baseSlug, '-') ?: 'randonnee';
+        $slug = $baseSlug;
+        $suffix = 2;
+
+        while ($this->hikeDraftRepository->findOneBy(['slug' => $slug]) instanceof HikeDraft) {
+            $slug = sprintf('%s-%d', $baseSlug, $suffix);
+            ++$suffix;
+        }
+
+        return $slug;
     }
 
     private function findParentDestination(Request $request): ?Destination

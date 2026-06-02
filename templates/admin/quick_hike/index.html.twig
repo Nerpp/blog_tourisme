@@ -49,15 +49,16 @@
     {% elseif quick_hike_mode is same as('distance') %}
         <section class="field-card">
             <h1 class="field-title">Créer une rando à distance</h1>
-            <p class="field-subtitle">Choisissez une destination, puis créez un brouillon à compléter dans l’administration.</p>
+            <p class="field-subtitle">Choisissez une commune, puis créez un brouillon à compléter dans l’administration.</p>
         </section>
 
         <div id="quick-hike-distance"></div>
         {% include 'admin/_quick_destination_form.html.twig' with {
             ui_context: 'field',
             current_destination: null,
-            quick_destination_title: 'Où se situe cette visite ?',
-            quick_destination_submit_label: 'Associer cette destination',
+            quick_destination_title: 'Où se situe cette randonnée ?',
+            quick_destination_france_text: 'Recherchez une commune française. Elle servira à situer la randonnée. Vous pourrez ajouter une destination plus précise plus tard.',
+            quick_destination_submit_label: 'Créer la rando dans cette commune',
             quick_destination_allow_skip: false,
             destination_quick_create: destination_quick_create,
             destination_type_options: destination_type_options,

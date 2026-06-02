@@ -169,8 +169,12 @@ final class MediaDeletionService
         if (
             str_starts_with($publicPath, 'http://')
             || str_starts_with($publicPath, 'https://')
+            || str_contains($publicPath, '..')
+            || str_contains($publicPath, '\\')
+            || str_contains($publicPath, '//')
+            || preg_match('#^[a-z][a-z0-9+.-]*:#i', $publicPath)
             || str_starts_with($publicPath, '/uploads/demo/')
-            || !str_starts_with($publicPath, '/uploads/')
+            || !str_starts_with($publicPath, '/uploads/media/')
             || basename($publicPath) === '.gitkeep'
         ) {
             return null;
