@@ -3,15 +3,24 @@ FROM php:8.4-fpm-bookworm
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
+        chromium \
+        chromium-driver \
         curl \
         default-mysql-client \
         ffmpeg \
+        fonts-liberation \
         git \
+        libasound2 \
+        libatk-bridge2.0-0 \
+        libgbm1 \
+        libgtk-3-0 \
         libicu-dev \
         libjpeg62-turbo-dev \
+        libnss3 \
         libonig-dev \
         libpng-dev \
         libwebp-dev \
+        libxss1 \
         libzip-dev \
         unzip \
     && docker-php-ext-configure gd --with-jpeg --with-webp \

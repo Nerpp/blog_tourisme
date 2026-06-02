@@ -5,6 +5,8 @@
 /node_modules/
 /.phpunit.cache/
 /var/
+/var/panther/
+/var/error-screenshots/
 /public/build/
 /config/reference.php
 public/uploads/avatars/*

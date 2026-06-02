@@ -59,6 +59,7 @@
         "phpstan/phpstan-doctrine": "^2.0",
         "phpstan/phpstan-symfony": "^2.0",
         "symfony/maker-bundle": "^1.67",
+        "symfony/panther": "^2.4",
         "symfony/profiler-pack": "^1.0",
         "symfony/test-pack": "^1.2",
         "symfony/web-profiler-bundle": "8.0.*"
@@ -74,15 +75,18 @@
         }
     },
     "scripts": {
-        "test": "php vendor/bin/phpunit",
+        "test": "php vendor/bin/phpunit tests/Unit tests/Functional",
         "test:unit": "php vendor/bin/phpunit --testsuite Unit",
         "test:functional": "php vendor/bin/phpunit --testsuite Functional",
+        "test:e2e": "php vendor/bin/phpunit --testsuite E2E",
+        "test:panther": "php vendor/bin/phpunit --testsuite E2E",
         "quality": [
             "php bin/console lint:container",
             "php bin/console lint:twig templates",
             "php bin/console doctrine:schema:validate --skip-sync",
-            "php vendor/bin/phpunit"
+            "php vendor/bin/phpunit tests/Unit tests/Functional"
         ],
+        "quality:e2e": "php vendor/bin/phpunit --testsuite E2E",
         "quality:frontend": "npm run build"
     },
     "config": {
