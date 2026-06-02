@@ -3,9 +3,11 @@
 namespace App\Repository;
 
 use App\Entity\Article;
+use App\Entity\Destination;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\ContentStatus;
 use App\Enum\HikeDraftStatus;
+use App\Enum\MediaType;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -183,6 +185,50 @@ class ArticleRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->addOrderBy('hikeMediaLinks.position', 'ASC')
             ->addOrderBy('cityVisitMediaLinks.position', 'ASC')
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    public function findLatestPublishedWithMediaByDestination(Destination $destination): ?Article
+    {
+        return $this->createQueryBuilder('a')
+            ->addSelect('featuredImage', 'destinationLinks', 'destinations', 'mediaLinks', 'mediaAssets', 'hikeLinks', 'hikes', 'hikeGeographicDestinations', 'hikeDestinations', 'cityVisitLinks', 'cityVisits', 'cityVisitGeographicDestinations', 'cityVisitDestinations')
+            ->leftJoin('a.featuredImage', 'featuredImage')
+            ->leftJoin('a.destinationLinks', 'destinationLinks')
+            ->leftJoin('destinationLinks.destination', 'destinations')
+            ->leftJoin('a.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->leftJoin('a.hikeLinks', 'hikeLinks')
+            ->leftJoin('hikeLinks.hikeDraft', 'hikes')
+            ->leftJoin('hikes.geographicDestination', 'hikeGeographicDestinations')
+            ->leftJoin('hikes.destination', 'hikeDestinations')
+            ->leftJoin('a.cityVisitLinks', 'cityVisitLinks')
+            ->leftJoin('cityVisitLinks.cityVisitDraft', 'cityVisits')
+            ->leftJoin('cityVisits.geographicDestination', 'cityVisitGeographicDestinations')
+            ->leftJoin('cityVisits.destination', 'cityVisitDestinations')
+            ->andWhere('a.status = :status')
+            ->andWhere('a.publishedAt IS NOT NULL')
+            ->andWhere('featuredImage.mediaType = :mediaType OR mediaAssets.mediaType = :mediaType')
+            ->andWhere(
+                'destinations = :destination'
+                . ' OR ((hikeGeographicDestinations = :destination OR (hikeGeographicDestinations IS NULL AND hikeDestinations = :destination)) AND hikes.status IN (:hikeStatuses))'
+                . ' OR ((cityVisitGeographicDestinations = :destination OR (cityVisitGeographicDestinations IS NULL AND cityVisitDestinations = :destination)) AND cityVisits.status IN (:cityVisitStatuses))'
+            )
+            ->setParameter('destination', $destination)
+            ->setParameter('status', ContentStatus::Published)
+            ->setParameter('mediaType', MediaType::Image)
+            ->setParameter('hikeStatuses', [
+                HikeDraftStatus::Finished->value,
+                HikeDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->setParameter('cityVisitStatuses', [
+                CityVisitDraftStatus::Finished->value,
+                CityVisitDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->orderBy('a.publishedAt', 'DESC')
+            ->addOrderBy('a.id', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
     }

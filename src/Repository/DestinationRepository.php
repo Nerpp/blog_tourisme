@@ -7,6 +7,7 @@ use App\Enum\CityVisitDraftStatus;
 use App\Enum\ContentStatus;
 use App\Enum\HikeDraftStatus;
 use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -193,17 +194,87 @@ class DestinationRepository extends ServiceEntityRepository
     /** @return list<Destination> */
     public function findDiscoverableDestinations(int $limit = 6): array
     {
-        $rows = $this->createQueryBuilder('d')
-            ->select('d.id')
-            ->andWhere('d.parent IS NOT NULL')
-            ->orderBy('d.updatedAt', 'DESC')
-            ->addOrderBy('d.createdAt', 'DESC')
-            ->addOrderBy('d.id', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getArrayResult();
+        $rows = $this->getEntityManager()->getConnection()->executeQuery(
+            <<<'SQL'
+                SELECT public_destination.destination_id, MAX(public_destination.latest_published_at) AS latest_published_at
+                FROM (
+                    SELECT ad.destination_id, a.published_at AS latest_published_at
+                    FROM article_destination ad
+                    INNER JOIN article a ON a.id = ad.article_id
+                    WHERE a.status = :articleStatus
+                    AND a.published_at IS NOT NULL
 
-        $ids = array_map(static fn (array $row): int => (int) $row['id'], $rows);
+                    UNION ALL
+
+                    SELECT COALESCE(h.geographic_destination_id, h.destination_id) AS destination_id, a.published_at AS latest_published_at
+                    FROM article_hike ah
+                    INNER JOIN article a ON a.id = ah.article_id
+                    INNER JOIN hike_draft h ON h.id = ah.hike_draft_id
+                    WHERE a.status = :articleStatus
+                    AND a.published_at IS NOT NULL
+                    AND h.status IN (:hikeStatuses)
+                    AND COALESCE(h.geographic_destination_id, h.destination_id) IS NOT NULL
+
+                    UNION ALL
+
+                    SELECT COALESCE(c.geographic_destination_id, c.destination_id) AS destination_id, a.published_at AS latest_published_at
+                    FROM article_city_visit acv
+                    INNER JOIN article a ON a.id = acv.article_id
+                    INNER JOIN city_visit_draft c ON c.id = acv.city_visit_draft_id
+                    WHERE a.status = :articleStatus
+                    AND a.published_at IS NOT NULL
+                    AND c.status IN (:cityVisitStatuses)
+                    AND COALESCE(c.geographic_destination_id, c.destination_id) IS NOT NULL
+
+                    UNION ALL
+
+                    SELECT COALESCE(h.geographic_destination_id, h.destination_id) AS destination_id, h.finished_at AS latest_published_at
+                    FROM hike_draft h
+                    WHERE h.status IN (:hikeStatuses)
+                    AND h.finished_at IS NOT NULL
+                    AND COALESCE(h.geographic_destination_id, h.destination_id) IS NOT NULL
+
+                    UNION ALL
+
+                    SELECT COALESCE(c.geographic_destination_id, c.destination_id) AS destination_id, c.finished_at AS latest_published_at
+                    FROM city_visit_draft c
+                    WHERE c.status IN (:cityVisitStatuses)
+                    AND c.finished_at IS NOT NULL
+                    AND COALESCE(c.geographic_destination_id, c.destination_id) IS NOT NULL
+
+                    UNION ALL
+
+                    SELECT p.destination_id, p.published_at AS latest_published_at
+                    FROM place p
+                    WHERE p.status = :articleStatus
+                    AND p.published_at IS NOT NULL
+                    AND p.destination_id IS NOT NULL
+                ) public_destination
+                WHERE public_destination.destination_id IS NOT NULL
+                GROUP BY public_destination.destination_id
+                ORDER BY latest_published_at DESC, public_destination.destination_id DESC
+                LIMIT :limit
+            SQL,
+            [
+                'articleStatus' => ContentStatus::Published->value,
+                'hikeStatuses' => [
+                    HikeDraftStatus::Finished->value,
+                    HikeDraftStatus::Converted->value,
+                ],
+                'cityVisitStatuses' => [
+                    CityVisitDraftStatus::Finished->value,
+                    CityVisitDraftStatus::Converted->value,
+                ],
+                'limit' => $limit,
+            ],
+            [
+                'hikeStatuses' => ArrayParameterType::STRING,
+                'cityVisitStatuses' => ArrayParameterType::STRING,
+                'limit' => ParameterType::INTEGER,
+            ],
+        )->fetchAllAssociative();
+
+        $ids = array_map(static fn (array $row): int => (int) $row['destination_id'], $rows);
         if ($ids === []) {
             return [];
         }
