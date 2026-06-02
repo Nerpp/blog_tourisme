@@ -119,6 +119,7 @@ final class QuickDestinationController extends AbstractController
         $regionName = $this->truncate($request->request->getString('regionName'), 150);
         $departmentName = $this->truncate($request->request->getString('departmentName'), 150);
         $cityName = $this->truncate($request->request->getString('cityName'), 150);
+        $areaName = $this->truncate($request->request->getString('areaName'), 150);
         $fallbackName = $this->truncate($request->request->getString('name'), 150);
 
         if ($fallbackName !== '') {
@@ -127,25 +128,24 @@ final class QuickDestinationController extends AbstractController
                 DestinationType::Region => $regionName = $regionName ?: $fallbackName,
                 DestinationType::Department => $departmentName = $departmentName ?: $fallbackName,
                 DestinationType::City => $cityName = $cityName ?: $fallbackName,
-                DestinationType::Area => $cityName = ($countryName === '' && $regionName === '' && $departmentName === '' && $cityName === '')
-                    ? $fallbackName
-                    : $cityName,
+                DestinationType::Area => $areaName = $areaName ?: $fallbackName,
             };
         }
 
-        if ($countryName === '' && $regionName === '' && $departmentName === '' && $cityName === '') {
+        if ($countryName === '' && $regionName === '' && $departmentName === '' && $cityName === '' && $areaName === '') {
             return null;
         }
 
         $code = $this->nullIfBlank($request->request->getString('code'));
         $latitude = $this->nullableFloat($request->request->get('latitude'));
         $longitude = $this->nullableFloat($request->request->get('longitude'));
-        $coordinatesType = $this->mostPreciseType($countryName, $regionName, $departmentName, $cityName);
+        $coordinatesType = $this->mostPreciseType($countryName, $regionName, $departmentName, $cityName, $areaName);
 
         $country = null;
         $region = null;
         $department = null;
         $city = null;
+        $area = null;
         $parent = null;
 
         if ($countryName !== '') {
@@ -197,6 +197,19 @@ final class QuickDestinationController extends AbstractController
                 $nodeLatitude,
                 $nodeLongitude,
             );
+            $parent = $city;
+        }
+
+        if ($areaName !== '') {
+            [$nodeLatitude, $nodeLongitude] = $this->coordinatesForType(DestinationType::Area, $coordinatesType, $latitude, $longitude);
+            $area = $this->findOrCreateDestinationNode(
+                $areaName,
+                DestinationType::Area,
+                $parent,
+                $this->codeForType(DestinationType::Area, $code),
+                $nodeLatitude,
+                $nodeLongitude,
+            );
         }
 
         return match ($requestedType) {
@@ -204,7 +217,7 @@ final class QuickDestinationController extends AbstractController
             DestinationType::Region => $region,
             DestinationType::Department => $department,
             DestinationType::City => $city,
-            DestinationType::Area => $city ?? $department ?? $region ?? $country,
+            DestinationType::Area => $area ?? $city ?? $department ?? $region ?? $country,
         };
     }
 
@@ -215,13 +228,14 @@ final class QuickDestinationController extends AbstractController
         $regionName = $this->truncate($request->request->getString('regionName'), 150);
         $departmentName = $this->truncate($request->request->getString('departmentName'), 150);
         $cityName = $this->truncate($request->request->getString('cityName'), 150);
+        $areaName = $this->truncate($request->request->getString('areaName'), 150);
 
         $candidate = match ($type) {
             DestinationType::Country => $countryName,
             DestinationType::Region => $regionName,
             DestinationType::Department => $departmentName,
             DestinationType::City => $cityName,
-            DestinationType::Area => $cityName ?: $departmentName ?: $regionName ?: $countryName,
+            DestinationType::Area => $areaName ?: $cityName ?: $departmentName ?: $regionName ?: $countryName,
         };
 
         return $candidate !== '' ? $candidate : $name;
@@ -301,8 +315,12 @@ final class QuickDestinationController extends AbstractController
         };
     }
 
-    private function mostPreciseType(string $countryName, string $regionName, string $departmentName, string $cityName): DestinationType
+    private function mostPreciseType(string $countryName, string $regionName, string $departmentName, string $cityName, string $areaName): DestinationType
     {
+        if ($areaName !== '') {
+            return DestinationType::Area;
+        }
+
         if ($cityName !== '') {
             return DestinationType::City;
         }

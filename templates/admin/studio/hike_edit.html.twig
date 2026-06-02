@@ -67,6 +67,20 @@
         .quick-destination__form[hidden], .quick-destination__actions[hidden], .quick-destination__status[hidden] { display: none; }
         .quick-destination__status { min-height: 22px; margin: 0; color: var(--admin-muted); font-weight: 700; }
         .quick-destination__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+        .quick-destination__panel { display: grid; gap: 12px; }
+        .quick-destination__panel[hidden], .quick-destination__results[hidden], .quick-destination__selection[hidden] { display: none; }
+        .quick-destination__mode-switch { display: flex; flex-wrap: wrap; gap: 8px; }
+        .quick-destination__mode-button { border: 1px solid var(--admin-line); border-radius: var(--admin-radius); padding: 9px 12px; background: #fff; color: #2d352f; font-weight: 800; cursor: pointer; }
+        .quick-destination__mode-button.is-active { border-color: var(--admin-primary); background: #e6f5ec; color: var(--admin-primary); }
+        .quick-destination__search, .quick-destination__selection, .quick-destination__advanced { display: grid; gap: 10px; }
+        .quick-destination__results { display: grid; gap: 6px; }
+        .quick-destination__result { width: 100%; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); padding: 10px 12px; background: #fff; color: #2d352f; text-align: left; font-weight: 750; cursor: pointer; }
+        .quick-destination__result:hover, .quick-destination__result:focus { border-color: var(--admin-primary); outline: none; }
+        .quick-destination__result-message { margin: 0; color: var(--admin-muted); }
+        .quick-destination__selection { padding: 12px; border: 1px solid #b8ddc4; border-radius: var(--admin-radius); background: #f2fbf5; }
+        .quick-destination__selection-label { color: var(--admin-muted); font-weight: 800; }
+        .quick-destination__advanced { padding: 10px 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fff; }
+        .quick-destination__advanced summary { cursor: pointer; font-weight: 800; color: #2d352f; }
         @media (max-width: 760px) { .studio-hero, .studio-media-row { grid-template-columns: 1fr; } .studio-actions { justify-content: flex-start; } .admin-button, .studio-upload label { width: 100%; justify-content: center; } }
     </style>
 {% endblock %}
