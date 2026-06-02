@@ -96,6 +96,7 @@ final class QuickHikeController extends AbstractController
                 $preparedCommune['country'],
                 $preparedCommune['latitude'],
                 $preparedCommune['longitude'],
+                $preparedCommune['departmentCode'],
             ));
         }
 
@@ -367,6 +368,8 @@ final class QuickHikeController extends AbstractController
                 $geocoding['communeCode'],
                 $geocoding['departmentName'],
                 $geocoding['regionName'],
+                departmentCode: $geocoding['departmentCode'] ?? null,
+                regionCode: $geocoding['regionCode'] ?? null,
             ));
         }
     }
