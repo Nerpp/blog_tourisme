@@ -14,6 +14,7 @@ use App\Repository\CommentLikeRepository;
 use App\Repository\CommentReportRepository;
 use App\Repository\PlaceRepository;
 use App\Security\ActionRateLimiter;
+use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\CommentVoter;
 use App\Service\CommentDeletionService;
 use App\Service\CommentModerationService;
@@ -346,7 +347,7 @@ final class CommentController extends AbstractController
     }
 
     #[Route('/comments/{id}/admin-heart', name: 'app_comment_admin_heart_toggle', methods: ['POST'])]
-    #[IsGranted('ROLE_ADMIN')]
+    #[IsGranted(AdminAccessVoter::ACCESS)]
     public function toggleAdminHeart(Comment $comment, Request $request, EntityManagerInterface $entityManager): RedirectResponse
     {
         if (!$this->isCsrfTokenValid('admin-heart-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
@@ -366,7 +367,7 @@ final class CommentController extends AbstractController
     }
 
     #[Route('/comments/{id}/pin', name: 'app_comment_pin_toggle', methods: ['POST'])]
-    #[IsGranted('ROLE_ADMIN')]
+    #[IsGranted(AdminAccessVoter::ACCESS)]
     public function togglePin(Comment $comment, Request $request, EntityManagerInterface $entityManager): RedirectResponse
     {
         if (!$this->isCsrfTokenValid('pin-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {

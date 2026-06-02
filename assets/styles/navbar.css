@@ -105,6 +105,18 @@
   text-decoration: none;
 }
 
+.logout-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.logout-button {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
 /* CONNEXION / INSCRIPTION HORS MENU */
 
 .navbar-mobile-account {
@@ -445,6 +457,10 @@
     padding: 0 14px;
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.68);
+  }
+
+  .navbar-account .logout-form {
+    width: 100%;
   }
 
   .nav-auth-link {

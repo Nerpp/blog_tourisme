@@ -3,6 +3,7 @@
 {% set author_name = comment.author.displayName ?: comment.author.email %}
 {% set like_count = comment_like_counts[comment.id]|default(0) %}
 {% set has_liked = comment.id in liked_comment_ids|default([]) %}
+{% set has_admin_access = is_granted(constant('App\\Security\\Voter\\AdminAccessVoter::ACCESS')) %}
 
 <article class="comment comment-item {{ level == 2 ? 'comment--reply comment-item--reply' : '' }}" id="comment-{{ comment.id }}">
     <div class="comment-item__avatar">
@@ -60,7 +61,7 @@
                     </button>
                 </form>
 
-                {% if is_granted('ROLE_ADMIN') and comment.status.value == 'approved' %}
+                {% if has_admin_access and comment.status.value == 'approved' %}
                     <form method="post" action="{{ path('app_comment_admin_heart_toggle', { id: comment.id }) }}">
                         <input type="hidden" name="_token" value="{{ csrf_token('admin-heart-comment-' ~ comment.id) }}">
                         <button class="comment-heart-button {{ comment.adminHeartedAt ? 'is-active' }}" type="submit">
@@ -69,7 +70,7 @@
                     </form>
                 {% endif %}
 
-                {% if is_granted('ROLE_ADMIN') and level == 1 and comment.status.value == 'approved' %}
+                {% if has_admin_access and level == 1 and comment.status.value == 'approved' %}
                     <form method="post" action="{{ path('app_comment_pin_toggle', { id: comment.id }) }}">
                         <input type="hidden" name="_token" value="{{ csrf_token('pin-comment-' ~ comment.id) }}">
                         <button class="comment-pin-button {{ comment.pinnedAt ? 'is-active' }}" type="submit">

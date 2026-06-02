@@ -22,9 +22,9 @@ final class SecurityController extends AbstractController
         ]);
     }
 
-    #[Route('/logout', name: 'app_logout', methods: ['GET'])]
-    public function logout(): never
+    #[Route('/logout', name: 'app_logout', methods: ['POST'])]
+    public function logout(): void
     {
-        throw new \LogicException('Symfony intercepte cette route pour deconnecter l utilisateur.');
+        throw new \LogicException('This method can be blank - it will be intercepted by the logout key on your firewall.');
     }
 }

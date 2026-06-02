@@ -80,7 +80,10 @@
                         {% endif %}
 
                         <a class="nav-link" href="{{ path('app_profile') }}">Profil</a>
-                        <a class="nav-link" href="{{ path('app_logout') }}">Déconnexion</a>
+                        <form method="post" action="{{ path('app_logout') }}" class="logout-form">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+                            <button type="submit" class="nav-link logout-button">Déconnexion</button>
+                        </form>
                     </div>
                 {% endif %}
             </div>
