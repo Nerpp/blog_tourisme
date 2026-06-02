@@ -23,6 +23,11 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 #[IsGranted(AdminAccessVoter::ACCESS)]
 final class QuickDestinationController extends AbstractController
 {
+    private const QUICK_HIKE_DESTINATION_SESSION_KEY = 'quick_hike_destination_id';
+    private const QUICK_HIKE_DESTINATION_POSTAL_CODE_SESSION_KEY = 'quick_hike_destination_postal_code';
+    private const QUICK_CITY_VISIT_DESTINATION_SESSION_KEY = 'quick_city_visit_destination_id';
+    private const QUICK_CITY_VISIT_DESTINATION_POSTAL_CODE_SESSION_KEY = 'quick_city_visit_destination_postal_code';
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly DestinationRepository $destinationRepository,
@@ -55,6 +60,7 @@ final class QuickDestinationController extends AbstractController
         }
 
         $this->entityManager->flush();
+        $this->rememberPreparedDestination($request, $destination);
 
         if ($this->wantsJson($request)) {
             return new JsonResponse([
@@ -70,6 +76,38 @@ final class QuickDestinationController extends AbstractController
         $this->addFlash('success', sprintf('Destination "%s" enregistrée.', $destination->getName()));
 
         return new RedirectResponse($this->safeReturnUrl($request));
+    }
+
+    private function rememberPreparedDestination(Request $request, Destination $destination): void
+    {
+        $destinationId = $destination->getId();
+        if ($destinationId === null) {
+            return;
+        }
+
+        $contextType = $request->request->getString('contextType') ?: $request->request->getString('targetType');
+        $session = $request->getSession();
+        $postalCode = $this->nullIfBlank($request->request->getString('postalCode'));
+
+        if ($contextType === 'quick_hike') {
+            $session->set(self::QUICK_HIKE_DESTINATION_SESSION_KEY, $destinationId);
+            if ($postalCode !== null) {
+                $session->set(self::QUICK_HIKE_DESTINATION_POSTAL_CODE_SESSION_KEY, $postalCode);
+            } else {
+                $session->remove(self::QUICK_HIKE_DESTINATION_POSTAL_CODE_SESSION_KEY);
+            }
+
+            return;
+        }
+
+        if ($contextType === 'quick_city_visit') {
+            $session->set(self::QUICK_CITY_VISIT_DESTINATION_SESSION_KEY, $destinationId);
+            if ($postalCode !== null) {
+                $session->set(self::QUICK_CITY_VISIT_DESTINATION_POSTAL_CODE_SESSION_KEY, $postalCode);
+            } else {
+                $session->remove(self::QUICK_CITY_VISIT_DESTINATION_POSTAL_CODE_SESSION_KEY);
+            }
+        }
     }
 
     private function findParentDestination(Request $request): ?Destination

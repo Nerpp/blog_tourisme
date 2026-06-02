@@ -6,6 +6,7 @@ use App\Entity\User;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\Flash\FlashBagInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -32,7 +33,10 @@ final class AdminAccessDeniedHandler implements AccessDeniedHandlerInterface
                 ? 'Veuillez confirmer votre adresse email avant d’accéder à l’administration.'
                 : 'Vous n’avez pas accès à l’administration.';
 
-        $request->getSession()->getFlashBag()->add('warning', $message);
+        $flashBag = $request->getSession()->getBag('flashes');
+        if ($flashBag instanceof FlashBagInterface) {
+            $flashBag->add('warning', $message);
+        }
 
         return new RedirectResponse($this->urlGenerator->generate('app_home'));
     }

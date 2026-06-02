@@ -214,7 +214,7 @@ final class TrafficSubscriber implements EventSubscriberInterface
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
             $parts = explode('.', $ip);
 
-            return sprintf('%s.%s.0.0', $parts[0] ?? '0', $parts[1] ?? '0');
+            return sprintf('%s.%s.0.0', $parts[0], $parts[1] ?? '0');
         }
 
         if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {

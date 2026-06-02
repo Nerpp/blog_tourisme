@@ -46,7 +46,7 @@ final class ImageMetadataSanitizer
     {
         $absolutePath = $this->resolvePublicUploadPath($publicPath);
         $imageSize = @getimagesize($absolutePath);
-        if (!is_array($imageSize) || !isset($imageSize[0], $imageSize[1], $imageSize['mime'])) {
+        if (!is_array($imageSize)) {
             throw new InvalidArgumentException(sprintf('Le fichier "%s" n’est pas une image lisible.', $publicPath));
         }
 
@@ -149,7 +149,7 @@ final class ImageMetadataSanitizer
     }
 
     /**
-     * @param array<string, mixed> $imageSize
+     * @param array<int|string, mixed> $imageSize
      *
      * @return list<string>
      */

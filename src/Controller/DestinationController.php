@@ -67,7 +67,15 @@ final class DestinationController extends AbstractController
             'explore_destinations' => $exploreDestinations,
             'child_explore_counts' => $this->childExploreCounts($exploreDestinations, $destinationsInScope),
             'department_context_by_destination_id' => $departmentContextByDestinationId,
-            'department_summaries' => [],
+            'department_summaries' => $this->departmentSummaries(
+                $destination,
+                $exploreDestinations,
+                $destinationsInScope,
+                $departmentByDestinationId,
+                $articleCards,
+                $hikes,
+                $cityVisits,
+            ),
         ]);
     }
 
@@ -90,7 +98,7 @@ final class DestinationController extends AbstractController
     {
         $cards = [];
         $seen = [];
-        $destinationIds = array_flip($destinationIds);
+        $destinationIds = array_fill_keys($destinationIds, true);
 
         foreach ($articles as $article) {
             $articleId = $article->getId();

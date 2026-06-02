@@ -68,19 +68,18 @@ final class ImageTypeDetector
     public function detectFromUpload(UploadedFile $file): ImageType
     {
         $imageSize = @getimagesize($file->getPathname());
-        if (!is_array($imageSize) || !isset($imageSize[0], $imageSize[1])) {
+        if (!is_array($imageSize)) {
             return ImageType::Standard;
         }
 
-        $detectedMimeType = $imageSize['mime'] ?? null;
-        $mimeType = is_string($detectedMimeType) && $detectedMimeType !== ''
-            ? $detectedMimeType
-            : $file->getMimeType();
+        $mimeType = $imageSize['mime'] !== ''
+            ? $imageSize['mime']
+            : (string) $file->getMimeType();
 
         return $this->detect(
             (int) $imageSize[0],
             (int) $imageSize[1],
-            is_string($mimeType) && $mimeType !== '' ? $mimeType : null,
+            $mimeType !== '' ? $mimeType : null,
             $file->getClientOriginalName(),
         );
     }

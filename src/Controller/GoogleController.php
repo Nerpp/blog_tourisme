@@ -15,7 +15,7 @@ final class GoogleController extends AbstractController
     {
         return $clientRegistry
             ->getClient('google')
-            ->redirect(['openid', 'email', 'profile']);
+            ->redirect(['openid', 'email', 'profile'], []);
     }
 
     #[Route('/connect/google/check', name: 'connect_google_check', methods: ['GET'])]

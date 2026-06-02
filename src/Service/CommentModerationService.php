@@ -29,7 +29,6 @@ class CommentModerationService
 
     public function __construct(
         private readonly ModerationKeywordRepository $keywordRepository,
-        private readonly int $autoApproveAfter = 3,
         private readonly int $reportThreshold = 3,
     ) {
     }

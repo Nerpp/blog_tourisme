@@ -3,28 +3,77 @@
 {% block title %}Nouvelle rando rapide{% endblock %}
 
 {% block body %}
-    <section class="field-card">
-        <h1 class="field-title">Nouvelle rando rapide</h1>
-        <p class="field-subtitle">Créez un brouillon terrain, puis enregistrez le départ et les points utiles depuis votre position GPS.</p>
+    {% if current_destination %}
+        <section class="field-card">
+            <h1 class="field-title">Rando prête à créer</h1>
+            <p class="field-subtitle">Cette destination sera utilisée pour créer un brouillon de rando. Vous pourrez ensuite ajouter les photos, les médias, la description et les informations depuis l’administration.</p>
 
-        <form class="field-stack" method="post" action="{{ path('admin_quick_hike_start') }}">
-            <input type="hidden" name="_token" value="{{ csrf_token('quick_hike_start') }}">
-            <input type="hidden" name="title" value="{{ default_title }}">
+            <form class="field-stack" method="post" action="{{ path('admin_quick_hike_start') }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('quick_hike_start') }}">
+                <input type="hidden" name="title" value="{{ default_title }}">
+                <input type="hidden" name="creation_mode" value="remote">
+                <button class="field-button" type="submit">Créer la rando avec cette destination</button>
+            </form>
+        </section>
 
-            <div class="field-row">
-                <label class="field-label" for="quick_hike_notes">Note de départ</label>
-                <textarea id="quick_hike_notes" class="field-textarea" name="notes" placeholder="Optionnel"></textarea>
-            </div>
+        {% include 'admin/_quick_destination_form.html.twig' with {
+            ui_context: 'field',
+            current_destination: current_destination,
+            prepared_destination_postal_code: prepared_destination_postal_code,
+            quick_destination_title: quick_destination_title,
+            quick_destination_prepared_text: quick_destination_prepared_text,
+            quick_destination_skip_action: quick_destination_skip_action,
+            quick_destination_skip_token_id: quick_destination_skip_token_id,
+            destination_quick_create: destination_quick_create,
+            destination_type_options: destination_type_options,
+            destination_parent_options: destination_parent_options
+        } only %}
+    {% elseif quick_hike_mode is same as('terrain') %}
+        <section class="field-card">
+            <h1 class="field-title">Nouvelle rando terrain</h1>
+            <p class="field-subtitle">Utilisez ce mode si vous êtes sur place. Votre position GPS servira à enregistrer le point de départ.</p>
 
-            <button class="field-button" type="submit">Démarrer une rando rapide</button>
-        </form>
-    </section>
+            <form class="field-stack" method="post" action="{{ path('admin_quick_hike_start') }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('quick_hike_start') }}">
+                <input type="hidden" name="title" value="{{ default_title }}">
+                <input type="hidden" name="creation_mode" value="field">
 
-    {% include 'admin/_quick_destination_form.html.twig' with {
-        ui_context: 'field',
-        current_destination: null,
-        destination_quick_create: destination_quick_create,
-        destination_type_options: destination_type_options,
-        destination_parent_options: destination_parent_options
-    } only %}
+                <div class="field-row">
+                    <label class="field-label" for="quick_hike_notes">Note de départ</label>
+                    <textarea id="quick_hike_notes" class="field-textarea" name="notes" placeholder="Optionnel"></textarea>
+                </div>
+
+                <button class="field-button" type="submit">Démarrer la rando terrain</button>
+            </form>
+        </section>
+    {% elseif quick_hike_mode is same as('distance') %}
+        <section class="field-card">
+            <h1 class="field-title">Créer une rando à distance</h1>
+            <p class="field-subtitle">Choisissez une destination, puis créez un brouillon à compléter dans l’administration.</p>
+        </section>
+
+        <div id="quick-hike-distance"></div>
+        {% include 'admin/_quick_destination_form.html.twig' with {
+            ui_context: 'field',
+            current_destination: null,
+            quick_destination_title: 'Où se situe cette visite ?',
+            quick_destination_submit_label: 'Associer cette destination',
+            quick_destination_allow_skip: false,
+            destination_quick_create: destination_quick_create,
+            destination_type_options: destination_type_options,
+            destination_parent_options: destination_parent_options
+        } only %}
+    {% else %}
+        <section class="field-card">
+            <h1 class="field-title">Démarrer une rando terrain</h1>
+            <p class="field-subtitle">À utiliser quand vous êtes sur place. Le GPS sert à enregistrer le point de départ et les points utiles.</p>
+            <a class="field-button" href="{{ path('admin_quick_hike_index', { mode: 'terrain' }) }}">Démarrer une rando terrain</a>
+        </section>
+
+        <section class="field-card">
+            <h1 class="field-title">Créer une rando à distance</h1>
+            <p class="field-subtitle">Préparez une randonnée depuis l’administration, avec une destination, des photos et une description.</p>
+            <a class="field-button field-button--secondary" href="{{ path('admin_quick_hike_index', { mode: 'distance' }) }}#quick-hike-distance">Créer une rando à distance</a>
+        </section>
+    {% endif %}
 {% endblock %}

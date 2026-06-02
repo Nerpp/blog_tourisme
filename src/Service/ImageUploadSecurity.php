@@ -36,7 +36,7 @@ final class ImageUploadSecurity
         }
 
         $fileSize = $file->getSize();
-        if ($fileSize === null || $fileSize <= 0) {
+        if ($fileSize === false || $fileSize <= 0) {
             throw new InvalidArgumentException('le fichier est vide.');
         }
 
@@ -59,12 +59,12 @@ final class ImageUploadSecurity
         }
 
         $imageSize = @getimagesize($file->getPathname());
-        if (!is_array($imageSize) || !isset($imageSize[0], $imageSize[1])) {
+        if (!is_array($imageSize)) {
             throw new InvalidArgumentException('le contenu du fichier n’est pas une image lisible.');
         }
 
-        $detectedMime = (string) ($imageSize['mime'] ?? '');
-        if ($detectedMime === '' || !isset(self::ALLOWED_MIME_EXTENSIONS[$detectedMime]) || $detectedMime !== $mimeType) {
+        $detectedMime = (string) $imageSize['mime'];
+        if ($detectedMime === '' || !array_key_exists($detectedMime, self::ALLOWED_MIME_EXTENSIONS) || $detectedMime !== $mimeType) {
             throw new InvalidArgumentException('le type réel de l’image ne correspond pas au fichier envoyé.');
         }
 

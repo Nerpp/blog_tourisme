@@ -141,7 +141,7 @@ final class AvatarUploadService
         }
 
         $size = $file->getSize();
-        if ($size === null || $size <= 0) {
+        if ($size === false || $size <= 0) {
             throw new InvalidArgumentException('Le fichier envoyé est vide.');
         }
 
@@ -160,12 +160,12 @@ final class AvatarUploadService
         }
 
         $imageSize = @getimagesize($file->getPathname());
-        if (!is_array($imageSize) || !isset($imageSize[0], $imageSize[1], $imageSize['mime'])) {
+        if (!is_array($imageSize)) {
             throw new InvalidArgumentException('Le fichier envoyé n’est pas une image valide.');
         }
 
         $detectedMime = (string) $imageSize['mime'];
-        if ($detectedMime !== $mimeType || !isset(self::ALLOWED_MIME_TYPES[$detectedMime])) {
+        if ($detectedMime !== $mimeType || !array_key_exists($detectedMime, self::ALLOWED_MIME_TYPES)) {
             throw new InvalidArgumentException('Le contenu réel de l’image ne correspond pas au fichier envoyé.');
         }
 

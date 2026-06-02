@@ -28,7 +28,7 @@ final readonly class VideoThumbnailResolver
         $id = null;
 
         if ($host === 'youtu.be') {
-            $id = explode('/', $path)[0] ?? null;
+            $id = explode('/', $path)[0];
         }
 
         if (in_array($host, ['youtube.com', 'youtube-nocookie.com'], true)) {

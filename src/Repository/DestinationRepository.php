@@ -114,7 +114,7 @@ class DestinationRepository extends ServiceEntityRepository
         $parentIds = [$rootId];
         $connection = $this->getEntityManager()->getConnection();
 
-        while ($parentIds !== []) {
+        while (true) {
             $childIds = array_map(
                 'intval',
                 $connection->executeQuery(

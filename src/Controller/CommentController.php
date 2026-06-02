@@ -340,7 +340,7 @@ final class CommentController extends AbstractController
             $entityManager->persist($like);
             $entityManager->flush();
         } catch (UniqueConstraintViolationException) {
-            $entityManager->clear(CommentLike::class);
+            $entityManager->detach($like);
         }
 
         return $this->redirectToCommentTarget($comment);

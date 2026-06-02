@@ -22,7 +22,7 @@ final class CommentMentionService
         if (preg_match_all(self::MENTION_PATTERN, $content, $matches) !== false) {
             return array_values(array_unique(array_map(
                 static fn (string $handle): string => mb_strtolower($handle),
-                $matches[1] ?? [],
+                $matches[1],
             )));
         }
 
@@ -51,7 +51,7 @@ final class CommentMentionService
         $linkedContent = preg_replace_callback(
             self::MENTION_PATTERN,
             function (array $matches) use ($usersByHandle): string {
-                $handle = mb_strtolower((string) ($matches[1] ?? ''));
+                $handle = mb_strtolower((string) $matches[1]);
                 $user = $usersByHandle[$handle] ?? null;
                 if (!$user instanceof User || $user->getId() === null) {
                     return (string) $matches[0];

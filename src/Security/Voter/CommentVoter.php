@@ -58,8 +58,11 @@ class CommentVoter extends Voter
 
     private function isOwner(Comment $comment, User $user): bool
     {
-        return $comment->getAuthor()?->getId() !== null
-            && $comment->getAuthor()?->getId() === $user->getId();
+        $author = $comment->getAuthor();
+
+        return $author !== null
+            && $author->getId() !== null
+            && $author->getId() === $user->getId();
     }
 
     private function isAdmin(User $user): bool

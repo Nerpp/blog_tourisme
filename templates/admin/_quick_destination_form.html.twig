@@ -16,14 +16,47 @@
 {% set current_destination = current_destination|default(null) %}
 {% set context_type = destination_quick_create.contextType|default(destination_quick_create.targetType|default('')) %}
 {% set context_id = destination_quick_create.contextId|default(destination_quick_create.targetId|default('')) %}
+{% set is_preparation_flow = context_type in ['quick_hike', 'quick_city_visit'] %}
+{% set prepared_destination_postal_code = prepared_destination_postal_code|default(null) %}
+{% set quick_destination_title = quick_destination_title|default(is_preparation_flow ? 'Destination préparée' : 'Où se situe cette visite ?') %}
+{% set quick_destination_prepared_text = quick_destination_prepared_text|default(is_preparation_flow ? 'Cette destination sera associée au brouillon au moment de sa création.' : null) %}
+{% set quick_destination_skip_action = quick_destination_skip_action|default(null) %}
+{% set quick_destination_skip_token_id = quick_destination_skip_token_id|default(null) %}
+{% set quick_destination_allow_skip = quick_destination_allow_skip|default(true) %}
+{% set quick_destination_skip_label = quick_destination_skip_label|default('Continuer sans destination') %}
+{% set quick_destination_submit_label = quick_destination_submit_label|default(null) %}
 {% set redirect_anchor = redirect_anchor|default(null) %}
 
 <section class="{{ container_class }}" data-quick-destination>
     <div class="quick-destination__header">
         <div>
-            <h2 class="quick-destination__title">Où se situe cette visite ?</h2>
+            <h2 class="quick-destination__title">{{ quick_destination_title }}</h2>
             {% if current_destination %}
-                <p class="quick-destination__text">Destination associée : <strong>{{ current_destination.name }}</strong></p>
+                {% set destination_department = current_destination.parent and current_destination.parent.type.value == 'department' ? current_destination.parent : null %}
+                {% set destination_region = destination_department and destination_department.parent and destination_department.parent.type.value == 'region' ? destination_department.parent : null %}
+                <p class="quick-destination__text">
+                    <strong>{{ current_destination.name }}</strong>
+                    {% if destination_department or destination_region %}
+                        —
+                        {% if destination_department %}
+                            {{ current_destination.code ? current_destination.code|slice(0, 2) ~ ' ' : '' }}{{ destination_department.name }}
+                        {% endif %}
+                        {% if destination_region %}
+                            — {{ destination_region.name }}
+                        {% endif %}
+                    {% endif %}
+                </p>
+                {% if current_destination.code %}
+                    <p class="quick-destination__text">Code INSEE : {{ current_destination.code }}</p>
+                {% endif %}
+                {% if prepared_destination_postal_code %}
+                    <p class="quick-destination__text">Code postal : {{ prepared_destination_postal_code }}</p>
+                {% endif %}
+                {% if quick_destination_prepared_text %}
+                    <p class="quick-destination__text">{{ quick_destination_prepared_text }}</p>
+                {% else %}
+                    <p class="quick-destination__text">Destination associée.</p>
+                {% endif %}
             {% else %}
                 <p class="quick-destination__text">Aucune destination associée</p>
                 <p class="quick-destination__text">Recherchez une commune française. La région, le département, le code INSEE et les coordonnées seront complétés automatiquement.</p>
@@ -36,10 +69,15 @@
             <button class="{{ primary_button }}" type="button" data-current-destination-toggle>Modifier la destination associée</button>
             <button class="{{ secondary_button }}" type="button" data-quick-destination-toggle>Changer ou créer une autre destination</button>
         {% else %}
-            <button class="{{ primary_button }}" type="button" data-quick-destination-toggle>{{ current_destination ? 'Changer ou créer une destination associée' : 'Créer une destination' }}</button>
+            <button class="{{ primary_button }}" type="button" data-quick-destination-toggle>{{ current_destination ? 'Modifier la destination' : (quick_destination_submit_label ?: 'Créer et utiliser cette destination') }}</button>
         {% endif %}
-        {% if not current_destination %}
-            <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>Continuer sans destination</button>
+        {% if current_destination and quick_destination_skip_action %}
+            <form method="post" action="{{ quick_destination_skip_action }}">
+                <input type="hidden" name="_token" value="{{ csrf_token(quick_destination_skip_token_id) }}">
+                <button class="{{ neutral_button }}" type="submit">Retirer la destination</button>
+            </form>
+        {% elseif not current_destination and quick_destination_allow_skip %}
+            <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>{{ quick_destination_skip_label }}</button>
         {% endif %}
     </div>
 
@@ -225,10 +263,10 @@
 
         <p class="quick-destination__status" data-quick-destination-status aria-live="polite"></p>
         <div class="quick-destination__actions">
-            {% if not current_destination %}
-                <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>Continuer sans destination</button>
+            {% if not current_destination and quick_destination_allow_skip %}
+                <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>{{ quick_destination_skip_label }}</button>
             {% endif %}
-            <button class="{{ primary_button }}" type="submit">{{ context_type and context_id ? 'Associer cette destination' : 'Créer la destination' }}</button>
+            <button class="{{ primary_button }}" type="submit">{{ quick_destination_submit_label ?: (is_preparation_flow ? 'Créer et utiliser cette destination' : (context_type and context_id ? 'Associer cette destination' : 'Créer la destination')) }}</button>
         </div>
     </form>
 

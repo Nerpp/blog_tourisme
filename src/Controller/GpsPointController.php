@@ -36,6 +36,7 @@ final class GpsPointController extends AbstractController
         $point = match ($type) {
             'hike' => $hikePointRepository->find($id),
             'city_visit' => $cityVisitPointRepository->find($id),
+            default => null,
         };
 
         if (!$point instanceof HikePoint && !$point instanceof CityVisitPoint) {
@@ -154,6 +155,7 @@ final class GpsPointController extends AbstractController
         $content = match ($type) {
             'hike' => $hikeDraftRepository->find($id),
             'city_visit' => $cityVisitDraftRepository->find($id),
+            default => null,
         };
 
         if (!$content instanceof HikeDraft && !$content instanceof CityVisitDraft) {
@@ -181,12 +183,17 @@ final class GpsPointController extends AbstractController
     {
         $points = [];
 
-        foreach ($content->getPoints() as $point) {
-            if (($point instanceof HikePoint || $point instanceof CityVisitPoint)
-                && $point->getLatitude() !== null
-                && $point->getLongitude() !== null
-            ) {
-                $points[] = $point;
+        if ($content instanceof HikeDraft) {
+            foreach ($content->getPoints() as $point) {
+                if ($point->getLatitude() !== null && $point->getLongitude() !== null) {
+                    $points[] = $point;
+                }
+            }
+        } else {
+            foreach ($content->getPoints() as $point) {
+                if ($point->getLatitude() !== null && $point->getLongitude() !== null) {
+                    $points[] = $point;
+                }
             }
         }
 

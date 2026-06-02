@@ -35,7 +35,9 @@ final class BulkMediaUploadService
             'height' => $media->getHeight(),
             'size' => $media->getFileSize(),
             'detectedMime' => $media->getMimeType(),
-            'mediaType' => $media->getImageType()?->value ?? $media->getMediaType()?->value,
+            'mediaType' => $media->getImageType() instanceof \BackedEnum
+                ? $media->getImageType()->value
+                : $media->getMediaType()->value,
         ];
     }
 

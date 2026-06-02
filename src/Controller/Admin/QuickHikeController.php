@@ -30,6 +30,10 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 #[IsGranted(AdminAccessVoter::ACCESS)]
 final class QuickHikeController extends AbstractController
 {
+    private const ACTIVE_FIELD_DRAFT_SESSION_KEY = 'quick_hike_active_field_draft_id';
+    private const PREPARED_DESTINATION_SESSION_KEY = 'quick_hike_destination_id';
+    private const PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY = 'quick_hike_destination_postal_code';
+
     public function __construct(
         private readonly HikeDraftRepository $hikeDraftRepository,
         private readonly DestinationRepository $destinationRepository,
@@ -39,19 +43,31 @@ final class QuickHikeController extends AbstractController
     ) {}
 
     #[Route('', name: 'index', methods: ['GET'])]
-    public function index(): Response
+    public function index(Request $request): Response
     {
         if ($redirect = $this->denyUnlessAdmin()) {
             return $redirect;
         }
 
-        $user = $this->getUser();
-        if ($user instanceof User && ($draft = $this->hikeDraftRepository->findCurrentDraftForUser($user)) instanceof HikeDraft) {
-            return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
+        $quickHikeMode = $this->quickHikeMode($request);
+        $preparedDestination = $this->preparedDestination($request);
+
+        if (!$preparedDestination instanceof Destination && $quickHikeMode !== 'distance') {
+            $user = $this->getUser();
+            if ($user instanceof User && ($draft = $this->activeFieldDraft($request, $user)) instanceof HikeDraft) {
+                return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
+            }
         }
 
         return $this->render('admin/quick_hike/index.html.twig', [
             'default_title' => $this->defaultHikeTitle(),
+            'current_destination' => $preparedDestination,
+            'prepared_destination_postal_code' => $this->preparedDestinationPostalCode($request),
+            'quick_destination_title' => 'Destination préparée',
+            'quick_destination_prepared_text' => 'Cette destination sera utilisée pour créer un brouillon de rando.',
+            'quick_destination_skip_action' => $this->generateUrl('admin_quick_hike_clear_destination'),
+            'quick_destination_skip_token_id' => 'quick_hike_clear_destination',
+            'quick_hike_mode' => $quickHikeMode,
             'destination_type_options' => $this->destinationTypeOptions(),
             'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
             'destination_quick_create' => $this->emptyDestinationQuickCreateData(),
@@ -73,11 +89,17 @@ final class QuickHikeController extends AbstractController
 
         $title = trim((string) $request->request->get('title', '')) ?: $this->defaultHikeTitle();
         $notes = trim((string) $request->request->get('notes', ''));
+        $creationMode = $request->request->getString('creation_mode') === 'remote' ? 'remote' : 'field';
         $draft = (new HikeDraft())
             ->setTitle($title)
             ->setSlug($this->createUniqueSlug($title))
             ->setStatus(HikeDraftStatus::Draft)
             ->setNotes($notes !== '' ? $notes : null);
+
+        $preparedDestination = $this->preparedDestination($request);
+        if ($preparedDestination instanceof Destination) {
+            $draft->setDestination($preparedDestination);
+        }
 
         $user = $this->getUser();
         if ($user instanceof User) {
@@ -86,8 +108,55 @@ final class QuickHikeController extends AbstractController
 
         $this->entityManager->persist($draft);
         $this->entityManager->flush();
+        $this->clearPreparedDestination($request);
+
+        if ($preparedDestination instanceof Destination || $creationMode === 'remote') {
+            $this->clearActiveFieldDraft($request);
+
+            return $this->redirectToRoute('admin_studio_hike_edit', ['id' => $draft->getId()]);
+        }
+
+        $this->rememberActiveFieldDraft($request, $draft);
 
         return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
+    }
+
+    #[Route('/destination/clear', name: 'clear_destination', methods: ['POST'])]
+    public function clearDestination(Request $request): RedirectResponse
+    {
+        if ($redirect = $this->denyUnlessAdmin()) {
+            return $redirect;
+        }
+
+        if (!$this->isCsrfTokenValid('quick_hike_clear_destination', (string) $request->request->get('_token', ''))) {
+            $this->addFlash('warning', 'Le formulaire a expiré. Merci de réessayer.');
+
+            return $this->redirectToRoute('admin_quick_hike_index');
+        }
+
+        $this->clearPreparedDestination($request);
+        $this->addFlash('success', 'La destination préparée a été retirée.');
+
+        return $this->redirectToRoute('admin_quick_hike_index');
+    }
+
+    #[Route('/{id}/abandon', name: 'abandon', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function abandon(Request $request, HikeDraft $hikeDraft): RedirectResponse
+    {
+        if ($redirect = $this->denyUnlessAdmin()) {
+            return $redirect;
+        }
+
+        if (!$this->isCsrfTokenValid(sprintf('quick_hike_abandon_%d', $hikeDraft->getId()), (string) $request->request->get('_token', ''))) {
+            $this->addFlash('warning', 'Le formulaire a expiré. Merci de réessayer.');
+
+            return $this->redirectToRoute('admin_quick_hike_show', ['id' => $hikeDraft->getId()]);
+        }
+
+        $this->clearActiveFieldDraft($request);
+        $this->addFlash('success', 'La session terrain a été abandonnée. Le brouillon reste éditable dans l’administration.');
+
+        return $this->redirectToRoute('admin_quick_hike_index');
     }
 
     #[Route('/{id}', name: 'show', requirements: ['id' => '\d+'], methods: ['GET'])]
@@ -168,6 +237,7 @@ final class QuickHikeController extends AbstractController
             ->setFinishedAt($hikeDraft->getFinishedAt() ?? new DateTimeImmutable());
 
         $this->entityManager->flush();
+        $this->clearActiveFieldDraft($request);
 
         $this->addFlash('success', 'Sortie terrain enregistrée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus avant publication.');
 
@@ -314,9 +384,9 @@ final class QuickHikeController extends AbstractController
     private function emptyDestinationQuickCreateData(): array
     {
         return [
-            'contextType' => '',
+            'contextType' => 'quick_hike',
             'contextId' => null,
-            'targetType' => '',
+            'targetType' => 'quick_hike',
             'targetId' => null,
             'name' => '',
             'countryName' => '',
@@ -329,6 +399,90 @@ final class QuickHikeController extends AbstractController
             'latitude' => null,
             'longitude' => null,
         ];
+    }
+
+    private function preparedDestination(Request $request): ?Destination
+    {
+        $destinationId = $this->nullableInt($request->getSession()->get(self::PREPARED_DESTINATION_SESSION_KEY));
+
+        if ($destinationId === null) {
+            return null;
+        }
+
+        $destination = $this->destinationRepository->find($destinationId);
+        if (!$destination instanceof Destination) {
+            $this->clearPreparedDestination($request);
+
+            return null;
+        }
+
+        return $destination;
+    }
+
+    private function preparedDestinationPostalCode(Request $request): ?string
+    {
+        $postalCode = trim((string) $request->getSession()->get(self::PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY, ''));
+
+        return $postalCode !== '' ? $postalCode : null;
+    }
+
+    private function clearPreparedDestination(Request $request): void
+    {
+        $session = $request->getSession();
+        $session->remove(self::PREPARED_DESTINATION_SESSION_KEY);
+        $session->remove(self::PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY);
+    }
+
+    private function quickHikeMode(Request $request): string
+    {
+        return match ($request->query->getString('mode')) {
+            'terrain' => 'terrain',
+            'distance' => 'distance',
+            default => 'choice',
+        };
+    }
+
+    private function activeFieldDraft(Request $request, User $user): ?HikeDraft
+    {
+        $draftId = $this->nullableInt($request->getSession()->get(self::ACTIVE_FIELD_DRAFT_SESSION_KEY));
+        if ($draftId === null) {
+            return null;
+        }
+
+        $draft = $this->hikeDraftRepository->find($draftId);
+        if (!$draft instanceof HikeDraft
+            || $draft->getStatus() !== HikeDraftStatus::Draft
+            || $draft->getFinishedAt() !== null
+            || $draft->getCreatedBy()?->getId() !== $user->getId()
+        ) {
+            $this->clearActiveFieldDraft($request);
+
+            return null;
+        }
+
+        return $draft;
+    }
+
+    private function rememberActiveFieldDraft(Request $request, HikeDraft $draft): void
+    {
+        $draftId = $draft->getId();
+        if ($draftId !== null) {
+            $request->getSession()->set(self::ACTIVE_FIELD_DRAFT_SESSION_KEY, $draftId);
+        }
+    }
+
+    private function clearActiveFieldDraft(Request $request): void
+    {
+        $request->getSession()->remove(self::ACTIVE_FIELD_DRAFT_SESSION_KEY);
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /** @return array<string, float|int|string|null> */

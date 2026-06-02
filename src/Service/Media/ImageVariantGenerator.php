@@ -78,11 +78,11 @@ final class ImageVariantGenerator
     ): array {
         $sourceFile = $this->resolvePublicFile($publicSourcePath);
         $imageSize = @getimagesize($sourceFile);
-        if (!is_array($imageSize) || !isset($imageSize[0], $imageSize[1])) {
+        if (!is_array($imageSize)) {
             throw new InvalidArgumentException('L’image source est illisible.');
         }
 
-        $mimeType = (string) ($imageSize['mime'] ?? '');
+        $mimeType = (string) $imageSize['mime'];
         if (!$this->supportsMimeType($mimeType)) {
             throw new InvalidArgumentException(sprintf('Le type "%s" ne peut pas être traité par le pipeline média.', $mimeType ?: 'inconnu'));
         }

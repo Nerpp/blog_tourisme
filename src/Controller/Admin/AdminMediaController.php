@@ -15,10 +15,10 @@ use App\Service\Media\VideoThumbnailGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -188,15 +188,15 @@ final class AdminMediaController extends AbstractController
         ];
     }
 
-    /** @return array<string, string> */
+    /** @return array<int|string, string> */
     private function imageTypeLabels(): array
     {
         return [
-            ImageType::Standard->value => 'Image classique',
-            ImageType::Degree360->value => 'Image 360°',
-            ImageType::Degree180->value => 'Image 180°',
-            ImageType::Panorama->value => 'Image panoramique',
-            ImageType::WideAngle->value => 'Grand angle',
+            'standard' => 'Image classique',
+            '360' => 'Image 360°',
+            '180' => 'Image 180°',
+            'panorama' => 'Image panoramique',
+            'wide_angle' => 'Grand angle',
         ];
     }
 

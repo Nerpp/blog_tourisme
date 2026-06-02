@@ -65,7 +65,7 @@ trait StudioMediaHelperTrait
         $media = (new MediaAsset())
             ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
             ->setTitle($this->truncate($storedFile['title'], 180))
-            ->setAltText($storedFile['altText'] ?? null)
+            ->setAltText($storedFile['altText'])
             ->setCaption($this->nullIfBlank($caption))
             ->setMediaType(MediaType::Image)
             ->setImageType($imageType)
@@ -140,7 +140,7 @@ trait StudioMediaHelperTrait
     }
 
     /**
-     * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
+     * @return array{title: string, altText: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
     private function storeUploadedImage(UploadedFile $file, object|string|null $context = null, ?ImageType $imageType = null): array
     {
@@ -169,7 +169,7 @@ trait StudioMediaHelperTrait
     }
 
     /**
-     * @return array{title: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
+     * @return array{title: string, altText: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */
     private function storeImageByType(UploadedFile $file, ImageType $imageType, object|string|null $context = null): array
     {

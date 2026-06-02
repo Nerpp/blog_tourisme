@@ -62,7 +62,7 @@ class MediaAsset
     private ?string $mimeType = null;
 
     #[ORM\Column(type: Types::BIGINT, nullable: true)]
-    private ?string $fileSize = null;
+    private ?int $fileSize = null;
 
     #[ORM\Column(nullable: true)]
     private ?int $width = null;
@@ -271,14 +271,14 @@ class MediaAsset
         return $this;
     }
 
-    public function getFileSize(): ?string
+    public function getFileSize(): ?int
     {
         return $this->fileSize;
     }
 
     public function setFileSize(null|int|string $fileSize): static
     {
-        $this->fileSize = $fileSize === null ? null : (string) $fileSize;
+        $this->fileSize = $fileSize === null ? null : (int) $fileSize;
 
         return $this;
     }

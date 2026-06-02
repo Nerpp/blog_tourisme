@@ -36,7 +36,7 @@ final readonly class VideoEmbedUrlResolver
         $id = null;
 
         if ($host === 'youtu.be') {
-            $id = explode('/', $path)[0] ?? null;
+            $id = explode('/', $path)[0];
         }
 
         if (str_contains($host, 'youtube.com') || str_contains($host, 'youtube-nocookie.com')) {

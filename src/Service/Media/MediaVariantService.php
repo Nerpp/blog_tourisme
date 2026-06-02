@@ -36,18 +36,16 @@ final class MediaVariantService
 
     public function supports(MediaAsset $media): bool
     {
-        if ($media->getMediaType() === MediaType::Image) {
-            return $media->getFilePath() !== null
+        return match ($media->getMediaType()) {
+            MediaType::Image => $media->getFilePath() !== null
                 && $this->isLocalPublicPath($media->getFilePath())
                 && (
                     $media->getMimeType() === null
                     || $this->imageVariantGenerator->supportsMimeType($media->getMimeType())
-                );
-        }
-
-        return $media->getMediaType() === MediaType::Video
-            && $media->getThumbnailPath() !== null
-            && $this->isLocalPublicPath($media->getThumbnailPath());
+                ),
+            MediaType::Video => $media->getThumbnailPath() !== null
+                && $this->isLocalPublicPath($media->getThumbnailPath()),
+        };
     }
 
     public function hasUsableVariants(MediaAsset $media): bool

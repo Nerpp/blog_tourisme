@@ -54,10 +54,7 @@ final class CommentReplyNotificationService
         }
 
         foreach ($recipients as $recipient) {
-            $user = $recipient['user'] ?? null;
-            if (!$user instanceof User) {
-                continue;
-            }
+            $user = $recipient['user'];
 
             if ($comment->getId() !== null && $this->notificationRepository->findOneByRecipientAndComment($user, $comment) !== null) {
                 continue;
@@ -67,7 +64,7 @@ final class CommentReplyNotificationService
                 ->setRecipient($user)
                 ->setComment($comment)
                 ->setTriggeredBy($author)
-                ->setKind((string) ($recipient['kind'] ?? CommentReplyNotification::KIND_REPLY));
+                ->setKind($recipient['kind']);
 
             $this->entityManager->persist($notification);
         }

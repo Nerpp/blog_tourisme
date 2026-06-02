@@ -20,5 +20,4 @@ services:
 
     App\Service\CommentModerationService:
         arguments:
-            $autoApproveAfter: '%env(int:COMMENT_AUTO_APPROVE_AFTER)%'
             $reportThreshold: '%env(int:COMMENT_REPORT_THRESHOLD)%'

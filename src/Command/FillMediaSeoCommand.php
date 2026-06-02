@@ -60,10 +60,6 @@ final class FillMediaSeoCommand extends Command
         $errors = 0;
 
         foreach ($medias as $media) {
-            if (!$media instanceof MediaAsset) {
-                continue;
-            }
-
             try {
                 $context = $this->resolveContext($media, $hikeId, $cityVisitId, $placeId);
                 if (!$context instanceof HikeDraft && !$context instanceof CityVisitDraft && !$context instanceof Place) {

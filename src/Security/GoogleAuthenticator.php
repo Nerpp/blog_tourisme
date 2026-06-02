@@ -11,6 +11,7 @@ use League\OAuth2\Client\Provider\GoogleUser;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\Flash\FlashBagInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
@@ -33,7 +34,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         private readonly RouterInterface $router,
     ) {}
 
-    public function supports(Request $request): ?bool
+    public function supports(Request $request): bool
     {
         return $request->attributes->get('_route') === 'connect_google_check';
     }
@@ -53,20 +54,23 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         }));
     }
 
-    public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response
+    public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): Response
     {
         $targetPath = $this->getTargetPath($request->getSession(), $firewallName);
 
         return new RedirectResponse($targetPath ?: $this->router->generate('app_profile'));
     }
 
-    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): ?Response
+    public function onAuthenticationFailure(Request $request, AuthenticationException $exception): Response
     {
         $message = $exception instanceof CustomUserMessageAuthenticationException
             ? $exception->getMessage()
             : 'La connexion Google a échoué. Réessayez ou utilisez votre mot de passe.';
 
-        $request->getSession()->getFlashBag()->add('error', $message);
+        $flashBag = $request->getSession()->getBag('flashes');
+        if ($flashBag instanceof FlashBagInterface) {
+            $flashBag->add('error', $message);
+        }
 
         return new RedirectResponse($this->router->generate('app_login'));
     }

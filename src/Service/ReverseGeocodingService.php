@@ -38,7 +38,7 @@ final class ReverseGeocodingService
         ]);
 
         $response = @file_get_contents(self::API_URL.'?'.$query, false, $context);
-        if (!\is_string($response) || '' === $response || !$this->isSuccessfulResponse($http_response_header ?? [])) {
+        if (!\is_string($response) || '' === $response || !$this->isSuccessfulResponse($http_response_header)) {
             return null;
         }
 
@@ -77,6 +77,6 @@ final class ReverseGeocodingService
             return true;
         }
 
-        return isset($headers[0]) && str_contains($headers[0], ' 200 ');
+        return str_contains($headers[0], ' 200 ');
     }
 }

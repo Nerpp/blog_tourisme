@@ -39,7 +39,7 @@ final class CommentReactionViewService
         $ids = [];
 
         foreach ($comments as $comment) {
-            if (!$comment instanceof Comment || $comment->getId() === null) {
+            if ($comment->getId() === null) {
                 continue;
             }
 

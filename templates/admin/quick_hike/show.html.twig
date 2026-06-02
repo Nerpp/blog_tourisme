@@ -39,14 +39,6 @@
 		</dl>
 	</section>
 
-	{% include 'admin/_quick_destination_form.html.twig' with {
-        ui_context: 'field',
-        current_destination: hike.destination,
-        destination_quick_create: destination_quick_create,
-        destination_type_options: destination_type_options,
-        destination_parent_options: destination_parent_options
-    } only %}
-
 	{% if errors is not empty %}
 		<div class="field-alert">
 			{% for error in errors %}
@@ -120,6 +112,11 @@
 		<form method="post" action="{{ path('admin_quick_hike_finish', { id: hike.id }) }}" onsubmit="return confirm('Terminer cette randonnée terrain ?');">
 			<input type="hidden" name="_token" value="{{ csrf_token('quick_hike_finish_' ~ hike.id) }}">
 			<button class="field-button field-button--danger" type="submit">Terminer la sortie terrain</button>
+		</form>
+
+		<form method="post" action="{{ path('admin_quick_hike_abandon', { id: hike.id }) }}" onsubmit="return confirm('Abandonner cette session terrain ? Le brouillon restera disponible dans l’administration.');">
+			<input type="hidden" name="_token" value="{{ csrf_token('quick_hike_abandon_' ~ hike.id) }}">
+			<button class="field-button field-button--secondary" type="submit">Abandonner la session terrain</button>
 		</form>
 	{% endif %}
 

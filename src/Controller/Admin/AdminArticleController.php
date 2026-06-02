@@ -129,9 +129,10 @@ final class AdminArticleController extends AbstractController
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
             }
 
-            $hadPublishedAt = $article->getPublishedAt() !== null;
+            $wasPublished = $article->getStatus() === ContentStatus::Published && $article->getPublishedAt() !== null;
             if ($this->updateArticleFromRequest($article, $request)) {
-                $shouldNotifyPublication = !$hadPublishedAt && $article->getPublishedAt() !== null && $article->getStatus() === ContentStatus::Published;
+                $isPublished = $article->getStatus() === ContentStatus::Published;
+                $shouldNotifyPublication = !$wasPublished && $isPublished;
                 $this->syncArticleRelations($article, $request);
                 $orphanCandidates = $this->handleArticleMediaFromRequest($article, $request);
                 $this->entityManager->flush();
@@ -403,7 +404,7 @@ final class AdminArticleController extends AbstractController
         }
 
         $coverFile = $request->files->get('coverImage');
-        if ($coverFile instanceof UploadedFile && $coverFile->getSize() !== null && $coverFile->getSize() > 0) {
+        if ($coverFile instanceof UploadedFile && $coverFile->getSize() !== false && $coverFile->getSize() > 0) {
             $media = $this->createArticleImageAssetFromUpload($coverFile, $article, MediaRole::Cover);
             if ($media instanceof MediaAsset) {
                 array_push($orphanCandidates, ...$this->removeCover($article));
@@ -413,7 +414,7 @@ final class AdminArticleController extends AbstractController
         }
 
         foreach ($this->normalizeUploadedFiles($request->files->get('galleryImages')) as $file) {
-            if ($file->getSize() === null || $file->getSize() <= 0) {
+            if ($file->getSize() === false || $file->getSize() <= 0) {
                 continue;
             }
 

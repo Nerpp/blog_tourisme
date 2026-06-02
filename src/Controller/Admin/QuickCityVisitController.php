@@ -30,6 +30,9 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 #[IsGranted(AdminAccessVoter::ACCESS)]
 final class QuickCityVisitController extends AbstractController
 {
+    private const PREPARED_DESTINATION_SESSION_KEY = 'quick_city_visit_destination_id';
+    private const PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY = 'quick_city_visit_destination_postal_code';
+
     public function __construct(
         private readonly CityVisitDraftRepository $cityVisitDraftRepository,
         private readonly DestinationRepository $destinationRepository,
@@ -39,7 +42,7 @@ final class QuickCityVisitController extends AbstractController
     ) {}
 
     #[Route('', name: 'index', methods: ['GET'])]
-    public function index(): Response
+    public function index(Request $request): Response
     {
         if ($redirect = $this->denyUnlessAdmin()) {
             return $redirect;
@@ -52,6 +55,12 @@ final class QuickCityVisitController extends AbstractController
 
         return $this->render('admin/quick_city_visit/index.html.twig', [
             'default_title' => $this->defaultVisitTitle(),
+            'current_destination' => $this->preparedDestination($request),
+            'prepared_destination_postal_code' => $this->preparedDestinationPostalCode($request),
+            'quick_destination_title' => 'Destination préparée',
+            'quick_destination_prepared_text' => 'Cette destination sera utilisée pour créer un brouillon de visite.',
+            'quick_destination_skip_action' => $this->generateUrl('admin_quick_city_visit_clear_destination'),
+            'quick_destination_skip_token_id' => 'quick_city_visit_clear_destination',
             'destination_type_options' => $this->destinationTypeOptions(),
             'destination_parent_options' => $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']),
             'destination_quick_create' => $this->emptyDestinationQuickCreateData(),
@@ -79,6 +88,11 @@ final class QuickCityVisitController extends AbstractController
             ->setStatus(CityVisitDraftStatus::Draft)
             ->setNotes($notes !== '' ? $notes : null);
 
+        $preparedDestination = $this->preparedDestination($request);
+        if ($preparedDestination instanceof Destination) {
+            $draft->setDestination($preparedDestination);
+        }
+
         $user = $this->getUser();
         if ($user instanceof User) {
             $draft->setCreatedBy($user);
@@ -86,8 +100,32 @@ final class QuickCityVisitController extends AbstractController
 
         $this->entityManager->persist($draft);
         $this->entityManager->flush();
+        $this->clearPreparedDestination($request);
+
+        if ($preparedDestination instanceof Destination) {
+            return $this->redirectToRoute('admin_studio_city_visit_edit', ['id' => $draft->getId()]);
+        }
 
         return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $draft->getId()]);
+    }
+
+    #[Route('/destination/clear', name: 'clear_destination', methods: ['POST'])]
+    public function clearDestination(Request $request): RedirectResponse
+    {
+        if ($redirect = $this->denyUnlessAdmin()) {
+            return $redirect;
+        }
+
+        if (!$this->isCsrfTokenValid('quick_city_visit_clear_destination', (string) $request->request->get('_token', ''))) {
+            $this->addFlash('warning', 'Le formulaire a expiré. Merci de réessayer.');
+
+            return $this->redirectToRoute('admin_quick_city_visit_index');
+        }
+
+        $this->clearPreparedDestination($request);
+        $this->addFlash('success', 'La destination préparée a été retirée.');
+
+        return $this->redirectToRoute('admin_quick_city_visit_index');
     }
 
     #[Route('/{id}', name: 'show', requirements: ['id' => '\d+'], methods: ['GET'])]
@@ -301,9 +339,9 @@ final class QuickCityVisitController extends AbstractController
     private function emptyDestinationQuickCreateData(): array
     {
         return [
-            'contextType' => '',
+            'contextType' => 'quick_city_visit',
             'contextId' => null,
-            'targetType' => '',
+            'targetType' => 'quick_city_visit',
             'targetId' => null,
             'name' => '',
             'countryName' => '',
@@ -316,6 +354,47 @@ final class QuickCityVisitController extends AbstractController
             'latitude' => null,
             'longitude' => null,
         ];
+    }
+
+    private function preparedDestination(Request $request): ?Destination
+    {
+        $destinationId = $this->nullableInt($request->getSession()->get(self::PREPARED_DESTINATION_SESSION_KEY));
+
+        if ($destinationId === null) {
+            return null;
+        }
+
+        $destination = $this->destinationRepository->find($destinationId);
+        if (!$destination instanceof Destination) {
+            $this->clearPreparedDestination($request);
+
+            return null;
+        }
+
+        return $destination;
+    }
+
+    private function preparedDestinationPostalCode(Request $request): ?string
+    {
+        $postalCode = trim((string) $request->getSession()->get(self::PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY, ''));
+
+        return $postalCode !== '' ? $postalCode : null;
+    }
+
+    private function clearPreparedDestination(Request $request): void
+    {
+        $session = $request->getSession();
+        $session->remove(self::PREPARED_DESTINATION_SESSION_KEY);
+        $session->remove(self::PREPARED_DESTINATION_POSTAL_CODE_SESSION_KEY);
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /** @return array<string, float|int|string|null> */
