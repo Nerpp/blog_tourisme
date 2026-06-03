@@ -75,18 +75,24 @@
         }
     },
     "scripts": {
-        "test": "php vendor/bin/phpunit tests/Unit tests/Functional",
+        "test": "php vendor/bin/phpunit --testsuite Unit,Integration,Functional",
         "test:unit": "php vendor/bin/phpunit --testsuite Unit",
+        "test:integration": "php vendor/bin/phpunit --testsuite Integration",
         "test:functional": "php vendor/bin/phpunit --testsuite Functional",
         "test:e2e": "php vendor/bin/phpunit --testsuite E2E",
         "test:panther": "php vendor/bin/phpunit --testsuite E2E",
+        "test:coverage": "XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-text --coverage-html var/coverage",
+        "test:coverage:clover": "XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-clover var/coverage/clover.xml",
         "quality": [
             "php bin/console lint:container",
             "php bin/console lint:twig templates",
-            "php bin/console doctrine:schema:validate --skip-sync",
-            "php vendor/bin/phpunit tests/Unit tests/Functional"
+            "php bin/console doctrine:schema:validate",
+            "@test"
         ],
-        "quality:e2e": "php vendor/bin/phpunit --testsuite E2E",
+        "quality:e2e": [
+            "@quality",
+            "@test:e2e"
+        ],
         "quality:frontend": "npm run build"
     },
     "config": {
