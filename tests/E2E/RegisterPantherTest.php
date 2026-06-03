@@ -24,7 +24,7 @@ final class RegisterPantherTest extends PantherTestCase
         $webDriver->findElement(WebDriverBy::name('registration_form[plainPassword][second]'))->sendKeys($password);
         $webDriver->findElement(WebDriverBy::cssSelector('button[type="submit"]'))->click();
 
-        $client->waitFor('.login-page, .register-page');
+        $client->waitFor('.login-page');
 
         self::assertStringContainsString('/login', $client->getCurrentURL());
         self::assertSelectorTextContains('body', 'Votre compte a été créé');

@@ -58,8 +58,8 @@ final class ImageMetadataSanitizerIntegrationTest extends IntegrationTestCase
         try {
             $sanitizer->inspectPublicPath('/uploads/media/missing-sanitizer-file.png');
             self::fail('Missing file should have been rejected.');
-        } catch (InvalidArgumentException) {
-            self::assertTrue(true);
+        } catch (InvalidArgumentException $exception) {
+            self::assertNotSame('', $exception->getMessage());
         }
 
         $this->expectException(InvalidArgumentException::class);
