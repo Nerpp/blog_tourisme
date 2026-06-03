@@ -15,7 +15,7 @@ final class RegisterPantherTest extends PantherTestCase
         self::assertSelectorExists('input[name="registration_form[email]"]');
 
         $email = $this->uniqueEmail('register');
-        $password = 'E2E Register Password 2026 9!';
+        $password = 'E2E Register '.bin2hex(random_bytes(12)).' 2026 9!';
 
         $webDriver = $client->getWebDriver();
         $webDriver->findElement(WebDriverBy::name('registration_form[email]'))->sendKeys($email);
