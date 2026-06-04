@@ -32,7 +32,6 @@ abstract class IntegrationTestCase extends KernelTestCase
             }
 
             $this->entityManager->close();
-            unset($this->entityManager);
         }
 
         parent::tearDown();

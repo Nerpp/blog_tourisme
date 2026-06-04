@@ -24,10 +24,8 @@ final class AvatarUploadIntegrationTest extends IntegrationTestCase
 
     protected function tearDown(): void
     {
-        if (isset($this->uploadedPaths)) {
-            foreach ($this->uploadedPaths as $publicPath) {
-                $this->avatarService()->delete($publicPath);
-            }
+        foreach ($this->uploadedPaths as $publicPath) {
+            $this->avatarService()->delete($publicPath);
         }
 
         if (isset($this->workspace)) {
@@ -42,9 +40,9 @@ final class AvatarUploadIntegrationTest extends IntegrationTestCase
      */
     public static function validImageProvider(): iterable
     {
-        yield 'png' => ['png'];
-        yield 'jpg' => ['jpg'];
-        yield 'webp' => ['webp'];
+        yield 'png' => ['extension' => 'png'];
+        yield 'jpg' => ['extension' => 'jpg'];
+        yield 'webp' => ['extension' => 'webp'];
     }
 
     #[DataProvider('validImageProvider')]
