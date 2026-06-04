@@ -16,3 +16,11 @@ mkdir -p var/reports
 docker compose exec php sh -lc 'php vendor/bin/phpstan analyse -c phpstan.neon.dist --no-progress --error-format=table --memory-limit=1G > var/reports/phpstan-report.txt 2>&1 || true'
 
 cat var/reports/phpstan-report.txt
+
+Lancement des tests ;
+
+docker compose exec php composer test
+docker compose exec php composer test:e2e
+docker compose exec php composer quality
+docker compose exec php composer quality:e2e
+docker compose exec -e XDEBUG_MODE=coverage php composer test:coverage

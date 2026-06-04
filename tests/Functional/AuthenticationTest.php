@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -21,6 +22,10 @@ final class AuthenticationTest extends WebTestCase
             ->setIsVerified(true);
 
         $container = static::getContainer();
+        $rateLimiterCache = $container->get('cache.rate_limiter');
+        self::assertInstanceOf(CacheItemPoolInterface::class, $rateLimiterCache);
+        $rateLimiterCache->clear();
+
         $passwordHasher = $container->get(UserPasswordHasherInterface::class);
         self::assertInstanceOf(UserPasswordHasherInterface::class, $passwordHasher);
         $user->setPassword($passwordHasher->hashPassword($user, $password));

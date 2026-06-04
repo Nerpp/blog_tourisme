@@ -5,22 +5,28 @@ namespace App\Tests\Functional;
 use App\Entity\Article;
 use App\Entity\Category;
 use App\Entity\CityVisitDraft;
+use App\Entity\CityVisitPoint;
 use App\Entity\Comment;
+use App\Entity\CommentReplyNotification;
 use App\Entity\Destination;
 use App\Entity\HikeDraft;
+use App\Entity\HikePoint;
 use App\Entity\Place;
 use App\Entity\User;
 use App\Enum\CategoryType;
+use App\Enum\CityVisitPointType;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\CommentStatus;
 use App\Enum\ContentStatus;
 use App\Enum\DestinationType;
+use App\Enum\HikePointType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 abstract class FunctionalTestCase extends WebTestCase
 {
@@ -53,6 +59,16 @@ abstract class FunctionalTestCase extends WebTestCase
         $this->persistAndFlush($user);
 
         return $user;
+    }
+
+    protected function createVerifiedAdmin(): User
+    {
+        return $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+    }
+
+    protected function createUnverifiedAdmin(): User
+    {
+        return $this->createUser(['ROLE_ADMIN', 'ROLE_USER'], false);
     }
 
     protected function createDestination(
@@ -128,6 +144,18 @@ abstract class FunctionalTestCase extends WebTestCase
         return $hike;
     }
 
+    protected function createPublishedHike(User $admin, ?Destination $destination = null): HikeDraft
+    {
+        $hike = $this->createHikeDraft($admin, $destination);
+        $hike
+            ->setStatus(HikeDraftStatus::Finished)
+            ->setFinishedAt(new \DateTimeImmutable('-1 hour'));
+
+        $this->persistAndFlush($hike);
+
+        return $hike;
+    }
+
     protected function createCityVisitDraft(User $admin, ?Destination $destination = null): CityVisitDraft
     {
         $token = $this->uniqueToken('city');
@@ -137,6 +165,18 @@ abstract class FunctionalTestCase extends WebTestCase
             ->setStatus(CityVisitDraftStatus::Draft)
             ->setCreatedBy($admin)
             ->setDestination($destination);
+
+        $this->persistAndFlush($cityVisit);
+
+        return $cityVisit;
+    }
+
+    protected function createPublishedCityVisit(User $admin, ?Destination $destination = null): CityVisitDraft
+    {
+        $cityVisit = $this->createCityVisitDraft($admin, $destination);
+        $cityVisit
+            ->setStatus(CityVisitDraftStatus::Finished)
+            ->setFinishedAt(new \DateTimeImmutable('-1 hour'));
 
         $this->persistAndFlush($cityVisit);
 
@@ -154,6 +194,19 @@ abstract class FunctionalTestCase extends WebTestCase
             ->setStatus(ContentStatus::Draft)
             ->setDifficulty(PlaceDifficulty::Unknown)
             ->setPriceType(PriceType::Unknown);
+
+        $this->persistAndFlush($place);
+
+        return $place;
+    }
+
+    protected function createPublishedPlace(?Destination $destination = null, ?Category $category = null): Place
+    {
+        $place = $this->createPlace($destination, $category);
+        $place
+            ->setStatus(ContentStatus::Published)
+            ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
+            ->setShortDescription('Description publique du repérage fonctionnel.');
 
         $this->persistAndFlush($place);
 
@@ -181,6 +234,50 @@ abstract class FunctionalTestCase extends WebTestCase
         }
 
         $entityManager->flush();
+    }
+
+    protected function createHikePoint(HikeDraft $hike, float $latitude = 42.7000, float $longitude = 2.9000, int $position = 1): HikePoint
+    {
+        $point = (new HikePoint())
+            ->setHikeDraft($hike)
+            ->setType(HikePointType::Other)
+            ->setTitle('Point randonnée '.$position)
+            ->setLatitude($latitude)
+            ->setLongitude($longitude)
+            ->setPosition($position);
+        $hike->addPoint($point);
+
+        $this->persistAndFlush($point);
+
+        return $point;
+    }
+
+    protected function createCityVisitPoint(CityVisitDraft $cityVisit, float $latitude = 43.6000, float $longitude = 3.8800, int $position = 1): CityVisitPoint
+    {
+        $point = (new CityVisitPoint())
+            ->setCityVisitDraft($cityVisit)
+            ->setType(CityVisitPointType::Other)
+            ->setTitle('Point visite '.$position)
+            ->setLatitude($latitude)
+            ->setLongitude($longitude)
+            ->setPosition($position);
+        $cityVisit->addPoint($point);
+
+        $this->persistAndFlush($point);
+
+        return $point;
+    }
+
+    protected function createCommentReplyNotification(User $recipient, Comment $comment, ?User $triggeredBy = null): CommentReplyNotification
+    {
+        $notification = (new CommentReplyNotification())
+            ->setRecipient($recipient)
+            ->setComment($comment)
+            ->setTriggeredBy($triggeredBy);
+
+        $this->persistAndFlush($notification);
+
+        return $notification;
     }
 
     protected function refresh(object $entity): object
@@ -213,6 +310,14 @@ abstract class FunctionalTestCase extends WebTestCase
         }
 
         self::fail(sprintf('No CSRF token found for form action containing "%s".', $actionContains));
+    }
+
+    protected function csrfTokenFor(string $tokenId): string
+    {
+        $tokenManager = static::getContainer()->get(CsrfTokenManagerInterface::class);
+        self::assertInstanceOf(CsrfTokenManagerInterface::class, $tokenManager);
+
+        return $tokenManager->getToken($tokenId)->getValue();
     }
 
     protected function inputValue(Crawler $crawler, string $selector): string

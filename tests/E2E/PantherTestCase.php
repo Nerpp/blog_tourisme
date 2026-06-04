@@ -4,6 +4,7 @@ namespace App\Tests\E2E;
 
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Panther\Client;
 use Symfony\Component\Panther\PantherTestCase as BasePantherTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -13,6 +14,10 @@ abstract class PantherTestCase extends BasePantherTestCase
     protected static function createBrowser(): Client
     {
         self::configureBrowserEnvironment();
+        $profileDirectory = sys_get_temp_dir().'/panther-profile-'.bin2hex(random_bytes(8));
+        if (!is_dir($profileDirectory)) {
+            mkdir($profileDirectory, 0700, true);
+        }
 
         return self::createPantherClient([
             'browser' => self::CHROME,
@@ -21,6 +26,7 @@ abstract class PantherTestCase extends BasePantherTestCase
                 '--no-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
+                '--user-data-dir='.$profileDirectory,
                 '--window-size=1400,1000',
             ],
             'env' => [
@@ -51,6 +57,10 @@ abstract class PantherTestCase extends BasePantherTestCase
     {
         self::bootKernel();
         $container = static::getContainer();
+        $rateLimiterCache = $container->get('cache.rate_limiter');
+        self::assertInstanceOf(CacheItemPoolInterface::class, $rateLimiterCache);
+        $rateLimiterCache->clear();
+
         $user = (new User())
             ->setEmail($email)
             ->setDisplayName('E2E '.bin2hex(random_bytes(5)))
