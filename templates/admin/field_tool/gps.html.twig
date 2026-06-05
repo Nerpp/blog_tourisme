@@ -63,6 +63,29 @@
             margin: 0;
             color: var(--admin-muted);
         }
+
+        .field-qnh-result {
+            display: grid;
+            gap: 8px;
+            padding: 12px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fbfcfb;
+        }
+
+        .field-qnh-result[hidden] {
+            display: none;
+        }
+
+        .field-qnh-result strong {
+            color: var(--admin-primary);
+            font-size: 1.2rem;
+        }
+
+        .field-qnh-result p {
+            margin: 0;
+            color: var(--admin-muted);
+        }
     </style>
 {% endblock %}
 
@@ -102,9 +125,205 @@
 
             <p class="field-gps-help">Pour une meilleure précision, activez le GPS du téléphone et placez-vous dehors.</p>
         </section>
+
+        <section
+            class="admin-card field-gps-panel"
+            data-qnh-tool
+            data-qnh-url="{{ path('admin_field_tools_qnh') }}"
+        >
+            <div>
+                <h2>QNH Skywatch Pro</h2>
+                <p class="field-gps-help">Utilisez les coordonnées relevées ci-dessus pour récupérer le QNH ou une estimation météo proche.</p>
+            </div>
+
+            <div class="admin-actions">
+                <button class="admin-button" type="button" data-qnh-fetch>Afficher le QNH</button>
+                <button class="admin-button admin-button--secondary" type="button" data-qnh-copy-value hidden>Copier QNH</button>
+                <button class="admin-button admin-button--secondary" type="button" data-qnh-copy-summary hidden>Copier résumé</button>
+            </div>
+
+            <p class="field-gps-status" data-qnh-status aria-live="polite"></p>
+
+            <div class="field-qnh-result" data-qnh-result hidden>
+                <strong data-qnh-title></strong>
+                <p data-qnh-station></p>
+                <p data-qnh-observation></p>
+                <p data-qnh-distance></p>
+                <p data-qnh-source></p>
+                <p data-qnh-reliability></p>
+                <p>À entrer dans le Skywatch Pro : page QNH.</p>
+            </div>
+        </section>
     </div>
 {% endblock %}
 
 {% block javascripts %}
     {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
+    <script>
+        (() => {
+            const tool = document.querySelector('[data-qnh-tool]');
+            const latitudeInput = document.querySelector('[data-gps-latitude]');
+            const longitudeInput = document.querySelector('[data-gps-longitude]');
+
+            if (!tool || !latitudeInput || !longitudeInput) {
+                return;
+            }
+
+            const fetchButton = tool.querySelector('[data-qnh-fetch]');
+            const copyValueButton = tool.querySelector('[data-qnh-copy-value]');
+            const copySummaryButton = tool.querySelector('[data-qnh-copy-summary]');
+            const status = tool.querySelector('[data-qnh-status]');
+            const result = tool.querySelector('[data-qnh-result]');
+            const title = tool.querySelector('[data-qnh-title]');
+            const station = tool.querySelector('[data-qnh-station]');
+            const observation = tool.querySelector('[data-qnh-observation]');
+            const distance = tool.querySelector('[data-qnh-distance]');
+            const source = tool.querySelector('[data-qnh-source]');
+            const reliability = tool.querySelector('[data-qnh-reliability]');
+            let latestQnh = '';
+            let latestSummary = '';
+
+            const setStatus = (message, kind = '') => {
+                if (!status) {
+                    return;
+                }
+
+                status.textContent = message;
+                status.classList.toggle('is-error', kind === 'error');
+                status.classList.toggle('is-success', kind === 'success');
+            };
+
+            const setCopyButtonsVisible = (visible) => {
+                if (copyValueButton) {
+                    copyValueButton.hidden = !visible;
+                }
+
+                if (copySummaryButton) {
+                    copySummaryButton.hidden = !visible;
+                }
+            };
+
+            const copyText = (text) => {
+                if (navigator.clipboard?.writeText) {
+                    return navigator.clipboard.writeText(text);
+                }
+
+                const field = document.createElement('textarea');
+                field.value = text;
+                field.setAttribute('readonly', 'readonly');
+                field.style.position = 'fixed';
+                field.style.opacity = '0';
+                document.body.appendChild(field);
+                field.select();
+                document.execCommand('copy');
+                field.remove();
+
+                return Promise.resolve();
+            };
+
+            const coordinate = (input) => {
+                const value = Number.parseFloat(String(input.value).replace(',', '.'));
+                return Number.isFinite(value) ? value : null;
+            };
+
+            const formatObservation = (value) => {
+                if (!value) {
+                    return 'Observation : heure inconnue';
+                }
+
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) {
+                    return `Observation : ${value}`;
+                }
+
+                const hours = String(date.getUTCHours()).padStart(2, '0');
+                const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+
+                return `Observation : ${hours}:${minutes} UTC`;
+            };
+
+            const renderQnh = (data) => {
+                latestQnh = `${data.qnhHpa} hPa`;
+                latestSummary = data.summary || `QNH ${data.qnhHpa} hPa`;
+                title.textContent = `${data.label || 'QNH conseillé'} : ${data.qnhHpa} hPa`;
+
+                if (data.station) {
+                    station.textContent = `Station : ${data.station.name} (${data.station.icao})`;
+                    distance.textContent = `Distance : ${data.station.distanceKm} km`;
+                } else {
+                    station.textContent = 'Station : aucune station METAR proche';
+                    distance.textContent = '';
+                }
+
+                observation.textContent = formatObservation(data.observedAt);
+                source.textContent = data.source === 'metar' ? 'Source : METAR' : 'Source : Open-Meteo pressure_msl';
+                reliability.textContent = data.reliability || '';
+                result.hidden = false;
+                setCopyButtonsVisible(true);
+                setStatus(data.message || 'QNH récupéré.', 'success');
+            };
+
+            fetchButton?.addEventListener('click', () => {
+                const latitude = coordinate(latitudeInput);
+                const longitude = coordinate(longitudeInput);
+
+                if (latitude === null || longitude === null) {
+                    setStatus('Relevez ou saisissez d’abord une latitude et une longitude valides.', 'error');
+                    return;
+                }
+
+                const url = new URL(tool.dataset.qnhUrl || '', window.location.origin);
+                url.searchParams.set('latitude', latitude.toString());
+                url.searchParams.set('longitude', longitude.toString());
+
+                fetchButton.disabled = true;
+                result.hidden = true;
+                setCopyButtonsVisible(false);
+                setStatus('Récupération du QNH...');
+
+                fetch(url, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                })
+                    .then(async (response) => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok || data.ok !== true) {
+                            throw new Error(data.message || 'QNH indisponible pour cette position. Réessayez plus tard ou utilisez une source météo locale.');
+                        }
+
+                        renderQnh(data);
+                    })
+                    .catch((error) => {
+                        latestQnh = '';
+                        latestSummary = '';
+                        setStatus(error.message || 'QNH indisponible pour cette position. Réessayez plus tard ou utilisez une source météo locale.', 'error');
+                    })
+                    .finally(() => {
+                        fetchButton.disabled = false;
+                    });
+            });
+
+            copyValueButton?.addEventListener('click', () => {
+                if (latestQnh === '') {
+                    return;
+                }
+
+                copyText(latestQnh)
+                    .then(() => setStatus('QNH copié.', 'success'))
+                    .catch(() => setStatus('Copie impossible depuis ce navigateur.', 'error'));
+            });
+
+            copySummaryButton?.addEventListener('click', () => {
+                if (latestSummary === '') {
+                    return;
+                }
+
+                copyText(latestSummary)
+                    .then(() => setStatus('Résumé copié.', 'success'))
+                    .catch(() => setStatus('Copie impossible depuis ce navigateur.', 'error'));
+            });
+        })();
+    </script>
 {% endblock %}

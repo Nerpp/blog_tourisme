@@ -92,6 +92,11 @@ final class AdminDashboardRoutesTest extends FunctionalTestCase
         self::assertGreaterThan(0, $crawler->filter('[data-gps-coordinates]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-stop]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-copy]')->count());
+        self::assertGreaterThan(0, $crawler->filter('[data-qnh-tool]')->count());
+        self::assertStringContainsString('Afficher le QNH', $crawler->filter('[data-qnh-fetch]')->text());
+        self::assertGreaterThan(0, $crawler->filter('[data-qnh-result]')->count());
+        self::assertGreaterThan(0, $crawler->filter('[data-qnh-copy-value]')->count());
+        self::assertGreaterThan(0, $crawler->filter('[data-qnh-copy-summary]')->count());
     }
 
     public function testAdminMenuContainsGpsFieldToolEntry(): void
@@ -104,5 +109,38 @@ final class AdminDashboardRoutesTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         self::assertGreaterThan(0, $crawler->filter('nav.admin-nav a[href="/admin/outils-terrain/gps"]')->count());
         self::assertStringContainsString('GPS terrain', $crawler->filter('nav.admin-nav')->text());
+    }
+
+    public function testAnonymousVisitorIsRedirectedFromQnhEndpoint(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/admin/outils-terrain/qnh?latitude=42.7&longitude=2.8');
+
+        self::assertResponseRedirects('/login');
+    }
+
+    public function testRegularUserIsRejectedFromQnhEndpoint(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $client->request('GET', '/admin/outils-terrain/qnh?latitude=42.7&longitude=2.8');
+
+        self::assertResponseRedirects('/');
+    }
+
+    public function testVerifiedAdminGetsBadRequestForInvalidQnhCoordinates(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $client->request('GET', '/admin/outils-terrain/qnh?latitude=abc&longitude=2.8');
+
+        self::assertResponseStatusCodeSame(400);
+        self::assertJsonStringEqualsJsonString(
+            '{"ok":false,"message":"Latitude et longitude valides sont obligatoires."}',
+            (string) $client->getResponse()->getContent(),
+        );
     }
 }

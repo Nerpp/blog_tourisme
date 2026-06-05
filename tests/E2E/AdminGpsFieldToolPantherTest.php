@@ -31,5 +31,7 @@ final class AdminGpsFieldToolPantherTest extends PantherTestCase
         self::assertSelectorExists('[data-gps-longitude]');
         self::assertSelectorExists('[data-gps-accuracy]');
         self::assertSelectorTextContains('[data-gps-start]', 'GPS haute précision');
+        self::assertSelectorExists('[data-qnh-tool]');
+        self::assertSelectorTextContains('[data-qnh-fetch]', 'Afficher le QNH');
     }
 }
