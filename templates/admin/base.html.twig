@@ -633,7 +633,8 @@
                     <section>
                         <h2>Outils terrain</h2>
                         <a href="{{ path('admin_quick_index') }}" class="{{ route starts with 'admin_quick' ? 'is-active' }}">Création rapide</a>
-                        <a href="{{ path('admin_studio_index') }}" class="{{ route == 'admin_studio_index' or route starts with 'admin_field_tools' or route starts with 'admin_studio_hike' or route starts with 'admin_studio_city_visit' ? 'is-active' }}">Studio</a>
+                        <a href="{{ path('admin_studio_index') }}" class="{{ route == 'admin_studio_index' or route in ['admin_field_tools_hikes', 'admin_field_tools_city_visits'] or route starts with 'admin_studio_hike' or route starts with 'admin_studio_city_visit' ? 'is-active' }}">Studio</a>
+                        <a href="{{ path('admin_field_tools_gps') }}" class="{{ route == 'admin_field_tools_gps' ? 'is-active' }}">GPS terrain</a>
                     </section>
                     <section>
                         <h2>Système</h2>

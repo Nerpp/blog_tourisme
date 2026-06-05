@@ -51,7 +51,7 @@
 
 		{% if not has_start_point %}
 			<section class="field-card">
-				<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form>
+				<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form data-high-precision-gps>
 					<input type="hidden" name="quick_hike_point[_token]" value="{{ csrf_token('quick_hike_point_' ~ hike.id) }}">
 					<input type="hidden" name="quick_hike_point[type]" value="start" data-gps-type>
 					<input type="hidden" name="quick_hike_point[titlePoint]" value="Départ">
@@ -65,7 +65,13 @@
 					</div>
 
 					<p class="field-status" data-gps-status aria-live="polite"></p>
-					<button class="field-button" type="button" data-gps-submit data-point-type="start">Enregistrer le point de départ</button>
+					<p class="field-gps__coordinates" data-gps-coordinates></p>
+					<div class="field-actions">
+						<button class="field-button field-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
+						<button class="field-button field-button--neutral" type="button" data-gps-stop hidden>Arrêter la recherche</button>
+						<button class="field-button field-button--neutral" type="button" data-gps-copy hidden>Copier les coordonnées</button>
+					</div>
+					<button class="field-button" type="submit">Enregistrer le point de départ</button>
 				</form>
 			</section>
 		{% endif %}
@@ -79,7 +85,7 @@
 {% endif %}
 
 		<section class="field-card">
-			<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form>
+			<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form data-high-precision-gps>
 				<input type="hidden" name="quick_hike_point[_token]" value="{{ csrf_token('quick_hike_point_' ~ hike.id) }}">
 				<input type="hidden" name="quick_hike_point[latitude]" data-gps-latitude>
 				<input type="hidden" name="quick_hike_point[longitude]" data-gps-longitude>
@@ -105,7 +111,13 @@
 				</div>
 
 				<p class="field-status" data-gps-status aria-live="polite"></p>
-				<button class="field-button field-button--secondary" type="button" data-gps-submit>Ajouter un point d’intérêt</button>
+				<p class="field-gps__coordinates" data-gps-coordinates></p>
+				<div class="field-actions">
+					<button class="field-button field-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
+					<button class="field-button field-button--neutral" type="button" data-gps-stop hidden>Arrêter la recherche</button>
+					<button class="field-button field-button--neutral" type="button" data-gps-copy hidden>Copier les coordonnées</button>
+				</div>
+				<button class="field-button" type="submit">Ajouter le point d’intérêt</button>
 			</form>
 		</section>
 

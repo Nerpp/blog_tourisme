@@ -35,4 +35,10 @@ final class AdminFieldToolsController extends AbstractController
             'city_visits' => $cityVisitDraftRepository->findBy([], ['createdAt' => 'DESC'], 50),
         ]);
     }
+
+    #[Route('/admin/outils-terrain/gps', name: 'admin_field_tools_gps', methods: ['GET'])]
+    public function gps(): Response
+    {
+        return $this->render('admin/field_tool/gps.html.twig');
+    }
 }

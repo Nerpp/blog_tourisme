@@ -634,13 +634,13 @@
             </div>
         </section>
 
-        <section class="studio-section" aria-labelledby="location-title">
+        <section class="studio-section" aria-labelledby="location-title" data-high-precision-gps>
             <div class="studio-section__header">
                 <div>
                     <h2 id="location-title">Localisation</h2>
                     <p>La destination reste le repère principal. Les coordonnées servent aux cartes et aux usages terrain.</p>
                 </div>
-                <button class="admin-button admin-button--secondary" type="button" data-gps-button>Mettre à jour avec ma position GPS</button>
+                <button class="admin-button admin-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
             </div>
 
             <div class="studio-grid">
@@ -677,6 +677,9 @@
                     <a class="studio-link" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Voir sur Google Maps</a>
                 {% endif %}
                 <span class="studio-help" data-gps-status></span>
+                <span class="studio-help" data-gps-coordinates></span>
+                <button class="admin-button admin-button--secondary" type="button" data-gps-stop hidden>Arrêter la recherche</button>
+                <button class="admin-button admin-button--secondary" type="button" data-gps-copy hidden>Copier les coordonnées</button>
             </div>
         </section>
 
@@ -948,42 +951,7 @@
 {% endblock %}
 
 {% block javascripts %}
+    {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
     {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
     {% include 'admin/studio/_studio_media_javascript.html.twig' %}
-    <script>
-        (() => {
-            const gpsButton = document.querySelector('[data-gps-button]');
-            const gpsStatus = document.querySelector('[data-gps-status]');
-            const latitudeInput = document.querySelector('[data-gps-latitude]');
-            const longitudeInput = document.querySelector('[data-gps-longitude]');
-
-            if (gpsButton && latitudeInput && longitudeInput && gpsStatus) {
-                gpsButton.addEventListener('click', () => {
-                    if (!navigator.geolocation) {
-                        gpsStatus.textContent = 'La géolocalisation n’est pas disponible sur cet appareil.';
-                        return;
-                    }
-
-                    gpsStatus.textContent = 'Récupération de la position en cours...';
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            latitudeInput.value = position.coords.latitude.toFixed(7);
-                            longitudeInput.value = position.coords.longitude.toFixed(7);
-                            gpsStatus.textContent = 'Position récupérée. Enregistrez pour la conserver.';
-                        },
-                        (error) => {
-                            gpsStatus.textContent = error.code === error.PERMISSION_DENIED
-                                ? 'Accès GPS refusé.'
-                                : 'Impossible de récupérer la position GPS.';
-                        },
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 15000,
-                            maximumAge: 0
-                        }
-                    );
-                });
-            }
-        })();
-    </script>
 {% endblock %}

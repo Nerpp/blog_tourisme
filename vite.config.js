@@ -37,6 +37,7 @@ export default defineConfig(({ command }) => ({
     rollupOptions: {
       input: {
         app: fileURLToPath(new URL('./assets/app.js', import.meta.url)),
+        adminHighPrecisionGps: fileURLToPath(new URL('./assets/js/admin-high-precision-gps.js', import.meta.url)),
         adminPlaceGps: fileURLToPath(new URL('./assets/js/admin-place-gps.js', import.meta.url)),
         studioVideoThumbnails: fileURLToPath(new URL('./assets/js/studio-video-thumbnails.js', import.meta.url)),
       },

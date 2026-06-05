@@ -324,11 +324,17 @@ final class HikeStudioController extends AbstractController
             return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
         }
 
+        $accuracy = $this->nullablePositiveFloatFromRequest($request, 'accuracy', 'La précision GPS');
+        if ($accuracy === false) {
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
+        }
+
         $point
             ->setTitle($this->nullIfBlank($request->request->getString('title')))
             ->setNote($this->nullIfBlank($request->request->getString('note')))
             ->setLatitude($latitude)
-            ->setLongitude($longitude);
+            ->setLongitude($longitude)
+            ->setAccuracy($accuracy);
 
         $type = HikePointType::tryFrom($request->request->getString('type'));
         if ($type instanceof HikePointType) {
@@ -652,6 +658,30 @@ final class HikeStudioController extends AbstractController
         }
 
         return $coordinate;
+    }
+
+    private function nullablePositiveFloatFromRequest(Request $request, string $field, string $label): float|false|null
+    {
+        $rawValue = trim((string) $request->request->get($field, ''));
+        if ($rawValue === '') {
+            return null;
+        }
+
+        $normalizedValue = str_replace(',', '.', $rawValue);
+        if (!is_numeric($normalizedValue)) {
+            $this->addFlash('error', sprintf('%s doit être un nombre valide.', $label));
+
+            return false;
+        }
+
+        $value = (float) $normalizedValue;
+        if ($value < 0) {
+            $this->addFlash('error', sprintf('%s doit être positive.', $label));
+
+            return false;
+        }
+
+        return $value;
     }
 
     private function destinationNameFromRequest(Request $request, DestinationType $type): string

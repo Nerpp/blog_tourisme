@@ -72,4 +72,36 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertSame('66053', $hike->getGeographicDestination()->getCode());
         self::assertNotNull($hike->getFinishedAt());
     }
+
+    public function testVerifiedAdminCanUpdateHikePointCoordinatesAndAccuracy(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        self::assertGreaterThan(0, $crawler->filter(sprintf('#point-%d [data-high-precision-gps] [data-gps-start]', $point->getId()))->count());
+
+        $client->request('POST', sprintf('/admin/studio/hike-points/%d/update', $point->getId()), [
+            '_token' => $this->inputValue($crawler, sprintf('#point-%d input[name="_token"]', $point->getId())),
+            '_redirect_anchor' => 'point-'.$point->getId(),
+            'title' => 'Belvedere precis',
+            'type' => $point->getType()->value,
+            'position' => (string) $point->getPosition(),
+            'latitude' => '42.6986123',
+            'longitude' => '2.8956456',
+            'accuracy' => '4',
+            'note' => 'Position relevee depuis le telephone.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
+        $point = $this->refresh($point);
+        self::assertSame('Belvedere precis', $point->getTitle());
+        self::assertSame(42.6986123, $point->getLatitude());
+        self::assertSame(2.8956456, $point->getLongitude());
+        self::assertSame(4.0, $point->getAccuracy());
+    }
 }

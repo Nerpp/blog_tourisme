@@ -53,7 +53,10 @@ abstract class PantherTestCase extends BasePantherTestCase
         }
     }
 
-    protected function createVerifiedUser(string $email, string $plainPassword): User
+    /**
+     * @param list<string> $roles
+     */
+    protected function createVerifiedUser(string $email, string $plainPassword, array $roles = ['ROLE_USER']): User
     {
         self::bootKernel();
         $container = static::getContainer();
@@ -64,7 +67,7 @@ abstract class PantherTestCase extends BasePantherTestCase
         $user = (new User())
             ->setEmail($email)
             ->setDisplayName('E2E '.bin2hex(random_bytes(5)))
-            ->setRoles(['ROLE_USER'])
+            ->setRoles($roles)
             ->setIsVerified(true);
 
         $passwordHasher = $container->get(UserPasswordHasherInterface::class);

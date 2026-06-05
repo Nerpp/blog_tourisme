@@ -20,6 +20,7 @@ cat var/reports/phpstan-report.txt
 Lancement des tests ;
 
 docker compose exec php composer test
+
 docker compose exec php composer test:e2e
 docker compose exec php composer quality
 docker compose exec php composer quality:e2e
