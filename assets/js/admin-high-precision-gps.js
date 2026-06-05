@@ -14,6 +14,19 @@ const accuracyValue = (value) => {
   return Math.round(value).toString();
 };
 
+const altitudeValue = (value) => {
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+
+  return Math.round(value).toString();
+};
+
+const measurementValue = (date = new Date()) => new Intl.DateTimeFormat('fr-FR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+}).format(date);
+
 const dispatchFieldEvents = (field) => {
   field.dispatchEvent(new Event('input', { bubbles: true }));
   field.dispatchEvent(new Event('change', { bubbles: true }));
@@ -40,7 +53,7 @@ const isBetterPosition = (candidate, current) => {
 
 const errorMessage = (error) => {
   if (error.code === error.PERMISSION_DENIED) {
-    return 'Acces GPS refuse.';
+    return 'Accès GPS refusé.';
   }
 
   if (error.code === error.POSITION_UNAVAILABLE) {
@@ -48,10 +61,10 @@ const errorMessage = (error) => {
   }
 
   if (error.code === error.TIMEOUT) {
-    return 'Recherche GPS en cours, aucun point precis recu pour le moment.';
+    return 'Recherche GPS en cours, aucun point précis reçu pour le moment.';
   }
 
-  return 'Impossible de recuperer la position GPS.';
+  return 'Impossible de récupérer la position GPS.';
 };
 
 const setStatus = (element, message, kind = '') => {
@@ -62,12 +75,46 @@ const setStatus = (element, message, kind = '') => {
   element.textContent = message;
   element.classList.toggle('is-error', kind === 'error');
   element.classList.toggle('is-success', kind === 'success');
+  element.classList.toggle('is-warning', kind === 'warning');
 };
 
 const setHidden = (element, hidden) => {
   if (element) {
     element.hidden = hidden;
   }
+};
+
+const setCopyAvailable = (buttons, available) => {
+  buttons.forEach((button) => {
+    setHidden(button, !available);
+    button.disabled = !available;
+  });
+};
+
+const validCoordinateValue = (value, min, max) => {
+  const parsedValue = Number.parseFloat(String(value).replace(',', '.'));
+
+  return Number.isFinite(parsedValue) && parsedValue >= min && parsedValue <= max;
+};
+
+const showSelectableText = (container, text) => {
+  if (!container) {
+    return;
+  }
+
+  let field = container.querySelector('[data-gps-copy-fallback]');
+  if (!field) {
+    field = document.createElement('textarea');
+    field.setAttribute('readonly', 'readonly');
+    field.dataset.gpsCopyFallback = 'true';
+    field.style.width = '100%';
+    field.style.marginTop = '8px';
+    container.appendChild(field);
+  }
+
+  field.value = text;
+  field.hidden = false;
+  field.select();
 };
 
 const copyText = (text) => {
@@ -98,6 +145,9 @@ const initHighPrecisionGps = (container) => {
   const latitudeField = container.querySelector('[data-gps-latitude]');
   const longitudeField = container.querySelector('[data-gps-longitude]');
   const accuracyField = container.querySelector('[data-gps-accuracy]');
+  const accuracyDisplay = container.querySelector('[data-gps-accuracy-display]');
+  const altitudeField = container.querySelector('[data-gps-altitude]');
+  const altitudeDisplay = container.querySelector('[data-gps-altitude-display]');
   const statusElement = container.querySelector('[data-gps-status]');
   const coordinatesElement = container.querySelector('[data-gps-coordinates]');
   const startButtons = container.querySelectorAll('[data-gps-start]');
@@ -116,14 +166,14 @@ const initHighPrecisionGps = (container) => {
     const latitude = latitudeField.value.trim();
     const longitude = longitudeField.value.trim();
 
-    if (latitude === '' || longitude === '') {
+    if (!validCoordinateValue(latitude, -90, 90) || !validCoordinateValue(longitude, -180, 180)) {
       latestCoordinates = '';
-      copyButtons.forEach((button) => setHidden(button, true));
+      setCopyAvailable(copyButtons, false);
       return;
     }
 
-    latestCoordinates = `${latitude},${longitude}`;
-    copyButtons.forEach((button) => setHidden(button, false));
+    latestCoordinates = `${latitude}, ${longitude}`;
+    setCopyAvailable(copyButtons, true);
   };
 
   const renderIdleControls = () => {
@@ -140,6 +190,35 @@ const initHighPrecisionGps = (container) => {
     stopButtons.forEach((button) => setHidden(button, false));
   };
 
+  const precisionStatus = (accuracy) => {
+    if (accuracy === '') {
+      return {
+        kind: '',
+        message: 'Meilleure position GPS conservée temporairement.',
+      };
+    }
+
+    const meters = Number.parseInt(accuracy, 10);
+    if (meters <= 20) {
+      return {
+        kind: 'success',
+        message: `Meilleure position GPS conservée temporairement.\nBonne précision GPS : environ ${accuracy} m.`,
+      };
+    }
+
+    if (meters <= 100) {
+      return {
+        kind: 'warning',
+        message: `Meilleure position GPS conservée temporairement.\nPrécision GPS moyenne : environ ${accuracy} m. Vous pouvez attendre ou utiliser cette position.`,
+      };
+    }
+
+    return {
+      kind: 'error',
+      message: `Meilleure position GPS conservée temporairement.\nPrécision GPS faible : environ ${accuracy} m. Placez-vous dehors et attendez quelques secondes.`,
+    };
+  };
+
   const renderPosition = (position) => {
     const latitude = coordinateValue(position.coords.latitude);
     const longitude = coordinateValue(position.coords.longitude);
@@ -150,37 +229,59 @@ const initHighPrecisionGps = (container) => {
     if (accuracyField) {
       accuracyField.value = accuracy;
     }
+    if (accuracyDisplay) {
+      accuracyDisplay.value = accuracy !== '' ? `${accuracy} m` : 'indisponible';
+    }
+    if (altitudeField) {
+      altitudeField.value = altitudeValue(position.coords.altitude);
+    }
+    if (altitudeDisplay) {
+      altitudeDisplay.value = altitudeField && altitudeField.value !== '' ? `${altitudeField.value} m` : 'indisponible';
+    }
 
     dispatchFieldEvents(latitudeField);
     dispatchFieldEvents(longitudeField);
     if (accuracyField) {
       dispatchFieldEvents(accuracyField);
     }
-
-    latestCoordinates = `${latitude},${longitude}`;
-    if (coordinatesElement) {
-      coordinatesElement.textContent = accuracy !== ''
-        ? `${latestCoordinates} - precision ${accuracy} m`
-        : latestCoordinates;
+    if (altitudeField) {
+      dispatchFieldEvents(altitudeField);
     }
 
-    copyButtons.forEach((button) => setHidden(button, false));
-    setStatus(statusElement, 'Meilleure position GPS conservee. Enregistrez pour la garder.', 'success');
+    latestCoordinates = `${latitude}, ${longitude}`;
+    if (coordinatesElement) {
+      const lines = [
+        'Position relevée :',
+        `Latitude : ${latitude}`,
+        `Longitude : ${longitude}`,
+      ];
+
+      lines.push(accuracy !== '' ? `Précision : environ ${accuracy} m` : 'Précision : indisponible');
+      lines.push(altitudeField && altitudeField.value !== '' ? `Hauteur / altitude GPS : ${altitudeField.value} m` : 'Hauteur / altitude GPS : indisponible');
+      lines.push(`Mesure : ${measurementValue()}`);
+
+      coordinatesElement.textContent = lines.join('\n');
+    }
+
+    setCopyAvailable(copyButtons, true);
+    const status = precisionStatus(accuracy);
+    setStatus(statusElement, status.message, status.kind);
   };
 
-  const stopWatch = (message = 'Recherche GPS arretee.') => {
+  const stopWatch = (message = 'Recherche GPS arrêtée.') => {
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       watchId = null;
     }
 
     renderIdleControls();
+    syncCoordinatesFromFields();
     setStatus(statusElement, message);
   };
 
   const startWatch = () => {
     if (!navigator.geolocation) {
-      setStatus(statusElement, 'La geolocalisation n\'est pas disponible sur cet appareil.', 'error');
+      setStatus(statusElement, 'La géolocalisation n\'est pas disponible sur cet appareil.', 'error');
       return;
     }
 
@@ -190,13 +291,13 @@ const initHighPrecisionGps = (container) => {
 
     bestPosition = null;
     latestCoordinates = '';
-    copyButtons.forEach((button) => setHidden(button, true));
+    setCopyAvailable(copyButtons, false);
     if (coordinatesElement) {
       coordinatesElement.textContent = '';
     }
 
     renderActiveControls();
-    setStatus(statusElement, 'Recherche GPS haute precision en cours...');
+    setStatus(statusElement, 'Recherche GPS haute précision en cours...');
 
     watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -216,7 +317,12 @@ const initHighPrecisionGps = (container) => {
           return;
         }
 
-        setStatus(statusElement, message, error.code === error.TIMEOUT ? '' : 'error');
+        if (error.code === error.TIMEOUT) {
+          stopWatch(message);
+          return;
+        }
+
+        setStatus(statusElement, message, 'error');
       },
       WATCH_OPTIONS
     );
@@ -233,13 +339,16 @@ const initHighPrecisionGps = (container) => {
   copyButtons.forEach((button) => {
     button.addEventListener('click', () => {
       if (latestCoordinates === '') {
-        setStatus(statusElement, 'Aucune coordonnee GPS a copier.', 'error');
+        setStatus(statusElement, 'Aucune coordonnée GPS à copier.', 'error');
         return;
       }
 
       copyText(latestCoordinates)
-        .then(() => setStatus(statusElement, 'Coordonnees copiees.', 'success'))
-        .catch(() => setStatus(statusElement, 'Copie impossible depuis ce navigateur.', 'error'));
+        .then(() => setStatus(statusElement, 'Coordonnées copiées.', 'success'))
+        .catch(() => {
+          showSelectableText(container, latestCoordinates);
+          setStatus(statusElement, 'Copie impossible depuis ce navigateur. Le texte est sélectionnable ci-dessous.', 'error');
+        });
     });
   });
 

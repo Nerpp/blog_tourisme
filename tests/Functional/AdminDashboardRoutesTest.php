@@ -2,7 +2,11 @@
 
 namespace App\Tests\Functional;
 
+use App\Service\Weather\QnhProvider;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class AdminDashboardRoutesTest extends FunctionalTestCase
 {
@@ -88,12 +92,19 @@ final class AdminDashboardRoutesTest extends FunctionalTestCase
         self::assertGreaterThan(0, $crawler->filter('[data-gps-latitude]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-longitude]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-accuracy]')->count());
+        self::assertGreaterThan(0, $crawler->filter('[data-gps-altitude]')->count());
+        self::assertStringContainsString('Hauteur / altitude GPS', $crawler->text());
+        self::assertStringContainsString('Altitude manuelle pour le QFE', $crawler->text());
+        self::assertStringContainsString('Meilleure position GPS conservée temporairement', (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString('Enregistrez pour la garder', (string) $client->getResponse()->getContent());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-status]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-coordinates]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-stop]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-gps-copy]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-qnh-tool]')->count());
-        self::assertStringContainsString('Afficher le QNH', $crawler->filter('[data-qnh-fetch]')->text());
+        self::assertGreaterThan(0, $crawler->filter('[data-high-precision-gps] [data-qnh-tool]')->count());
+        self::assertStringContainsString('Afficher le QNH / QFE', $crawler->filter('[data-qnh-fetch]')->text());
+        self::assertStringContainsString('QFE conseillé Skywatch page 6', $crawler->text());
         self::assertGreaterThan(0, $crawler->filter('[data-qnh-result]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-qnh-copy-value]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-qnh-copy-summary]')->count());
@@ -142,5 +153,64 @@ final class AdminDashboardRoutesTest extends FunctionalTestCase
             '{"ok":false,"message":"Latitude et longitude valides sont obligatoires."}',
             (string) $client->getResponse()->getContent(),
         );
+    }
+
+    public function testVerifiedAdminGetsQfeWhenAltitudeIsProvided(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $this->mockQnhProvider(1016);
+
+        $client->request('GET', '/admin/outils-terrain/qnh?latitude=42.7&longitude=2.8&altitude=100');
+
+        self::assertResponseIsSuccessful();
+        self::assertJsonStringEqualsJsonString(
+            '{"ok":true,"source":"metar","qnhHpa":1016,"label":"QNH conseillé","station":{"icao":"LFMP","name":"Perpignan-Rivesaltes","distanceKm":7.3},"observedAt":"2026-06-05T12:00:00.000Z","raw":"METAR LFMP 051200Z AUTO 31010KT 9999 Q1016","message":"QNH récupéré et QFE calculé à partir de l’altitude utilisée.","reliability":"METAR station proche","summary":"QNH 1016 hPa - Altitude 100 m - QFE conseillé Skywatch page 6 : 1004 hPa","altitudeMeters":100,"altitudeSource":"gps","qfeHpa":1004}',
+            (string) $client->getResponse()->getContent(),
+        );
+    }
+
+    public function testVerifiedAdminGetsQfeWithManualAltitudeSource(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $this->mockQnhProvider(1016);
+
+        $client->request('GET', '/admin/outils-terrain/qnh?latitude=42.7&longitude=2.8&altitude=100&altitudeSource=manual');
+
+        self::assertResponseIsSuccessful();
+        self::assertJsonStringEqualsJsonString(
+            '{"ok":true,"source":"metar","qnhHpa":1016,"label":"QNH conseillé","station":{"icao":"LFMP","name":"Perpignan-Rivesaltes","distanceKm":7.3},"observedAt":"2026-06-05T12:00:00.000Z","raw":"METAR LFMP 051200Z AUTO 31010KT 9999 Q1016","message":"QNH récupéré et QFE calculé à partir de l’altitude utilisée.","reliability":"METAR station proche","summary":"QNH 1016 hPa - Altitude 100 m - QFE conseillé Skywatch page 6 : 1004 hPa","altitudeMeters":100,"altitudeSource":"manual","qfeHpa":1004}',
+            (string) $client->getResponse()->getContent(),
+        );
+    }
+
+    public function testVerifiedAdminGetsNullQfeWhenAltitudeIsMissing(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $this->mockQnhProvider(1016);
+
+        $client->request('GET', '/admin/outils-terrain/qnh?latitude=42.7&longitude=2.8');
+
+        self::assertResponseIsSuccessful();
+        self::assertJsonStringEqualsJsonString(
+            '{"ok":true,"source":"metar","qnhHpa":1016,"label":"QNH conseillé","station":{"icao":"LFMP","name":"Perpignan-Rivesaltes","distanceKm":7.3},"observedAt":"2026-06-05T12:00:00.000Z","raw":"METAR LFMP 051200Z AUTO 31010KT 9999 Q1016","message":"QNH récupéré. Hauteur GPS indisponible : QFE non calculable automatiquement.","reliability":"METAR station proche","summary":"QNH 1016 hPa - Altitude indisponible - QFE non calculable","altitudeMeters":null,"altitudeSource":null,"qfeHpa":null}',
+            (string) $client->getResponse()->getContent(),
+        );
+    }
+
+    private function mockQnhProvider(int $qnhHpa): void
+    {
+        static::getContainer()->set(QnhProvider::class, new QnhProvider(new MockHttpClient([
+            new MockResponse(json_encode([
+                [
+                    'icaoId' => 'LFMP',
+                    'reportTime' => '2026-06-05T12:00:00.000Z',
+                    'altim' => $qnhHpa,
+                    'rawOb' => sprintf('METAR LFMP 051200Z AUTO 31010KT 9999 Q%d', $qnhHpa),
+                ],
+            ], \JSON_THROW_ON_ERROR)),
+        ]), new ArrayAdapter()));
     }
 }
