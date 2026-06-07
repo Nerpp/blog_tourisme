@@ -19,6 +19,7 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         self::assertSame('Prévision destination', $crawler->filter('h1')->text());
         self::assertStringContainsString('Sauvegardez des idées de lieux, communes ou positions GPS à explorer plus tard.', $crawler->text());
+        self::assertStringNotContainsString('Relever ma position GPS', $crawler->text());
     }
 
     public function testRegularUserCannotAccessPrevisionDestinationIndex(): void
@@ -62,6 +63,10 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         $title = 'Cascade à vérifier près de Céret '.$this->uniqueToken('prevision');
         $crawler = $client->request('GET', '/admin/previsions/destinations/new');
         self::assertResponseIsSuccessful();
+        self::assertSame('Ajouter une destination', $crawler->filter('h1')->text());
+        $listLink = $crawler->filter('a[href="/admin/previsions/destinations"]');
+        self::assertGreaterThan(0, $listLink->count());
+        self::assertStringContainsString('Voir les destinations enregistrées', $listLink->text());
 
         $client->request('POST', '/admin/previsions/destinations/new', $this->formData($crawler, [
             'title' => $title,
@@ -154,10 +159,11 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $client->loginUser($this->createVerifiedAdmin());
 
-        $crawler = $client->request('GET', '/admin/previsions/destinations');
+        $crawler = $client->request('GET', '/admin/previsions/destinations/new');
 
         self::assertResponseIsSuccessful();
-        self::assertGreaterThan(0, $crawler->filter('nav.admin-nav a[href="/admin/previsions/destinations"]')->count());
+        self::assertSame('Ajouter une destination', $crawler->filter('h1')->text());
+        self::assertGreaterThan(0, $crawler->filter('nav.admin-nav a[href="/admin/previsions/destinations/new"]')->count());
         self::assertStringContainsString('Prévision', $crawler->filter('nav.admin-nav')->text());
     }
 

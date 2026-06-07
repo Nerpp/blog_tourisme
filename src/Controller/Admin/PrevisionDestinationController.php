@@ -39,7 +39,7 @@ final class PrevisionDestinationController extends AbstractController
         $previsionDestination = (new PrevisionDestination())
             ->setSource($request->query->getString('source') === PrevisionDestination::SOURCE_GPS ? PrevisionDestination::SOURCE_GPS : PrevisionDestination::SOURCE_MANUAL);
 
-        return $this->handleForm($request, $previsionDestination, 'Nouvelle destination prévue', 'Ajouter la destination prévue');
+        return $this->handleForm($request, $previsionDestination, 'Ajouter une destination', 'Ajouter la destination');
     }
 
     #[Route('/admin/previsions/destinations/{id}/edit', name: 'admin_prevision_destinations_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
