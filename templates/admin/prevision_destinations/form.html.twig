@@ -3,16 +3,26 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block stylesheets %}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_link_tags('assets/js/prevision-destination-map.js') }}
+    {% endif %}
     <style>
-        .prevision-form-layout {
+        .prevision-form-layout,
+        .prevision-form-section,
+        .prevision-search-results,
+        .prevision-point-tools,
+        .prevision-map-links {
             display: grid;
-            gap: 16px;
+            gap: 12px;
         }
 
-        .prevision-search-results {
-            display: grid;
-            gap: 8px;
-            margin-top: 8px;
+        .prevision-form-section {
+            padding-top: 4px;
+        }
+
+        .prevision-form-section h2 {
+            margin: 0;
+            font-size: 1.1rem;
         }
 
         .prevision-search-result {
@@ -34,10 +44,40 @@
             background: var(--admin-primary-soft);
             color: var(--admin-primary);
         }
+
+        .prevision-map {
+            min-height: 360px;
+            overflow: hidden;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #eef1ee;
+        }
+
+        .prevision-map-status {
+            min-height: 22px;
+            margin: 0;
+        }
+
+        .prevision-map-links {
+            grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
+        }
+
+        .prevision-map-link[aria-disabled="true"] {
+            pointer-events: none;
+        }
+
+        .prevision-submit-help {
+            margin: 0;
+            color: var(--admin-muted);
+        }
     </style>
 {% endblock %}
 
 {% block body %}
+    {% set has_coordinates = prevision_destination.latitude is not null and prevision_destination.longitude is not null %}
+    {% set maps_url = has_coordinates ? 'https://www.google.com/maps?q=' ~ prevision_destination.latitude|number_format(7, '.', '') ~ ',' ~ prevision_destination.longitude|number_format(7, '.', '') : '#' %}
+    {% set osm_url = has_coordinates ? 'https://www.openstreetmap.org/?mlat=' ~ prevision_destination.latitude|number_format(7, '.', '') ~ '&mlon=' ~ prevision_destination.longitude|number_format(7, '.', '') ~ '#map=16/' ~ prevision_destination.latitude|number_format(7, '.', '') ~ '/' ~ prevision_destination.longitude|number_format(7, '.', '') : '#' %}
+
     <header class="admin-header">
         <div>
             <h1 class="admin-title">{{ title }}</h1>
@@ -47,15 +87,10 @@
     </header>
 
     <section class="admin-card prevision-form-layout" data-prevision-destination-form>
-        <div class="admin-field">
-            <label for="prevision-destination-search">Rechercher une commune française</label>
-            <input id="prevision-destination-search" type="search" autocomplete="off" placeholder="Exemple : Céret, Collioure, Perpignan" data-prevision-search>
-            <p class="admin-muted" data-prevision-search-status>La recherche remplit uniquement ce brouillon de prévision.</p>
-            <div class="prevision-search-results" data-prevision-search-results></div>
-        </div>
-
         {{ form_start(form, { attr: { class: 'admin-form', novalidate: 'novalidate' } }) }}
             {{ form_errors(form) }}
+            <input type="hidden" value="" data-prevision-commune-center-latitude>
+            <input type="hidden" value="" data-prevision-commune-center-longitude>
 
             <div class="admin-form-grid">
                 <div class="admin-field">
@@ -83,47 +118,74 @@
                     {{ form_widget(form.plannedPeriod) }}
                     {{ form_errors(form.plannedPeriod) }}
                 </div>
-                <div class="admin-field">
-                    {{ form_label(form.country) }}
-                    {{ form_widget(form.country, { attr: { 'data-prevision-country': 'true' } }) }}
-                    {{ form_errors(form.country) }}
-                </div>
-                <div class="admin-field">
-                    {{ form_label(form.region) }}
-                    {{ form_widget(form.region, { attr: { 'data-prevision-region': 'true' } }) }}
-                    {{ form_errors(form.region) }}
-                </div>
-                <div class="admin-field">
-                    {{ form_label(form.department) }}
-                    {{ form_widget(form.department, { attr: { 'data-prevision-department': 'true' } }) }}
-                    {{ form_errors(form.department) }}
-                </div>
-                <div class="admin-field">
-                    {{ form_label(form.commune) }}
-                    {{ form_widget(form.commune, { attr: { 'data-prevision-commune': 'true' } }) }}
-                    {{ form_errors(form.commune) }}
-                </div>
-                <div class="admin-field">
-                    {{ form_label(form.inseeCode) }}
-                    {{ form_widget(form.inseeCode, { attr: { 'data-prevision-insee': 'true' } }) }}
-                    {{ form_errors(form.inseeCode) }}
-                </div>
-                <div class="admin-field">
-                    {{ form_label(form.postalCode) }}
-                    {{ form_widget(form.postalCode, { attr: { 'data-prevision-postal': 'true' } }) }}
-                    {{ form_errors(form.postalCode) }}
-                </div>
             </div>
 
-            <section class="admin-card">
+            <section class="prevision-form-section" aria-labelledby="prevision-commune-heading">
+                <h2 id="prevision-commune-heading">Commune / village</h2>
                 <div class="admin-field">
-                    <span class="admin-label">Position GPS</span>
-                    <p class="admin-muted">Sur PC portable, la position peut être imprécise ou indisponible. Ce n’est pas bloquant.</p>
+                    <label for="prevision-destination-search">Rechercher une commune française</label>
+                    <input id="prevision-destination-search" type="search" autocomplete="off" placeholder="Exemple : Céret, Collioure, Perpignan" data-prevision-search>
+                    <p class="admin-muted">La commune sert au classement administratif. Le point sur la carte peut être déplacé pour choisir précisément le lieu à visiter.</p>
+                    <p class="admin-muted" data-prevision-search-status>La recherche remplit uniquement ce brouillon de prévision.</p>
+                    <div class="prevision-search-results" data-prevision-search-results></div>
+                </div>
+
+                <div class="admin-form-grid">
+                    <div class="admin-field">
+                        {{ form_label(form.commune) }}
+                        {{ form_widget(form.commune, { attr: { 'data-prevision-commune': 'true' } }) }}
+                        {{ form_errors(form.commune) }}
+                    </div>
+                    <div class="admin-field">
+                        {{ form_label(form.inseeCode) }}
+                        {{ form_widget(form.inseeCode, { attr: { 'data-prevision-insee': 'true' } }) }}
+                        {{ form_errors(form.inseeCode) }}
+                    </div>
+                    <div class="admin-field">
+                        {{ form_label(form.postalCode) }}
+                        {{ form_widget(form.postalCode, { attr: { 'data-prevision-postal': 'true' } }) }}
+                        {{ form_errors(form.postalCode) }}
+                    </div>
+                    <div class="admin-field">
+                        {{ form_label(form.department) }}
+                        {{ form_widget(form.department, { attr: { 'data-prevision-department': 'true' } }) }}
+                        {{ form_errors(form.department) }}
+                    </div>
+                    <div class="admin-field">
+                        {{ form_label(form.region) }}
+                        {{ form_widget(form.region, { attr: { 'data-prevision-region': 'true' } }) }}
+                        {{ form_errors(form.region) }}
+                    </div>
+                    <div class="admin-field">
+                        {{ form_label(form.country) }}
+                        {{ form_widget(form.country, { attr: { 'data-prevision-country': 'true' } }) }}
+                        {{ form_errors(form.country) }}
+                    </div>
+                </div>
+            </section>
+
+            <section class="prevision-form-section" aria-labelledby="prevision-point-heading">
+                <h2 id="prevision-point-heading">Point précis</h2>
+                <p class="admin-muted">Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact.</p>
+                <div
+                    class="prevision-map"
+                    data-prevision-map
+                    data-default-latitude="42.6000"
+                    data-default-longitude="2.6000"
+                    data-default-zoom="9"
+                    aria-label="Carte de sélection du point précis"
+                ></div>
+                <p class="admin-muted prevision-map-status" data-prevision-map-status>{{ has_coordinates ? 'Coordonnées déjà renseignées.' : 'Aucune coordonnée précise n’est renseignée.' }}</p>
+
+                <div class="prevision-point-tools">
                     <div class="admin-row-actions">
+                        <button class="admin-button" type="button" data-prevision-validate-point>Valider ce point</button>
+                        <button class="admin-button admin-button--secondary" type="button" data-prevision-center-commune>Centrer sur la commune</button>
                         <button class="admin-button admin-button--secondary" type="button" data-prevision-gps>Relever ma position GPS</button>
                     </div>
-                    <p class="admin-muted" data-prevision-gps-status>Coordonnées manuelles ou GPS acceptées.</p>
+                    <p class="admin-muted" data-prevision-gps-status>Coordonnées manuelles, carte ou GPS acceptées.</p>
                 </div>
+
                 <div class="admin-form-grid">
                     <div class="admin-field">
                         {{ form_label(form.latitude) }}
@@ -141,6 +203,11 @@
                         {{ form_errors(form.gpsAccuracy) }}
                     </div>
                 </div>
+
+                <div class="prevision-map-links">
+                    <a class="admin-button admin-button--secondary prevision-map-link" href="{{ maps_url }}" target="_blank" rel="noopener noreferrer" data-prevision-maps-link {{ has_coordinates ? '' : 'aria-disabled="true"' }}>Vérifier dans Maps</a>
+                    <a class="admin-button admin-button--secondary prevision-map-link" href="{{ osm_url }}" target="_blank" rel="noopener noreferrer" data-prevision-osm-link {{ has_coordinates ? '' : 'aria-disabled="true"' }}>Ouvrir dans OpenStreetMap</a>
+                </div>
             </section>
 
             <div class="admin-field admin-field--full">
@@ -153,125 +220,13 @@
                 <button class="admin-button" type="submit">{{ submit_label }}</button>
                 <a class="admin-button admin-button--secondary" href="{{ path('admin_prevision_destinations_index') }}">Annuler</a>
             </div>
+            <p class="prevision-submit-help">Pensez à valider le point sur la carte avant d’enregistrer.</p>
         {{ form_end(form) }}
     </section>
 {% endblock %}
 
 {% block javascripts %}
-    <script>
-        (() => {
-            const root = document.querySelector('[data-prevision-destination-form]');
-            if (!root) {
-                return;
-            }
-
-            const fields = {
-                source: root.querySelector('[data-prevision-source]'),
-                country: root.querySelector('[data-prevision-country]'),
-                region: root.querySelector('[data-prevision-region]'),
-                department: root.querySelector('[data-prevision-department]'),
-                commune: root.querySelector('[data-prevision-commune]'),
-                insee: root.querySelector('[data-prevision-insee]'),
-                postal: root.querySelector('[data-prevision-postal]'),
-                latitude: root.querySelector('[data-prevision-latitude]'),
-                longitude: root.querySelector('[data-prevision-longitude]'),
-                accuracy: root.querySelector('[data-prevision-accuracy]'),
-            };
-
-            const assign = (field, value) => {
-                if (field && value !== null && value !== undefined) {
-                    field.value = value;
-                }
-            };
-
-            const gpsButton = root.querySelector('[data-prevision-gps]');
-            const gpsStatus = root.querySelector('[data-prevision-gps-status]');
-            gpsButton?.addEventListener('click', () => {
-                if (!navigator.geolocation) {
-                    gpsStatus.textContent = 'La géolocalisation n’est pas disponible sur ce navigateur.';
-                    return;
-                }
-
-                gpsStatus.textContent = 'Recherche de position en cours...';
-                navigator.geolocation.getCurrentPosition((position) => {
-                    assign(fields.latitude, position.coords.latitude.toFixed(7));
-                    assign(fields.longitude, position.coords.longitude.toFixed(7));
-                    if (Number.isFinite(position.coords.accuracy)) {
-                        assign(fields.accuracy, Math.round(position.coords.accuracy));
-                    }
-                    assign(fields.source, 'gps');
-                    gpsStatus.textContent = 'Position GPS renseignée. Vérifiez la précision avant d’enregistrer.';
-                }, () => {
-                    gpsStatus.textContent = 'Position GPS indisponible. Vous pouvez saisir les coordonnées manuellement.';
-                }, {
-                    enableHighAccuracy: true,
-                    timeout: 12000,
-                    maximumAge: 60000,
-                });
-            });
-
-            const searchInput = root.querySelector('[data-prevision-search]');
-            const searchStatus = root.querySelector('[data-prevision-search-status]');
-            const searchResults = root.querySelector('[data-prevision-search-results]');
-            let searchAbortController = null;
-
-            searchInput?.addEventListener('input', () => {
-                const query = searchInput.value.trim();
-                searchResults.innerHTML = '';
-
-                if (searchAbortController) {
-                    searchAbortController.abort();
-                }
-
-                if (query.length < 3) {
-                    searchStatus.textContent = 'Saisissez au moins 3 caractères.';
-                    return;
-                }
-
-                searchAbortController = new AbortController();
-                searchStatus.textContent = 'Recherche en cours...';
-                fetch(`https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(query)}&fields=nom,code,codesPostaux,centre,departement,region&boost=population&limit=6`, {
-                    signal: searchAbortController.signal,
-                })
-                    .then((response) => response.ok ? response.json() : Promise.reject())
-                    .then((communes) => {
-                        searchResults.innerHTML = '';
-                        if (!Array.isArray(communes) || communes.length === 0) {
-                            searchStatus.textContent = 'Aucune commune trouvée.';
-                            return;
-                        }
-
-                        searchStatus.textContent = 'Choisissez une commune pour remplir le brouillon.';
-                        communes.forEach((commune) => {
-                            const button = document.createElement('button');
-                            button.type = 'button';
-                            button.className = 'prevision-search-result';
-                            button.textContent = `${commune.nom} - ${commune.departement?.nom ?? 'Département inconnu'} / ${commune.region?.nom ?? 'Région inconnue'}`;
-                            button.addEventListener('click', () => {
-                                assign(fields.commune, commune.nom);
-                                assign(fields.insee, commune.code);
-                                assign(fields.postal, Array.isArray(commune.codesPostaux) ? commune.codesPostaux[0] : '');
-                                assign(fields.department, commune.departement?.nom ?? '');
-                                assign(fields.region, commune.region?.nom ?? '');
-                                assign(fields.country, 'France');
-                                if (commune.centre?.coordinates?.length === 2) {
-                                    assign(fields.longitude, commune.centre.coordinates[0]);
-                                    assign(fields.latitude, commune.centre.coordinates[1]);
-                                }
-                                assign(fields.source, 'search');
-                                searchStatus.textContent = 'Commune renseignée. Complétez le titre et les notes avant d’enregistrer.';
-                                searchResults.innerHTML = '';
-                            });
-                            searchResults.append(button);
-                        });
-                    })
-                    .catch((error) => {
-                        if (error.name === 'AbortError') {
-                            return;
-                        }
-                        searchStatus.textContent = 'Recherche indisponible. Vous pouvez saisir les informations manuellement.';
-                    });
-            });
-        })();
-    </script>
+    {% if app.environment != 'test' %}
+        {{ vite_entry_script_tags('assets/js/prevision-destination-map.js') }}
+    {% endif %}
 {% endblock %}

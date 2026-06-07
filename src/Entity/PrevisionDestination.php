@@ -22,6 +22,7 @@ class PrevisionDestination
     public const SOURCE_MANUAL = 'manual';
     public const SOURCE_SEARCH = 'search';
     public const SOURCE_GPS = 'gps';
+    public const SOURCE_MANUAL_MAP = 'manual_map';
 
     public const PRIORITY_LOW = 'low';
     public const PRIORITY_MEDIUM = 'medium';

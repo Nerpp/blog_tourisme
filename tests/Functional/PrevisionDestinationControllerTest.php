@@ -80,6 +80,18 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         self::assertGreaterThan(0, $listLink->count());
         self::assertStringContainsString('Retour à l’index', $listLink->text());
         self::assertStringContainsString('Type de sortie prévue', $crawler->text());
+        self::assertStringContainsString('Commune / village', $crawler->text());
+        self::assertStringContainsString('Point précis', $crawler->text());
+        self::assertStringContainsString('Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact.', $crawler->text());
+        self::assertStringContainsString('La commune sert au classement administratif. Le point sur la carte peut être déplacé pour choisir précisément le lieu à visiter.', $crawler->text());
+        self::assertStringContainsString('Aucune coordonnée précise n’est renseignée.', $crawler->text());
+        self::assertStringContainsString('Pensez à valider le point sur la carte avant d’enregistrer.', $crawler->text());
+        self::assertGreaterThan(0, $crawler->filter('[data-prevision-map]')->count());
+        self::assertGreaterThan(0, $crawler->filter('button[data-prevision-validate-point]')->count());
+        self::assertGreaterThan(0, $crawler->filter('button[data-prevision-center-commune]')->count());
+        self::assertGreaterThan(0, $crawler->filter('button[data-prevision-gps]')->count());
+        self::assertGreaterThan(0, $crawler->filter('[data-prevision-latitude]')->count());
+        self::assertGreaterThan(0, $crawler->filter('[data-prevision-longitude]')->count());
         self::assertGreaterThan(0, $crawler->filter('select[name="prevision_destination[title]"] option[value="Randonnée"]')->count());
         self::assertGreaterThan(0, $crawler->filter('select[name="prevision_destination[title]"] option[value="Visite"]')->count());
 
@@ -103,6 +115,38 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         self::assertStringContainsString('À vérifier', $crawler->text());
         self::assertStringContainsString('Haute', $crawler->text());
         self::assertStringContainsString('Accès, parking et drone à vérifier.', $crawler->text());
+    }
+
+    public function testVerifiedAdminCanCreatePrevisionDestinationWithValidatedMapCoordinates(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $commune = 'Carte '.$this->uniqueToken('prevision');
+        $crawler = $client->request('GET', '/admin/previsions/destinations/new');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', '/admin/previsions/destinations/new', $this->formData($crawler, [
+            'title' => 'Randonnée',
+            'status' => PrevisionDestination::STATUS_TO_VISIT,
+            'source' => PrevisionDestination::SOURCE_MANUAL_MAP,
+            'country' => 'France',
+            'region' => 'Occitanie',
+            'department' => 'Pyrénées-Orientales',
+            'commune' => $commune,
+            'inseeCode' => '66049',
+            'postalCode' => '66400',
+            'latitude' => '42.4851200',
+            'longitude' => '2.7483400',
+            'gpsAccuracy' => '',
+        ]));
+
+        self::assertResponseRedirects('/admin/previsions/destinations');
+        $previsionDestination = $this->entityManager()->getRepository(PrevisionDestination::class)->findOneBy(['commune' => $commune]);
+        self::assertInstanceOf(PrevisionDestination::class, $previsionDestination);
+        self::assertSame(PrevisionDestination::SOURCE_MANUAL_MAP, $previsionDestination->getSource());
+        self::assertSame(42.4851200, $previsionDestination->getLatitude());
+        self::assertSame(2.7483400, $previsionDestination->getLongitude());
+        self::assertNull($previsionDestination->getGpsAccuracy());
     }
 
     public function testVerifiedAdminCanCreateVisitPrevisionDestination(): void
@@ -200,6 +244,38 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         self::assertGreaterThan(0, $mapsLink->count());
         self::assertSame('_blank', $mapsLink->first()->attr('target'));
         self::assertSame('noopener noreferrer', $mapsLink->first()->attr('rel'));
+        $osmLink = $crawler->filter('a[href*="openstreetmap.org"][href*="mlat=43.5380000"][href*="mlon=2.9173000"]');
+        self::assertGreaterThan(0, $osmLink->count());
+        self::assertSame('_blank', $osmLink->first()->attr('target'));
+        self::assertSame('noopener noreferrer', $osmLink->first()->attr('rel'));
+    }
+
+    public function testPrevisionDestinationIndexDisplaysManualMapAndSearchBadges(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $manualMap = (new PrevisionDestination())
+            ->setTitle('Randonnée')
+            ->setStatus(PrevisionDestination::STATUS_IDEA)
+            ->setSource(PrevisionDestination::SOURCE_MANUAL_MAP)
+            ->setCommune('Point carte '.$this->uniqueToken('prevision'))
+            ->setLatitude(42.485120)
+            ->setLongitude(2.748340);
+        $search = (new PrevisionDestination())
+            ->setTitle('Visite')
+            ->setStatus(PrevisionDestination::STATUS_IDEA)
+            ->setSource(PrevisionDestination::SOURCE_SEARCH)
+            ->setCommune('Centre commune '.$this->uniqueToken('prevision'))
+            ->setLatitude(42.700000)
+            ->setLongitude(2.900000);
+        $this->persistAndFlush($manualMap, $search);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/previsions/destinations');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Point placé sur carte', $crawler->text());
+        self::assertStringContainsString('Centre de commune — à vérifier', $crawler->text());
     }
 
     public function testPrevisionDestinationIndexSearchFiltersByQueryString(): void

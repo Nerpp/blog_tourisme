@@ -148,7 +148,12 @@
                             {% endif %}
                         </td>
                         <td><span class="admin-badge admin-badge--info">{{ status_labels[prevision_destination.status] ?? prevision_destination.status }}</span></td>
-                        <td>{{ prevision_destination.source ? (source_labels[prevision_destination.source] ?? prevision_destination.source) : 'Non renseignée' }}</td>
+                        <td>
+                            <span class="admin-badge {{ prevision_destination.source == 'search' ? 'admin-badge--warning' : 'admin-badge--info' }}">{{ row.source_badge }}</span>
+                            {% if prevision_destination.source and row.source_badge != (source_labels[prevision_destination.source] ?? prevision_destination.source) %}
+                                <div class="admin-muted">{{ source_labels[prevision_destination.source] ?? prevision_destination.source }}</div>
+                            {% endif %}
+                        </td>
                         <td>{{ prevision_destination.priority ? (priority_labels[prevision_destination.priority] ?? prevision_destination.priority) : 'Non renseignée' }}</td>
                         <td>{{ prevision_destination.plannedPeriod ?: 'Non renseignée' }}</td>
                         <td>
@@ -167,6 +172,9 @@
                                     <a class="admin-button admin-button--small admin-button--secondary" href="{{ row.maps_url }}" target="_blank" rel="noopener noreferrer">Ouvrir dans Maps</a>
                                 {% else %}
                                     <span class="admin-button admin-button--small admin-button--secondary" aria-disabled="true">Maps indisponible</span>
+                                {% endif %}
+                                {% if row.openstreetmap_url %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ row.openstreetmap_url }}" target="_blank" rel="noopener noreferrer">Ouvrir dans OpenStreetMap</a>
                                 {% endif %}
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_prevision_destinations_edit', { id: prevision_destination.id }) }}">Modifier</a>
                                 <form method="post" action="{{ path('admin_prevision_destinations_delete', { id: prevision_destination.id }) }}" onsubmit="return confirm('Supprimer cette destination prévue ?');">

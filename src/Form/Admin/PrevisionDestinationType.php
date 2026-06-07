@@ -47,6 +47,7 @@ final class PrevisionDestinationType extends AbstractType
                     'Manuel' => PrevisionDestination::SOURCE_MANUAL,
                     'Recherche' => PrevisionDestination::SOURCE_SEARCH,
                     'GPS' => PrevisionDestination::SOURCE_GPS,
+                    'Point placé sur carte' => PrevisionDestination::SOURCE_MANUAL_MAP,
                 ],
             ])
             ->add('notes', TextareaType::class, [

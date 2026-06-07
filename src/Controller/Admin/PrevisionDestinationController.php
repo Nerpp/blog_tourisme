@@ -34,6 +34,8 @@ final class PrevisionDestinationController extends AbstractController
                 fn (PrevisionDestination $previsionDestination): array => [
                     'item' => $previsionDestination,
                     'maps_url' => $this->mapsUrl($previsionDestination),
+                    'openstreetmap_url' => $this->openStreetMapUrl($previsionDestination),
+                    'source_badge' => $this->sourceBadge($previsionDestination),
                 ],
                 $previsionDestinations,
             ),
@@ -142,6 +144,36 @@ final class PrevisionDestinationController extends AbstractController
         ], '', '&', \PHP_QUERY_RFC3986);
     }
 
+    private function openStreetMapUrl(PrevisionDestination $previsionDestination): ?string
+    {
+        if ($previsionDestination->getLatitude() === null || $previsionDestination->getLongitude() === null) {
+            return null;
+        }
+
+        $latitude = sprintf('%.7F', $previsionDestination->getLatitude());
+        $longitude = sprintf('%.7F', $previsionDestination->getLongitude());
+
+        return sprintf(
+            'https://www.openstreetmap.org/?mlat=%s&mlon=%s#map=16/%s/%s',
+            rawurlencode($latitude),
+            rawurlencode($longitude),
+            rawurlencode($latitude),
+            rawurlencode($longitude),
+        );
+    }
+
+    private function sourceBadge(PrevisionDestination $previsionDestination): string
+    {
+        return match ($previsionDestination->getSource()) {
+            PrevisionDestination::SOURCE_MANUAL_MAP => 'Point placé sur carte',
+            PrevisionDestination::SOURCE_GPS => 'GPS',
+            PrevisionDestination::SOURCE_SEARCH => 'Centre de commune — à vérifier',
+            default => $previsionDestination->getLatitude() !== null && $previsionDestination->getLongitude() !== null
+                ? 'Centre de commune — à vérifier'
+                : 'Non renseignée',
+        };
+    }
+
     private function autocompleteLabel(PrevisionDestination $previsionDestination): string
     {
         $parts = array_filter([
@@ -185,6 +217,7 @@ final class PrevisionDestinationController extends AbstractController
             PrevisionDestination::SOURCE_MANUAL => 'Manuel',
             PrevisionDestination::SOURCE_SEARCH => 'Recherche',
             PrevisionDestination::SOURCE_GPS => 'GPS',
+            PrevisionDestination::SOURCE_MANUAL_MAP => 'Point placé sur carte',
         ];
     }
 

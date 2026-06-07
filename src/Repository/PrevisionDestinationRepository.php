@@ -79,6 +79,7 @@ final class PrevisionDestinationRepository extends ServiceEntityRepository
             PrevisionDestination::SOURCE_MANUAL => 'Manuel',
             PrevisionDestination::SOURCE_SEARCH => 'Recherche',
             PrevisionDestination::SOURCE_GPS => 'GPS',
+            PrevisionDestination::SOURCE_MANUAL_MAP => 'Point placé sur carte',
         ]);
         if ($matchedSources !== []) {
             $conditions[] = 'p.source IN (:matchedSources)';
