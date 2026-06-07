@@ -650,7 +650,11 @@ final class CityVisitStudioController extends AbstractController
         return $options;
     }
 
-    /** @param array<int, string> $pointTargetOptions */
+    /**
+     * @param array<int, string> $pointTargetOptions
+     *
+     * @return array<string, string>
+     */
     private function photoAssociationOptions(array $pointTargetOptions): array
     {
         return [
@@ -659,7 +663,11 @@ final class CityVisitStudioController extends AbstractController
         ] + $this->pointAssociationOptions($pointTargetOptions);
     }
 
-    /** @param array<int, string> $pointTargetOptions */
+    /**
+     * @param array<int, string> $pointTargetOptions
+     *
+     * @return array<string, string>
+     */
     private function videoAssociationOptions(array $pointTargetOptions): array
     {
         return [
@@ -667,7 +675,11 @@ final class CityVisitStudioController extends AbstractController
         ] + $this->pointAssociationOptions($pointTargetOptions);
     }
 
-    /** @param array<int, string> $pointTargetOptions */
+    /**
+     * @param array<int, string> $pointTargetOptions
+     *
+     * @return array<string, string>
+     */
     private function pointAssociationOptions(array $pointTargetOptions): array
     {
         $options = [];

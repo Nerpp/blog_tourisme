@@ -8,6 +8,11 @@ use Symfony\Component\Asset\Packages;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
+/**
+ * @phpstan-type MediaVariantValue scalar|list<string>|null
+ * @phpstan-type MediaVariantData array<string, MediaVariantValue|array<string, MediaVariantValue>>
+ * @phpstan-type MediaVariants array<string, MediaVariantData|scalar|null>
+ */
 final class MediaImageExtension extends AbstractExtension
 {
     private const RESPONSIVE_SIZES = ['thumb', 'medium', 'large'];
@@ -166,6 +171,7 @@ final class MediaImageExtension extends AbstractExtension
         return null;
     }
 
+    /** @param MediaVariants|null $variants */
     private function variantPath(?array $variants, string $size, string $format): ?string
     {
         $variant = $this->variant($variants, $size);
@@ -174,7 +180,11 @@ final class MediaImageExtension extends AbstractExtension
         return is_string($path) && $path !== '' ? $path : null;
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param MediaVariants|null $variants
+     *
+     * @return MediaVariantData
+     */
     private function variant(?array $variants, string $size): array
     {
         if (!is_array($variants) || !isset($variants[$size]) || !is_array($variants[$size])) {

@@ -83,6 +83,7 @@ final class DestinationController extends AbstractController
     /**
      * @param list<Article> $articles
      * @param list<int>    $destinationIds
+     * @param array<int, Destination> $departmentByDestinationId
      *
      * @return list<array{
      *     article: Article,

@@ -12,6 +12,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Vote;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
+/** @extends Voter<string, Article|Place|Destination|HikeDraft|CityVisitDraft> */
 final class ContentEditVoter extends Voter
 {
     public const EDIT = 'EDIT';

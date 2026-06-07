@@ -9,6 +9,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Vote;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
+/** @extends Voter<string, HikePoint|CityVisitPoint> */
 final class GpsAccessVoter extends Voter
 {
     public const GPS_ACCESS = 'GPS_ACCESS';

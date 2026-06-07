@@ -7,6 +7,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Vote;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
+/** @extends Voter<string, mixed> */
 final class QuickCityVisitVoter extends Voter
 {
     public const CREATE = 'QUICK_CITY_VISIT_CREATE';

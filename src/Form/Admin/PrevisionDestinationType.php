@@ -13,6 +13,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 
+/** @extends AbstractType<PrevisionDestination> */
 final class PrevisionDestinationType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void

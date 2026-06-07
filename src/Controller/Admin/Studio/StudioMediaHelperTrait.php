@@ -244,6 +244,7 @@ trait StudioMediaHelperTrait
 
     /**
      * @param array<int, \BackedEnum> $cases
+     * @param array<array-key, string> $labels
      *
      * @return array<string, string>
      */

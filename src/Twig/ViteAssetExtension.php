@@ -6,8 +6,23 @@ use RuntimeException;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
+/**
+ * @phpstan-type ViteManifestChunk array{
+ *     file?: string,
+ *     src?: string,
+ *     name?: string,
+ *     isEntry?: bool,
+ *     isDynamicEntry?: bool,
+ *     imports?: list<string>,
+ *     dynamicImports?: list<string>,
+ *     css?: list<string>,
+ *     assets?: list<string>
+ * }
+ * @phpstan-type ViteManifest array<string, ViteManifestChunk>
+ */
 final class ViteAssetExtension extends AbstractExtension
 {
+    /** @var ViteManifest|null */
     private ?array $manifest = null;
 
     public function __construct(
@@ -115,6 +130,7 @@ final class ViteAssetExtension extends AbstractExtension
         return rtrim((string) $this->devServerUrl, '/');
     }
 
+    /** @return ViteManifestChunk */
     private function getManifestEntry(string $entry): array
     {
         $manifest = $this->getManifest();
@@ -126,6 +142,7 @@ final class ViteAssetExtension extends AbstractExtension
         return $manifest[$entry];
     }
 
+    /** @return ViteManifest */
     private function getManifest(): array
     {
         if ($this->manifest !== null) {
@@ -144,9 +161,17 @@ final class ViteAssetExtension extends AbstractExtension
             throw new RuntimeException('Vite manifest is not valid.');
         }
 
+        /** @var ViteManifest $manifest */
         return $this->manifest = $manifest;
     }
 
+    /**
+     * @param ViteManifest $manifest
+     * @param ViteManifestChunk $chunk
+     * @param array<string, true> $seen
+     *
+     * @return list<string>
+     */
     private function collectImportedFiles(array $manifest, array $chunk, array &$seen = []): array
     {
         $files = [];
@@ -169,6 +194,13 @@ final class ViteAssetExtension extends AbstractExtension
         return array_values(array_unique($files));
     }
 
+    /**
+     * @param ViteManifest $manifest
+     * @param ViteManifestChunk $chunk
+     * @param array<string, true> $seen
+     *
+     * @return list<string>
+     */
     private function collectCssFiles(array $manifest, array $chunk, array &$seen = []): array
     {
         $files = $chunk['css'] ?? [];

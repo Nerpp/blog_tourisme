@@ -660,6 +660,7 @@ final class PlaceStudioController extends AbstractController
 
     /**
      * @param array<int, \BackedEnum> $cases
+     * @param array<array-key, string> $labels
      *
      * @return array<string, string>
      */

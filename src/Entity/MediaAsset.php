@@ -12,6 +12,12 @@ use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * @phpstan-type MediaMetadata array<string, scalar|null>
+ * @phpstan-type MediaVariantValue scalar|list<string>|null
+ * @phpstan-type MediaVariantData array<string, MediaVariantValue|array<string, MediaVariantValue>>
+ * @phpstan-type MediaVariants array<string, MediaVariantData|scalar|null>
+ */
 #[ORM\Entity(repositoryClass: MediaAssetRepository::class)]
 #[ORM\Index(name: 'idx_media_asset_media_type', fields: ['mediaType'])]
 #[ORM\Index(name: 'idx_media_asset_image_type', fields: ['imageType'])]
@@ -76,9 +82,11 @@ class MediaAsset
     #[ORM\Column(length: 80, nullable: true)]
     private ?string $projection = null;
 
+    /** @var MediaMetadata|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $metadata = null;
 
+    /** @var MediaVariants|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $variants = null;
 
@@ -331,11 +339,13 @@ class MediaAsset
         return $this;
     }
 
+    /** @return MediaMetadata|null */
     public function getMetadata(): ?array
     {
         return $this->metadata;
     }
 
+    /** @param MediaMetadata|null $metadata */
     public function setMetadata(?array $metadata): static
     {
         $this->metadata = $metadata;
@@ -343,11 +353,13 @@ class MediaAsset
         return $this;
     }
 
+    /** @return MediaVariants|null */
     public function getVariants(): ?array
     {
         return $this->variants;
     }
 
+    /** @param MediaVariants|null $variants */
     public function setVariants(?array $variants): static
     {
         $this->variants = $variants;

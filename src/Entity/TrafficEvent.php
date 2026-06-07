@@ -34,6 +34,7 @@ class TrafficEvent
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $routeName = null;
 
+    /** @var array<string, scalar|null>|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $routeParams = null;
 
@@ -144,11 +145,13 @@ class TrafficEvent
         return $this;
     }
 
+    /** @return array<string, scalar|null>|null */
     public function getRouteParams(): ?array
     {
         return $this->routeParams;
     }
 
+    /** @param array<string, scalar|null>|null $routeParams */
     public function setRouteParams(?array $routeParams): static
     {
         $this->routeParams = $routeParams;

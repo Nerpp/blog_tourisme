@@ -537,6 +537,7 @@ final class CommentController extends AbstractController
         return false;
     }
 
+    /** @param FormInterface<mixed> $form */
     private function addCommentFormErrorFlashes(FormInterface $form): void
     {
         $messages = [];

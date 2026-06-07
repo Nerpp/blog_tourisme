@@ -13,6 +13,20 @@ use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
 
+/**
+ * @phpstan-type LatestContentItem array{
+ *     type: string,
+ *     label: string,
+ *     title: string,
+ *     url: string,
+ *     image: string|null,
+ *     date: \DateTimeImmutable,
+ *     primary_cta: string,
+ *     secondary_title?: string,
+ *     secondary_url?: string,
+ *     secondary_cta?: string
+ * }
+ */
 final readonly class HomepageLatestContentProvider
 {
     public function __construct(
@@ -22,20 +36,7 @@ final readonly class HomepageLatestContentProvider
         private PublicContentUrlResolver $urlResolver,
     ) {}
 
-    /**
-     * @return array{
-     *     type: string,
-     *     label: string,
-     *     title: string,
-     *     url: string,
-     *     image: ?string,
-     *     date: \DateTimeImmutable,
-     *     primary_cta: string,
-     *     secondary_title?: string,
-     *     secondary_url?: string,
-     *     secondary_cta?: string
-     * }|null
-     */
+    /** @return LatestContentItem|null */
     public function getLatest(): ?array
     {
         $items = array_filter([
@@ -56,6 +57,7 @@ final readonly class HomepageLatestContentProvider
         return $items[0];
     }
 
+    /** @return LatestContentItem|null */
     private function normalizeArticle(?Article $article): ?array
     {
         if ($article === null || $article->getPublishedAt() === null) {
@@ -119,6 +121,7 @@ final readonly class HomepageLatestContentProvider
         ];
     }
 
+    /** @return LatestContentItem|null */
     private function normalizeHike(?HikeDraft $hike): ?array
     {
         if ($hike === null || $hike->getFinishedAt() === null) {
@@ -142,6 +145,7 @@ final readonly class HomepageLatestContentProvider
         ];
     }
 
+    /** @return LatestContentItem|null */
     private function normalizeCityVisit(?CityVisitDraft $cityVisit): ?array
     {
         if ($cityVisit === null || $cityVisit->getFinishedAt() === null) {
