@@ -18,10 +18,14 @@ final class PrevisionDestinationType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
-            ->add('title', TextType::class, [
-                'label' => 'Titre',
+            ->add('title', ChoiceType::class, [
+                'label' => 'Type de sortie prévue',
+                'choices' => [
+                    'Randonnée' => 'Randonnée',
+                    'Visite' => 'Visite',
+                ],
                 'constraints' => [
-                    new NotBlank(message: 'Renseignez un nom ou une idée de destination.'),
+                    new NotBlank(message: 'Choisissez un type de sortie prévue.'),
                     new Length(max: 180),
                 ],
             ])

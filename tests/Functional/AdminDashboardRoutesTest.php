@@ -24,6 +24,8 @@ final class AdminDashboardRoutesTest extends FunctionalTestCase
         yield 'field tools city visits' => ['/admin/field-tools/city-visits'];
         yield 'field tools gps' => ['/admin/outils-terrain/gps'];
         yield 'prevision destinations' => ['/admin/previsions/destinations'];
+        yield 'prevision destination new' => ['/admin/previsions/destinations/new'];
+        yield 'prevision destination autocomplete' => ['/admin/previsions/destinations/autocomplete?q=Ola'];
     }
 
     #[DataProvider('adminDashboardRoutes')]
