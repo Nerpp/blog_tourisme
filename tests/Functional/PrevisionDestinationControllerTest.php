@@ -84,11 +84,18 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         self::assertStringContainsString('Point précis', $crawler->text());
         self::assertStringContainsString('Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact.', $crawler->text());
         self::assertStringContainsString('La commune sert au classement administratif. Le point sur la carte peut être déplacé pour choisir précisément le lieu à visiter.', $crawler->text());
+        self::assertStringContainsString('Sélectionnez d’abord une commune pour afficher la carte.', $crawler->text());
+        self::assertStringContainsString('Utilisez la molette de la souris pour zoomer ou dézoomer la carte.', $crawler->text());
         self::assertStringContainsString('Aucune coordonnée précise n’est renseignée.', $crawler->text());
         self::assertStringContainsString('Pensez à valider le point sur la carte avant d’enregistrer.', $crawler->text());
+        self::assertNull($crawler->filter('[data-prevision-map-placeholder]')->attr('hidden'));
+        self::assertNotNull($crawler->filter('[data-prevision-map-panel]')->attr('hidden'));
+        self::assertNotNull($crawler->filter('[data-prevision-map-links]')->attr('hidden'));
         self::assertGreaterThan(0, $crawler->filter('[data-prevision-map]')->count());
         self::assertGreaterThan(0, $crawler->filter('button[data-prevision-validate-point]')->count());
+        self::assertNotNull($crawler->filter('button[data-prevision-validate-point]')->attr('disabled'));
         self::assertGreaterThan(0, $crawler->filter('button[data-prevision-center-commune]')->count());
+        self::assertNotNull($crawler->filter('button[data-prevision-center-commune]')->attr('disabled'));
         self::assertGreaterThan(0, $crawler->filter('button[data-prevision-gps]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-prevision-latitude]')->count());
         self::assertGreaterThan(0, $crawler->filter('[data-prevision-longitude]')->count());
@@ -214,6 +221,29 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         self::assertSame(42.4851200, $stored->getLatitude());
         self::assertSame(2.7483400, $stored->getLongitude());
         self::assertSame(12.0, $stored->getGpsAccuracy());
+    }
+
+    public function testEditPrevisionDestinationWithCoordinatesDisplaysMapImmediately(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $previsionDestination = (new PrevisionDestination())
+            ->setTitle('Randonnée')
+            ->setStatus(PrevisionDestination::STATUS_IDEA)
+            ->setSource(PrevisionDestination::SOURCE_MANUAL_MAP)
+            ->setLatitude(42.4851200)
+            ->setLongitude(2.7483400);
+        $this->persistAndFlush($previsionDestination);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/previsions/destinations/%d/edit', $previsionDestination->getId()));
+
+        self::assertResponseIsSuccessful();
+        self::assertNotNull($crawler->filter('[data-prevision-map-placeholder]')->attr('hidden'));
+        self::assertNull($crawler->filter('[data-prevision-map-panel]')->attr('hidden'));
+        self::assertNull($crawler->filter('button[data-prevision-validate-point]')->attr('disabled'));
+        self::assertNull($crawler->filter('[data-prevision-map-links]')->attr('hidden'));
+        self::assertStringContainsString('Coordonnées déjà renseignées.', $crawler->text());
     }
 
     public function testPrevisionDestinationIndexDisplaysNotesFallbackAndMapsLink(): void

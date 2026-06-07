@@ -56,6 +56,7 @@ const updateCoordinateLinks = (fields, links) => {
   if (latitude === null || longitude === null) {
     links.maps?.setAttribute('aria-disabled', 'true');
     links.osm?.setAttribute('aria-disabled', 'true');
+    links.container?.setAttribute('hidden', '');
     return;
   }
 
@@ -63,12 +64,21 @@ const updateCoordinateLinks = (fields, links) => {
   const lng = formatCoordinate(longitude);
   enableLink(links.maps, `https://www.google.com/maps?q=${lat},${lng}`);
   enableLink(links.osm, `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`);
+  links.container?.removeAttribute('hidden');
 };
 
 const setStatus = (element, message) => {
   if (element) {
     element.textContent = message;
   }
+};
+
+const selectSupportsValue = (field, value) => {
+  if (!field || !('options' in field)) {
+    return false;
+  }
+
+  return Array.from(field.options).some((option) => option.value === value);
 };
 
 const initPrevisionDestinationMap = (root) => {
@@ -94,10 +104,13 @@ const initPrevisionDestinationMap = (root) => {
   };
 
   const links = {
+    container: root.querySelector('[data-prevision-map-links]'),
     maps: root.querySelector('[data-prevision-maps-link]'),
     osm: root.querySelector('[data-prevision-osm-link]'),
   };
 
+  const mapPanel = root.querySelector('[data-prevision-map-panel]');
+  const mapPlaceholder = root.querySelector('[data-prevision-map-placeholder]');
   const mapStatus = root.querySelector('[data-prevision-map-status]');
   const gpsStatus = root.querySelector('[data-prevision-gps-status]');
   const validateButton = root.querySelector('[data-prevision-validate-point]');
@@ -114,40 +127,86 @@ const initPrevisionDestinationMap = (root) => {
   let markerPosition = null;
   let pendingSource = 'manual_map';
   let searchAbortController = null;
+  let map = null;
+  let marker = null;
 
   const existingLatitude = coordinateValue(fields.latitude?.value, -90, 90);
   const existingLongitude = coordinateValue(fields.longitude?.value, -180, 180);
   const centerLatitude = coordinateValue(fields.communeCenterLatitude?.value, -90, 90);
   const centerLongitude = coordinateValue(fields.communeCenterLongitude?.value, -180, 180);
 
-  const initialPosition = existingLatitude !== null && existingLongitude !== null
-    ? [existingLatitude, existingLongitude]
-    : centerLatitude !== null && centerLongitude !== null
-      ? [centerLatitude, centerLongitude]
-      : [defaultLatitude, defaultLongitude];
+  const setPendingMapPoint = (latlng, message) => {
+    pendingSource = 'manual_map';
+    moveMarker(latlng.lat, latlng.lng);
+    setStatus(mapStatus, message);
+  };
 
-  const map = L.map(mapElement, {
-    center: initialPosition,
-    zoom: existingLatitude !== null ? 14 : defaultZoom,
-    scrollWheelZoom: false,
-  });
+  const hasCommuneCenter = () => (
+    coordinateValue(fields.communeCenterLatitude?.value, -90, 90) !== null
+    && coordinateValue(fields.communeCenterLongitude?.value, -180, 180) !== null
+  );
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(map);
+  const setMapControls = () => {
+    const hasMapPoint = markerPosition !== null;
+    if (validateButton) {
+      validateButton.disabled = !hasMapPoint;
+    }
+    if (centerButton) {
+      centerButton.disabled = !hasCommuneCenter();
+    }
+  };
 
-  const marker = L.marker(initialPosition, {
-    draggable: true,
-    title: 'Point précis à valider',
-  }).addTo(map);
+  const createMap = (latitude, longitude, zoom) => {
+    const initialPosition = [latitude, longitude];
+    map = L.map(mapElement, {
+      center: initialPosition,
+      zoom,
+      scrollWheelZoom: true,
+    });
 
-  markerPosition = marker.getLatLng();
+    map.scrollWheelZoom.enable();
 
-  setTimeout(() => map.invalidateSize(), 0);
-  updateCoordinateLinks(fields, links);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+
+    marker = L.marker(initialPosition, {
+      draggable: true,
+      title: 'Point précis à valider',
+    }).addTo(map);
+
+    marker.on('dragend', () => {
+      markerPosition = marker.getLatLng();
+      pendingSource = 'manual_map';
+      setMapControls();
+      setStatus(mapStatus, 'Point déplacé. Cliquez sur Valider ce point pour enregistrer les coordonnées.');
+    });
+
+    map.on('click', (event) => {
+      setPendingMapPoint(event.latlng, 'Point déplacé. Cliquez sur Valider ce point pour enregistrer les coordonnées.');
+    });
+  };
+
+  const showMap = (latitude, longitude, zoom = 14) => {
+    mapPanel?.removeAttribute('hidden');
+    mapPlaceholder?.setAttribute('hidden', '');
+
+    if (!map || !marker) {
+      createMap(latitude, longitude, zoom);
+    }
+
+    moveMarker(latitude, longitude, zoom);
+    setMapControls();
+    setTimeout(() => map?.invalidateSize(), 0);
+  };
 
   const moveMarker = (latitude, longitude, zoom = null) => {
+    if (!map || !marker) {
+      showMap(latitude, longitude, zoom ?? 14);
+      return;
+    }
+
     markerPosition = L.latLng(latitude, longitude);
     marker.setLatLng(markerPosition);
 
@@ -156,23 +215,20 @@ const initPrevisionDestinationMap = (root) => {
     } else {
       map.panTo(markerPosition);
     }
+
+    setMapControls();
   };
 
-  const setPendingMapPoint = (latlng, message) => {
-    pendingSource = 'manual_map';
-    moveMarker(latlng.lat, latlng.lng);
-    setStatus(mapStatus, message);
-  };
+  if (existingLatitude !== null && existingLongitude !== null) {
+    showMap(existingLatitude, existingLongitude, 14);
+  } else {
+    mapPanel?.setAttribute('hidden', '');
+    mapPlaceholder?.removeAttribute('hidden');
+    markerPosition = null;
+    setMapControls();
+  }
 
-  marker.on('dragend', () => {
-    markerPosition = marker.getLatLng();
-    pendingSource = 'manual_map';
-    setStatus(mapStatus, 'Point déplacé. Cliquez sur “Valider ce point” pour renseigner les coordonnées.');
-  });
-
-  map.on('click', (event) => {
-    setPendingMapPoint(event.latlng, 'Point déplacé. Cliquez sur “Valider ce point” pour renseigner les coordonnées.');
-  });
+  updateCoordinateLinks(fields, links);
 
   validateButton?.addEventListener('click', () => {
     if (!markerPosition) {
@@ -186,7 +242,7 @@ const initPrevisionDestinationMap = (root) => {
     if (pendingSource === 'gps') {
       assign(fields.source, 'gps');
     } else {
-      assign(fields.source, 'manual_map');
+      assign(fields.source, selectSupportsValue(fields.source, 'manual_map') ? 'manual_map' : 'manual');
       assign(fields.accuracy, '');
     }
 
@@ -253,7 +309,9 @@ const initPrevisionDestinationMap = (root) => {
 
   searchInput?.addEventListener('input', () => {
     const query = searchInput.value.trim();
-    searchResults.innerHTML = '';
+    if (searchResults) {
+      searchResults.innerHTML = '';
+    }
 
     if (searchAbortController) {
       searchAbortController.abort();
@@ -272,7 +330,9 @@ const initPrevisionDestinationMap = (root) => {
     })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Recherche commune indisponible.'))))
       .then((communes) => {
-        searchResults.innerHTML = '';
+        if (searchResults) {
+          searchResults.innerHTML = '';
+        }
 
         if (!Array.isArray(communes) || communes.length === 0) {
           setStatus(searchStatus, 'Aucune commune trouvée.');
@@ -302,15 +362,21 @@ const initPrevisionDestinationMap = (root) => {
                 assign(fields.communeCenterLatitude, formatCoordinate(latitude), false);
                 assign(fields.communeCenterLongitude, formatCoordinate(longitude), false);
                 pendingSource = 'manual_map';
-                moveMarker(latitude, longitude, 14);
+                showMap(latitude, longitude, 14);
                 setStatus(mapStatus, 'Commune sélectionnée. Déplacez le marqueur puis cliquez sur “Valider ce point”.');
+              } else {
+                setMapControls();
               }
+            } else {
+              setMapControls();
             }
 
             setStatus(searchStatus, 'Commune renseignée. Le point sur la carte reste à valider.');
-            searchResults.innerHTML = '';
+            if (searchResults) {
+              searchResults.innerHTML = '';
+            }
           });
-          searchResults.append(button);
+          searchResults?.append(button);
         });
       })
       .catch((error) => {

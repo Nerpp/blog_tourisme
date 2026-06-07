@@ -11,9 +11,25 @@
         .prevision-form-section,
         .prevision-search-results,
         .prevision-point-tools,
+        .prevision-map-panel,
         .prevision-map-links {
             display: grid;
             gap: 12px;
+        }
+
+        .prevision-map-placeholder {
+            padding: 18px;
+            border: 1px dashed var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #f9fbf9;
+            color: var(--admin-muted);
+            font-weight: 750;
+        }
+
+        .prevision-map-placeholder[hidden],
+        .prevision-map-panel[hidden],
+        .prevision-map-links[hidden] {
+            display: none;
         }
 
         .prevision-form-section {
@@ -166,21 +182,26 @@
 
             <section class="prevision-form-section" aria-labelledby="prevision-point-heading">
                 <h2 id="prevision-point-heading">Point précis</h2>
-                <p class="admin-muted">Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact.</p>
-                <div
-                    class="prevision-map"
-                    data-prevision-map
-                    data-default-latitude="42.6000"
-                    data-default-longitude="2.6000"
-                    data-default-zoom="9"
-                    aria-label="Carte de sélection du point précis"
-                ></div>
-                <p class="admin-muted prevision-map-status" data-prevision-map-status>{{ has_coordinates ? 'Coordonnées déjà renseignées.' : 'Aucune coordonnée précise n’est renseignée.' }}</p>
+                <div class="prevision-map-placeholder" data-prevision-map-placeholder {{ has_coordinates ? 'hidden' : '' }}>Sélectionnez d’abord une commune pour afficher la carte.</div>
+                <div class="prevision-map-panel" data-prevision-map-panel {{ has_coordinates ? '' : 'hidden' }}>
+                    <div
+                        class="prevision-map"
+                        data-prevision-map
+                        data-default-latitude="42.6000"
+                        data-default-longitude="2.6000"
+                        data-default-zoom="9"
+                        data-initial-visible="{{ has_coordinates ? '1' : '0' }}"
+                        aria-label="Carte de sélection du point précis"
+                    ></div>
+                    <p class="admin-muted">Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact.</p>
+                    <p class="admin-muted">Utilisez la molette de la souris pour zoomer ou dézoomer la carte.</p>
+                    <p class="admin-muted prevision-map-status" data-prevision-map-status>{{ has_coordinates ? 'Coordonnées déjà renseignées.' : 'Aucune coordonnée précise n’est renseignée.' }}</p>
+                </div>
 
                 <div class="prevision-point-tools">
                     <div class="admin-row-actions">
-                        <button class="admin-button" type="button" data-prevision-validate-point>Valider ce point</button>
-                        <button class="admin-button admin-button--secondary" type="button" data-prevision-center-commune>Centrer sur la commune</button>
+                        <button class="admin-button" type="button" data-prevision-validate-point {{ has_coordinates ? '' : 'disabled' }}>Valider ce point</button>
+                        <button class="admin-button admin-button--secondary" type="button" data-prevision-center-commune disabled>Centrer sur la commune</button>
                         <button class="admin-button admin-button--secondary" type="button" data-prevision-gps>Relever ma position GPS</button>
                     </div>
                     <p class="admin-muted" data-prevision-gps-status>Coordonnées manuelles, carte ou GPS acceptées.</p>
@@ -204,7 +225,7 @@
                     </div>
                 </div>
 
-                <div class="prevision-map-links">
+                <div class="prevision-map-links" data-prevision-map-links {{ has_coordinates ? '' : 'hidden' }}>
                     <a class="admin-button admin-button--secondary prevision-map-link" href="{{ maps_url }}" target="_blank" rel="noopener noreferrer" data-prevision-maps-link {{ has_coordinates ? '' : 'aria-disabled="true"' }}>Vérifier dans Maps</a>
                     <a class="admin-button admin-button--secondary prevision-map-link" href="{{ osm_url }}" target="_blank" rel="noopener noreferrer" data-prevision-osm-link {{ has_coordinates ? '' : 'aria-disabled="true"' }}>Ouvrir dans OpenStreetMap</a>
                 </div>
