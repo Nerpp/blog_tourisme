@@ -106,7 +106,7 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
             'title' => $type,
             'status' => PrevisionDestination::STATUS_TO_CHECK,
             'source' => PrevisionDestination::SOURCE_MANUAL,
-            'notes' => 'Accès, parking et drone à vérifier.',
+            'notes' => 'Accès parking drone matin calme.',
             'commune' => 'Céret',
             'priority' => PrevisionDestination::PRIORITY_HIGH,
             'plannedPeriod' => 'après pluie',
@@ -121,7 +121,7 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
         self::assertStringContainsString($type, $crawler->text());
         self::assertStringContainsString('À vérifier', $crawler->text());
         self::assertStringContainsString('Haute', $crawler->text());
-        self::assertStringContainsString('Accès, parking et drone à vérifier.', $crawler->text());
+        self::assertStringContainsString('Accès parking drone matin calme.', $crawler->text());
     }
 
     public function testVerifiedAdminCanCreatePrevisionDestinationWithValidatedMapCoordinates(): void
@@ -258,18 +258,30 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
             ->setDepartment('Hérault')
             ->setRegion('Occitanie')
             ->setLatitude(43.538000)
-            ->setLongitude(2.917300);
+            ->setLongitude(2.917300)
+            ->setNotes('À vérifier après pluie pour voir si le débit de la cascade est intéressant.');
+        $shortNotes = (new PrevisionDestination())
+            ->setTitle('Visite')
+            ->setStatus(PrevisionDestination::STATUS_IDEA)
+            ->setCommune('Note courte '.$this->uniqueToken('prevision'))
+            ->setNotes('Parking à contrôler');
         $emptyNotes = (new PrevisionDestination())
             ->setTitle('Visite')
             ->setStatus(PrevisionDestination::STATUS_IDEA)
             ->setCommune('Commune sans note '.$this->uniqueToken('prevision'));
-        $this->persistAndFlush($previsionDestination, $emptyNotes);
+        $this->persistAndFlush($previsionDestination, $shortNotes, $emptyNotes);
         $client->loginUser($admin);
 
         $crawler = $client->request('GET', '/admin/previsions/destinations');
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('Aucune note renseignée.', $crawler->text());
+        self::assertStringContainsString('À vérifier après pluie pour…', $crawler->text());
+        self::assertStringNotContainsString('voir si le débit de la cascade est intéressant.', $crawler->text());
+        self::assertStringContainsString('Parking à contrôler', $crawler->text());
+        $longNotePreview = $crawler->filter('p[title="À vérifier après pluie pour voir si le débit de la cascade est intéressant."]');
+        self::assertGreaterThan(0, $longNotePreview->count());
+        self::assertSame('À vérifier après pluie pour…', $longNotePreview->first()->text());
         $mapsLink = $crawler->filter('a[href*="google.com/maps"][href*="43.5380000%2C2.9173000"]');
         self::assertGreaterThan(0, $mapsLink->count());
         self::assertSame('_blank', $mapsLink->first()->attr('target'));
@@ -318,7 +330,7 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
             ->setCommune('Olargues')
             ->setDepartment('Hérault')
             ->setRegion('Occitanie')
-            ->setNotes('À vérifier après pluie pour drone.')
+            ->setNotes('Note recherche unique après pluie drone.')
             ->setPlannedPeriod('été');
         $other = (new PrevisionDestination())
             ->setTitle('Visite')
@@ -331,7 +343,7 @@ final class PrevisionDestinationControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('Olargues', $crawler->text());
-        self::assertStringContainsString('À vérifier après pluie pour drone.', $crawler->text());
+        self::assertStringContainsString('Note recherche unique après pluie…', $crawler->text());
         self::assertStringNotContainsString((string) $other->getCommune(), $crawler->text());
         $resetLink = $crawler->filter('main.admin-main a[href="/admin/previsions/destinations"]');
         self::assertGreaterThan(0, $resetLink->count());

@@ -159,7 +159,10 @@
                         <td>
                             <span class="prevision-notes">
                                 {% if prevision_destination.notes %}
-                                    <p>{{ prevision_destination.notes }}</p>
+                                    {% set note_text = prevision_destination.notes|trim %}
+                                    {% set note_words = note_text|split(' ')|filter(word => word is not empty) %}
+                                    {% set note_preview = note_words|slice(0, 5)|join(' ') %}
+                                    <p title="{{ note_text }}">{{ note_preview }}{% if note_words|length > 5 %}…{% endif %}</p>
                                 {% else %}
                                     <span class="admin-muted">Aucune note renseignée.</span>
                                 {% endif %}
