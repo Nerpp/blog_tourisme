@@ -23,6 +23,7 @@ final class AdminDashboardRoutesTest extends FunctionalTestCase
         yield 'field tools hikes' => ['/admin/field-tools/hikes'];
         yield 'field tools city visits' => ['/admin/field-tools/city-visits'];
         yield 'field tools gps' => ['/admin/outils-terrain/gps'];
+        yield 'prevision destinations' => ['/admin/previsions/destinations'];
     }
 
     #[DataProvider('adminDashboardRoutes')]

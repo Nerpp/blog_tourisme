@@ -1,0 +1,103 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block title %}Prévision destination{% endblock %}
+
+{% block stylesheets %}
+    <style>
+        .prevision-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .prevision-location {
+            display: grid;
+            gap: 4px;
+        }
+
+        .prevision-card-note {
+            margin: 0;
+            color: var(--admin-muted);
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Prévision destination</h1>
+            <p class="admin-subtitle">Sauvegardez des idées de lieux, communes ou positions GPS à explorer plus tard.</p>
+        </div>
+        <div class="prevision-actions">
+            <a class="admin-button" href="{{ path('admin_prevision_destinations_new') }}">Ajouter une destination prévue</a>
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_prevision_destinations_new', { source: 'gps' }) }}">Relever ma position GPS</a>
+        </div>
+    </header>
+
+    <section class="admin-card">
+        <p class="prevision-card-note">Ce carnet est indépendant du Studio. Il mémorise des idées ou positions à explorer sans créer de randonnée, de visite ville, d’article ou de destination publique.</p>
+    </section>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Titre</th>
+                    <th>Commune / département / région</th>
+                    <th>Coordonnées GPS</th>
+                    <th>Statut</th>
+                    <th>Source</th>
+                    <th>Priorité</th>
+                    <th>Dernière modification</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for prevision_destination in prevision_destinations %}
+                    <tr>
+                        <td>
+                            <strong>{{ prevision_destination.title }}</strong>
+                            {% if prevision_destination.plannedPeriod %}
+                                <div class="admin-muted">{{ prevision_destination.plannedPeriod }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="prevision-location">
+                                <span>{{ prevision_destination.commune ?: 'Commune non renseignée' }}</span>
+                                <span class="admin-muted">
+                                    {{ prevision_destination.department ?: 'Département non renseigné' }}
+                                    {% if prevision_destination.region %} / {{ prevision_destination.region }}{% endif %}
+                                </span>
+                            </span>
+                        </td>
+                        <td>
+                            {% if prevision_destination.latitude is not null and prevision_destination.longitude is not null %}
+                                {{ prevision_destination.latitude|number_format(6, '.', '') }}, {{ prevision_destination.longitude|number_format(6, '.', '') }}
+                                {% if prevision_destination.gpsAccuracy is not null %}
+                                    <div class="admin-muted">± {{ prevision_destination.gpsAccuracy|number_format(0, '.', ' ') }} m</div>
+                                {% endif %}
+                            {% else %}
+                                <span class="admin-badge admin-badge--muted">Non renseignée</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="admin-badge admin-badge--info">{{ status_labels[prevision_destination.status] ?? prevision_destination.status }}</span></td>
+                        <td>{{ prevision_destination.source ? (source_labels[prevision_destination.source] ?? prevision_destination.source) : 'Non renseignée' }}</td>
+                        <td>{{ prevision_destination.priority ? (priority_labels[prevision_destination.priority] ?? prevision_destination.priority) : 'Non renseignée' }}</td>
+                        <td>{{ prevision_destination.updatedAt ? prevision_destination.updatedAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                        <td>
+                            <div class="admin-row-actions">
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_prevision_destinations_edit', { id: prevision_destination.id }) }}">Modifier</a>
+                                <form method="post" action="{{ path('admin_prevision_destinations_delete', { id: prevision_destination.id }) }}" onsubmit="return confirm('Supprimer cette destination prévue ?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('prevision_destination_delete_' ~ prevision_destination.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger-soft" type="submit">Supprimer</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8">Aucune destination prévue pour le moment.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

@@ -637,6 +637,10 @@
                         <a href="{{ path('admin_field_tools_gps') }}" class="{{ route == 'admin_field_tools_gps' ? 'is-active' }}">GPS terrain</a>
                     </section>
                     <section>
+                        <h2>Prévision</h2>
+                        <a href="{{ path('admin_prevision_destinations_index') }}" class="{{ route starts with 'admin_prevision_destinations' ? 'is-active' }}">Prévision destination</a>
+                    </section>
+                    <section>
                         <h2>Système</h2>
                         <a href="{{ path('admin_traffic_index') }}" class="{{ route starts with 'admin_traffic' ? 'is-active' }}">Trafic</a>
                         <a href="{{ path('admin_users_index') }}" class="{{ route starts with 'admin_users' ? 'is-active' }}">Utilisateurs</a>
