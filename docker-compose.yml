@@ -79,6 +79,8 @@ services:
     user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     working_dir: /var/www/html
     command: sh -c "npm ci && npm run build"
+    ports:
+      - "5173:5173"
     volumes:
       - ./:/var/www/html
     networks:

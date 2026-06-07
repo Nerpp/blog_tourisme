@@ -26,3 +26,4 @@ npm-debug.log*
 yarn-error.log*
 ### Symfony secrets / vault ###
 /config/secrets/*/*decrypt.private.php
+/config/secrets/*/*.private.php

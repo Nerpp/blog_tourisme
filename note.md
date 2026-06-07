@@ -25,3 +25,11 @@ docker compose exec php composer test:e2e
 docker compose exec php composer quality
 docker compose exec php composer quality:e2e
 docker compose exec -e XDEBUG_MODE=coverage php composer test:coverage
+
+make test-all
+
+config de cmd de set up
+
+make setup
+make test
+make test-all

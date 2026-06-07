@@ -53,6 +53,7 @@
         "symfonycasts/verify-email-bundle": "^1.18"
     },
     "require-dev": {
+        "dbrekelmans/bdi": "^1.4",
         "doctrine/doctrine-fixtures-bundle": "^4.3",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.2",
