@@ -4,96 +4,11 @@
 
 {% block stylesheets %}
     {% if app.environment != 'test' %}
-        {{ vite_entry_link_tags('assets/js/prevision-destination-map.js') }}
+        {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
     {% endif %}
-    <style>
-        .prevision-form-layout,
-        .prevision-form-section,
-        .prevision-search-results,
-        .prevision-point-tools,
-        .prevision-map-panel,
-        .prevision-map-links {
-            display: grid;
-            gap: 12px;
-        }
-
-        .prevision-map-placeholder {
-            padding: 18px;
-            border: 1px dashed var(--admin-line);
-            border-radius: var(--admin-radius);
-            background: #f9fbf9;
-            color: var(--admin-muted);
-            font-weight: 750;
-        }
-
-        .prevision-map-placeholder[hidden],
-        .prevision-map-panel[hidden],
-        .prevision-map-links[hidden] {
-            display: none;
-        }
-
-        .prevision-form-section {
-            padding-top: 4px;
-        }
-
-        .prevision-form-section h2 {
-            margin: 0;
-            font-size: 1.1rem;
-        }
-
-        .prevision-search-result {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            border: 1px solid var(--admin-line);
-            border-radius: var(--admin-radius);
-            background: #fff;
-            color: var(--admin-text);
-            cursor: pointer;
-            font: inherit;
-            text-align: left;
-        }
-
-        .prevision-search-result:hover,
-        .prevision-search-result:focus-visible {
-            border-color: var(--admin-primary);
-            background: var(--admin-primary-soft);
-            color: var(--admin-primary);
-        }
-
-        .prevision-map {
-            min-height: 360px;
-            overflow: hidden;
-            border: 1px solid var(--admin-line);
-            border-radius: var(--admin-radius);
-            background: #eef1ee;
-        }
-
-        .prevision-map-status {
-            min-height: 22px;
-            margin: 0;
-        }
-
-        .prevision-map-links {
-            grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
-        }
-
-        .prevision-map-link[aria-disabled="true"] {
-            pointer-events: none;
-        }
-
-        .prevision-submit-help {
-            margin: 0;
-            color: var(--admin-muted);
-        }
-    </style>
 {% endblock %}
 
 {% block body %}
-    {% set has_coordinates = prevision_destination.latitude is not null and prevision_destination.longitude is not null %}
-    {% set maps_url = has_coordinates ? 'https://www.google.com/maps?q=' ~ prevision_destination.latitude|number_format(7, '.', '') ~ ',' ~ prevision_destination.longitude|number_format(7, '.', '') : '#' %}
-    {% set osm_url = has_coordinates ? 'https://www.openstreetmap.org/?mlat=' ~ prevision_destination.latitude|number_format(7, '.', '') ~ '&mlon=' ~ prevision_destination.longitude|number_format(7, '.', '') ~ '#map=16/' ~ prevision_destination.latitude|number_format(7, '.', '') ~ '/' ~ prevision_destination.longitude|number_format(7, '.', '') : '#' %}
-
     <header class="admin-header">
         <div>
             <h1 class="admin-title">{{ title }}</h1>
@@ -105,8 +20,6 @@
     <section class="admin-card prevision-form-layout" data-prevision-destination-form>
         {{ form_start(form, { attr: { class: 'admin-form', novalidate: 'novalidate' } }) }}
             {{ form_errors(form) }}
-            <input type="hidden" value="" data-prevision-commune-center-latitude>
-            <input type="hidden" value="" data-prevision-commune-center-longitude>
 
             <div class="admin-form-grid">
                 <div class="admin-field">
@@ -121,7 +34,7 @@
                 </div>
                 <div class="admin-field">
                     {{ form_label(form.source) }}
-                    {{ form_widget(form.source, { attr: { 'data-prevision-source': 'true' } }) }}
+                    {{ form_widget(form.source, { attr: { 'data-source-input': 'true', 'data-prevision-source': 'true' } }) }}
                     {{ form_errors(form.source) }}
                 </div>
                 <div class="admin-field">
@@ -136,100 +49,38 @@
                 </div>
             </div>
 
-            <section class="prevision-form-section" aria-labelledby="prevision-commune-heading">
-                <h2 id="prevision-commune-heading">Commune / village</h2>
-                <div class="admin-field">
-                    <label for="prevision-destination-search">Rechercher une commune française</label>
-                    <input id="prevision-destination-search" type="search" autocomplete="off" placeholder="Exemple : Céret, Collioure, Perpignan" data-prevision-search>
-                    <p class="admin-muted">La commune sert au classement administratif. Le point sur la carte peut être déplacé pour choisir précisément le lieu à visiter.</p>
-                    <p class="admin-muted" data-prevision-search-status>La recherche remplit uniquement ce brouillon de prévision.</p>
-                    <div class="prevision-search-results" data-prevision-search-results></div>
-                </div>
-
-                <div class="admin-form-grid">
-                    <div class="admin-field">
-                        {{ form_label(form.commune) }}
-                        {{ form_widget(form.commune, { attr: { 'data-prevision-commune': 'true' } }) }}
-                        {{ form_errors(form.commune) }}
-                    </div>
-                    <div class="admin-field">
-                        {{ form_label(form.inseeCode) }}
-                        {{ form_widget(form.inseeCode, { attr: { 'data-prevision-insee': 'true' } }) }}
-                        {{ form_errors(form.inseeCode) }}
-                    </div>
-                    <div class="admin-field">
-                        {{ form_label(form.postalCode) }}
-                        {{ form_widget(form.postalCode, { attr: { 'data-prevision-postal': 'true' } }) }}
-                        {{ form_errors(form.postalCode) }}
-                    </div>
-                    <div class="admin-field">
-                        {{ form_label(form.department) }}
-                        {{ form_widget(form.department, { attr: { 'data-prevision-department': 'true' } }) }}
-                        {{ form_errors(form.department) }}
-                    </div>
-                    <div class="admin-field">
-                        {{ form_label(form.region) }}
-                        {{ form_widget(form.region, { attr: { 'data-prevision-region': 'true' } }) }}
-                        {{ form_errors(form.region) }}
-                    </div>
-                    <div class="admin-field">
-                        {{ form_label(form.country) }}
-                        {{ form_widget(form.country, { attr: { 'data-prevision-country': 'true' } }) }}
-                        {{ form_errors(form.country) }}
-                    </div>
-                </div>
-            </section>
-
-            <section class="prevision-form-section" aria-labelledby="prevision-point-heading">
-                <h2 id="prevision-point-heading">Point précis</h2>
-                <div class="prevision-map-placeholder" data-prevision-map-placeholder {{ has_coordinates ? 'hidden' : '' }}>Sélectionnez d’abord une commune pour afficher la carte.</div>
-                <div class="prevision-map-panel" data-prevision-map-panel {{ has_coordinates ? '' : 'hidden' }}>
-                    <div
-                        class="prevision-map"
-                        data-prevision-map
-                        data-default-latitude="42.6000"
-                        data-default-longitude="2.6000"
-                        data-default-zoom="9"
-                        data-initial-visible="{{ has_coordinates ? '1' : '0' }}"
-                        aria-label="Carte de sélection du point précis"
-                    ></div>
-                    <p class="admin-muted">Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact.</p>
-                    <p class="admin-muted">Utilisez la molette de la souris pour zoomer ou dézoomer la carte.</p>
-                    <p class="admin-muted prevision-map-status" data-prevision-map-status>{{ has_coordinates ? 'Coordonnées déjà renseignées.' : 'Aucune coordonnée précise n’est renseignée.' }}</p>
-                </div>
-
-                <div class="prevision-point-tools">
-                    <div class="admin-row-actions">
-                        <button class="admin-button" type="button" data-prevision-validate-point {{ has_coordinates ? '' : 'disabled' }}>Valider ce point</button>
-                        <button class="admin-button admin-button--secondary" type="button" data-prevision-center-commune disabled>Centrer sur la commune</button>
-                        <button class="admin-button admin-button--secondary" type="button" data-prevision-gps>Relever ma position GPS</button>
-                    </div>
-                    <p class="admin-muted" data-prevision-gps-status>Coordonnées manuelles, carte ou GPS acceptées.</p>
-                </div>
-
-                <div class="admin-form-grid">
-                    <div class="admin-field">
-                        {{ form_label(form.latitude) }}
-                        {{ form_widget(form.latitude, { attr: { 'data-prevision-latitude': 'true' } }) }}
-                        {{ form_errors(form.latitude) }}
-                    </div>
-                    <div class="admin-field">
-                        {{ form_label(form.longitude) }}
-                        {{ form_widget(form.longitude, { attr: { 'data-prevision-longitude': 'true' } }) }}
-                        {{ form_errors(form.longitude) }}
-                    </div>
-                    <div class="admin-field">
-                        {{ form_label(form.gpsAccuracy) }}
-                        {{ form_widget(form.gpsAccuracy, { attr: { 'data-prevision-accuracy': 'true' } }) }}
-                        {{ form_errors(form.gpsAccuracy) }}
-                    </div>
-                </div>
-
-                <div class="prevision-map-links" data-prevision-map-links {{ has_coordinates ? '' : 'hidden' }}>
-                    <a class="admin-button admin-button--secondary prevision-map-link" href="{{ maps_url }}" target="_blank" rel="noopener noreferrer" data-prevision-maps-link {{ has_coordinates ? '' : 'aria-disabled="true"' }}>Vérifier dans Maps</a>
-                    <a class="admin-button admin-button--secondary prevision-map-link" href="{{ osm_url }}" target="_blank" rel="noopener noreferrer" data-prevision-osm-link {{ has_coordinates ? '' : 'aria-disabled="true"' }}>Ouvrir dans OpenStreetMap</a>
-                </div>
-            </section>
+            {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
+                render_root: false,
+                picker_id: 'prevision-destination-location',
+                legacy_prefix: 'prevision',
+                mode: 'prevision_destination',
+                commune_title: 'Commune / village',
+                point_title: 'Point précis',
+                search_help: 'La commune sert au classement administratif. Le point sur la carte peut être déplacé pour choisir précisément le lieu à visiter.',
+                point_help: 'Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact. Utilisez la molette de la souris pour zoomer ou dézoomer la carte.',
+                fields: {
+                    commune: { form_field: form.commune },
+                    insee: { form_field: form.inseeCode },
+                    postal: { form_field: form.postalCode },
+                    department: { form_field: form.department },
+                    region: { form_field: form.region },
+                    country: { form_field: form.country },
+                    latitude: { form_field: form.latitude },
+                    longitude: { form_field: form.longitude },
+                    accuracy: { form_field: form.gpsAccuracy },
+                    communeCenterLatitude: { value: '' },
+                    communeCenterLongitude: { value: '' }
+                },
+                location_field_keys: ['commune', 'insee', 'postal', 'department', 'region', 'country'],
+                coordinate_field_keys: ['latitude', 'longitude', 'accuracy'],
+                initial_commune: prevision_destination.commune,
+                initial_department: prevision_destination.department,
+                initial_region: prevision_destination.region,
+                initial_insee: prevision_destination.inseeCode,
+                initial_postal_code: prevision_destination.postalCode,
+                initial_latitude: prevision_destination.latitude is not null ? prevision_destination.latitude|number_format(7, '.', '') : '',
+                initial_longitude: prevision_destination.longitude is not null ? prevision_destination.longitude|number_format(7, '.', '') : ''
+            } only %}
 
             <div class="admin-field admin-field--full">
                 {{ form_label(form.notes) }}
@@ -241,13 +92,13 @@
                 <button class="admin-button" type="submit">{{ submit_label }}</button>
                 <a class="admin-button admin-button--secondary" href="{{ path('admin_prevision_destinations_index') }}">Annuler</a>
             </div>
-            <p class="prevision-submit-help">Pensez à valider le point sur la carte avant d’enregistrer.</p>
+            <p class="admin-muted">Pensez à valider le point sur la carte avant d’enregistrer.</p>
         {{ form_end(form) }}
     </section>
 {% endblock %}
 
 {% block javascripts %}
     {% if app.environment != 'test' %}
-        {{ vite_entry_script_tags('assets/js/prevision-destination-map.js') }}
+        {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
     {% endif %}
 {% endblock %}

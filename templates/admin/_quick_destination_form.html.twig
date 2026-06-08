@@ -179,52 +179,44 @@
         {% endif %}
 
         <section class="quick-destination__panel" data-destination-panel="france">
-            <p class="quick-destination__text">{{ quick_destination_france_text }}</p>
-
-            <input type="hidden" name="type" value="city" data-destination-mode-field="france" data-france-field="type">
-            <input type="hidden" name="name" value="{{ destination_quick_create.name|default(destination_quick_create.cityName|default('')) }}" data-destination-mode-field="france" data-france-field="name">
-            <input type="hidden" name="countryName" value="{{ destination_quick_create.countryName|default('') }}" data-destination-mode-field="france" data-france-field="countryName">
-            <input type="hidden" name="regionName" value="{{ destination_quick_create.regionName|default('') }}" data-destination-mode-field="france" data-france-field="regionName">
-            <input type="hidden" name="departmentName" value="{{ destination_quick_create.departmentName|default('') }}" data-destination-mode-field="france" data-france-field="departmentName">
-            <input type="hidden" name="departmentCode" value="" data-destination-mode-field="france" data-france-field="departmentCode">
-            <input type="hidden" name="cityName" value="{{ destination_quick_create.cityName|default('') }}" data-destination-mode-field="france" data-france-field="cityName">
-            <input type="hidden" name="areaName" value="" data-destination-mode-field="france" data-france-field="areaName">
-            <input type="hidden" name="code" value="{{ destination_quick_create.code|default('') }}" data-destination-mode-field="france" data-france-field="code">
-            <input type="hidden" name="latitude" value="{{ destination_quick_create.latitude|default('') }}" data-destination-mode-field="france" data-france-field="latitude" data-quick-destination-latitude>
-            <input type="hidden" name="longitude" value="{{ destination_quick_create.longitude|default('') }}" data-destination-mode-field="france" data-france-field="longitude" data-quick-destination-longitude>
-            <input type="hidden" name="postalCode" value="" data-destination-mode-field="france" data-france-field="postalCode">
-
-            <div class="quick-destination__search" data-commune-search>
-                <div class="{{ full_row_class }}">
-                    <label for="quick-destination-commune">Rechercher une commune</label>
-                    <input class="{{ input_class }}" id="quick-destination-commune" type="search" placeholder="Ex. Peyrestortes, Collioure, Perpignan..." autocomplete="off" data-commune-search-input>
-                </div>
-                <div class="quick-destination__results" data-commune-results hidden></div>
-            </div>
-
-            <div class="quick-destination__selection" data-commune-selection hidden>
-                <span class="quick-destination__selection-label">Commune sélectionnée :</span>
-                <strong data-commune-selection-name></strong>
-                <span data-commune-selection-place></span>
-                <span>Code INSEE : <span data-commune-selection-code></span></span>
-                <span>Code postal : <span data-commune-selection-postal></span></span>
-                <button class="{{ secondary_button }}" type="button" data-commune-edit>Modifier la commune</button>
-            </div>
-
-            <details class="quick-destination__advanced">
-                <summary>Coordonnées GPS optionnelles</summary>
-                <p class="quick-destination__text">Elles servent à placer précisément le lieu sur la carte. Vous pouvez les laisser vides.</p>
-                <div class="quick-destination__grid">
-                    <div class="{{ row_class }}">
-                        <label for="quick-destination-france-latitude">Latitude</label>
-                        <input class="{{ input_class }}" id="quick-destination-france-latitude" type="number" step="any" value="{{ destination_quick_create.latitude|default('') }}" data-france-coordinate="latitude">
-                    </div>
-                    <div class="{{ row_class }}">
-                        <label for="quick-destination-france-longitude">Longitude</label>
-                        <input class="{{ input_class }}" id="quick-destination-france-longitude" type="number" step="any" value="{{ destination_quick_create.longitude|default('') }}" data-france-coordinate="longitude">
-                    </div>
-                </div>
-            </details>
+            {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
+                picker_id: 'quick-destination-location-' ~ (context_type ?: 'generic') ~ '-' ~ (context_id ?: 'new'),
+                ui_context: ui_context,
+                mode: is_preparation_flow ? 'creation_distance' : 'destination_quick_create',
+                row_class: row_class,
+                input_class: input_class,
+                primary_button: primary_button,
+                secondary_button: secondary_button,
+                commune_title: quick_destination_title,
+                point_title: 'Coordonnées GPS optionnelles',
+                search_help: quick_destination_france_text,
+                fields: {
+                    type: { name: 'type', value: 'city', attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'type' } },
+                    name: { name: 'name', value: destination_quick_create.name|default(destination_quick_create.cityName|default('')), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'name' } },
+                    country: { name: 'countryName', value: destination_quick_create.countryName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'countryName' } },
+                    region: { name: 'regionName', value: destination_quick_create.regionName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'regionName' } },
+                    department: { name: 'departmentName', value: destination_quick_create.departmentName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'departmentName' } },
+                    departmentCode: { name: 'departmentCode', value: destination_quick_create.departmentCode|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'departmentCode' } },
+                    commune: { name: 'cityName', value: destination_quick_create.cityName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'cityName' } },
+                    area: { name: 'areaName', value: destination_quick_create.areaName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'areaName' } },
+                    insee: { name: 'code', value: destination_quick_create.code|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'code' } },
+                    postal: { name: 'postalCode', value: prepared_destination_postal_code|default(destination_quick_create.postalCode|default('')), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'postalCode' } },
+                    latitude: { name: 'latitude', value: destination_quick_create.latitude|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'latitude', 'data-quick-destination-latitude': true } },
+                    longitude: { name: 'longitude', value: destination_quick_create.longitude|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'longitude', 'data-quick-destination-longitude': true } },
+                    communeCenterLatitude: { name: 'communeCenterLatitude', value: destination_quick_create.communeCenterLatitude|default(''), attr: { 'data-destination-mode-field': 'france' } },
+                    communeCenterLongitude: { name: 'communeCenterLongitude', value: destination_quick_create.communeCenterLongitude|default(''), attr: { 'data-destination-mode-field': 'france' } }
+                },
+                initial_commune: destination_quick_create.cityName|default(''),
+                initial_department: destination_quick_create.departmentName|default(''),
+                initial_department_code: destination_quick_create.departmentCode|default(''),
+                initial_region: destination_quick_create.regionName|default(''),
+                initial_insee: destination_quick_create.code|default(''),
+                initial_postal_code: prepared_destination_postal_code|default(destination_quick_create.postalCode|default('')),
+                initial_latitude: destination_quick_create.latitude|default(''),
+                initial_longitude: destination_quick_create.longitude|default(''),
+                commune_center_latitude: destination_quick_create.communeCenterLatitude|default(''),
+                commune_center_longitude: destination_quick_create.communeCenterLongitude|default('')
+            } only %}
         </section>
 
         {% if not quick_destination_france_only %}
@@ -295,22 +287,8 @@
             const panels = Array.from(container.querySelectorAll('[data-destination-panel]'));
             const modeFields = Array.from(container.querySelectorAll('[data-destination-mode-field]'));
             const franceFields = Object.fromEntries(Array.from(container.querySelectorAll('[data-france-field]')).map((field) => [field.dataset.franceField, field]));
-            const searchWrapper = container.querySelector('[data-commune-search]');
-            const searchInput = container.querySelector('[data-commune-search-input]');
-            const results = container.querySelector('[data-commune-results]');
-            const selection = container.querySelector('[data-commune-selection]');
-            const selectionName = container.querySelector('[data-commune-selection-name]');
-            const selectionPlace = container.querySelector('[data-commune-selection-place]');
-            const selectionCode = container.querySelector('[data-commune-selection-code]');
-            const selectionPostal = container.querySelector('[data-commune-selection-postal]');
-            const editCommune = container.querySelector('[data-commune-edit]');
-            const franceLatitude = container.querySelector('[data-france-coordinate="latitude"]');
-            const franceLongitude = container.querySelector('[data-france-coordinate="longitude"]');
 
             let activeMode = 'france';
-            let debounceTimer = null;
-            let searchController = null;
-            let requestIndex = 0;
 
             const setStatus = (message = '') => {
                 if (status) {
@@ -335,168 +313,6 @@
             };
 
             const selectedCommune = () => (franceFields.cityName?.value || '').trim() !== '';
-
-            const syncFranceCoordinates = () => {
-                if (franceLatitude && franceFields.latitude) {
-                    franceFields.latitude.value = franceLatitude.value;
-                }
-
-                if (franceLongitude && franceFields.longitude) {
-                    franceFields.longitude.value = franceLongitude.value;
-                }
-            };
-
-            const renderSelection = () => {
-                const city = franceFields.cityName?.value || '';
-                const department = franceFields.departmentName?.value || '';
-                const departmentCode = franceFields.departmentCode?.value || '';
-                const region = franceFields.regionName?.value || '';
-                const code = franceFields.code?.value || '';
-                const postalCode = franceFields.postalCode?.value || '';
-
-                if (!city) {
-                    if (selection) {
-                        selection.hidden = true;
-                    }
-                    if (searchWrapper) {
-                        searchWrapper.hidden = false;
-                    }
-                    return;
-                }
-
-                if (selectionName) {
-                    selectionName.textContent = city;
-                }
-                if (selectionPlace) {
-                    const departmentLabel = [departmentCode, department].filter(Boolean).join(' ');
-                    selectionPlace.textContent = [departmentLabel, region].filter(Boolean).join(', ');
-                }
-                if (selectionCode) {
-                    selectionCode.textContent = code || '-';
-                }
-                if (selectionPostal) {
-                    selectionPostal.textContent = postalCode || '-';
-                }
-                if (selection) {
-                    selection.hidden = false;
-                }
-                if (searchWrapper) {
-                    searchWrapper.hidden = true;
-                }
-            };
-
-            const communeLabel = (commune) => {
-                const departmentCode = commune.departement?.code || '';
-                const departmentName = commune.departement?.nom || '';
-                const regionName = commune.region?.nom || '';
-
-                return `${commune.nom || ''} — ${departmentCode} ${departmentName}`.trim() + (regionName ? ` — ${regionName}` : '');
-            };
-
-            const selectCommune = (commune) => {
-                const coordinates = Array.isArray(commune.centre?.coordinates) ? commune.centre.coordinates : [];
-                const longitude = coordinates[0] ?? '';
-                const latitude = coordinates[1] ?? '';
-                const postalCode = Array.isArray(commune.codesPostaux) ? (commune.codesPostaux[0] || '') : '';
-
-                if (franceFields.type) franceFields.type.value = 'city';
-                if (franceFields.name) franceFields.name.value = commune.nom || '';
-                if (franceFields.countryName) franceFields.countryName.value = 'France';
-                if (franceFields.regionName) franceFields.regionName.value = commune.region?.nom || '';
-                if (franceFields.departmentName) franceFields.departmentName.value = commune.departement?.nom || '';
-                if (franceFields.departmentCode) franceFields.departmentCode.value = commune.departement?.code || '';
-                if (franceFields.cityName) franceFields.cityName.value = commune.nom || '';
-                if (franceFields.areaName) franceFields.areaName.value = '';
-                if (franceFields.code) franceFields.code.value = commune.code || '';
-                if (franceFields.postalCode) franceFields.postalCode.value = postalCode;
-                if (franceFields.latitude) franceFields.latitude.value = latitude;
-                if (franceFields.longitude) franceFields.longitude.value = longitude;
-                if (franceLatitude) franceLatitude.value = latitude;
-                if (franceLongitude) franceLongitude.value = longitude;
-
-                if (results) {
-                    results.hidden = true;
-                    results.innerHTML = '';
-                }
-                setStatus('');
-                renderSelection();
-            };
-
-            const renderResults = (communes) => {
-                if (!results) {
-                    return;
-                }
-
-                results.innerHTML = '';
-
-                if (communes.length === 0) {
-                    results.hidden = false;
-                    results.innerHTML = '<p class="quick-destination__result-message">Aucune commune trouvée.</p>';
-                    return;
-                }
-
-                communes.forEach((commune) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'quick-destination__result';
-                    button.textContent = communeLabel(commune);
-                    button.addEventListener('click', () => selectCommune(commune));
-                    results.appendChild(button);
-                });
-
-                results.hidden = false;
-            };
-
-            const searchCommunes = async (query) => {
-                if (query.length < 2) {
-                    if (results) {
-                        results.hidden = true;
-                        results.innerHTML = '';
-                    }
-                    setStatus('');
-                    return;
-                }
-
-                requestIndex += 1;
-                const currentRequest = requestIndex;
-
-                if (searchController) {
-                    searchController.abort();
-                }
-                searchController = new AbortController();
-
-                setStatus('Recherche de communes...');
-
-                try {
-                    const response = await fetch(`https://geo.api.gouv.fr/communes?nom=${encodeURIComponent(query)}&fields=nom,code,codesPostaux,departement,region,centre&boost=population&limit=10`, {
-                        signal: searchController.signal,
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('api');
-                    }
-
-                    const communes = await response.json();
-                    if (currentRequest !== requestIndex) {
-                        return;
-                    }
-
-                    setStatus('');
-                    renderResults(Array.isArray(communes) ? communes : []);
-                } catch (error) {
-                    if (error.name === 'AbortError') {
-                        return;
-                    }
-
-                    if (currentRequest === requestIndex) {
-                        if (results) {
-                            results.hidden = true;
-                            results.innerHTML = '';
-                        }
-                        setStatus('Impossible de contacter l’API des communes. Réessayez dans quelques instants.');
-                    }
-                }
-            };
 
             if (toggle && form) {
                 toggle.addEventListener('click', () => {
@@ -544,39 +360,8 @@
                 button.addEventListener('click', () => setMode(button.dataset.destinationMode || 'france'));
             });
 
-            if (searchInput) {
-                searchInput.addEventListener('input', () => {
-                    window.clearTimeout(debounceTimer);
-                    debounceTimer = window.setTimeout(() => searchCommunes(searchInput.value.trim()), 300);
-                });
-            }
-
-            if (editCommune) {
-                editCommune.addEventListener('click', () => {
-                    if (searchWrapper) {
-                        searchWrapper.hidden = false;
-                    }
-                    if (selection) {
-                        selection.hidden = true;
-                    }
-                    if (searchInput) {
-                        searchInput.focus();
-                        searchInput.select();
-                    }
-                });
-            }
-
-            if (franceLatitude) {
-                franceLatitude.addEventListener('input', syncFranceCoordinates);
-            }
-
-            if (franceLongitude) {
-                franceLongitude.addEventListener('input', syncFranceCoordinates);
-            }
-
             if (form) {
                 form.addEventListener('submit', (event) => {
-                    syncFranceCoordinates();
                     if (activeMode === 'france' && !selectedCommune()) {
                         event.preventDefault();
                         setStatus('Sélectionnez une commune française dans la liste.');
@@ -589,7 +374,6 @@
             }
 
             setMode('france');
-            renderSelection();
         });
     })();
 </script>

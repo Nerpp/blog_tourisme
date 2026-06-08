@@ -72,4 +72,46 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertSame('66136', $cityVisit->getGeographicDestination()->getCode());
         self::assertNotNull($cityVisit->getFinishedAt());
     }
+
+    public function testStudioCityVisitLocationPickerCanUpdatePrimaryPointWithoutEditorialDestination(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $point = $this->createCityVisitPoint($cityVisit, 43.6, 3.88);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $cityVisit->getTitle(),
+            'destination' => '',
+            'status' => CityVisitDraftStatus::Draft->value,
+            'detectedCommuneName' => 'Perpignan',
+            'detectedCommuneCode' => '66136',
+            'detectedDepartmentName' => 'Pyrenees-Orientales',
+            'detectedRegionName' => 'Occitanie',
+            'locationCountry' => 'France',
+            'locationDepartmentCode' => '66',
+            'communeCenterLatitude' => '42.6986000',
+            'communeCenterLongitude' => '2.8956000',
+            'locationLatitude' => '42.7011111',
+            'locationLongitude' => '2.9022222',
+            'locationAccuracy' => '6',
+            'notes' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        $cityVisit = $this->refresh($cityVisit);
+        $point = $this->refresh($point);
+        self::assertNull($cityVisit->getDestination());
+        self::assertInstanceOf(Destination::class, $cityVisit->getGeographicDestination());
+        self::assertSame('66136', $cityVisit->getGeographicDestination()->getCode());
+        self::assertSame(42.6986, $cityVisit->getGeographicDestination()->getLatitude());
+        self::assertSame(42.7011111, $point->getLatitude());
+        self::assertSame(2.9022222, $point->getLongitude());
+        self::assertSame(6.0, $point->getAccuracy());
+    }
 }

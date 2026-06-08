@@ -5,6 +5,9 @@
 {% set main_form_id = 'studio-hike-main-form' %}
 
 {% block stylesheets %}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
     <style>
         .studio-page { display: grid; gap: 18px; max-width: 1320px; width: 100%; }
         .studio-hero, .studio-section { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: var(--admin-surface); }
@@ -150,27 +153,48 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="studio-field">
-                    <label for="hike-commune">Commune</label>
-                    <input form="{{ main_form_id }}" id="hike-commune" name="detectedCommuneName" value="{{ hike.detectedCommuneName }}">
-                </div>
-                <div class="studio-field">
-                    <label for="hike-commune-code">Code INSEE</label>
-                    <input form="{{ main_form_id }}" id="hike-commune-code" name="detectedCommuneCode" value="{{ hike.detectedCommuneCode }}">
-                </div>
-                <div class="studio-field">
-                    <label for="hike-department">Département</label>
-                    <input form="{{ main_form_id }}" id="hike-department" name="detectedDepartmentName" value="{{ hike.detectedDepartmentName }}">
-                </div>
-                <div class="studio-field">
-                    <label for="hike-region">Région</label>
-                    <input form="{{ main_form_id }}" id="hike-region" name="detectedRegionName" value="{{ hike.detectedRegionName }}">
-                </div>
                 <div class="studio-field studio-field--full">
                     <label for="hike-notes">Notes</label>
                     <textarea form="{{ main_form_id }}" id="hike-notes" name="notes" rows="8">{{ hike.notes }}</textarea>
                 </div>
             </div>
+            {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
+                picker_id: 'studio-hike-location-' ~ hike.id,
+                ui_context: 'studio',
+                mode: 'studio_edit',
+                form_id: main_form_id,
+                row_class: 'studio-field',
+                input_class: '',
+                commune_title: 'Commune géographique',
+                point_title: 'Point GPS principal optionnel',
+                search_help: 'Recherchez une commune française. La région, le département et le code INSEE seront complétés sans modifier la destination éditoriale.',
+                fields: {
+                    country: { name: 'locationCountry', value: location_picker_data.country },
+                    region: { id: 'hike-region', name: 'detectedRegionName', value: location_picker_data.region, label: 'Région' },
+                    department: { id: 'hike-department', name: 'detectedDepartmentName', value: location_picker_data.department, label: 'Département' },
+                    departmentCode: { name: 'locationDepartmentCode', value: location_picker_data.departmentCode },
+                    commune: { id: 'hike-commune', name: 'detectedCommuneName', value: location_picker_data.commune, label: 'Commune' },
+                    insee: { id: 'hike-commune-code', name: 'detectedCommuneCode', value: location_picker_data.insee, label: 'Code INSEE' },
+                    postal: { name: 'locationPostalCode', value: location_picker_data.postalCode },
+                    latitude: { id: 'hike-location-latitude', name: 'locationLatitude', value: location_picker_data.latitude, label: 'Latitude du point' },
+                    longitude: { id: 'hike-location-longitude', name: 'locationLongitude', value: location_picker_data.longitude, label: 'Longitude du point' },
+                    accuracy: { id: 'hike-location-accuracy', name: 'locationAccuracy', value: location_picker_data.accuracy, label: 'Précision GPS' },
+                    communeCenterLatitude: { name: 'communeCenterLatitude', value: location_picker_data.communeCenterLatitude },
+                    communeCenterLongitude: { name: 'communeCenterLongitude', value: location_picker_data.communeCenterLongitude }
+                },
+                location_field_keys: ['commune', 'insee', 'department', 'region'],
+                coordinate_field_keys: ['latitude', 'longitude', 'accuracy'],
+                initial_commune: location_picker_data.commune,
+                initial_department: location_picker_data.department,
+                initial_department_code: location_picker_data.departmentCode,
+                initial_region: location_picker_data.region,
+                initial_insee: location_picker_data.insee,
+                initial_postal_code: location_picker_data.postalCode,
+                initial_latitude: location_picker_data.latitude,
+                initial_longitude: location_picker_data.longitude,
+                commune_center_latitude: location_picker_data.communeCenterLatitude,
+                commune_center_longitude: location_picker_data.communeCenterLongitude
+            } only %}
             {% include 'admin/_quick_destination_form.html.twig' with {
                 ui_context: 'studio',
                 current_destination: hike.destination,
@@ -381,6 +405,9 @@
 
 {% block javascripts %}
     {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
     {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
     {% include 'admin/studio/_studio_media_javascript.html.twig' %}
     <script>

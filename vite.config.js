@@ -39,6 +39,7 @@ export default defineConfig(({ command }) => ({
         app: fileURLToPath(new URL('./assets/app.js', import.meta.url)),
         adminHighPrecisionGps: fileURLToPath(new URL('./assets/js/admin-high-precision-gps.js', import.meta.url)),
         adminPlaceGps: fileURLToPath(new URL('./assets/js/admin-place-gps.js', import.meta.url)),
+        locationGeopointPicker: fileURLToPath(new URL('./assets/js/location-geopoint-picker.js', import.meta.url)),
         previsionDestinationMap: fileURLToPath(new URL('./assets/js/prevision-destination-map.js', import.meta.url)),
         studioVideoThumbnails: fileURLToPath(new URL('./assets/js/studio-video-thumbnails.js', import.meta.url)),
       },

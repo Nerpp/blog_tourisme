@@ -15,6 +15,8 @@ use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Service\GeographicHierarchyResolver;
+use App\Service\Geography\LocationDraftHydrationException;
+use App\Service\Geography\LocationDraftHydrator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -41,6 +43,7 @@ final class QuickDestinationController extends AbstractController
         private readonly HikeDraftRepository $hikeDraftRepository,
         private readonly CityVisitDraftRepository $cityVisitDraftRepository,
         private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
+        private readonly LocationDraftHydrator $locationDraftHydrator,
         private readonly SluggerInterface $slugger,
     ) {
     }
@@ -153,26 +156,19 @@ final class QuickDestinationController extends AbstractController
 
     private function createQuickHikeFromCommune(Request $request): Response
     {
-        $commune = $this->quickCommuneData($request);
+        try {
+            $commune = $this->locationDraftHydrator->dataFromRequest($request);
+        } catch (LocationDraftHydrationException $exception) {
+            return $this->errorResponse($request, $exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $title = sprintf('Randonnée à %s', $commune['communeName']);
         $draft = (new HikeDraft())
             ->setTitle($title)
             ->setSlug($this->createUniqueHikeSlug($title))
-            ->setStatus(HikeDraftStatus::Draft)
-            ->setDetectedCommuneName($commune['communeName'])
-            ->setDetectedCommuneCode($commune['communeInseeCode'])
-            ->setDetectedDepartmentName($commune['departmentName'])
-            ->setDetectedRegionName($commune['regionName'])
-            ->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
-                $commune['communeName'],
-                $commune['communeInseeCode'],
-                $commune['departmentName'],
-                $commune['regionName'],
-                $commune['country'],
-                $commune['latitude'],
-                $commune['longitude'],
-                $commune['departmentCode'],
-            ));
+            ->setStatus(HikeDraftStatus::Draft);
+
+        $this->locationDraftHydrator->hydrateHikeDraft($draft, $commune);
 
         $user = $this->getUser();
         if ($user instanceof User) {
@@ -201,26 +197,19 @@ final class QuickDestinationController extends AbstractController
 
     private function createQuickCityVisitFromCommune(Request $request): Response
     {
-        $commune = $this->quickCommuneData($request);
+        try {
+            $commune = $this->locationDraftHydrator->dataFromRequest($request);
+        } catch (LocationDraftHydrationException $exception) {
+            return $this->errorResponse($request, $exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $title = sprintf('Visite de ville à %s', $commune['communeName']);
         $draft = (new CityVisitDraft())
             ->setTitle($title)
             ->setSlug($this->createUniqueCityVisitSlug($title))
-            ->setStatus(CityVisitDraftStatus::Draft)
-            ->setDetectedCommuneName($commune['communeName'])
-            ->setDetectedCommuneCode($commune['communeInseeCode'])
-            ->setDetectedDepartmentName($commune['departmentName'])
-            ->setDetectedRegionName($commune['regionName'])
-            ->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
-                $commune['communeName'],
-                $commune['communeInseeCode'],
-                $commune['departmentName'],
-                $commune['regionName'],
-                $commune['country'],
-                $commune['latitude'],
-                $commune['longitude'],
-                $commune['departmentCode'],
-            ));
+            ->setStatus(CityVisitDraftStatus::Draft);
+
+        $this->locationDraftHydrator->hydrateCityVisitDraft($draft, $commune);
 
         $user = $this->getUser();
         if ($user instanceof User) {
@@ -244,36 +233,6 @@ final class QuickDestinationController extends AbstractController
         $this->addFlash('success', sprintf('Visite de ville créée dans la commune "%s".', $commune['communeName']));
 
         return $this->redirectToRoute('admin_studio_city_visit_edit', ['id' => $draft->getId()]);
-    }
-
-    /**
-     * @return array{
-     *     communeName: string,
-     *     communeInseeCode: string,
-     *     postalCode: string|null,
-     *     departmentName: string|null,
-     *     departmentCode: string|null,
-     *     regionName: string|null,
-     *     country: string,
-     *     latitude: float|null,
-     *     longitude: float|null
-     * }
-     */
-    private function quickCommuneData(Request $request): array
-    {
-        $communeCode = $this->truncate($request->request->getString('code'), 20);
-
-        return [
-            'communeName' => $this->truncate($request->request->getString('cityName'), 150),
-            'communeInseeCode' => $communeCode,
-            'postalCode' => $this->nullIfBlank($request->request->getString('postalCode')),
-            'departmentName' => $this->nullIfBlank($this->truncate($request->request->getString('departmentName'), 150)),
-            'departmentCode' => $this->nullIfBlank($request->request->getString('departmentCode')) ?? $this->departmentCodeFromCommuneCode($communeCode),
-            'regionName' => $this->nullIfBlank($this->truncate($request->request->getString('regionName'), 150)),
-            'country' => 'France',
-            'latitude' => $this->nullableFloat($request->request->get('latitude')),
-            'longitude' => $this->nullableFloat($request->request->get('longitude')),
-        ];
     }
 
     private function departmentCodeFromCommuneCode(string $communeCode): ?string

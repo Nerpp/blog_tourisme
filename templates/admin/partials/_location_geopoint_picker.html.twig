@@ -1,0 +1,289 @@
+{% macro html_attrs(attrs) %}
+    {%- for attr_name, attr_value in attrs -%}
+        {%- if attr_value is same as(true) -%}
+            {{- ' ' ~ attr_name -}}
+        {%- elseif attr_value is not same as(false) and attr_value is not null -%}
+            {{- ' ' ~ attr_name ~ '="' ~ attr_value|e('html_attr') ~ '"' -}}
+        {%- endif -%}
+    {%- endfor -%}
+{% endmacro %}
+
+{% macro render_field(field, key, data_attrs, row_class, input_class, form_id, visible) %}
+    {% import _self as location_picker %}
+    {% set attrs = (field.attr|default({}))|merge(data_attrs|default({})) %}
+    {% if form_id and field.form_field is not defined and not field.skip_form_attr|default(false) %}
+        {% set attrs = attrs|merge({ form: form_id }) %}
+    {% endif %}
+
+    {% if field.form_field is defined %}
+        {% if visible %}
+            <div class="{{ row_class }}">
+                {{ form_label(field.form_field, field.label|default(null)) }}
+                {{ form_widget(field.form_field, { attr: attrs }) }}
+                {{ form_errors(field.form_field) }}
+            </div>
+        {% else %}
+            {{ form_widget(field.form_field, { attr: attrs }) }}
+        {% endif %}
+    {% else %}
+        {% set field_id = field.id|default('location-picker-' ~ key) %}
+        {% set field_type = visible ? field.type|default('text') : field.type|default('hidden') %}
+        {% if visible %}
+            <div class="{{ row_class }}">
+                <label for="{{ field_id }}">{{ field.label|default(key) }}</label>
+                <input class="{{ input_class }}" id="{{ field_id }}" type="{{ field_type }}" name="{{ field.name|default('') }}" value="{{ field.value|default('') }}"{{ location_picker.html_attrs(attrs) }}>
+            </div>
+        {% else %}
+            <input id="{{ field_id }}" type="{{ field_type }}" {% if field.name|default('') is not empty %}name="{{ field.name }}"{% endif %} value="{{ field.value|default('') }}"{{ location_picker.html_attrs(attrs) }}>
+        {% endif %}
+    {% endif %}
+{% endmacro %}
+
+{% import _self as location_picker %}
+
+{% set picker_id = picker_id|default('location-geopoint-picker') %}
+{% set render_root = render_root|default(true) %}
+{% set mode = mode|default('default') %}
+{% set ui_context = ui_context|default('admin') %}
+{% set row_class = row_class|default(ui_context == 'field' ? 'field-row' : 'admin-field') %}
+{% set input_class = input_class|default(ui_context == 'field' ? 'field-input' : '') %}
+{% set primary_button = primary_button|default(ui_context == 'field' ? 'field-button' : 'admin-button') %}
+{% set secondary_button = secondary_button|default(ui_context == 'field' ? 'field-button field-button--secondary' : 'admin-button admin-button--secondary') %}
+{% set form_id = form_id|default(null) %}
+{% set fields = fields|default({}) %}
+{% set hidden_field_keys = hidden_field_keys|default(['type', 'name', 'area', 'country', 'region', 'department', 'departmentCode', 'commune', 'insee', 'postal', 'latitude', 'longitude', 'accuracy', 'source', 'communeCenterLatitude', 'communeCenterLongitude']) %}
+{% set location_field_keys = location_field_keys|default([]) %}
+{% set coordinate_field_keys = coordinate_field_keys|default([]) %}
+{% set initial_commune = initial_commune|default('') %}
+{% set initial_department = initial_department|default('') %}
+{% set initial_department_code = initial_department_code|default('') %}
+{% set initial_region = initial_region|default('') %}
+{% set initial_insee = initial_insee|default('') %}
+{% set initial_postal_code = initial_postal_code|default('') %}
+{% set initial_latitude = initial_latitude|default('') %}
+{% set initial_longitude = initial_longitude|default('') %}
+{% set commune_center_latitude = commune_center_latitude|default('') %}
+{% set commune_center_longitude = commune_center_longitude|default('') %}
+{% set has_commune = initial_commune is not empty %}
+{% set has_coordinates = initial_latitude is not empty and initial_longitude is not empty %}
+{% set has_commune_center = commune_center_latitude is not empty and commune_center_longitude is not empty %}
+{% set show_map = has_coordinates or (has_commune and has_commune_center) %}
+{% set maps_url = has_coordinates ? 'https://www.google.com/maps?q=' ~ initial_latitude ~ ',' ~ initial_longitude : '#' %}
+{% set osm_url = has_coordinates ? 'https://www.openstreetmap.org/?mlat=' ~ initial_latitude ~ '&mlon=' ~ initial_longitude ~ '#map=16/' ~ initial_latitude ~ '/' ~ initial_longitude : '#' %}
+{% set legacy_prefix = legacy_prefix|default(null) %}
+
+{% set data_attrs_by_key = {
+    type: { 'data-location-type-input': true },
+    name: { 'data-location-name-input': true },
+    area: { 'data-location-area-input': true },
+    source: { 'data-source-input': true },
+    country: { 'data-country-input': true },
+    region: { 'data-region-input': true },
+    department: { 'data-department-input': true },
+    departmentCode: { 'data-department-code-input': true },
+    commune: { 'data-commune-input': true },
+    insee: { 'data-insee-input': true },
+    postal: { 'data-postal-code-input': true },
+    latitude: { 'data-latitude-input': true },
+    longitude: { 'data-longitude-input': true },
+    accuracy: { 'data-gps-accuracy-input': true },
+    communeCenterLatitude: { 'data-commune-center-latitude-input': true },
+    communeCenterLongitude: { 'data-commune-center-longitude-input': true }
+} %}
+
+{% if legacy_prefix == 'prevision' %}
+    {% set data_attrs_by_key = data_attrs_by_key|merge({
+        source: data_attrs_by_key.source|merge({ 'data-prevision-source': true }),
+        country: data_attrs_by_key.country|merge({ 'data-prevision-country': true }),
+        region: data_attrs_by_key.region|merge({ 'data-prevision-region': true }),
+        department: data_attrs_by_key.department|merge({ 'data-prevision-department': true }),
+        commune: data_attrs_by_key.commune|merge({ 'data-prevision-commune': true }),
+        insee: data_attrs_by_key.insee|merge({ 'data-prevision-insee': true }),
+        postal: data_attrs_by_key.postal|merge({ 'data-prevision-postal': true }),
+        latitude: data_attrs_by_key.latitude|merge({ 'data-prevision-latitude': true }),
+        longitude: data_attrs_by_key.longitude|merge({ 'data-prevision-longitude': true }),
+        accuracy: data_attrs_by_key.accuracy|merge({ 'data-prevision-accuracy': true }),
+        communeCenterLatitude: data_attrs_by_key.communeCenterLatitude|merge({ 'data-prevision-commune-center-latitude': true }),
+        communeCenterLongitude: data_attrs_by_key.communeCenterLongitude|merge({ 'data-prevision-commune-center-longitude': true })
+    }) %}
+{% endif %}
+
+<style>
+    .location-picker,
+    .location-picker__section,
+    .location-picker__search,
+    .location-picker__results,
+    .location-picker__selection,
+    .location-picker__map-panel,
+    .location-picker__point-tools,
+    .location-picker__links {
+        display: grid;
+        gap: 12px;
+    }
+
+    .location-picker__section h2,
+    .location-picker__section h3 {
+        margin: 0;
+        font-size: 1.05rem;
+    }
+
+    .location-picker__results[hidden],
+    .location-picker__selection[hidden],
+    .location-picker__map-panel[hidden],
+    .location-picker__placeholder[hidden],
+    .location-picker__links[hidden],
+    .location-picker__search[hidden] {
+        display: none;
+    }
+
+    .location-picker__selection {
+        padding: 12px;
+        border: 1px solid #b8ddc4;
+        border-radius: var(--admin-radius, var(--field-radius, 8px));
+        background: #f2fbf5;
+    }
+
+    .location-picker__selection-label {
+        color: var(--admin-muted, var(--field-muted, #657067));
+        font-weight: 800;
+    }
+
+    .location-picker__result {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--admin-line, var(--field-line, #d8ddd8));
+        border-radius: var(--admin-radius, var(--field-radius, 8px));
+        background: #fff;
+        color: var(--admin-text, var(--field-text, #18201b));
+        cursor: pointer;
+        font: inherit;
+        font-weight: 750;
+        text-align: left;
+    }
+
+    .location-picker__result:hover,
+    .location-picker__result:focus-visible {
+        border-color: var(--admin-primary, var(--field-primary, #146c43));
+        outline: none;
+    }
+
+    .location-picker__placeholder {
+        padding: 18px;
+        border: 1px dashed var(--admin-line, var(--field-line, #d8ddd8));
+        border-radius: var(--admin-radius, var(--field-radius, 8px));
+        background: #f9fbf9;
+        color: var(--admin-muted, var(--field-muted, #657067));
+        font-weight: 750;
+    }
+
+    .location-picker__map {
+        min-height: 360px;
+        overflow: hidden;
+        border: 1px solid var(--admin-line, var(--field-line, #d8ddd8));
+        border-radius: var(--admin-radius, var(--field-radius, 8px));
+        background: #eef1ee;
+    }
+
+    .location-picker__status {
+        min-height: 22px;
+        margin: 0;
+        color: var(--admin-muted, var(--field-muted, #657067));
+        font-weight: 700;
+    }
+
+    .location-picker__links {
+        grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
+    }
+
+    .location-picker__link[aria-disabled="true"] {
+        pointer-events: none;
+    }
+</style>
+
+{% if render_root %}
+<section class="location-picker" data-location-picker data-location-picker-mode="{{ mode }}" id="{{ picker_id }}">
+{% endif %}
+    {% for key in hidden_field_keys %}
+        {% if fields[key] is defined and key not in location_field_keys and key not in coordinate_field_keys %}
+            {{ location_picker.render_field(fields[key], key, data_attrs_by_key[key]|default({}), row_class, input_class, form_id, false) }}
+        {% endif %}
+    {% endfor %}
+
+    <section class="location-picker__section" aria-labelledby="{{ picker_id }}-commune-heading">
+        <h3 id="{{ picker_id }}-commune-heading">{{ commune_title|default('Commune géographique') }}</h3>
+        <div class="location-picker__search" data-commune-search-panel {% if has_commune %}hidden{% endif %}>
+            <div class="{{ row_class }}">
+                <label for="{{ picker_id }}-search">{{ search_label|default('Rechercher une commune française') }}</label>
+                <input class="{{ input_class }}" id="{{ picker_id }}-search" type="search" autocomplete="off" placeholder="{{ search_placeholder|default('Exemple : Céret, Collioure, Perpignan') }}" data-commune-search-input {% if legacy_prefix == 'prevision' %}data-prevision-search{% endif %}>
+            </div>
+            <p class="location-picker__status" data-commune-search-status {% if legacy_prefix == 'prevision' %}data-prevision-search-status{% endif %}>{{ search_help|default('Recherchez une commune française. La région, le département, le code INSEE et le centre de commune seront complétés automatiquement.') }}</p>
+            <div class="location-picker__results" data-commune-search-results {% if legacy_prefix == 'prevision' %}data-prevision-search-results{% endif %} hidden></div>
+        </div>
+
+        <div class="location-picker__selection" data-selected-commune-panel {% if legacy_prefix == 'prevision' %}data-commune-selection{% endif %} {% if not has_commune %}hidden{% endif %}>
+            <span class="location-picker__selection-label">Commune sélectionnée :</span>
+            <strong data-selected-commune-name {% if legacy_prefix == 'prevision' %}data-commune-selection-name{% endif %}>{{ initial_commune }}</strong>
+            <span data-selected-commune-place {% if legacy_prefix == 'prevision' %}data-commune-selection-place{% endif %}>
+                {{ [initial_department_code ~ (initial_department_code and initial_department ? ' ' : '') ~ initial_department, initial_region]|filter(v => v is not empty)|join(' - ') }}
+            </span>
+            <span>Code INSEE : <span data-selected-commune-code {% if legacy_prefix == 'prevision' %}data-commune-selection-code{% endif %}>{{ initial_insee ?: '-' }}</span></span>
+            <span>Code postal : <span data-selected-commune-postal {% if legacy_prefix == 'prevision' %}data-commune-selection-postal{% endif %}>{{ initial_postal_code ?: '-' }}</span></span>
+            <button class="{{ secondary_button }}" type="button" data-commune-edit>Modifier la commune</button>
+        </div>
+
+        {% if location_field_keys is not empty %}
+            <div class="admin-form-grid quick-destination__grid">
+                {% for key in location_field_keys %}
+                    {% if fields[key] is defined %}
+                        {{ location_picker.render_field(fields[key], key, data_attrs_by_key[key]|default({}), row_class, input_class, form_id, true) }}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    </section>
+
+    <section class="location-picker__section" aria-labelledby="{{ picker_id }}-point-heading">
+        <h3 id="{{ picker_id }}-point-heading">{{ point_title|default('Coordonnées GPS optionnelles') }}</h3>
+        <p class="location-picker__status">{{ point_help|default('La carte sert à placer un point précis. Les coordonnées ne sont enregistrées qu’après validation du point.') }}</p>
+
+        <div class="location-picker__placeholder" data-map-placeholder {% if legacy_prefix == 'prevision' %}data-prevision-map-placeholder{% endif %} {% if show_map %}hidden{% endif %}>{{ map_placeholder|default('Sélectionnez d’abord une commune pour afficher la carte.') }}</div>
+        <div class="location-picker__map-panel" data-map-panel {% if legacy_prefix == 'prevision' %}data-prevision-map-panel{% endif %} {% if not show_map %}hidden{% endif %}>
+            <div
+                class="location-picker__map"
+                data-map-container
+                {% if legacy_prefix == 'prevision' %}data-prevision-map{% endif %}
+                data-default-latitude="{{ default_latitude|default('42.6000') }}"
+                data-default-longitude="{{ default_longitude|default('2.6000') }}"
+                data-default-zoom="{{ default_zoom|default('9') }}"
+                aria-label="{{ map_label|default('Carte de sélection du point précis') }}"
+            ></div>
+            <p class="location-picker__status" data-map-status {% if legacy_prefix == 'prevision' %}data-prevision-map-status{% endif %}>{{ has_coordinates ? 'Coordonnées déjà renseignées.' : (show_map ? 'Carte centrée sur la commune.' : 'Aucune coordonnée précise n’est renseignée.') }}</p>
+        </div>
+
+        <div class="location-picker__point-tools">
+            <div class="admin-row-actions field-actions">
+                <button class="{{ primary_button }}" type="button" data-validate-point {% if legacy_prefix == 'prevision' %}data-prevision-validate-point{% endif %} {% if not show_map %}disabled{% endif %}>Valider ce point</button>
+                <button class="{{ secondary_button }}" type="button" data-center-commune {% if legacy_prefix == 'prevision' %}data-prevision-center-commune{% endif %} {% if not has_commune_center %}disabled{% endif %}>Centrer sur la commune</button>
+                <button class="{{ secondary_button }}" type="button" data-location-gps {% if legacy_prefix == 'prevision' %}data-prevision-gps{% endif %}>Relever ma position GPS</button>
+            </div>
+            <p class="location-picker__status" data-gps-status {% if legacy_prefix == 'prevision' %}data-prevision-gps-status{% endif %}>Coordonnées manuelles, carte ou GPS acceptées.</p>
+        </div>
+
+        {% if coordinate_field_keys is not empty %}
+            <div class="admin-form-grid quick-destination__grid">
+                {% for key in coordinate_field_keys %}
+                    {% if fields[key] is defined %}
+                        {{ location_picker.render_field(fields[key], key, data_attrs_by_key[key]|default({}), row_class, input_class, form_id, true) }}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="location-picker__links" data-map-links {% if legacy_prefix == 'prevision' %}data-prevision-map-links{% endif %} {% if not has_coordinates %}hidden{% endif %}>
+            <a class="{{ secondary_button }} location-picker__link" href="{{ maps_url }}" target="_blank" rel="noopener noreferrer" data-map-link {% if legacy_prefix == 'prevision' %}data-prevision-maps-link{% endif %} {% if not has_coordinates %}aria-disabled="true"{% endif %}>Vérifier dans Maps</a>
+            <a class="{{ secondary_button }} location-picker__link" href="{{ osm_url }}" target="_blank" rel="noopener noreferrer" data-osm-link {% if legacy_prefix == 'prevision' %}data-prevision-osm-link{% endif %} {% if not has_coordinates %}aria-disabled="true"{% endif %}>Ouvrir dans OpenStreetMap</a>
+        </div>
+    </section>
+{% if render_root %}
+</section>
+{% endif %}

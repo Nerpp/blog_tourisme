@@ -28,7 +28,8 @@ use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\VideoThumbnailGenerator;
-use App\Service\GeographicHierarchyResolver;
+use App\Service\Geography\LocationDraftHydrationException;
+use App\Service\Geography\LocationDraftHydrator;
 use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
@@ -70,7 +71,7 @@ final class HikeStudioController extends AbstractController
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
         private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
-        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
+        private readonly LocationDraftHydrator $locationDraftHydrator,
     ) {}
 
     #[Route('/hikes/{id}/edit', name: 'admin_studio_hike_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -87,7 +88,13 @@ final class HikeStudioController extends AbstractController
 
             $wasPublicStatus = $this->isPublicStatus($hikeDraft->getStatus());
 
-            $this->updateDraftFromRequest($hikeDraft, $request);
+            try {
+                $this->updateDraftFromRequest($hikeDraft, $request);
+            } catch (LocationDraftHydrationException $exception) {
+                $this->addFlash('error', $exception->getMessage());
+
+                return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
+            }
 
             $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($hikeDraft->getStatus());
 
@@ -472,6 +479,7 @@ final class HikeStudioController extends AbstractController
             'destination_parent_options' => $destinations,
             'destination_quick_create' => $this->destinationQuickCreateData($hikeDraft),
             'current_destination_edit' => $this->currentDestinationEditData($hikeDraft),
+            'location_picker_data' => $this->locationPickerData($hikeDraft),
             'google_maps_url' => $this->generateGoogleMapsUrl($hikeDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
@@ -512,18 +520,12 @@ final class HikeStudioController extends AbstractController
         $hikeDraft
             ->setStatus($status)
             ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
-            ->setDetectedCommuneName($this->nullIfBlank($request->request->getString('detectedCommuneName')))
-            ->setDetectedCommuneCode($this->nullIfBlank($request->request->getString('detectedCommuneCode')))
-            ->setDetectedDepartmentName($this->nullIfBlank($request->request->getString('detectedDepartmentName')))
-            ->setDetectedRegionName($this->nullIfBlank($request->request->getString('detectedRegionName')))
             ->setNotes($this->nullIfBlank($request->request->getString('notes')));
 
-        $hikeDraft->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
-            $hikeDraft->getDetectedCommuneName(),
-            $hikeDraft->getDetectedCommuneCode(),
-            $hikeDraft->getDetectedDepartmentName(),
-            $hikeDraft->getDetectedRegionName(),
-        ));
+        $this->locationDraftHydrator->hydrateHikeDraft(
+            $hikeDraft,
+            $this->locationDraftHydrator->dataFromRequest($request),
+        );
 
         if ($this->isPublicStatus($status) && $hikeDraft->getFinishedAt() === null) {
             $hikeDraft->setFinishedAt(new DateTimeImmutable());
@@ -833,6 +835,53 @@ final class HikeStudioController extends AbstractController
             'latitude' => $point?->getLatitude(),
             'longitude' => $point?->getLongitude(),
         ];
+    }
+
+    /** @return array<string, float|string|null> */
+    private function locationPickerData(HikeDraft $hikeDraft): array
+    {
+        $point = $this->primaryLocationPoint($hikeDraft);
+        $geographicDestination = $hikeDraft->getGeographicDestination();
+
+        return [
+            'country' => 'France',
+            'commune' => $hikeDraft->getDetectedCommuneName(),
+            'insee' => $hikeDraft->getDetectedCommuneCode(),
+            'postalCode' => null,
+            'department' => $hikeDraft->getDetectedDepartmentName(),
+            'departmentCode' => $this->departmentCodeFromDestination($geographicDestination),
+            'region' => $hikeDraft->getDetectedRegionName(),
+            'communeCenterLatitude' => $geographicDestination?->getLatitude(),
+            'communeCenterLongitude' => $geographicDestination?->getLongitude(),
+            'latitude' => $point?->getLatitude(),
+            'longitude' => $point?->getLongitude(),
+            'accuracy' => $point?->getAccuracy(),
+        ];
+    }
+
+    private function primaryLocationPoint(HikeDraft $hikeDraft): ?HikePoint
+    {
+        $points = $this->sortedPoints($hikeDraft);
+        foreach ($points as $point) {
+            if ($point->getType() === HikePointType::Start) {
+                return $point;
+            }
+        }
+
+        return $points[0] ?? null;
+    }
+
+    private function departmentCodeFromDestination(?Destination $destination): ?string
+    {
+        while ($destination instanceof Destination) {
+            if ($destination->getType() === DestinationType::Department) {
+                return $destination->getCode();
+            }
+
+            $destination = $destination->getParent();
+        }
+
+        return null;
     }
 
     /** @return array<string, float|int|string|null> */

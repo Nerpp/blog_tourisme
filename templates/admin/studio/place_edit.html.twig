@@ -7,6 +7,9 @@
 {% set google_maps_url = place.latitude is not null and place.longitude is not null ? 'https://www.google.com/maps/search/?api=1&query=' ~ place.latitude ~ ',' ~ place.longitude : null %}
 
 {% block stylesheets %}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
     <style>
         .studio-page {
             display: grid;
@@ -952,6 +955,9 @@
 
 {% block javascripts %}
     {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
     {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
     {% include 'admin/studio/_studio_media_javascript.html.twig' %}
 {% endblock %}

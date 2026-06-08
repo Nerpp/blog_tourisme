@@ -354,6 +354,9 @@
                 }
             }
         </style>
+        {% if app.environment != 'test' %}
+            {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
+        {% endif %}
     </head>
     <body>
         <main class="field-shell">
@@ -372,6 +375,9 @@
         </main>
 
         {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
+        {% if app.environment != 'test' %}
+            {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
+        {% endif %}
         {% block scripts %}{% endblock %}
     </body>
 </html>

@@ -12,6 +12,7 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
+use Symfony\Component\Validator\Constraints\Range;
 
 /** @extends AbstractType<PrevisionDestination> */
 final class PrevisionDestinationType extends AbstractType
@@ -85,6 +86,9 @@ final class PrevisionDestinationType extends AbstractType
                 'html5' => true,
                 'scale' => 7,
                 'attr' => ['step' => 'any'],
+                'constraints' => [
+                    new Range(notInRangeMessage: 'La latitude doit être comprise entre {{ min }} et {{ max }}.', min: -90, max: 90),
+                ],
             ])
             ->add('longitude', NumberType::class, [
                 'label' => 'Longitude',
@@ -92,6 +96,9 @@ final class PrevisionDestinationType extends AbstractType
                 'html5' => true,
                 'scale' => 7,
                 'attr' => ['step' => 'any'],
+                'constraints' => [
+                    new Range(notInRangeMessage: 'La longitude doit être comprise entre {{ min }} et {{ max }}.', min: -180, max: 180),
+                ],
             ])
             ->add('gpsAccuracy', NumberType::class, [
                 'label' => 'Précision GPS',

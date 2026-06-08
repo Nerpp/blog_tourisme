@@ -6,6 +6,7 @@ use App\Entity\CityVisitDraft;
 use App\Entity\CityVisitDraftMedia;
 use App\Entity\CityVisitPoint;
 use App\Entity\CityVisitPointMedia;
+use App\Entity\Destination;
 use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\CityVisitPointType;
@@ -27,7 +28,8 @@ use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\MediaDeletionService;
 use App\Service\Media\VideoThumbnailGenerator;
-use App\Service\GeographicHierarchyResolver;
+use App\Service\Geography\LocationDraftHydrationException;
+use App\Service\Geography\LocationDraftHydrator;
 use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
@@ -67,7 +69,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
         private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
-        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
+        private readonly LocationDraftHydrator $locationDraftHydrator,
     ) {}
 
     #[Route('/city-visits/{id}/edit', name: 'admin_studio_city_visit_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -84,7 +86,13 @@ final class CityVisitStudioController extends AbstractController
 
             $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
 
-            $this->updateDraftFromRequest($cityVisitDraft, $request);
+            try {
+                $this->updateDraftFromRequest($cityVisitDraft, $request);
+            } catch (LocationDraftHydrationException $exception) {
+                $this->addFlash('error', $exception->getMessage());
+
+                return $this->redirectToStudio($cityVisitDraft);
+            }
 
             $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
 
@@ -364,6 +372,7 @@ final class CityVisitStudioController extends AbstractController
             'destination_type_options' => $this->destinationTypeOptions(),
             'destination_parent_options' => $destinations,
             'destination_quick_create' => $this->destinationQuickCreateData($cityVisitDraft),
+            'location_picker_data' => $this->locationPickerData($cityVisitDraft),
             'google_maps_url' => $this->generateGoogleMapsUrl($cityVisitDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
@@ -404,18 +413,12 @@ final class CityVisitStudioController extends AbstractController
         $cityVisitDraft
             ->setStatus($status)
             ->setDestination($destination)
-            ->setDetectedCommuneName($this->nullIfBlank($request->request->getString('detectedCommuneName')))
-            ->setDetectedCommuneCode($this->nullIfBlank($request->request->getString('detectedCommuneCode')))
-            ->setDetectedDepartmentName($this->nullIfBlank($request->request->getString('detectedDepartmentName')))
-            ->setDetectedRegionName($this->nullIfBlank($request->request->getString('detectedRegionName')))
             ->setNotes($notes);
 
-        $cityVisitDraft->setGeographicDestination($this->geographicHierarchyResolver->resolveCommune(
-            $cityVisitDraft->getDetectedCommuneName(),
-            $cityVisitDraft->getDetectedCommuneCode(),
-            $cityVisitDraft->getDetectedDepartmentName(),
-            $cityVisitDraft->getDetectedRegionName(),
-        ));
+        $this->locationDraftHydrator->hydrateCityVisitDraft(
+            $cityVisitDraft,
+            $this->locationDraftHydrator->dataFromRequest($request),
+        );
 
         if ($this->isPublicStatus($status) && $cityVisitDraft->getFinishedAt() === null) {
             $cityVisitDraft->setFinishedAt(new DateTimeImmutable());
@@ -477,6 +480,53 @@ final class CityVisitStudioController extends AbstractController
             'latitude' => $point?->getLatitude(),
             'longitude' => $point?->getLongitude(),
         ];
+    }
+
+    /** @return array<string, float|string|null> */
+    private function locationPickerData(CityVisitDraft $cityVisitDraft): array
+    {
+        $point = $this->primaryLocationPoint($cityVisitDraft);
+        $geographicDestination = $cityVisitDraft->getGeographicDestination();
+
+        return [
+            'country' => 'France',
+            'commune' => $cityVisitDraft->getDetectedCommuneName(),
+            'insee' => $cityVisitDraft->getDetectedCommuneCode(),
+            'postalCode' => null,
+            'department' => $cityVisitDraft->getDetectedDepartmentName(),
+            'departmentCode' => $this->departmentCodeFromDestination($geographicDestination),
+            'region' => $cityVisitDraft->getDetectedRegionName(),
+            'communeCenterLatitude' => $geographicDestination?->getLatitude(),
+            'communeCenterLongitude' => $geographicDestination?->getLongitude(),
+            'latitude' => $point?->getLatitude(),
+            'longitude' => $point?->getLongitude(),
+            'accuracy' => $point?->getAccuracy(),
+        ];
+    }
+
+    private function primaryLocationPoint(CityVisitDraft $cityVisitDraft): ?CityVisitPoint
+    {
+        $points = $this->sortedPoints($cityVisitDraft);
+        foreach ($points as $point) {
+            if ($point->getType() === CityVisitPointType::Start) {
+                return $point;
+            }
+        }
+
+        return $points[0] ?? null;
+    }
+
+    private function departmentCodeFromDestination(?Destination $destination): ?string
+    {
+        while ($destination instanceof Destination) {
+            if ($destination->getType() === DestinationType::Department) {
+                return $destination->getCode();
+            }
+
+            $destination = $destination->getParent();
+        }
+
+        return null;
     }
 
     private function latestPoint(CityVisitDraft $cityVisitDraft): ?CityVisitPoint

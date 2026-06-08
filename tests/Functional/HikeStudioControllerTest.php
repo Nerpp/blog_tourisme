@@ -104,4 +104,75 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertSame(2.8956456, $point->getLongitude());
         self::assertSame(4.0, $point->getAccuracy());
     }
+
+    public function testStudioHikeLocationPickerCanUpdatePrimaryPointWithoutEditorialDestination(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike, 42.1, 2.1);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $hike->getTitle(),
+            'destination' => '',
+            'status' => HikeDraftStatus::Draft->value,
+            'detectedCommuneName' => 'Collioure',
+            'detectedCommuneCode' => '66053',
+            'detectedDepartmentName' => 'Pyrenees-Orientales',
+            'detectedRegionName' => 'Occitanie',
+            'locationCountry' => 'France',
+            'locationDepartmentCode' => '66',
+            'communeCenterLatitude' => '42.5250500',
+            'communeCenterLongitude' => '3.0831600',
+            'locationLatitude' => '42.5260000',
+            'locationLongitude' => '3.0840000',
+            'locationAccuracy' => '8',
+            'notes' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $hike = $this->refresh($hike);
+        $point = $this->refresh($point);
+        self::assertNull($hike->getDestination());
+        self::assertInstanceOf(Destination::class, $hike->getGeographicDestination());
+        self::assertSame('66053', $hike->getGeographicDestination()->getCode());
+        self::assertSame(42.52505, $hike->getGeographicDestination()->getLatitude());
+        self::assertSame(42.526, $point->getLatitude());
+        self::assertSame(3.084, $point->getLongitude());
+        self::assertSame(8.0, $point->getAccuracy());
+    }
+
+    public function testStudioHikeLocationPickerDoesNotLoseExistingPointWithoutCoordinates(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike, 42.44, 2.44);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $hike->getTitle(),
+            'destination' => '',
+            'status' => HikeDraftStatus::Draft->value,
+            'detectedCommuneName' => 'Ceret',
+            'detectedCommuneCode' => '66049',
+            'detectedDepartmentName' => 'Pyrenees-Orientales',
+            'detectedRegionName' => 'Occitanie',
+            'notes' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $point = $this->refresh($point);
+        self::assertSame(42.44, $point->getLatitude());
+        self::assertSame(2.44, $point->getLongitude());
+    }
 }
