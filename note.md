@@ -31,5 +31,7 @@ make test-all
 config de cmd de set up
 
 make setup
-make test
 make test-all
+
+
+make test

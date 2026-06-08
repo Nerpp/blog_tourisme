@@ -132,4 +132,106 @@ final class QuickDestinationControllerTest extends FunctionalTestCase
         self::assertSame(2.9012345, $point->getLongitude());
         self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
     }
+
+    public function testVerifiedAdminCanCreateDistanceCityVisitWithCommuneWithoutPrecisePoint(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', '/admin/quick?type=city_visit&mode=distance');
+        self::assertResponseIsSuccessful();
+
+        $commune = 'Ville sans point '.$this->uniqueToken('commune');
+        $client->request('POST', '/admin/studio/destinations/quick-create', [
+            '_token' => $this->tokenFromFormAction($crawler, '/admin/studio/destinations/quick-create'),
+            'contextType' => 'quick_city_visit',
+            'targetType' => 'quick_city_visit',
+            'type' => DestinationType::City->value,
+            'name' => $commune,
+            'countryName' => 'France',
+            'regionName' => 'Occitanie',
+            'departmentName' => 'Pyrenees-Orientales',
+            'departmentCode' => '66',
+            'cityName' => $commune,
+            'code' => '66137',
+            'postalCode' => '66100',
+            'communeCenterLatitude' => '42.6886000',
+            'communeCenterLongitude' => '2.8949000',
+            'returnUrl' => '/admin/quick?type=city_visit&mode=distance',
+        ]);
+
+        $cityVisit = $this->entityManager()->getRepository(CityVisitDraft::class)->findOneBy(['title' => 'Visite de ville à '.$commune]);
+        self::assertInstanceOf(CityVisitDraft::class, $cityVisit);
+        self::assertNull($cityVisit->getDestination());
+        self::assertInstanceOf(Destination::class, $cityVisit->getGeographicDestination());
+        self::assertSame('66137', $cityVisit->getGeographicDestination()->getCode());
+        self::assertSame('66137', $cityVisit->getDetectedCommuneCode());
+        self::assertCount(0, $cityVisit->getPoints());
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+    }
+
+    public function testDistanceCityVisitWithGpsButMissingInseeCodeIsRejected(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', '/admin/quick?type=city_visit&mode=distance');
+        self::assertResponseIsSuccessful();
+
+        $commune = 'GPS sans insee '.$this->uniqueToken('commune');
+        $client->request('POST', '/admin/studio/destinations/quick-create', [
+            '_token' => $this->tokenFromFormAction($crawler, '/admin/studio/destinations/quick-create'),
+            'contextType' => 'quick_city_visit',
+            'targetType' => 'quick_city_visit',
+            'type' => DestinationType::City->value,
+            'name' => $commune,
+            'countryName' => 'France',
+            'regionName' => 'Occitanie',
+            'departmentName' => 'Pyrenees-Orientales',
+            'departmentCode' => '66',
+            'cityName' => $commune,
+            'latitude' => '42.7023456',
+            'longitude' => '2.9012345',
+            'returnUrl' => '/admin/quick?type=city_visit&mode=distance',
+        ], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            ['ok' => false, 'message' => 'Sélectionnez une commune dans la liste avant de créer la visite.'],
+            json_decode((string) $client->getResponse()->getContent(), true),
+        );
+        self::assertNull($this->entityManager()->getRepository(CityVisitDraft::class)->findOneBy(['title' => 'Visite de ville à '.$commune]));
+        self::assertNull($this->entityManager()->getRepository(Destination::class)->findOneBy(['name' => $commune]));
+    }
+
+    public function testDistanceHikeWithGpsButMissingInseeCodeIsRejected(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', '/admin/quick?type=hike&mode=distance');
+        self::assertResponseIsSuccessful();
+
+        $commune = 'Rando GPS sans insee '.$this->uniqueToken('commune');
+        $client->request('POST', '/admin/studio/destinations/quick-create', [
+            '_token' => $this->tokenFromFormAction($crawler, '/admin/studio/destinations/quick-create'),
+            'contextType' => 'quick_hike',
+            'targetType' => 'quick_hike',
+            'type' => DestinationType::City->value,
+            'name' => $commune,
+            'countryName' => 'France',
+            'regionName' => 'Nouvelle-Aquitaine',
+            'departmentName' => 'Charente',
+            'departmentCode' => '16',
+            'cityName' => $commune,
+            'latitude' => '45.3631000',
+            'longitude' => '0.0607000',
+            'returnUrl' => '/admin/quick?type=hike&mode=distance',
+        ], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            ['ok' => false, 'message' => 'Sélectionnez une commune dans la liste avant de créer la visite.'],
+            json_decode((string) $client->getResponse()->getContent(), true),
+        );
+        self::assertNull($this->entityManager()->getRepository(HikeDraft::class)->findOneBy(['title' => 'Randonnée à '.$commune]));
+        self::assertNull($this->entityManager()->getRepository(Destination::class)->findOneBy(['name' => $commune]));
+    }
 }

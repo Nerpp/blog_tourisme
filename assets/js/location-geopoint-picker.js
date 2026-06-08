@@ -133,7 +133,10 @@ const initLocationGeopointPicker = (root) => {
   let map = null;
   let marker = null;
 
-  const hasCommune = () => (fields.commune?.value || '').trim() !== '';
+  const hasCommune = () => (
+    (fields.commune?.value || '').trim() !== ''
+    && (fields.insee?.value || '').trim() !== ''
+  );
 
   const hasCommuneCenter = () => (
     coordinateValue(fields.communeCenterLatitude?.value, -90, 90) !== null
@@ -175,7 +178,7 @@ const initLocationGeopointPicker = (root) => {
     const code = (fields.insee?.value || '').trim();
     const postal = (fields.postal?.value || '').trim();
 
-    if (!commune) {
+    if (!commune || !code) {
       selectedPanel?.setAttribute('hidden', '');
       searchWrapper?.removeAttribute('hidden');
       return;
@@ -445,8 +448,13 @@ const initLocationGeopointPicker = (root) => {
         assign(fields.accuracy, accuracy);
       }
 
-      text(gpsStatus, accuracy !== null ? `Position GPS trouvée. Précision : +/- ${accuracy} m.` : 'Position GPS trouvée.');
-      text(mapStatus, 'Position GPS placée sur la carte. Cliquez sur Valider ce point pour renseigner les coordonnées.');
+      if (hasCommune()) {
+        text(gpsStatus, accuracy !== null ? `Position GPS trouvée. Précision : +/- ${accuracy} m.` : 'Position GPS trouvée.');
+        text(mapStatus, 'Position GPS placée sur la carte. Cliquez sur Valider ce point pour renseigner les coordonnées.');
+      } else {
+        text(gpsStatus, accuracy !== null ? `Position GPS trouvée. Précision : +/- ${accuracy} m. Sélectionnez maintenant la commune correspondante pour créer la visite.` : 'Position GPS trouvée. Sélectionnez maintenant la commune correspondante pour créer la visite.');
+        text(mapStatus, 'Position GPS placée sur la carte. Sélectionnez maintenant la commune correspondante pour créer la visite.');
+      }
     }, () => {
       text(gpsStatus, 'Position GPS indisponible. Vous pouvez déplacer le marqueur ou saisir les coordonnées manuellement.');
     }, {
@@ -460,10 +468,24 @@ const initLocationGeopointPicker = (root) => {
   fields.longitude?.addEventListener('input', updateCoordinateLinks);
   searchInput?.addEventListener('input', () => searchCommunes(searchInput.value.trim()));
   editCommune?.addEventListener('click', () => {
+    assign(fields.type, 'city');
+    assign(fields.name, '');
+    assign(fields.area, '');
+    assign(fields.commune, '');
+    assign(fields.insee, '');
+    assign(fields.postal, '');
+    assign(fields.department, '');
+    assign(fields.departmentCode, '');
+    assign(fields.region, '');
+    assign(fields.country, '');
+    assign(fields.communeCenterLatitude, '', false);
+    assign(fields.communeCenterLongitude, '', false);
     searchWrapper?.removeAttribute('hidden');
     selectedPanel?.setAttribute('hidden', '');
     searchInput?.focus();
     searchInput?.select();
+    renderSelectedCommune();
+    setMapControls();
   });
 
   const existingLatitude = coordinateValue(fields.latitude?.value, -90, 90);

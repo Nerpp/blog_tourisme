@@ -57,11 +57,11 @@ final class QuickDestinationController extends AbstractController
             return $this->errorResponse($request, 'Le formulaire a expiré. Réessayez.', Response::HTTP_BAD_REQUEST);
         }
 
-        if ($this->isQuickHikeFrenchCommune($request)) {
+        if ($this->isQuickHikeCreationRequest($request)) {
             return $this->createQuickHikeFromCommune($request);
         }
 
-        if ($this->isQuickCityVisitFrenchCommune($request)) {
+        if ($this->isQuickCityVisitCreationRequest($request)) {
             return $this->createQuickCityVisitFromCommune($request);
         }
 
@@ -132,32 +132,24 @@ final class QuickDestinationController extends AbstractController
         }
     }
 
-    private function isQuickHikeFrenchCommune(Request $request): bool
+    private function isQuickHikeCreationRequest(Request $request): bool
     {
         $contextType = $request->request->getString('contextType') ?: $request->request->getString('targetType');
 
-        return $contextType === 'quick_hike'
-            && $request->request->getString('type') === DestinationType::City->value
-            && $this->truncate($request->request->getString('countryName'), 150) === 'France'
-            && $this->truncate($request->request->getString('cityName'), 150) !== ''
-            && $this->nullIfBlank($request->request->getString('code')) !== null;
+        return $contextType === 'quick_hike';
     }
 
-    private function isQuickCityVisitFrenchCommune(Request $request): bool
+    private function isQuickCityVisitCreationRequest(Request $request): bool
     {
         $contextType = $request->request->getString('contextType') ?: $request->request->getString('targetType');
 
-        return $contextType === 'quick_city_visit'
-            && $request->request->getString('type') === DestinationType::City->value
-            && $this->truncate($request->request->getString('countryName'), 150) === 'France'
-            && $this->truncate($request->request->getString('cityName'), 150) !== ''
-            && $this->nullIfBlank($request->request->getString('code')) !== null;
+        return $contextType === 'quick_city_visit';
     }
 
     private function createQuickHikeFromCommune(Request $request): Response
     {
         try {
-            $commune = $this->locationDraftHydrator->dataFromRequest($request);
+            $commune = $this->locationDraftHydrator->dataFromRequest($request, true);
         } catch (LocationDraftHydrationException $exception) {
             return $this->errorResponse($request, $exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -198,7 +190,7 @@ final class QuickDestinationController extends AbstractController
     private function createQuickCityVisitFromCommune(Request $request): Response
     {
         try {
-            $commune = $this->locationDraftHydrator->dataFromRequest($request);
+            $commune = $this->locationDraftHydrator->dataFromRequest($request, true);
         } catch (LocationDraftHydrationException $exception) {
             return $this->errorResponse($request, $exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
         }

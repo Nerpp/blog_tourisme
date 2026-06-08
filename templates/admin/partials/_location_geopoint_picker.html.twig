@@ -64,7 +64,7 @@
 {% set initial_longitude = initial_longitude|default('') %}
 {% set commune_center_latitude = commune_center_latitude|default('') %}
 {% set commune_center_longitude = commune_center_longitude|default('') %}
-{% set has_commune = initial_commune is not empty %}
+{% set has_commune = initial_commune is not empty and initial_insee is not empty %}
 {% set has_coordinates = initial_latitude is not empty and initial_longitude is not empty %}
 {% set has_commune_center = commune_center_latitude is not empty and commune_center_longitude is not empty %}
 {% set show_map = has_coordinates or (has_commune and has_commune_center) %}

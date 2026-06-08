@@ -265,7 +265,7 @@
             {% if not current_destination and quick_destination_allow_skip %}
                 <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>{{ quick_destination_skip_label }}</button>
             {% endif %}
-            <button class="{{ primary_button }}" type="submit">{{ quick_destination_submit_label ?: (is_preparation_flow ? 'Créer et utiliser cette destination' : (context_type and context_id ? 'Associer cette destination' : 'Créer la destination')) }}</button>
+            <button class="{{ primary_button }}" type="submit" data-quick-destination-submit>{{ quick_destination_submit_label ?: (is_preparation_flow ? 'Créer et utiliser cette destination' : (context_type and context_id ? 'Associer cette destination' : 'Créer la destination')) }}</button>
         </div>
     </form>
 
@@ -286,7 +286,9 @@
             const modeButtons = Array.from(container.querySelectorAll('[data-destination-mode]'));
             const panels = Array.from(container.querySelectorAll('[data-destination-panel]'));
             const modeFields = Array.from(container.querySelectorAll('[data-destination-mode-field]'));
-            const franceFields = Object.fromEntries(Array.from(container.querySelectorAll('[data-france-field]')).map((field) => [field.dataset.franceField, field]));
+            const datasetValue = (value) => String(value || '').trim().replace(/^['"]|['"]$/g, '');
+            const franceFields = Object.fromEntries(Array.from(container.querySelectorAll('[data-france-field]')).map((field) => [datasetValue(field.dataset.franceField), field]));
+            const submitButton = container.querySelector('[data-quick-destination-submit]');
 
             let activeMode = 'france';
 
@@ -307,12 +309,21 @@
                     panel.hidden = panel.dataset.destinationPanel !== mode;
                 });
                 modeFields.forEach((field) => {
-                    field.disabled = field.dataset.destinationModeField !== mode;
+                    field.disabled = datasetValue(field.dataset.destinationModeField) !== mode;
                 });
                 setStatus('');
+                syncSubmitState();
             };
 
-            const selectedCommune = () => (franceFields.cityName?.value || '').trim() !== '';
+            const selectedCommune = () => (franceFields.cityName?.value || '').trim() !== '' && (franceFields.code?.value || '').trim() !== '';
+
+            const syncSubmitState = () => {
+                if (!submitButton) {
+                    return;
+                }
+
+                submitButton.disabled = activeMode === 'france' && !selectedCommune();
+            };
 
             if (toggle && form) {
                 toggle.addEventListener('click', () => {
@@ -357,7 +368,7 @@
             }
 
             modeButtons.forEach((button) => {
-                button.addEventListener('click', () => setMode(button.dataset.destinationMode || 'france'));
+                button.addEventListener('click', () => setMode(datasetValue(button.dataset.destinationMode) || 'france'));
             });
 
             if (form) {
@@ -369,11 +380,29 @@
                 });
             }
 
+            Object.values(franceFields).forEach((field) => {
+                field.addEventListener('input', () => {
+                    if (selectedCommune()) {
+                        setStatus('');
+                    }
+
+                    syncSubmitState();
+                });
+                field.addEventListener('change', () => {
+                    if (selectedCommune()) {
+                        setStatus('');
+                    }
+
+                    syncSubmitState();
+                });
+            });
+
             if ((franceFields.countryName?.value || '').trim() === '' && (franceFields.cityName?.value || '').trim() !== '') {
                 franceFields.countryName.value = 'France';
             }
 
             setMode('france');
+            syncSubmitState();
         });
     })();
 </script>

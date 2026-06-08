@@ -35,7 +35,7 @@ final class LocationDraftHydrator
      *     gpsAccuracy: float|null
      * }
      */
-    public function dataFromRequest(Request $request): array
+    public function dataFromRequest(Request $request, bool $requireCommune = false): array
     {
         $communeName = $this->firstRequestValue($request, ['locationCommune', 'detectedCommuneName', 'cityName', 'commune']);
         $country = $this->firstRequestValue($request, ['locationCountry', 'countryName', 'country']) ?? 'France';
@@ -72,7 +72,7 @@ final class LocationDraftHydrator
             throw new LocationDraftHydrationException('Le point GPS doit contenir une latitude et une longitude valides.');
         }
 
-        return [
+        $data = [
             'communeName' => $communeName,
             'communeInseeCode' => $this->firstRequestValue($request, ['locationInseeCode', 'detectedCommuneCode', 'code', 'inseeCode'], 20),
             'postalCode' => $this->firstRequestValue($request, ['locationPostalCode', 'postalCode'], 20),
@@ -86,6 +86,12 @@ final class LocationDraftHydrator
             'longitude' => $longitude,
             'gpsAccuracy' => $this->positiveFloat($this->firstRequestValue($request, ['locationAccuracy', 'gpsAccuracy', 'accuracy']), 'La précision GPS'),
         ];
+
+        if ($requireCommune) {
+            $this->assertSelectedCommune($data);
+        }
+
+        return $data;
     }
 
     /** @param array<string, mixed> $data */
@@ -136,6 +142,14 @@ final class LocationDraftHydrator
             'longitude' => $longitude,
             'gpsAccuracy' => $this->positiveFloat($this->value($data, ['gpsAccuracy', 'accuracy', 'locationAccuracy']), 'La précision GPS'),
         ];
+    }
+
+    /** @param array<string, mixed> $data */
+    private function assertSelectedCommune(array $data): void
+    {
+        if ($this->stringValue($data['communeName'] ?? null) === null || $this->stringValue($data['communeInseeCode'] ?? null, 20) === null) {
+            throw new LocationDraftHydrationException('Sélectionnez une commune dans la liste avant de créer la visite.');
+        }
     }
 
     /** @param array<string, mixed> $data */

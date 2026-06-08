@@ -354,7 +354,8 @@
                 }
             }
         </style>
-        {% if app.environment != 'test' %}
+        {% set load_location_picker_assets = app.environment != 'test' or app.request.query.get('e2e_frontend_assets') == '1' %}
+        {% if load_location_picker_assets %}
             {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
         {% endif %}
     </head>
@@ -375,7 +376,7 @@
         </main>
 
         {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
-        {% if app.environment != 'test' %}
+        {% if load_location_picker_assets %}
             {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
         {% endif %}
         {% block scripts %}{% endblock %}
