@@ -4,6 +4,12 @@ const WATCH_OPTIONS = {
   timeout: 10000,
 };
 
+const TERRAIN_SUBMIT_GPS_OPTIONS = {
+  enableHighAccuracy: true,
+  maximumAge: 0,
+  timeout: 20000,
+};
+
 const coordinateValue = (value) => Number(value).toFixed(7);
 
 const accuracyValue = (value) => {
@@ -95,6 +101,185 @@ const validCoordinateValue = (value, min, max) => {
   const parsedValue = Number.parseFloat(String(value).replace(',', '.'));
 
   return Number.isFinite(parsedValue) && parsedValue >= min && parsedValue <= max;
+};
+
+const terrainSubmitErrorMessage = (error) => {
+  const code = Number(error?.code);
+  const permissionDenied = error?.PERMISSION_DENIED ?? 1;
+  const timeout = error?.TIMEOUT ?? 3;
+
+  if (code === permissionDenied) {
+    return {
+      kind: 'error',
+      message: 'La localisation est refusée. Autorisez l’accès GPS pour enregistrer ce point.',
+    };
+  }
+
+  if (code === timeout) {
+    return {
+      kind: 'warning',
+      message: 'La recherche GPS prend trop de temps. Réessayez depuis un endroit plus dégagé.',
+    };
+  }
+
+  return {
+    kind: 'error',
+    message: 'Impossible de récupérer la position GPS. Vérifiez que la localisation est autorisée sur votre téléphone.',
+  };
+};
+
+const submitButtonText = (button) => {
+  if (!button) {
+    return '';
+  }
+
+  if (button instanceof HTMLInputElement) {
+    return button.value;
+  }
+
+  return button.textContent.trim();
+};
+
+const setSubmitButtonText = (button, text) => {
+  if (!button || text === '') {
+    return;
+  }
+
+  if (button instanceof HTMLInputElement) {
+    button.value = text;
+    return;
+  }
+
+  button.textContent = text;
+};
+
+const setTerrainSubmitBusy = (form, submitButtons, activeButton, busy) => {
+  submitButtons.forEach((button) => {
+    if (!button.dataset.terrainGpsDefaultLabel) {
+      button.dataset.terrainGpsDefaultLabel = submitButtonText(button);
+    }
+
+    button.disabled = busy;
+    setSubmitButtonText(
+      button,
+      busy && button === activeButton
+        ? 'Recherche GPS en cours...'
+        : button.dataset.terrainGpsDefaultLabel
+    );
+  });
+
+  if (busy) {
+    form.setAttribute('aria-busy', 'true');
+    return;
+  }
+
+  form.removeAttribute('aria-busy');
+};
+
+const renderTerrainSubmitPosition = (position, fields, statusElement, coordinatesElement) => {
+  const latitude = coordinateValue(position.coords.latitude);
+  const longitude = coordinateValue(position.coords.longitude);
+  const accuracy = accuracyValue(position.coords.accuracy);
+
+  fields.latitude.value = latitude;
+  fields.longitude.value = longitude;
+  if (fields.accuracy) {
+    fields.accuracy.value = accuracy;
+  }
+
+  dispatchFieldEvents(fields.latitude);
+  dispatchFieldEvents(fields.longitude);
+  if (fields.accuracy) {
+    dispatchFieldEvents(fields.accuracy);
+  }
+
+  if (!validCoordinateValue(latitude, -90, 90) || !validCoordinateValue(longitude, -180, 180)) {
+    setStatus(statusElement, 'Impossible de récupérer la position GPS. Vérifiez que la localisation est autorisée sur votre téléphone.', 'error');
+    return false;
+  }
+
+  if (coordinatesElement) {
+    coordinatesElement.textContent = [
+      'Position trouvée :',
+      `Latitude : ${latitude}`,
+      `Longitude : ${longitude}`,
+      accuracy !== '' ? `Précision : environ ${accuracy} m` : 'Précision : indisponible',
+    ].join('\n');
+  }
+
+  setStatus(statusElement, 'Position trouvée, enregistrement...', 'success');
+
+  return true;
+};
+
+const submitTerrainGpsForm = (form) => {
+  HTMLFormElement.prototype.submit.call(form);
+};
+
+const initTerrainGpsSubmit = (form) => {
+  if (form.dataset.terrainGpsSubmitReady === 'true') {
+    return;
+  }
+
+  form.dataset.terrainGpsSubmitReady = 'true';
+
+  const fields = {
+    latitude: form.querySelector('[data-gps-latitude]'),
+    longitude: form.querySelector('[data-gps-longitude]'),
+    accuracy: form.querySelector('[data-gps-accuracy]'),
+  };
+  const statusElement = form.querySelector('[data-gps-status]');
+  const coordinatesElement = form.querySelector('[data-gps-coordinates]');
+  const submitButtons = Array.from(form.querySelectorAll('[data-terrain-gps-submit], button[type="submit"], input[type="submit"]'));
+  const primarySubmitButton = form.querySelector('[data-terrain-gps-submit]') || submitButtons[0] || null;
+
+  if (!fields.latitude || !fields.longitude || !primarySubmitButton) {
+    return;
+  }
+
+  let isResolving = false;
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    if (isResolving) {
+      return;
+    }
+
+    if (!navigator.geolocation || typeof navigator.geolocation.getCurrentPosition !== 'function') {
+      setStatus(statusElement, 'Impossible de récupérer la position GPS. Vérifiez que la localisation est autorisée sur votre téléphone.', 'error');
+      return;
+    }
+
+    const submitter = submitButtons.includes(event.submitter) ? event.submitter : primarySubmitButton;
+    isResolving = true;
+    setTerrainSubmitBusy(form, submitButtons, submitter, true);
+    if (coordinatesElement) {
+      coordinatesElement.textContent = '';
+    }
+    setStatus(statusElement, 'Recherche GPS en cours... restez immobile quelques secondes.');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const canSubmit = renderTerrainSubmitPosition(position, fields, statusElement, coordinatesElement);
+
+        if (!canSubmit) {
+          isResolving = false;
+          setTerrainSubmitBusy(form, submitButtons, submitter, false);
+          return;
+        }
+
+        submitTerrainGpsForm(form);
+      },
+      (error) => {
+        const { message, kind } = terrainSubmitErrorMessage(error);
+        isResolving = false;
+        setTerrainSubmitBusy(form, submitButtons, submitter, false);
+        setStatus(statusElement, message, kind);
+      },
+      TERRAIN_SUBMIT_GPS_OPTIONS
+    );
+  });
 };
 
 const showSelectableText = (container, text) => {
@@ -378,6 +563,9 @@ export function initAdminHighPrecisionGps() {
   document
     .querySelectorAll('[data-high-precision-gps], [data-gps-form]')
     .forEach(initHighPrecisionGps);
+  document
+    .querySelectorAll('[data-terrain-gps-form]')
+    .forEach(initTerrainGpsSubmit);
 }
 
 initAdminHighPrecisionGps();

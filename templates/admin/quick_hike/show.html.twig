@@ -51,7 +51,7 @@
 
 		{% if not has_start_point %}
 			<section class="field-card">
-				<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form data-high-precision-gps>
+				<form class="field-stack field-stack--terrain-gps" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-terrain-gps-form>
 					<input type="hidden" name="quick_hike_point[_token]" value="{{ csrf_token('quick_hike_point_' ~ hike.id) }}">
 					<input type="hidden" name="quick_hike_point[type]" value="start" data-gps-type>
 					<input type="hidden" name="quick_hike_point[titlePoint]" value="Départ">
@@ -66,60 +66,42 @@
 
 					<p class="field-status" data-gps-status aria-live="polite"></p>
 					<p class="field-gps__coordinates" data-gps-coordinates></p>
-					<div class="field-actions">
-						<button class="field-button field-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
-						<button class="field-button field-button--neutral" type="button" data-gps-stop hidden>Arrêter la recherche</button>
-						<button class="field-button field-button--neutral" type="button" data-gps-copy hidden>Copier les coordonnées</button>
+					<button class="field-button field-button--primary-action" type="submit" data-terrain-gps-submit>Enregistrer le point de départ</button>
+				</form>
+			</section>
+		{% else %}
+			<section class="field-card">
+				<form class="field-stack field-stack--terrain-gps" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-terrain-gps-form>
+					<input type="hidden" name="quick_hike_point[_token]" value="{{ csrf_token('quick_hike_point_' ~ hike.id) }}">
+					<input type="hidden" name="quick_hike_point[latitude]" data-gps-latitude>
+					<input type="hidden" name="quick_hike_point[longitude]" data-gps-longitude>
+					<input type="hidden" name="quick_hike_point[accuracy]" data-gps-accuracy>
+
+					<div class="field-row">
+						<label class="field-label" for="quick_hike_point_type">Type de point</label>
+						<select id="quick_hike_point_type" class="field-select" name="quick_hike_point[type]" data-gps-type>
+							{% for value, label in interest_point_types %}
+								<option value="{{ value }}">{{ label }}</option>
+							{% endfor %}
+						</select>
 					</div>
-					<button class="field-button" type="submit">Enregistrer le point de départ</button>
+
+					<div class="field-row">
+						<label class="field-label" for="quick_hike_point_title">Nom du point</label>
+						<input id="quick_hike_point_title" class="field-input" type="text" name="quick_hike_point[titlePoint]" placeholder="Optionnel">
+					</div>
+
+					<div class="field-row">
+						<label class="field-label" for="quick_hike_point_note">Note rapide</label>
+						<textarea id="quick_hike_point_note" class="field-textarea" name="quick_hike_point[note]" placeholder="Optionnel"></textarea>
+					</div>
+
+					<p class="field-status" data-gps-status aria-live="polite"></p>
+					<p class="field-gps__coordinates" data-gps-coordinates></p>
+					<button class="field-button field-button--primary-action" type="submit" data-terrain-gps-submit>Ajouter le point d’intérêt</button>
 				</form>
 			</section>
 		{% endif %}
-
-        {% if hike.status.value == 'draft' and hike.finishedAt is not null %}
-    <section class="field-card">
-        <h2 class="field-subtitle">Sortie terrain terminée</h2>
-        <p>La randonnée est conservée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus dans le studio.</p>
-        <a class="field-button" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir le studio randonnée</a>
-    </section>
-{% endif %}
-
-		<section class="field-card">
-			<form class="field-stack" method="post" action="{{ path('admin_quick_hike_point', { id: hike.id }) }}" data-gps-form data-high-precision-gps>
-				<input type="hidden" name="quick_hike_point[_token]" value="{{ csrf_token('quick_hike_point_' ~ hike.id) }}">
-				<input type="hidden" name="quick_hike_point[latitude]" data-gps-latitude>
-				<input type="hidden" name="quick_hike_point[longitude]" data-gps-longitude>
-				<input type="hidden" name="quick_hike_point[accuracy]" data-gps-accuracy>
-
-				<div class="field-row">
-					<label class="field-label" for="quick_hike_point_type">Type de point</label>
-					<select id="quick_hike_point_type" class="field-select" name="quick_hike_point[type]" data-gps-type>
-						{% for value, label in interest_point_types %}
-							<option value="{{ value }}">{{ label }}</option>
-						{% endfor %}
-					</select>
-				</div>
-
-				<div class="field-row">
-					<label class="field-label" for="quick_hike_point_title">Nom du point</label>
-					<input id="quick_hike_point_title" class="field-input" type="text" name="quick_hike_point[titlePoint]" placeholder="Optionnel">
-				</div>
-
-				<div class="field-row">
-					<label class="field-label" for="quick_hike_point_note">Note rapide</label>
-					<textarea id="quick_hike_point_note" class="field-textarea" name="quick_hike_point[note]" placeholder="Optionnel"></textarea>
-				</div>
-
-				<p class="field-status" data-gps-status aria-live="polite"></p>
-				<p class="field-gps__coordinates" data-gps-coordinates></p>
-				<div class="field-actions">
-					<button class="field-button field-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
-					<button class="field-button field-button--neutral" type="button" data-gps-stop hidden>Arrêter la recherche</button>
-					<button class="field-button field-button--neutral" type="button" data-gps-copy hidden>Copier les coordonnées</button>
-				</div>
-				<button class="field-button" type="submit">Ajouter le point d’intérêt</button>
-			</form>
-		</section>
 
 		<form method="post" action="{{ path('admin_quick_hike_finish', { id: hike.id }) }}" onsubmit="return confirm('Terminer cette randonnée terrain ?');">
 			<input type="hidden" name="_token" value="{{ csrf_token('quick_hike_finish_' ~ hike.id) }}">
@@ -130,6 +112,14 @@
 			<input type="hidden" name="_token" value="{{ csrf_token('quick_hike_abandon_' ~ hike.id) }}">
 			<button class="field-button field-button--secondary" type="submit">Abandonner la session terrain</button>
 		</form>
+	{% endif %}
+
+	{% if hike.status.value == 'draft' and hike.finishedAt is not null %}
+		<section class="field-card">
+			<h2 class="field-subtitle">Sortie terrain terminée</h2>
+			<p>La randonnée est conservée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus dans le studio.</p>
+			<a class="field-button" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir le studio randonnée</a>
+		</section>
 	{% endif %}
 
 	<section class="field-card">
