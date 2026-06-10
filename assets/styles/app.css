@@ -31,13 +31,6 @@ img {
   max-width: 100%;
 }
 
-
-.user-chip span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .avatar {
   display: inline-grid;
   place-items: center;
