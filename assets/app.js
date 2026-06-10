@@ -1,4 +1,6 @@
 import './styles/app.css';
+import './styles/comments.css';
+import './styles/auth.css';
 import './styles/home.css';
 import './styles/navbar.css';
 import './styles/public-detail.css';
