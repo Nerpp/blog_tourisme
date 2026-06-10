@@ -121,10 +121,12 @@ const initLocationGeopointPicker = (root) => {
   const selectedCode = root.querySelector('[data-selected-commune-code], [data-commune-selection-code]');
   const selectedPostal = root.querySelector('[data-selected-commune-postal], [data-commune-selection-postal]');
   const editCommune = root.querySelector('[data-commune-edit]');
+  const defaultSearchStatus = searchStatus?.textContent || '';
 
   const defaultLatitude = coordinateValue(mapElement.dataset.defaultLatitude, -90, 90) ?? 42.6;
   const defaultLongitude = coordinateValue(mapElement.dataset.defaultLongitude, -180, 180) ?? 2.6;
   const defaultZoom = Number.parseInt(mapElement.dataset.defaultZoom ?? '9', 10) || 9;
+  const requiresCommuneForValidation = validateButton?.dataset.requireCommuneForValidation === '1';
 
   let markerPosition = null;
   let pendingSource = 'manual_map';
@@ -145,7 +147,7 @@ const initLocationGeopointPicker = (root) => {
 
   const setMapControls = () => {
     if (validateButton) {
-      validateButton.disabled = markerPosition === null;
+      validateButton.disabled = markerPosition === null || (requiresCommuneForValidation && !hasCommune());
     }
     if (centerButton) {
       centerButton.disabled = !hasCommuneCenter();
@@ -264,6 +266,26 @@ const initLocationGeopointPicker = (root) => {
     assign(fields.longitude, '');
     assign(fields.accuracy, '');
     updateCoordinateLinks();
+  };
+
+  const clearSearchState = () => {
+    if (searchAbortController) {
+      searchAbortController.abort();
+      searchAbortController = null;
+    }
+
+    requestIndex += 1;
+
+    if (searchInput) {
+      searchInput.value = '';
+    }
+
+    if (searchResults) {
+      searchResults.hidden = true;
+      searchResults.innerHTML = '';
+    }
+
+    text(searchStatus, defaultSearchStatus);
   };
 
   const communeLabel = (commune) => {
@@ -396,6 +418,11 @@ const initLocationGeopointPicker = (root) => {
   };
 
   validateButton?.addEventListener('click', () => {
+    if (requiresCommuneForValidation && !hasCommune()) {
+      text(mapStatus, 'Sélectionnez une commune avant de valider la localisation.');
+      return;
+    }
+
     if (!markerPosition) {
       text(mapStatus, 'Choisissez un point sur la carte avant de valider.');
       return;
@@ -413,6 +440,11 @@ const initLocationGeopointPicker = (root) => {
 
     updateCoordinateLinks();
     text(mapStatus, 'Point validé sur la carte.');
+
+    const submitFormId = validateButton.dataset.validateSubmitForm;
+    if (submitFormId) {
+      document.getElementById(submitFormId)?.requestSubmit();
+    }
   });
 
   centerButton?.addEventListener('click', () => {
@@ -468,6 +500,7 @@ const initLocationGeopointPicker = (root) => {
   fields.longitude?.addEventListener('input', updateCoordinateLinks);
   searchInput?.addEventListener('input', () => searchCommunes(searchInput.value.trim()));
   editCommune?.addEventListener('click', () => {
+    clearSearchState();
     assign(fields.type, 'city');
     assign(fields.name, '');
     assign(fields.area, '');
@@ -480,6 +513,9 @@ const initLocationGeopointPicker = (root) => {
     assign(fields.country, '');
     assign(fields.communeCenterLatitude, '', false);
     assign(fields.communeCenterLongitude, '', false);
+    clearValidatedCoordinates();
+    hideMap();
+    text(mapStatus, 'Sélectionnez une nouvelle commune pour afficher la carte.');
     searchWrapper?.removeAttribute('hidden');
     selectedPanel?.setAttribute('hidden', '');
     searchInput?.focus();

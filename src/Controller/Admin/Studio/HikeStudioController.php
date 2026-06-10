@@ -462,7 +462,6 @@ final class HikeStudioController extends AbstractController
         $pointTargetOptions = $this->pointTargetOptions($hikeDraft);
         $mediaPointTargets = $pointMediaEnabled ? $this->mediaPointTargetMap($hikeDraft) : [];
         $destinations = $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']);
-        $destinationLocationBadges = $this->destinationLocationBadgesById($destinations);
         $generalMediaLinks = array_values(array_filter($mediaLinks, static function (HikeDraftMedia $link) use ($mediaPointTargets): bool {
             $mediaId = $link->getMediaAsset()?->getId();
 
@@ -474,12 +473,12 @@ final class HikeStudioController extends AbstractController
             'hike' => $hikeDraft,
             'destinations' => $destinations,
             'location_badges' => $this->hikeLocationBadges($hikeDraft),
-            'destination_location_badges' => $destinationLocationBadges,
             'destination_type_options' => $this->destinationTypeOptions(),
             'destination_parent_options' => $destinations,
             'destination_quick_create' => $this->destinationQuickCreateData($hikeDraft),
             'current_destination_edit' => $this->currentDestinationEditData($hikeDraft),
             'location_picker_data' => $this->locationPickerData($hikeDraft),
+            'current_location_point' => $this->currentLocationPoint($hikeDraft),
             'google_maps_url' => $this->generateGoogleMapsUrl($hikeDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
@@ -516,16 +515,25 @@ final class HikeStudioController extends AbstractController
         }
 
         $destinationId = $this->nullableInt($request->request->get('destination'));
+        $hasSelectedCommune = $this->requestHasSelectedCommune($request);
         $status = HikeDraftStatus::tryFrom($request->request->getString('status')) ?? $hikeDraft->getStatus();
         $hikeDraft
             ->setStatus($status)
-            ->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null)
             ->setNotes($this->nullIfBlank($request->request->getString('notes')));
 
-        $this->locationDraftHydrator->hydrateHikeDraft(
-            $hikeDraft,
-            $this->locationDraftHydrator->dataFromRequest($request),
-        );
+        if ($hasSelectedCommune) {
+            $this->locationDraftHydrator->hydrateHikeDraft(
+                $hikeDraft,
+                $this->locationDraftHydrator->dataFromRequest($request),
+            );
+
+            $geographicDestination = $hikeDraft->getGeographicDestination();
+            if ($geographicDestination instanceof Destination) {
+                $hikeDraft->setDestination($geographicDestination);
+            }
+        } else {
+            $hikeDraft->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null);
+        }
 
         if ($this->isPublicStatus($status) && $hikeDraft->getFinishedAt() === null) {
             $hikeDraft->setFinishedAt(new DateTimeImmutable());
@@ -547,24 +555,6 @@ final class HikeStudioController extends AbstractController
         if ($report['errorCount'] > 0) {
             $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
         }
-    }
-
-    /**
-     * @param list<Destination> $destinations
-     *
-     * @return array<int, list<string>>
-     */
-    private function destinationLocationBadgesById(array $destinations): array
-    {
-        $badgesById = [];
-        foreach ($destinations as $destination) {
-            $id = $destination->getId();
-            if ($id !== null) {
-                $badgesById[$id] = $this->destinationLocationBadges($destination);
-            }
-        }
-
-        return $badgesById;
     }
 
     /** @return list<string> */
@@ -598,6 +588,14 @@ final class HikeStudioController extends AbstractController
         }
 
         return $badges;
+    }
+
+    private function requestHasSelectedCommune(Request $request): bool
+    {
+        $commune = trim($request->request->getString('detectedCommuneName'));
+        $insee = trim($request->request->getString('detectedCommuneCode'));
+
+        return $commune !== '' && $insee !== '';
     }
 
     /** @return array<string, string> */
@@ -840,8 +838,10 @@ final class HikeStudioController extends AbstractController
     /** @return array<string, float|string|null> */
     private function locationPickerData(HikeDraft $hikeDraft): array
     {
-        $point = $this->primaryLocationPoint($hikeDraft);
         $geographicDestination = $hikeDraft->getGeographicDestination();
+        $hasManualLocation = $geographicDestination instanceof Destination
+            || (($hikeDraft->getDetectedCommuneName() ?? '') !== '' && ($hikeDraft->getDetectedCommuneCode() ?? '') !== '');
+        $point = $hasManualLocation ? $this->primaryLocationPoint($hikeDraft) : null;
 
         return [
             'country' => 'France',
@@ -869,6 +869,11 @@ final class HikeStudioController extends AbstractController
         }
 
         return $points[0] ?? null;
+    }
+
+    private function currentLocationPoint(HikeDraft $hikeDraft): ?HikePoint
+    {
+        return $this->primaryLocationPoint($hikeDraft);
     }
 
     private function departmentCodeFromDestination(?Destination $destination): ?string

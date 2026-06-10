@@ -81,7 +81,7 @@ final class CityVisitStudioController extends AbstractController
             if (!$this->isCsrfTokenValid('studio_city_visit_edit_' . $cityVisitDraft->getId(), (string) $request->request->get('_token'))) {
                 $this->addFlash('error', 'Le formulaire a expiré. Réessayez.');
 
-                return $this->redirectToStudio($cityVisitDraft);
+                return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
             }
 
             $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
@@ -91,7 +91,7 @@ final class CityVisitStudioController extends AbstractController
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
 
-                return $this->redirectToStudio($cityVisitDraft);
+                return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
             }
 
             $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
@@ -102,7 +102,7 @@ final class CityVisitStudioController extends AbstractController
 
             $this->addFlash('success', 'La visite de ville rapide a été enregistrée.');
 
-            return $this->redirectToStudio($cityVisitDraft);
+            return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
         }
 
         return $this->renderStudio($cityVisitDraft);
@@ -406,27 +406,44 @@ final class CityVisitStudioController extends AbstractController
         }
 
         $destinationId = $this->nullableInt($request->request->get('destination'));
-        $destination = $destinationId !== null ? $this->destinationRepository->find($destinationId) : null;
+        $hasSelectedCommune = $this->requestHasSelectedCommune($request);
         $notes = $this->nullIfBlank($request->request->getString('notes'));
         $status = CityVisitDraftStatus::tryFrom($request->request->getString('status')) ?? $cityVisitDraft->getStatus();
 
         $cityVisitDraft
             ->setStatus($status)
-            ->setDestination($destination)
             ->setNotes($notes);
 
-        $this->locationDraftHydrator->hydrateCityVisitDraft(
-            $cityVisitDraft,
-            $this->locationDraftHydrator->dataFromRequest($request),
-        );
+        if ($hasSelectedCommune) {
+            $this->locationDraftHydrator->hydrateCityVisitDraft(
+                $cityVisitDraft,
+                $this->locationDraftHydrator->dataFromRequest($request),
+            );
+
+            $geographicDestination = $cityVisitDraft->getGeographicDestination();
+            if ($geographicDestination instanceof Destination) {
+                $cityVisitDraft->setDestination($geographicDestination);
+            }
+        } else {
+            $cityVisitDraft->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null);
+        }
 
         if ($this->isPublicStatus($status) && $cityVisitDraft->getFinishedAt() === null) {
             $cityVisitDraft->setFinishedAt(new DateTimeImmutable());
         }
 
-        if ($destination !== null) {
+        $destination = $cityVisitDraft->getDestination();
+        if ($destination instanceof Destination) {
             $destination->setDescription($notes);
         }
+    }
+
+    private function requestHasSelectedCommune(Request $request): bool
+    {
+        $commune = trim($request->request->getString('detectedCommuneName'));
+        $insee = trim($request->request->getString('detectedCommuneCode'));
+
+        return $commune !== '' && $insee !== '';
     }
 
     private function isPublicStatus(CityVisitDraftStatus $status): bool
@@ -868,8 +885,30 @@ final class CityVisitStudioController extends AbstractController
         ]);
     }
 
-    private function redirectToStudio(CityVisitDraft $cityVisitDraft): RedirectResponse
+    private function redirectToStudio(CityVisitDraft $cityVisitDraft, ?string $anchor = null): RedirectResponse
     {
-        return $this->redirectToRoute('admin_studio_city_visit_edit', ['id' => $cityVisitDraft->getId()]);
+        $parameters = ['id' => $cityVisitDraft->getId()];
+        if ($this->isSafeRedirectAnchor($anchor)) {
+            $parameters['_fragment'] = $anchor;
+        }
+
+        return $this->redirectToRoute('admin_studio_city_visit_edit', $parameters);
+    }
+
+    private function redirectToStudioAfterRequest(CityVisitDraft $cityVisitDraft, Request $request, ?string $fallbackAnchor = null): RedirectResponse
+    {
+        return $this->redirectToStudio($cityVisitDraft, $this->redirectAnchorFromRequest($request) ?? $fallbackAnchor);
+    }
+
+    private function redirectAnchorFromRequest(Request $request): ?string
+    {
+        $anchor = $request->request->get('_redirect_anchor');
+
+        return is_string($anchor) && $this->isSafeRedirectAnchor($anchor) ? $anchor : null;
+    }
+
+    private function isSafeRedirectAnchor(?string $anchor): bool
+    {
+        return is_string($anchor) && preg_match('/^[a-zA-Z0-9_-]+$/', $anchor) === 1;
     }
 }

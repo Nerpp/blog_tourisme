@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\Destination;
+use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 
 final class HikeStudioControllerTest extends FunctionalTestCase
@@ -40,6 +41,24 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testStudioHeaderSeparatesEditorialDestinationAndMissingGeographicLocation(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $editorialDestination = $this->createDestination('Llo studio editorial');
+        $hike = $this->createHikeDraft($admin, $editorialDestination);
+        $client->loginUser($admin);
+
+        $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Destination éditoriale');
+        self::assertSelectorTextContains('body', 'Llo studio editorial');
+        self::assertSelectorTextContains('body', 'Localisation géographique');
+        self::assertSelectorTextContains('body', 'Localisation géographique non associée');
+        self::assertStringNotContainsString('Destination non associée', $client->getResponse()->getContent() ?: '');
+    }
+
     public function testVerifiedAdminCanEditHikeWithGeographicCommuneOnly(): void
     {
         $client = static::createClient();
@@ -67,9 +86,9 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         $hike = $this->refresh($hike);
         self::assertSame($title, $hike->getTitle());
         self::assertSame(HikeDraftStatus::Finished, $hike->getStatus());
-        self::assertNull($hike->getDestination());
         self::assertInstanceOf(Destination::class, $hike->getGeographicDestination());
         self::assertSame('66053', $hike->getGeographicDestination()->getCode());
+        self::assertSame($hike->getGeographicDestination()->getId(), $hike->getDestination()?->getId());
         self::assertNotNull($hike->getFinishedAt());
     }
 
@@ -138,9 +157,9 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
         $hike = $this->refresh($hike);
         $point = $this->refresh($point);
-        self::assertNull($hike->getDestination());
         self::assertInstanceOf(Destination::class, $hike->getGeographicDestination());
         self::assertSame('66053', $hike->getGeographicDestination()->getCode());
+        self::assertSame($hike->getGeographicDestination()->getId(), $hike->getDestination()?->getId());
         self::assertSame(42.52505, $hike->getGeographicDestination()->getLatitude());
         self::assertSame(42.526, $point->getLatitude());
         self::assertSame(3.084, $point->getLongitude());
@@ -174,5 +193,231 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         $point = $this->refresh($point);
         self::assertSame(42.44, $point->getLatitude());
         self::assertSame(2.44, $point->getLongitude());
+    }
+
+    public function testStudioHikeSaveWithoutSelectedCommuneDoesNotReplaceGeographicLocationOrPoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $country = $this->createDestination('France keep geo', DestinationType::Country, null, 'FR');
+        $region = $this->createDestination('Occitanie keep geo', DestinationType::Region, $country, '76');
+        $department = $this->createDestination('Pyrenees-Orientales keep geo', DestinationType::Department, $region, '66');
+        $geographicDestination = $this->createDestination('Ceret keep geo', DestinationType::City, $department, '66049');
+        $editorialDestination = $this->createDestination('Llo keep editorial', DestinationType::City, $department, '66100');
+        $hike = $this->createHikeDraft($admin, $editorialDestination);
+        $hike
+            ->setGeographicDestination($geographicDestination)
+            ->setDetectedCommuneName('Ceret keep geo')
+            ->setDetectedCommuneCode('66049')
+            ->setDetectedDepartmentName('Pyrenees-Orientales keep geo')
+            ->setDetectedRegionName('Occitanie keep geo');
+        $point = $this->createHikePoint($hike, 42.44, 2.44);
+        $this->persistAndFlush($hike);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $hike->getTitle(),
+            'destination' => (string) $editorialDestination->getId(),
+            'status' => HikeDraftStatus::Draft->value,
+            'detectedCommuneName' => '',
+            'detectedCommuneCode' => '',
+            'detectedDepartmentName' => '',
+            'detectedRegionName' => '',
+            'locationLatitude' => '43.0000000',
+            'locationLongitude' => '3.0000000',
+            'notes' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $hike = $this->refresh($hike);
+        $point = $this->refresh($point);
+        self::assertSame($geographicDestination->getId(), $hike->getGeographicDestination()?->getId());
+        self::assertSame('Ceret keep geo', $hike->getDetectedCommuneName());
+        self::assertSame(42.44, $point->getLatitude());
+        self::assertSame(2.44, $point->getLongitude());
+        self::assertSame($editorialDestination->getId(), $hike->getDestination()?->getId());
+    }
+
+    public function testStudioManualLocationValidationUpdatesEditorialAndGeographicDestination(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $country = $this->createDestination('France studio geo', DestinationType::Country, null, 'FR');
+        $region = $this->createDestination('Occitanie studio geo', DestinationType::Region, $country, '76');
+        $department = $this->createDestination('Pyrenees-Orientales studio geo', DestinationType::Department, $region, '66');
+        $suggestedCommuneCode = strtoupper(substr($this->uniqueToken('calce'), 0, 18));
+        $manualCommuneCode = strtoupper(substr($this->uniqueToken('prades'), 0, 18));
+        $manualCommune = $this->createDestination('Prades studio manuel', DestinationType::City, $department, $manualCommuneCode);
+        $editorialDestination = $this->createDestination('Llo studio destination', DestinationType::City, $department, '66100');
+        $hike = $this->createHikeDraft($admin, $editorialDestination);
+        $point = $this->createHikePoint($hike, 42.7584, 2.7538);
+        $point
+            ->setDetectedCommuneName('Calce studio geo')
+            ->setDetectedCommuneCode($suggestedCommuneCode)
+            ->setDetectedDepartmentName('Pyrenees-Orientales studio geo')
+            ->setDetectedRegionName('Occitanie studio geo')
+            ->setAccuracy(1635.0);
+        $this->persistAndFlush($point);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Aucune localisation géographique enregistrée');
+        self::assertSelectorTextContains('body', 'Point GPS actuellement enregistré');
+        self::assertSelectorTextContains('body', 'Valider la commune et le point GPS');
+        self::assertSelectorTextContains('body', 'Vérifier dans Google Maps');
+        self::assertSame('', $this->inputValue($crawler, '#hike-commune'));
+        self::assertSame('', $this->inputValue($crawler, '#hike-commune-code'));
+        self::assertSame('', $this->inputValue($crawler, '#hike-location-latitude'));
+        self::assertSame('', $this->inputValue($crawler, '#hike-location-longitude'));
+        self::assertGreaterThan(0, $crawler->filter('[data-validate-point][disabled]')->count());
+        self::assertStringNotContainsString('Suggestion détectée depuis les points GPS', $client->getResponse()->getContent() ?: '');
+        self::assertStringNotContainsString('Utiliser Calce studio geo comme localisation géographique', $client->getResponse()->getContent() ?: '');
+        self::assertStringNotContainsString('Ouvrir dans OpenStreetMap', $client->getResponse()->getContent() ?: '');
+
+        $hikeTitle = $hike->getTitle();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $hikeTitle,
+            'destination' => (string) $editorialDestination->getId(),
+            'status' => HikeDraftStatus::Finished->value,
+            'detectedCommuneName' => 'Prades studio manuel',
+            'detectedCommuneCode' => $manualCommuneCode,
+            'detectedDepartmentName' => 'Pyrenees-Orientales studio geo',
+            'detectedRegionName' => 'Occitanie studio geo',
+            'locationCountry' => 'France',
+            'locationDepartmentCode' => '66',
+            'communeCenterLatitude' => '42.6170000',
+            'communeCenterLongitude' => '2.4210000',
+            'locationLatitude' => '42.6195000',
+            'locationLongitude' => '2.4245000',
+            'locationAccuracy' => '',
+            'notes' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $hike = $this->refresh($hike);
+        $point = $this->refresh($point);
+        self::assertSame($manualCommune->getId(), $hike->getGeographicDestination()?->getId());
+        self::assertSame($manualCommune->getId(), $hike->getDestination()?->getId());
+        self::assertNotSame($editorialDestination->getId(), $hike->getDestination()?->getId());
+        self::assertSame('Prades studio manuel', $hike->getDetectedCommuneName());
+        self::assertSame($manualCommuneCode, $hike->getDetectedCommuneCode());
+        self::assertSame('Pyrenees-Orientales studio geo', $hike->getDetectedDepartmentName());
+        self::assertSame('Occitanie studio geo', $hike->getDetectedRegionName());
+        self::assertNotSame(42.7584, $point->getLatitude());
+        self::assertNotSame(2.7538, $point->getLongitude());
+        self::assertSame(42.6195, $point->getLatitude());
+        self::assertSame(2.4245, $point->getLongitude());
+        self::assertNull($point->getAccuracy());
+        self::assertSame('Prades studio manuel', $point->getDetectedCommuneName());
+        self::assertSame($manualCommuneCode, $point->getDetectedCommuneCode());
+
+        $client->followRedirect();
+        self::assertSelectorTextContains('body', 'Destination éditoriale');
+        self::assertSelectorTextContains('body', 'Localisation géographique');
+        self::assertSelectorTextContains('body', 'Prades studio manuel');
+        self::assertSelectorTextContains('body', 'Point GPS actuellement enregistré');
+        self::assertSelectorTextContains('body', '42.6195000');
+        self::assertSelectorTextContains('body', '2.4245000');
+
+        $client->request('GET', sprintf('/destinations/%s', $manualCommune->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', $hikeTitle);
+
+        $client->request('GET', sprintf('/destinations/%s', $editorialDestination->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString($hikeTitle, $client->getResponse()->getContent() ?: '');
+    }
+
+    public function testStudioManualLocationValidationReplacesExistingCommuneAndPoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $country = $this->createDestination('France studio replace', DestinationType::Country, null, 'FR');
+        $region = $this->createDestination('Occitanie studio replace', DestinationType::Region, $country, '76');
+        $herault = $this->createDestination('Herault studio replace', DestinationType::Department, $region, '34');
+        $aude = $this->createDestination('Aude studio replace', DestinationType::Department, $region, '11');
+        $beziersCode = '34'.(string) random_int(100, 999);
+        $narbonneCode = '11'.(string) random_int(100, 999);
+        $beziers = $this->createDestination('Beziers studio replace', DestinationType::City, $herault, $beziersCode);
+        $narbonne = $this->createDestination('Narbonne studio replace', DestinationType::City, $aude, $narbonneCode);
+        $hike = $this->createHikeDraft($admin, $beziers);
+        $hike
+            ->setGeographicDestination($beziers)
+            ->setDetectedCommuneName('Beziers studio replace')
+            ->setDetectedCommuneCode($beziersCode)
+            ->setDetectedDepartmentName('Herault studio replace')
+            ->setDetectedRegionName('Occitanie studio replace');
+        $point = $this->createHikePoint($hike, 43.3442, 3.2158);
+        $point
+            ->setDetectedCommuneName('Beziers studio replace')
+            ->setDetectedCommuneCode($beziersCode)
+            ->setDetectedDepartmentName('Herault studio replace')
+            ->setDetectedRegionName('Occitanie studio replace')
+            ->setAccuracy(7.0);
+        $this->persistAndFlush($hike, $point);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Destination éditoriale');
+        self::assertSelectorTextContains('body', 'Beziers studio replace');
+        self::assertSelectorTextContains('body', 'Localisation géographique');
+        self::assertSame('Beziers studio replace', $this->inputValue($crawler, '#hike-commune'));
+        self::assertSame($beziersCode, $this->inputValue($crawler, '#hike-commune-code'));
+        self::assertSame('43.3442', $this->inputValue($crawler, '#hike-location-latitude'));
+        self::assertSame('3.2158', $this->inputValue($crawler, '#hike-location-longitude'));
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $hike->getTitle(),
+            'destination' => (string) $beziers->getId(),
+            'status' => HikeDraftStatus::Draft->value,
+            'detectedCommuneName' => 'Narbonne studio replace',
+            'detectedCommuneCode' => $narbonneCode,
+            'detectedDepartmentName' => 'Aude studio replace',
+            'detectedRegionName' => 'Occitanie studio replace',
+            'locationCountry' => 'France',
+            'locationDepartmentCode' => '11',
+            'communeCenterLatitude' => '43.1843000',
+            'communeCenterLongitude' => '3.0031000',
+            'locationLatitude' => '43.1838000',
+            'locationLongitude' => '3.0042000',
+            'locationAccuracy' => '12',
+            'notes' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $hike = $this->refresh($hike);
+        $point = $this->refresh($point);
+        self::assertSame($narbonne->getId(), $hike->getDestination()?->getId());
+        self::assertSame($narbonne->getId(), $hike->getGeographicDestination()?->getId());
+        self::assertNotSame($beziers->getId(), $hike->getDestination()?->getId());
+        self::assertSame('Narbonne studio replace', $hike->getDetectedCommuneName());
+        self::assertSame($narbonneCode, $hike->getDetectedCommuneCode());
+        self::assertSame('Aude studio replace', $hike->getDetectedDepartmentName());
+        self::assertSame('Occitanie studio replace', $hike->getDetectedRegionName());
+        self::assertSame(43.1838, $point->getLatitude());
+        self::assertSame(3.0042, $point->getLongitude());
+        self::assertSame(12.0, $point->getAccuracy());
+        self::assertSame('Narbonne studio replace', $point->getDetectedCommuneName());
+        self::assertSame($narbonneCode, $point->getDetectedCommuneCode());
+
+        $crawler = $client->followRedirect();
+        self::assertSelectorTextContains('body', 'Destination éditoriale');
+        self::assertSelectorTextContains('body', 'Narbonne studio replace');
+        self::assertSelectorTextContains('body', 'Localisation géographique');
+        self::assertSelectorTextContains('body', '43.1838000');
+        self::assertSelectorTextContains('body', '3.0042000');
+        self::assertSame('Narbonne studio replace', $this->inputValue($crawler, '#hike-commune'));
+        self::assertSame($narbonneCode, $this->inputValue($crawler, '#hike-commune-code'));
+        self::assertSame('43.1838', $this->inputValue($crawler, '#hike-location-latitude'));
+        self::assertSame('3.0042', $this->inputValue($crawler, '#hike-location-longitude'));
     }
 }

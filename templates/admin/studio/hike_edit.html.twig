@@ -5,7 +5,8 @@
 {% set main_form_id = 'studio-hike-main-form' %}
 
 {% block stylesheets %}
-    {% if app.environment != 'test' %}
+    {% set load_location_picker_assets = app.environment != 'test' or app.request.query.get('e2e_frontend_assets') == '1' %}
+    {% if load_location_picker_assets %}
         {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
     {% endif %}
     <style>
@@ -15,6 +16,9 @@
         .studio-eyebrow { margin: 0 0 4px; color: var(--admin-muted); font-size: .82rem; font-weight: 800; text-transform: uppercase; }
         .studio-title { margin: 0; font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.1; }
         .studio-meta, .studio-actions, .studio-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .studio-status-list { display: grid; gap: 8px; margin-top: 12px; }
+        .studio-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .studio-status-label { color: var(--admin-muted); font-size: .82rem; font-weight: 850; text-transform: uppercase; }
         .studio-actions { justify-content: flex-end; }
         .studio-badge { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 9px; border-radius: 999px; background: var(--admin-primary-soft); color: var(--admin-primary); font-size: .85rem; font-weight: 800; }
         .studio-badge--muted { background: #eef0ee; color: var(--admin-muted); }
@@ -99,13 +103,26 @@
             <div>
                 <p class="studio-eyebrow">Studio randonnée rapide</p>
                 <h1 class="studio-title">{{ hike.title }}</h1>
-                <div class="studio-meta" data-hike-location-badges data-empty-label="Destination non associée">
-                    <span class="studio-badge">{{ status_options[hike.status.value] ?? hike.status.value }}</span>
-                    {% for location_badge in location_badges %}
-                        <span class="studio-badge studio-badge--muted" data-location-badge>{{ location_badge }}</span>
-                    {% else %}
-                        <span class="studio-badge studio-badge--muted" data-location-badge>Destination non associée</span>
-                    {% endfor %}
+                <div class="studio-status-list">
+                    <div class="studio-status-row">
+                        <span class="studio-badge">{{ status_options[hike.status.value] ?? hike.status.value }}</span>
+                    </div>
+                    <div class="studio-status-row">
+                        <span class="studio-status-label">Destination éditoriale</span>
+                        {% if hike.destination %}
+                            <span class="studio-badge">{{ hike.destination.name }}</span>
+                        {% else %}
+                            <span class="studio-badge studio-badge--muted">Destination éditoriale non associée</span>
+                        {% endif %}
+                    </div>
+                    <div class="studio-status-row">
+                        <span class="studio-status-label">Localisation géographique</span>
+                        {% for location_badge in location_badges %}
+                            <span class="studio-badge studio-badge--muted">{{ location_badge }}</span>
+                        {% else %}
+                            <span class="studio-badge studio-badge--muted">Localisation géographique non associée</span>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
             <div class="studio-actions">
@@ -141,23 +158,52 @@
                     </select>
                 </div>
                 <div class="studio-field">
-                    <label for="hike-destination">Destination associée</label>
+                    <label for="hike-destination">Destination éditoriale</label>
                     <select form="{{ main_form_id }}" id="hike-destination" name="destination">
                         <option value="">Non associée</option>
                         {% for destination in destinations %}
                             <option
                                 value="{{ destination.id }}"
-                                data-location-badges="{{ destination_location_badges[destination.id]|default([])|json_encode|e('html_attr') }}"
                                 {% if hike.destination and hike.destination.id == destination.id %}selected{% endif %}
                             >{{ destination.name }} · {{ destination.type.value }}</option>
                         {% endfor %}
                     </select>
+                    <span class="studio-help">Optionnelle : elle classe éditorialement la randonnée et ne remplace pas la commune géographique.</span>
                 </div>
                 <div class="studio-field studio-field--full">
                     <label for="hike-notes">Notes</label>
                     <textarea form="{{ main_form_id }}" id="hike-notes" name="notes" rows="8">{{ hike.notes }}</textarea>
                 </div>
             </div>
+            <section class="quick-destination" aria-labelledby="hike-current-location-title">
+                <div class="quick-destination__header">
+                    <div>
+                        <h2 id="hike-current-location-title" class="quick-destination__title">Localisation actuellement enregistrée</h2>
+                        {% if hike.geographicDestination %}
+                            <p class="quick-destination__text">
+                                <strong>{{ hike.geographicDestination.name }}</strong>
+                                {% if hike.geographicDestination.code %} — Code INSEE : {{ hike.geographicDestination.code }}{% endif %}
+                            </p>
+                        {% else %}
+                            <p class="quick-destination__text">Aucune localisation géographique enregistrée.</p>
+                        {% endif %}
+
+                        {% if current_location_point %}
+                            <p class="quick-destination__text">
+                                Point GPS actuellement enregistré :
+                                {{ current_location_point.latitude|number_format(7, '.', '') }},
+                                {{ current_location_point.longitude|number_format(7, '.', '') }}
+                                {% if current_location_point.accuracy is not null %} — précision {{ current_location_point.accuracy|number_format(0, '.', ' ') }} m{% endif %}
+                            </p>
+                            <div class="quick-destination__actions">
+                                <a class="admin-button admin-button--secondary" href="https://www.google.com/maps?q={{ current_location_point.latitude|number_format(7, '.', '') }},{{ current_location_point.longitude|number_format(7, '.', '') }}" target="_blank" rel="noopener noreferrer">Vérifier dans Google Maps</a>
+                            </div>
+                        {% else %}
+                            <p class="quick-destination__text">Aucun point GPS principal enregistré.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
             {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
                 picker_id: 'studio-hike-location-' ~ hike.id,
                 ui_context: 'studio',
@@ -165,9 +211,13 @@
                 form_id: main_form_id,
                 row_class: 'studio-field',
                 input_class: '',
-                commune_title: 'Commune géographique',
+                commune_title: 'Localisation géographique',
                 point_title: 'Point GPS principal optionnel',
-                search_help: 'Recherchez une commune française. La région, le département et le code INSEE seront complétés sans modifier la destination éditoriale.',
+                search_help: 'Recherchez une commune française. La région, le département, le code INSEE et la destination éditoriale seront mis à jour à la validation.',
+                validate_button_label: 'Valider la commune et le point GPS',
+                validate_submit_form_id: main_form_id,
+                require_commune_for_validation: true,
+                show_osm_link: false,
                 fields: {
                     country: { name: 'locationCountry', value: location_picker_data.country },
                     region: { id: 'hike-region', name: 'detectedRegionName', value: location_picker_data.region, label: 'Région' },
@@ -197,6 +247,9 @@
             } only %}
             {% include 'admin/_quick_destination_form.html.twig' with {
                 ui_context: 'studio',
+                quick_destination_title: 'Destination éditoriale',
+                quick_destination_france_text: 'Choisissez ou créez une destination éditoriale. Elle reste optionnelle et ne modifie pas la localisation géographique.',
+                quick_destination_show_osm_link: false,
                 current_destination: hike.destination,
                 current_destination_edit: current_destination_edit,
                 current_destination_update_action: path('admin_studio_hike_destination_update', { id: hike.id }),
@@ -405,54 +458,10 @@
 
 {% block javascripts %}
     {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
-    {% if app.environment != 'test' %}
+    {% set load_location_picker_assets = app.environment != 'test' or app.request.query.get('e2e_frontend_assets') == '1' %}
+    {% if load_location_picker_assets %}
         {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
     {% endif %}
     {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
     {% include 'admin/studio/_studio_media_javascript.html.twig' %}
-    <script>
-        (() => {
-            const destinationSelect = document.querySelector('#hike-destination');
-            const badgeContainer = document.querySelector('[data-hike-location-badges]');
-
-            if (!destinationSelect || !badgeContainer) {
-                return;
-            }
-
-            const statusBadge = badgeContainer.querySelector('.studio-badge:not([data-location-badge])');
-            const emptyLabel = badgeContainer.dataset.emptyLabel || 'Destination non associée';
-
-            const renderBadges = (labels) => {
-                badgeContainer.querySelectorAll('[data-location-badge]').forEach((badge) => badge.remove());
-
-                const normalizedLabels = labels.length > 0 ? labels : [emptyLabel];
-                normalizedLabels.forEach((label) => {
-                    const badge = document.createElement('span');
-                    badge.className = 'studio-badge studio-badge--muted';
-                    badge.dataset.locationBadge = '';
-                    badge.textContent = label;
-                    badgeContainer.appendChild(badge);
-                });
-
-                if (statusBadge && statusBadge.parentElement !== badgeContainer) {
-                    badgeContainer.prepend(statusBadge);
-                }
-            };
-
-            destinationSelect.addEventListener('change', () => {
-                const selectedOption = destinationSelect.selectedOptions[0];
-                if (!selectedOption || !selectedOption.value) {
-                    renderBadges([]);
-
-                    return;
-                }
-
-                try {
-                    renderBadges(JSON.parse(selectedOption.dataset.locationBadges || '[]'));
-                } catch {
-                    renderBadges([selectedOption.textContent.trim()]);
-                }
-            });
-        })();
-    </script>
 {% endblock %}

@@ -6,8 +6,10 @@
 {% set hike = city_visit %}
 
 {% block body %}
+    {% set main_form_id = 'studio-city-visit-main-form' %}
     <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}"></form>
     <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_edit_' ~ city_visit.id) }}">
+    <input form="{{ main_form_id }}" type="hidden" name="_redirect_anchor" value="section-publication">
 
     <div class="studio-page">
         <section class="studio-hero">
@@ -35,7 +37,7 @@
             </div>
         </section>
 
-        <section class="studio-section">
+        <section id="section-publication" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Préparation visite</h2>
@@ -79,7 +81,10 @@
                 input_class: '',
                 commune_title: 'Commune géographique',
                 point_title: 'Point GPS principal optionnel',
-                search_help: 'Recherchez une commune française. La région, le département et le code INSEE seront complétés sans modifier la destination éditoriale.',
+                search_help: 'Recherchez une commune française. La région, le département, le code INSEE et la destination éditoriale seront mis à jour à la validation.',
+                validate_button_label: 'Valider la commune et le point GPS',
+                validate_submit_form_id: main_form_id,
+                require_commune_for_validation: true,
                 fields: {
                     country: { name: 'locationCountry', value: location_picker_data.country },
                     region: { id: 'city-visit-region', name: 'detectedRegionName', value: location_picker_data.region, label: 'Région' },

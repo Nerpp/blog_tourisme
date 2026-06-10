@@ -66,4 +66,45 @@ final class DestinationControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         self::assertStringNotContainsString('Randonnée seulement géographique', $client->getResponse()->getContent() ?: '');
     }
+
+    public function testPublicHikeUsesGeographicDestinationBeforeEditorialDestination(): void
+    {
+        $client = static::createClient();
+        $country = $this->createDestination('France priority geo', DestinationType::Country);
+        $region = $this->createDestination('Occitanie priority geo', DestinationType::Region, $country);
+        $department = $this->createDestination('Pyrenees-Orientales priority geo', DestinationType::Department, $region, '66');
+        $editorialCity = $this->createDestination('Llo priority editorial', DestinationType::City, $department, '66100');
+        $geographicCity = $this->createDestination('Calce priority geographic', DestinationType::City, $department, '66030');
+        $hike = $this->createPublishedHike($this->createUser(['ROLE_ADMIN', 'ROLE_USER']), $editorialCity);
+        $hike
+            ->setTitle('Randonnée priorité géographique')
+            ->setGeographicDestination($geographicCity);
+        $this->persistAndFlush($hike);
+
+        $client->request('GET', sprintf('/destinations/%s', $geographicCity->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Randonnée priorité géographique');
+
+        $client->request('GET', sprintf('/destinations/%s', $editorialCity->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString('Randonnée priorité géographique', $client->getResponse()->getContent() ?: '');
+    }
+
+    public function testPublicHikeFallsBackToEditorialDestinationWhenGeographicDestinationIsMissing(): void
+    {
+        $client = static::createClient();
+        $country = $this->createDestination('France fallback geo', DestinationType::Country);
+        $region = $this->createDestination('Occitanie fallback geo', DestinationType::Region, $country);
+        $department = $this->createDestination('Pyrenees-Orientales fallback geo', DestinationType::Department, $region, '66');
+        $editorialCity = $this->createDestination('Llo fallback editorial', DestinationType::City, $department, '66100');
+        $hike = $this->createPublishedHike($this->createUser(['ROLE_ADMIN', 'ROLE_USER']), $editorialCity);
+        $hike->setTitle('Randonnée fallback éditorial');
+        $this->persistAndFlush($hike);
+
+        $client->request('GET', sprintf('/destinations/%s', $editorialCity->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Randonnée fallback éditorial');
+    }
 }

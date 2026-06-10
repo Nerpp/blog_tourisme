@@ -1,9 +1,10 @@
 {% macro html_attrs(attrs) %}
     {%- for attr_name, attr_value in attrs -%}
         {%- if attr_value is same as(true) -%}
-            {{- ' ' ~ attr_name -}}
+            {{- (' ' ~ attr_name)|raw -}}
         {%- elseif attr_value is not same as(false) and attr_value is not null -%}
-            {{- ' ' ~ attr_name ~ '="' ~ attr_value|e('html_attr') ~ '"' -}}
+            {% set escaped_value = attr_value|e('html_attr') %}
+            {{- (' ' ~ attr_name ~ '="' ~ escaped_value ~ '"')|raw -}}
         {%- endif -%}
     {%- endfor -%}
 {% endmacro %}
@@ -31,10 +32,10 @@
         {% if visible %}
             <div class="{{ row_class }}">
                 <label for="{{ field_id }}">{{ field.label|default(key) }}</label>
-                <input class="{{ input_class }}" id="{{ field_id }}" type="{{ field_type }}" name="{{ field.name|default('') }}" value="{{ field.value|default('') }}"{{ location_picker.html_attrs(attrs) }}>
+                <input class="{{ input_class }}" id="{{ field_id }}" type="{{ field_type }}" name="{{ field.name|default('') }}" value="{{ field.value|default('') }}"{{ location_picker.html_attrs(attrs)|raw }}>
             </div>
         {% else %}
-            <input id="{{ field_id }}" type="{{ field_type }}" {% if field.name|default('') is not empty %}name="{{ field.name }}"{% endif %} value="{{ field.value|default('') }}"{{ location_picker.html_attrs(attrs) }}>
+            <input id="{{ field_id }}" type="{{ field_type }}" {% if field.name|default('') is not empty %}name="{{ field.name }}"{% endif %} value="{{ field.value|default('') }}"{{ location_picker.html_attrs(attrs)|raw }}>
         {% endif %}
     {% endif %}
 {% endmacro %}
@@ -64,6 +65,10 @@
 {% set initial_longitude = initial_longitude|default('') %}
 {% set commune_center_latitude = commune_center_latitude|default('') %}
 {% set commune_center_longitude = commune_center_longitude|default('') %}
+{% set validate_button_label = validate_button_label|default('Valider ce point') %}
+{% set validate_submit_form_id = validate_submit_form_id|default(null) %}
+{% set require_commune_for_validation = require_commune_for_validation|default(false) %}
+{% set show_osm_link = show_osm_link is defined ? show_osm_link : true %}
 {% set has_commune = initial_commune is not empty and initial_insee is not empty %}
 {% set has_coordinates = initial_latitude is not empty and initial_longitude is not empty %}
 {% set has_commune_center = commune_center_latitude is not empty and commune_center_longitude is not empty %}
@@ -262,7 +267,7 @@
 
         <div class="location-picker__point-tools">
             <div class="admin-row-actions field-actions">
-                <button class="{{ primary_button }}" type="button" data-validate-point {% if legacy_prefix == 'prevision' %}data-prevision-validate-point{% endif %} {% if not show_map %}disabled{% endif %}>Valider ce point</button>
+                <button class="{{ primary_button }}" type="button" data-validate-point {% if validate_submit_form_id %}data-validate-submit-form="{{ validate_submit_form_id }}"{% endif %} {% if require_commune_for_validation %}data-require-commune-for-validation="1"{% endif %} {% if legacy_prefix == 'prevision' %}data-prevision-validate-point{% endif %} {% if not show_map %}disabled{% endif %}>{{ validate_button_label }}</button>
                 <button class="{{ secondary_button }}" type="button" data-center-commune {% if legacy_prefix == 'prevision' %}data-prevision-center-commune{% endif %} {% if not has_commune_center %}disabled{% endif %}>Centrer sur la commune</button>
                 <button class="{{ secondary_button }}" type="button" data-location-gps {% if legacy_prefix == 'prevision' %}data-prevision-gps{% endif %}>Relever ma position GPS</button>
             </div>
@@ -281,7 +286,9 @@
 
         <div class="location-picker__links" data-map-links {% if legacy_prefix == 'prevision' %}data-prevision-map-links{% endif %} {% if not has_coordinates %}hidden{% endif %}>
             <a class="{{ secondary_button }} location-picker__link" href="{{ maps_url }}" target="_blank" rel="noopener noreferrer" data-map-link {% if legacy_prefix == 'prevision' %}data-prevision-maps-link{% endif %} {% if not has_coordinates %}aria-disabled="true"{% endif %}>Vérifier dans Maps</a>
-            <a class="{{ secondary_button }} location-picker__link" href="{{ osm_url }}" target="_blank" rel="noopener noreferrer" data-osm-link {% if legacy_prefix == 'prevision' %}data-prevision-osm-link{% endif %} {% if not has_coordinates %}aria-disabled="true"{% endif %}>Ouvrir dans OpenStreetMap</a>
+            {% if show_osm_link %}
+                <a class="{{ secondary_button }} location-picker__link" href="{{ osm_url }}" target="_blank" rel="noopener noreferrer" data-osm-link {% if legacy_prefix == 'prevision' %}data-prevision-osm-link{% endif %} {% if not has_coordinates %}aria-disabled="true"{% endif %}>Ouvrir dans OpenStreetMap</a>
+            {% endif %}
         </div>
     </section>
 {% if render_root %}

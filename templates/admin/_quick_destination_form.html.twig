@@ -215,7 +215,8 @@
                 initial_latitude: destination_quick_create.latitude|default(''),
                 initial_longitude: destination_quick_create.longitude|default(''),
                 commune_center_latitude: destination_quick_create.communeCenterLatitude|default(''),
-                commune_center_longitude: destination_quick_create.communeCenterLongitude|default('')
+                commune_center_longitude: destination_quick_create.communeCenterLongitude|default(''),
+                show_osm_link: quick_destination_show_osm_link is defined ? quick_destination_show_osm_link : true
             } only %}
         </section>
 
