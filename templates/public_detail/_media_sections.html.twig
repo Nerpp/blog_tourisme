@@ -647,10 +647,22 @@
                     >
                         Voir le parcours
                     </a>
+
+                    {% if valid_gps_points|length > 1 %}
+                        <a
+                            class="public-point-gps__button public-point-gps__button--secondary"
+                            href="{{ path('app_hike_gpx', { slug: item.slug }) }}"
+                        >
+                            Télécharger le GPX
+                        </a>
+                    {% endif %}
                 </div>
 
                 <p class="public-route-gps__notice">
                     Conseil : utilisez Google Maps pour rejoindre le départ, puis une carte adaptée à la randonnée ou le parcours affiché sur cette page pour suivre les étapes. En montagne, le réseau peut être limité.
+                    {% if valid_gps_points|length > 1 %}
+                        Le fichier GPX contient les étapes enregistrées. Il ne remplace pas une trace GPS complète.
+                    {% endif %}
                 </p>
             {% elseif gps_point_type and is_granted('GPS_ACCESS', gps_access_point) %}
                 <div class="public-route-gps__actions">
