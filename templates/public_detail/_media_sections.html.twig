@@ -5,6 +5,8 @@
 {% set immersive_gallery_links = [] %}
 {% set gps_point_type = gps_point_type|default(null) %}
 {% set valid_gps_points = [] %}
+{% set hike_map_points = [] %}
+{% set route_map_id = gallery_id ~ '-route-map' %}
 
 {% for mediaLink in item.mediaLinks %}
     {% set media = mediaLink.mediaAsset %}
@@ -27,6 +29,14 @@
 {% for point in item.points %}
     {% if point.latitude is not null and point.longitude is not null %}
         {% set valid_gps_points = valid_gps_points|merge([point]) %}
+        {% set hike_map_points = hike_map_points|merge([{
+            id: point.id,
+            position: point.position,
+            title: point.title ?: 'Étape ' ~ loop.index,
+            type: point.type.value,
+            latitude: point.latitude,
+            longitude: point.longitude
+        }]) %}
     {% endif %}
 {% endfor %}
 
@@ -617,7 +627,32 @@
         {% set gps_access_point = valid_gps_points|first %}
 
         <div class="public-route-gps">
-            {% if gps_point_type and is_granted('GPS_ACCESS', gps_access_point) %}
+            {% if gps_point_type == 'hike' %}
+                {% set start_latitude = gps_access_point.latitude %}
+                {% set start_longitude = gps_access_point.longitude %}
+
+                <div class="public-route-gps__actions">
+                    <a
+                        class="public-point-gps__button"
+                        href="https://www.google.com/maps/dir/?api=1&amp;travelmode=walking&amp;destination={{ start_latitude }},{{ start_longitude }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Aller au départ
+                    </a>
+
+                    <a
+                        class="public-point-gps__button public-point-gps__button--secondary"
+                        href="#{{ route_map_id }}"
+                    >
+                        Voir le parcours
+                    </a>
+                </div>
+
+                <p class="public-route-gps__notice">
+                    Conseil : utilisez Google Maps pour rejoindre le départ, puis une carte adaptée à la randonnée ou le parcours affiché sur cette page pour suivre les étapes. En montagne, le réseau peut être limité.
+                </p>
+            {% elseif gps_point_type and is_granted('GPS_ACCESS', gps_access_point) %}
                 <div class="public-route-gps__actions">
                     <a
                         class="public-point-gps__button"
@@ -650,9 +685,45 @@
                 </a>
             {% endif %}
         </div>
+    {% elseif gps_point_type == 'hike' and item.points|length > 0 %}
+        <p class="public-route-map__empty">
+            Le parcours cartographique n’est pas encore disponible pour cette randonnée.
+        </p>
+    {% endif %}
+
+    {% if gps_point_type == 'hike' and valid_gps_points|length > 0 %}
+        {% set osm_point = valid_gps_points|first %}
+
+        <div class="public-route-map" id="{{ route_map_id }}">
+            <div
+                class="public-route-map__canvas"
+                data-public-hike-map
+                data-map-id="{{ route_map_id }}"
+                data-points="{{ hike_map_points|json_encode|e('html_attr') }}"
+                aria-label="Carte du parcours de randonnée"
+            ></div>
+
+            <div class="public-route-map__footer">
+                {% if valid_gps_points|length > 1 %}
+                    <p>Le tracé relie les étapes enregistrées. Il ne remplace pas une trace GPS complète.</p>
+                {% else %}
+                    <p>La carte affiche le point GPS enregistré pour cette randonnée.</p>
+                {% endif %}
+
+                <a
+                    href="https://www.openstreetmap.org/?mlat={{ osm_point.latitude }}&amp;mlon={{ osm_point.longitude }}#map=14/{{ osm_point.latitude }}/{{ osm_point.longitude }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Ouvrir la zone dans OpenStreetMap
+                </a>
+            </div>
+        </div>
     {% endif %}
 
     <div class="public-point-list">
+        {% set point_map_index = 0 %}
+
         {% for point in item.points %}
             <article class="public-point-card">
                 <div>
@@ -672,7 +743,19 @@
 
                     {% if point.latitude is not null and point.longitude is not null %}
                         <div class="public-point-gps">
-                            {% if gps_point_type and is_granted('GPS_ACCESS', point) %}
+                            {% if gps_point_type == 'hike' %}
+                                <a
+                                    class="public-point-gps__button"
+                                    href="#{{ route_map_id }}"
+                                    data-hike-map-focus
+                                    data-point-index="{{ point_map_index }}"
+                                    data-point-id="{{ point.id }}"
+                                    aria-label="Voir le point {{ point.title ?: 'Étape ' ~ loop.index }} sur la carte"
+                                >
+                                    Voir ce point
+                                </a>
+                                {% set point_map_index = point_map_index + 1 %}
+                            {% elseif gps_point_type and is_granted('GPS_ACCESS', point) %}
                                 <a
                                     class="public-point-gps__button"
                                     href="{{ path('app_gps_point_open', { type: gps_point_type, id: point.id }) }}"

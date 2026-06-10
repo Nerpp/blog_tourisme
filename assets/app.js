@@ -30,6 +30,12 @@ initProfileAvatarPreview();
 initCommentReplies();
 initCommentReplyForms();
 
+if (document.querySelector('[data-public-hike-map]')) {
+  import('./js/public-hike-map.js').then(({ initPublicHikeMaps }) => {
+    initPublicHikeMaps();
+  });
+}
+
 const vueRoot = document.querySelector('#app');
 
 if (vueRoot) {
