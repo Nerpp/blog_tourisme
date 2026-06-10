@@ -40,6 +40,11 @@
   padding: 80px 0;
 }
 
+.home-hero__content,
+.home-latest-card {
+  min-width: 0;
+}
+
 .home-kicker,
 .home-section-kicker {
   color: #7ed6a7;
@@ -58,6 +63,7 @@
   letter-spacing: -0.07em;
   font-weight: 950;
   text-shadow: 0 16px 55px rgba(0, 0, 0, 0.26);
+  overflow-wrap: anywhere;
 }
 
 .home-hero__text {
@@ -86,6 +92,7 @@
   border-radius: 999px;
   font-weight: 900;
   text-decoration: none;
+  text-align: center;
 }
 
 .home-primary-btn,
@@ -184,6 +191,7 @@
   font-size: 2.15rem;
   line-height: 1.05;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .home-latest-card span {
@@ -197,6 +205,7 @@
   margin: -4px 0 12px;
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .home-latest-card__actions {
@@ -345,6 +354,7 @@
   font-size: 1.85rem;
   line-height: 1.08;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .home-destination-card p {
@@ -429,6 +439,7 @@
 @media (max-width: 960px) {
   .home-hero {
     min-height: auto;
+    background-position: center top;
   }
 
   .home-hero__container,
@@ -445,7 +456,7 @@
   }
 
   .home-latest-card {
-    min-height: 430px;
+    min-height: clamp(340px, 48vw, 430px);
     transform: none;
     animation: none;
   }
@@ -455,6 +466,19 @@
     align-items: flex-start;
   }
 
+  .home-destination-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .home-destination-card,
+  .home-destination-card__image {
+    min-height: clamp(320px, 44vw, 380px);
+    height: clamp(320px, 44vw, 380px);
+  }
+}
+
+@media (max-width: 700px) {
   .home-destination-grid {
     grid-template-columns: 1fr;
   }
@@ -466,12 +490,13 @@
   }
 
   .home-hero__container {
-    gap: 34px;
-    padding: 48px 0;
+    gap: 28px;
+    padding: 42px 0 52px;
   }
 
   .home-hero h1 {
     margin-bottom: 18px;
+    font-size: clamp(2.35rem, 11vw, 3.4rem);
     letter-spacing: -0.055em;
   }
 
@@ -482,6 +507,7 @@
 
   .home-hero__actions {
     gap: 10px;
+    margin-top: 26px;
   }
 
   .home-primary-btn,
@@ -493,7 +519,7 @@
   }
 
   .home-latest-card {
-    min-height: 380px;
+    min-height: 330px;
     border-radius: 28px;
   }
 
@@ -502,11 +528,11 @@
   }
 
   .home-latest-card h2 {
-    font-size: 1.75rem;
+    font-size: clamp(1.45rem, 7vw, 1.75rem);
   }
 
   .home-destinations-section {
-    padding: 72px 0;
+    padding: 64px 0;
   }
 
   .home-section-header h2,
@@ -516,8 +542,12 @@
 
   .home-destination-card,
   .home-destination-card__image {
-    min-height: 360px;
-    height: 360px;
+    min-height: 320px;
+    height: 320px;
+  }
+
+  .home-destination-card__overlay {
+    padding: 22px;
   }
 
   .home-newsletter-section {
@@ -527,5 +557,43 @@
   .home-newsletter-card {
     gap: 28px;
     border-radius: 28px;
+  }
+}
+
+@media (max-width: 380px) {
+  .home-container {
+    width: min(100% - 20px, 1180px);
+  }
+
+  .home-hero__container {
+    padding-top: 36px;
+    padding-bottom: 44px;
+  }
+
+  .home-kicker,
+  .home-section-kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+  }
+
+  .home-hero h1 {
+    font-size: clamp(2.05rem, 10.5vw, 2.45rem);
+    line-height: 1;
+  }
+
+  .home-latest-card {
+    min-height: 300px;
+    border-radius: 24px;
+  }
+
+  .home-latest-card__overlay,
+  .home-destination-card__overlay {
+    padding: 18px;
+  }
+
+  .home-destination-card,
+  .home-destination-card__image {
+    min-height: 300px;
+    height: 300px;
   }
 }
