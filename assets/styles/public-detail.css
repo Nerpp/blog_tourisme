@@ -1,9 +1,17 @@
 .public-detail-page {
   min-height: 100vh;
+  overflow-x: clip;
   background:
     radial-gradient(circle at top right, rgba(126, 214, 167, 0.12), transparent 28%),
     linear-gradient(to bottom, #10271f 0, #10271f 520px, #f5f7f3 520px, #f5f7f3 100%);
   color: #18322a;
+}
+
+.public-detail-page,
+.public-detail-page *,
+.public-detail-page *::before,
+.public-detail-page *::after {
+  box-sizing: border-box;
 }
 
 .public-detail-container {
@@ -27,6 +35,8 @@
   top: 88px;
   display: grid;
   gap: 14px;
+  max-width: 100%;
+  min-width: 0;
   padding: 14px 0;
 }
 
@@ -34,6 +44,7 @@
 .section-nav__admin {
   display: grid;
   gap: 7px;
+  min-width: 0;
 }
 
 .section-nav__admin {
@@ -45,7 +56,9 @@
 .section-nav__link,
 .section-nav__admin-link {
   display: inline-flex;
+  flex: 0 0 auto;
   width: fit-content;
+  max-width: 100%;
   min-height: 32px;
   align-items: center;
   padding: 6px 9px;
@@ -214,6 +227,10 @@
   margin-bottom: 26px;
 }
 
+.media-header > div {
+  min-width: 0;
+}
+
 .media-title {
   max-width: 780px;
   margin: 0;
@@ -279,13 +296,29 @@
     padding: 62px 0 42px;
   }
 
+  .public-detail-cover {
+    min-height: clamp(240px, 78vw, 320px);
+    border-radius: 28px;
+  }
+
   .public-detail-title {
     font-size: clamp(2.6rem, 13vw, 4.2rem);
+    letter-spacing: -0.045em;
+    overflow-wrap: anywhere;
   }
 
   .media-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .media-section {
+    padding: 22px;
+    border-radius: 28px;
+  }
+
+  .media-title {
+    overflow-wrap: anywhere;
   }
 }
 
@@ -298,15 +331,32 @@
     position: static;
     overflow-x: auto;
     padding: 0 0 14px;
+    scrollbar-width: none;
   }
 
   .section-nav__links {
     display: flex;
     gap: 8px;
+    width: max-content;
+    max-width: none;
   }
 
   .section-nav__admin {
     display: flex;
     margin-top: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .public-detail-container {
+    width: min(100% - 20px, 1180px);
+  }
+
+  .public-detail-hero {
+    padding: 54px 0 36px;
+  }
+
+  .media-section {
+    padding: 18px;
   }
 }

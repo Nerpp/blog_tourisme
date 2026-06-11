@@ -11,7 +11,6 @@ import './styles/destination.css';
 import './styles/article-index.css';
 import './styles/article-show.css';
 import './styles/profile.css';
-import './js/studio-video-thumbnails.js';
 
 import { initNavbar } from './js/navbar.js';
 import { initPublicDetailGallery } from './js/public-detail-gallery.js';
@@ -34,6 +33,10 @@ initDestinationShowSearch();
 initProfileAvatarPreview();
 initCommentReplies();
 initCommentReplyForms();
+
+if (document.querySelector('[data-video-card]')) {
+  import('./js/studio-video-thumbnails.js');
+}
 
 if (document.querySelector('[data-public-hike-map]')) {
   import('./js/public-hike-map.js').then(({ initPublicHikeMaps }) => {

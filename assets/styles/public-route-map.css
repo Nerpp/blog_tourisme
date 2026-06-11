@@ -14,6 +14,7 @@
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
   gap: 18px;
+  min-width: 0;
   padding: 20px;
   border: 1px solid rgba(24, 50, 42, 0.08);
   border-radius: 26px;
@@ -72,6 +73,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
+}
+
+.public-route-gps__actions > * {
+  max-width: 100%;
 }
 
 .public-route-gps__notice {
@@ -90,6 +96,7 @@
 
 .public-route-map__canvas {
   width: 100%;
+  max-width: 100%;
   min-height: 420px;
   overflow: hidden;
   border: 1px solid rgba(24, 50, 42, 0.1);
@@ -143,6 +150,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
   margin-top: 14px;
 }
 
@@ -151,12 +159,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  max-width: 100%;
   min-height: 40px;
   padding: 0 14px;
   border-radius: 999px;
   font-size: 0.88rem;
   font-weight: 900;
+  text-align: center;
   text-decoration: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .public-point-gps__button {
@@ -242,10 +254,13 @@
 @media (max-width: 640px) {
   .public-point-card {
     grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 22px;
   }
 
   .public-route-map__canvas {
-    min-height: 320px;
+    min-height: 300px;
     border-radius: 18px;
   }
 
@@ -256,5 +271,16 @@
 
   .point-media-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .public-route-map__canvas {
+    min-height: 260px;
+  }
+
+  .public-point-gps__button,
+  .public-point-gps__cta {
+    width: 100%;
   }
 }

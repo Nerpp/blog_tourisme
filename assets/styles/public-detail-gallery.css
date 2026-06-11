@@ -458,15 +458,19 @@ html.has-gallery-modal {
 
 .media-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .media-visualize-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  max-width: 100%;
   min-height: 46px;
   padding: 0 18px;
   border: 0;
@@ -530,6 +534,7 @@ html.has-gallery-modal {
 .gallery-modal__dialog {
   position: relative;
   display: grid;
+  min-width: 0;
   width: min(1180px, 100%);
   max-height: min(860px, calc(100vh - 48px));
   overflow: hidden;
@@ -557,11 +562,16 @@ html.has-gallery-modal {
   padding: 22px 24px;
 }
 
+.gallery-modal__header > div {
+  min-width: 0;
+}
+
 .gallery-modal__title {
   margin: 0;
   font-size: clamp(1.4rem, 3vw, 2.1rem);
   font-weight: 950;
   letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
 }
 
 .gallery-modal__counter {
@@ -590,12 +600,14 @@ html.has-gallery-modal {
 
 .gallery-modal__body {
   position: relative;
+  min-width: 0;
   min-height: 0;
   padding: 0 88px 24px;
 }
 
 .gallery-modal__slide {
   display: none;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -627,6 +639,7 @@ html.has-gallery-modal {
 }
 
 .gallery-modal__media {
+  min-width: 0;
   overflow: hidden;
   margin: 0;
   border-radius: 26px;
@@ -907,6 +920,21 @@ html.has-gallery-modal {
     grid-auto-rows: 220px;
   }
 
+  .video-gallery-grid.video-gallery-grid--single {
+    grid-template-columns: 1fr;
+  }
+
+  .video-gallery-grid--single .video-gallery-card {
+    width: 100%;
+    max-width: 100%;
+    min-height: 220px;
+  }
+
+  .video-gallery-card__placeholder {
+    gap: 42px;
+    padding: 52px 18px 22px;
+  }
+
   .trail-panorama-viewer {
     height: 420px;
     min-height: 360px;
@@ -993,6 +1021,81 @@ html.has-gallery-modal {
   }
 }
 
+@media (max-width: 480px) {
+  .gallery-modal {
+    padding: 8px;
+  }
+
+  .gallery-modal__dialog {
+    max-height: calc(100vh - 16px);
+    border-radius: 20px;
+  }
+
+  .gallery-modal__header {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .gallery-modal__close {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+  }
+
+  .gallery-modal__body {
+    padding: 0 10px 14px;
+  }
+
+  .gallery-modal__slide.is-active {
+    gap: 12px;
+  }
+
+  .gallery-modal__slide--with-comment.is-active:not(.gallery-modal__slide--video) {
+    padding-bottom: 54px;
+  }
+
+  .gallery-modal__media {
+    border-radius: 18px;
+  }
+
+  .gallery-modal__media img {
+    height: min(390px, 46vh);
+  }
+
+  .gallery-modal__slide--image-only .gallery-modal__media img {
+    height: min(470px, 58vh);
+  }
+
+  .gallery-modal__slide--viewer360 .trail-panorama-viewer {
+    height: 52vh;
+    min-height: 280px;
+    border-radius: 18px;
+  }
+
+  .gallery-modal__caption {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .gallery-modal__footer {
+    padding: 0 16px 14px;
+  }
+
+  .gallery-modal__nav {
+    bottom: 24px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .gallery-modal__nav--prev {
+    left: 12px;
+  }
+
+  .gallery-modal__nav--next {
+    right: 12px;
+  }
+}
+
 @media (max-width: 900px) {
   .gallery-modal__dialog--video {
     width: min(720px, calc(100vw - 20px));
@@ -1037,5 +1140,38 @@ html.has-gallery-modal {
   .gallery-modal__caption--video p {
     font-size: 0.84rem;
     line-height: 1.4;
+  }
+}
+
+@media (max-width: 480px) {
+  .gallery-modal__dialog--video {
+    width: calc(100vw - 16px);
+  }
+
+  .gallery-modal__dialog--video .gallery-modal__body {
+    padding: 0 8px 14px;
+  }
+
+  .gallery-modal__slide--video.is-active,
+  .gallery-modal__slide--video.gallery-modal__slide--image-only.is-active,
+  .gallery-modal__slide--video-portrait.is-active,
+  .gallery-modal__slide--video-landscape.is-active {
+    gap: 12px;
+    padding: 0 6px 66px;
+  }
+
+  .gallery-modal__slide--video .gallery-modal__video-frame--portrait {
+    width: min(280px, 100%);
+    height: min(52vh, 460px);
+  }
+
+  .gallery-modal__slide--video .gallery-modal__video-frame--landscape,
+  .gallery-modal__slide--video .gallery-modal__video-frame--square,
+  .gallery-modal__slide--video .gallery-modal__video-frame--unknown {
+    height: min(42vh, 360px);
+  }
+
+  .gallery-modal__caption--video {
+    max-height: 104px;
   }
 }
