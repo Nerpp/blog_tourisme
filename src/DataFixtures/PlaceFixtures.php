@@ -27,6 +27,12 @@ final class PlaceFixtures extends Fixture implements DependentFixtureInterface
     public const PLAGE_BORAMAR_REFERENCE = 'place.plage-boramar';
     public const ORGUES_ILLE_SUR_TET_REFERENCE = 'place.orgues-ille-sur-tet';
     public const LAC_BOUILLOUSES_REFERENCE = 'place.lac-des-bouillouses';
+    public const POINT_VUE_COLLIOURE_REFERENCE = 'place.point-vue-collioure';
+    public const PLAGE_PAULILLES_REFERENCE = 'place.plage-paulilles';
+    public const MARCHE_CERET_REFERENCE = 'place.marche-ceret';
+    public const LAC_VILLENEUVE_RAHO_REFERENCE = 'place.lac-villeneuve-raho';
+    public const CHATEAU_SALSES_REFERENCE = 'place.chateau-salses';
+    public const BELVEDERE_ALBERES_REFERENCE = 'place.belvedere-alberes';
 
     public function load(ObjectManager $manager): void
     {
@@ -207,6 +213,133 @@ TEXT,
             [MediaAssetFixtures::COTE_VERMEILLE_180_REFERENCE, MediaRole::Gallery, 1],
             [MediaAssetFixtures::PORT_COLLIOURE_WIDE_REFERENCE, MediaRole::MapPreview, 2],
         ]);
+
+        $extraPlaces = [
+            self::POINT_VUE_COLLIOURE_REFERENCE => [
+                'name' => 'Point de vue sur Collioure',
+                'slug' => 'point-de-vue-sur-collioure',
+                'destination' => DestinationFixtures::COLLIOURE_REFERENCE,
+                'category' => CategoryFixtures::POINT_DE_VUE_REFERENCE,
+                'short' => 'Belvedere accessible au-dessus de la baie de Collioure.',
+                'description' => 'Ce point de vue sert a tester les lieux panoramiques avec coordonnees, media de couverture et rattachement a une commune deja riche en contenus.',
+                'address' => 'Chemin du Fort Saint-Elme, Collioure',
+                'lat' => 42.52310,
+                'lng' => 3.08802,
+                'duration' => 35,
+                'difficulty' => PlaceDifficulty::Medium,
+                'price' => PriceType::Free,
+                'media' => MediaAssetFixtures::MER_REFERENCE,
+            ],
+            self::PLAGE_PAULILLES_REFERENCE => [
+                'name' => 'Plage de Paulilles',
+                'slug' => 'plage-de-paulilles',
+                'destination' => DestinationFixtures::BANYULS_SUR_MER_REFERENCE,
+                'category' => CategoryFixtures::PLAGE_REFERENCE,
+                'short' => 'Anse protegee entre Port-Vendres et Banyuls-sur-Mer.',
+                'description' => 'Paulilles permet de tester un lieu littoral rattache a Banyuls-sur-Mer, avec contenu public et image de mer.',
+                'address' => 'Site de Paulilles, Port-Vendres',
+                'lat' => 42.50180,
+                'lng' => 3.12241,
+                'duration' => 90,
+                'difficulty' => PlaceDifficulty::Easy,
+                'price' => PriceType::Free,
+                'media' => MediaAssetFixtures::MER_REFERENCE,
+            ],
+            self::MARCHE_CERET_REFERENCE => [
+                'name' => 'Marché de Céret',
+                'slug' => 'marche-de-ceret',
+                'destination' => DestinationFixtures::CERET_REFERENCE,
+                'category' => CategoryFixtures::CULTURE_REFERENCE,
+                'short' => 'Marche vivant au coeur du centre ancien de Céret.',
+                'description' => 'Le marche de Céret teste une page de lieu culturelle, avec une commune differente du littoral et un contenu public court.',
+                'address' => 'Boulevard du Maréchal Joffre, Céret',
+                'lat' => 42.48595,
+                'lng' => 2.74882,
+                'duration' => 60,
+                'difficulty' => PlaceDifficulty::Easy,
+                'price' => PriceType::Free,
+                'media' => MediaAssetFixtures::VILLAGE_REFERENCE,
+            ],
+            self::LAC_VILLENEUVE_RAHO_REFERENCE => [
+                'name' => 'Lac de Villeneuve-de-la-Raho',
+                'slug' => 'lac-de-villeneuve-de-la-raho',
+                'destination' => DestinationFixtures::PYRENEES_ORIENTALES_REFERENCE,
+                'category' => CategoryFixtures::NATURE_REFERENCE,
+                'short' => 'Grand plan d eau proche de Perpignan pour balade facile.',
+                'description' => 'Ce lieu est rattache au departement pour tester un contenu sans commune dediee dans la hierarchie actuelle.',
+                'address' => 'Lac de Villeneuve-de-la-Raho',
+                'lat' => 42.64273,
+                'lng' => 2.91883,
+                'duration' => 120,
+                'difficulty' => PlaceDifficulty::Easy,
+                'price' => PriceType::Free,
+                'media' => MediaAssetFixtures::LAC_REFERENCE,
+            ],
+            self::CHATEAU_SALSES_REFERENCE => [
+                'name' => 'Château de Salses',
+                'slug' => 'chateau-de-salses',
+                'destination' => DestinationFixtures::SAINT_LAURENT_SALANQUE_REFERENCE,
+                'category' => CategoryFixtures::MONUMENT_REFERENCE,
+                'short' => 'Forteresse remarquable au nord du Roussillon.',
+                'description' => 'Le Château de Salses teste un lieu patrimoine en dehors des communes les plus utilisees.',
+                'address' => 'Forteresse de Salses, Salses-le-Château',
+                'lat' => 42.83353,
+                'lng' => 2.91802,
+                'duration' => 90,
+                'difficulty' => PlaceDifficulty::Easy,
+                'price' => PriceType::Paid,
+                'media' => MediaAssetFixtures::CHATEAU_REFERENCE,
+            ],
+            self::BELVEDERE_ALBERES_REFERENCE => [
+                'name' => 'Belvédère des Albères',
+                'slug' => 'belvedere-des-alberes',
+                'destination' => DestinationFixtures::BANYULS_SUR_MER_REFERENCE,
+                'category' => CategoryFixtures::POINT_DE_VUE_REFERENCE,
+                'short' => 'Vue large sur la cote Vermeille et les premiers reliefs.',
+                'description' => 'Ce belvedere donne un cas de point de vue relie aux contenus Albères et aux parcours GPS de test.',
+                'address' => 'Route des cretes, Banyuls-sur-Mer',
+                'lat' => 42.48853,
+                'lng' => 3.09689,
+                'duration' => 45,
+                'difficulty' => PlaceDifficulty::Medium,
+                'price' => PriceType::Free,
+                'media' => MediaAssetFixtures::MONTAGNE_REFERENCE,
+            ],
+        ];
+
+        $position = 5;
+        foreach ($extraPlaces as $reference => $data) {
+            $place = $this->createPlace(
+                name: $data['name'],
+                slug: $data['slug'],
+                destination: $this->getDestination($data['destination']),
+                category: $this->getCategory($data['category']),
+                shortDescription: $data['short'],
+                description: $data['description'],
+                address: $data['address'],
+                latitude: $data['lat'],
+                longitude: $data['lng'],
+                visitDurationMinutes: $data['duration'],
+                difficulty: $data['difficulty'],
+                priceType: $data['price'],
+                featuredImage: $this->getMedia($data['media']),
+                seoTitle: $data['name'],
+                seoDescription: $data['short'],
+                publishedAt: $publishedAt->modify(sprintf('+%d days', $position)),
+            );
+
+            $manager->persist($place);
+            $this->addReference($reference, $place);
+            $this->linkTags($manager, $place, [
+                TagFixtures::NATURE_REFERENCE,
+                TagFixtures::PHOTO_REFERENCE,
+            ]);
+            $this->linkMedia($manager, $place, [
+                [$data['media'], MediaRole::Cover, 0],
+                [MediaAssetFixtures::VILLAGE_REFERENCE, MediaRole::Gallery, 1],
+            ]);
+            ++$position;
+        }
 
         $manager->flush();
     }

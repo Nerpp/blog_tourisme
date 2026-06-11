@@ -24,12 +24,21 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
     public const PLACE_FORT_APPROVED_REFERENCE = 'comment.place.fort-approved';
     public const PLACE_PLAGE_APPROVED_REFERENCE = 'comment.place.plage-approved';
     public const PLACE_LAC_PENDING_REFERENCE = 'comment.place.lac-pending';
+    public const ARTICLE_POPULAR_REFERENCE = 'comment.article.popular';
+    public const ARTICLE_PINNED_REFERENCE = 'comment.article.pinned';
+    public const ARTICLE_ADMIN_HEART_REFERENCE = 'comment.article.admin-heart';
+    public const ARTICLE_MENTION_REFERENCE = 'comment.article.mention';
+    public const ARTICLE_LONG_REFERENCE = 'comment.article.long';
+    public const ARTICLE_SECOND_REPLY_REFERENCE = 'comment.article.second-reply';
+    public const PLACE_CERET_APPROVED_REFERENCE = 'comment.place.ceret-approved';
+    public const PLACE_PAULILLES_APPROVED_REFERENCE = 'comment.place.paulilles-approved';
 
     public function load(ObjectManager $manager): void
     {
         $admin = $this->getUser(UserFixtures::ADMIN_REFERENCE);
         $user = $this->getUser(UserFixtures::USER_REFERENCE);
         $trusted = $this->getUser(UserFixtures::TRUSTED_REFERENCE);
+        $noAvatar = $this->getUser(UserFixtures::NO_AVATAR_REFERENCE);
 
         $approvedArticleComment = (new Comment())
             ->setAuthor($trusted)
@@ -143,6 +152,100 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
         $manager->persist($lacPendingComment);
         $this->addReference(self::PLACE_LAC_PENDING_REFERENCE, $lacPendingComment);
 
+        $popularComment = $this->approvedComment(
+            author: $user,
+            article: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
+            content: 'Nous avons suivi ce parcours avec deux pauses et le timing etait parfait. Le passage par le port puis la montee progressive donne une bonne lecture de Collioure.',
+            approvedAt: new DateTimeImmutable('-6 days 09:00'),
+            admin: $admin,
+        );
+        $manager->persist($popularComment);
+        $this->addReference(self::ARTICLE_POPULAR_REFERENCE, $popularComment);
+
+        $pinnedComment = $this->approvedComment(
+            author: $admin,
+            article: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
+            content: 'Note admin : en ete, partez tot et prevoyez de l eau. Ce commentaire est epingle pour tester la mise en avant.',
+            approvedAt: new DateTimeImmutable('-5 days 12:00'),
+            admin: $admin,
+        )
+            ->setPinnedAt(new DateTimeImmutable('-5 days 12:10'))
+            ->setPinnedBy($admin);
+        $manager->persist($pinnedComment);
+        $this->addReference(self::ARTICLE_PINNED_REFERENCE, $pinnedComment);
+
+        $heartComment = $this->approvedComment(
+            author: $trusted,
+            article: $this->getArticle(ArticleFixtures::BEST_PO_REFERENCE),
+            content: 'La selection donne envie de combiner mer et montagne sur trois jours, surtout avec le lac en fin de sejour.',
+            approvedAt: new DateTimeImmutable('-5 days 15:00'),
+            admin: $admin,
+        )
+            ->setAdminHeartedAt(new DateTimeImmutable('-5 days 15:15'))
+            ->setAdminHeartedBy($admin);
+        $manager->persist($heartComment);
+        $this->addReference(self::ARTICLE_ADMIN_HEART_REFERENCE, $heartComment);
+
+        $mentionComment = $this->approvedComment(
+            author: $user,
+            article: $this->getArticle(ArticleFixtures::MEDITERRANEAN_HIKE_REFERENCE),
+            content: 'Merci @Randonneur Confiance pour les conseils sur l eau, c est exactement le point que je voulais verifier avant une sortie en mai.',
+            approvedAt: new DateTimeImmutable('-4 days 09:00'),
+            admin: $admin,
+        );
+        $manager->persist($mentionComment);
+        $this->addReference(self::ARTICLE_MENTION_REFERENCE, $mentionComment);
+
+        $longComment = $this->approvedComment(
+            author: $noAvatar,
+            article: $this->getArticle(ArticleFixtures::LONG_ARTICLE_REFERENCE),
+            content: str_repeat('Retour tres detaille sur la cote Vermeille avec un accent sur les horaires, les pauses, les parkings et les alternatives sans voiture. ', 8),
+            approvedAt: new DateTimeImmutable('-3 days 10:00'),
+            admin: $admin,
+        );
+        $manager->persist($longComment);
+        $this->addReference(self::ARTICLE_LONG_REFERENCE, $longComment);
+
+        $secondReply = $this->approvedComment(
+            author: $trusted,
+            article: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
+            content: 'Je confirme, la poussette n est pas adaptee pour la montee vers le fort. Mieux vaut rester sur le front de mer avec de jeunes enfants.',
+            approvedAt: new DateTimeImmutable('-2 days 11:00'),
+            admin: $admin,
+        )->setParent($approvedArticleComment);
+        $manager->persist($secondReply);
+        $this->addReference(self::ARTICLE_SECOND_REPLY_REFERENCE, $secondReply);
+
+        $ceretComment = (new Comment())
+            ->setAuthor($trusted)
+            ->setPlace($this->getPlace(PlaceFixtures::MARCHE_CERET_REFERENCE))
+            ->setContent('Le marche de Céret est un bon test pour les visites de ville et les lieux culturels hors littoral.')
+            ->setStatus(CommentStatus::Approved)
+            ->setApprovedAt(new DateTimeImmutable('-2 days 12:00'))
+            ->setPublishedAt(new DateTimeImmutable('-2 days 11:55'))
+            ->setModeratedAt(new DateTimeImmutable('-2 days 12:00'))
+            ->setModeratedBy($admin)
+            ->setSpamScore(1)
+            ->setIpAddress('203.0.113.23')
+            ->setUserAgent('Mozilla/5.0 Fixture Browser');
+        $manager->persist($ceretComment);
+        $this->addReference(self::PLACE_CERET_APPROVED_REFERENCE, $ceretComment);
+
+        $paulillesComment = (new Comment())
+            ->setAuthor($user)
+            ->setPlace($this->getPlace(PlaceFixtures::PLAGE_PAULILLES_REFERENCE))
+            ->setContent('Question pratique : le site reste-t-il agréable en semaine hors saison pour une pause après randonnée ?')
+            ->setStatus(CommentStatus::Approved)
+            ->setApprovedAt(new DateTimeImmutable('-1 day 12:00'))
+            ->setPublishedAt(new DateTimeImmutable('-1 day 11:55'))
+            ->setModeratedAt(new DateTimeImmutable('-1 day 12:00'))
+            ->setModeratedBy($admin)
+            ->setSpamScore(2)
+            ->setIpAddress('203.0.113.24')
+            ->setUserAgent('Mozilla/5.0 Fixture Browser');
+        $manager->persist($paulillesComment);
+        $this->addReference(self::PLACE_PAULILLES_APPROVED_REFERENCE, $paulillesComment);
+
         $manager->flush();
     }
 
@@ -168,5 +271,21 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
     private function getPlace(string $reference): Place
     {
         return $this->getReference($reference, Place::class);
+    }
+
+    private function approvedComment(User $author, Article $article, string $content, DateTimeImmutable $approvedAt, User $admin): Comment
+    {
+        return (new Comment())
+            ->setAuthor($author)
+            ->setArticle($article)
+            ->setContent($content)
+            ->setStatus(CommentStatus::Approved)
+            ->setApprovedAt($approvedAt)
+            ->setPublishedAt($approvedAt->modify('-5 minutes'))
+            ->setModeratedAt($approvedAt)
+            ->setModeratedBy($admin)
+            ->setSpamScore(0)
+            ->setIpAddress('203.0.113.70')
+            ->setUserAgent('Mozilla/5.0 Fixture Browser');
     }
 }

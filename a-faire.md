@@ -5,3 +5,4 @@ Finir les tests a 100%
 Finir phpSTan
 Ajouter le provider de l'envoit des emails
 Trouver le nom et le logo
+Ajouter une carte de france de séléction d'emplacement

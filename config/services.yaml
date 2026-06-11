@@ -18,6 +18,14 @@ services:
             $environment: '%kernel.environment%'
             $devServerUrl: '%env(default:vite_dev_server_url:VITE_DEV_SERVER_URL)%'
 
+    App\DataFixtures\UserFixtures:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\DataFixtures\MediaAssetFixtures:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
     App\Service\CommentModerationService:
         arguments:
             $reportThreshold: '%env(int:COMMENT_REPORT_THRESHOLD)%'

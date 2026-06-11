@@ -21,6 +21,18 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
     public const COTE_VERMEILLE_180_REFERENCE = 'media.cote-vermeille-180';
     public const PORT_COLLIOURE_WIDE_REFERENCE = 'media.port-collioure-wide';
     public const COLLIOURE_VIDEO_REFERENCE = 'media.collioure-video';
+    public const MONTAGNE_REFERENCE = 'media.fixture-montagne';
+    public const MER_REFERENCE = 'media.fixture-mer';
+    public const VILLAGE_REFERENCE = 'media.fixture-village';
+    public const RANDONNEE_REFERENCE = 'media.fixture-randonnee';
+    public const RUELLE_REFERENCE = 'media.fixture-ruelle';
+    public const CHATEAU_REFERENCE = 'media.fixture-chateau';
+    public const LAC_REFERENCE = 'media.fixture-lac';
+    public const FORET_REFERENCE = 'media.fixture-foret';
+
+    public function __construct(
+        private readonly string $projectDir,
+    ) {}
 
     public function load(ObjectManager $manager): void
     {
@@ -31,11 +43,10 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 'title' => 'Vue de Collioure',
                 'mediaType' => MediaType::Image,
                 'imageType' => ImageType::Standard,
-                'filePath' => '/uploads/demo/collioure-standard.jpg',
-                'thumbnailPath' => '/uploads/demo/thumbs/collioure-standard.jpg',
+                'fixture' => 'fixture_media_collioure_standard',
+                'palette' => ['sky', 'sea', 'village'],
                 'altText' => 'Vue sur le village de Collioure',
                 'caption' => 'Le clocher, les facades colorees et la baie de Collioure.',
-                'mimeType' => 'image/jpeg',
                 'width' => 1600,
                 'height' => 900,
             ],
@@ -43,11 +54,10 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 'title' => 'Panorama sur la baie de Collioure',
                 'mediaType' => MediaType::Image,
                 'imageType' => ImageType::Panorama,
-                'filePath' => '/uploads/demo/collioure-panorama.jpg',
-                'thumbnailPath' => '/uploads/demo/thumbs/collioure-panorama.jpg',
+                'fixture' => 'fixture_media_collioure_panorama',
+                'palette' => ['sunset', 'sea', 'mountain'],
                 'altText' => 'Panorama de la baie de Collioure',
                 'caption' => 'La baie de Collioure vue depuis les hauteurs de la cote Vermeille.',
-                'mimeType' => 'image/jpeg',
                 'width' => 2400,
                 'height' => 900,
             ],
@@ -56,11 +66,10 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 'mediaType' => MediaType::Image,
                 'imageType' => ImageType::Degree360,
                 'projection' => 'equirectangular',
-                'filePath' => '/uploads/demo/fort-saint-elme-360.jpg',
-                'thumbnailPath' => '/uploads/demo/thumbs/fort-saint-elme-360.jpg',
+                'fixture' => 'fixture_media_fort_saint_elme_360',
+                'palette' => ['stone', 'sea', 'mountain'],
                 'altText' => 'Vue immersive depuis le Fort Saint-Elme',
                 'caption' => 'Photo 360 de demonstration pour tester le lecteur immersif.',
-                'mimeType' => 'image/jpeg',
                 'width' => 4096,
                 'height' => 2048,
                 'metadata' => [
@@ -76,11 +85,10 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 'mediaType' => MediaType::Image,
                 'imageType' => ImageType::Degree180,
                 'projection' => 'equirectangular',
-                'filePath' => '/uploads/demo/cote-vermeille-180.jpg',
-                'thumbnailPath' => '/uploads/demo/thumbs/cote-vermeille-180.jpg',
+                'fixture' => 'fixture_media_cote_vermeille_180',
+                'palette' => ['sea', 'vineyard', 'mountain'],
                 'altText' => 'Vue 180 degrés sur les reliefs de la côte Vermeille',
                 'caption' => 'Image panoramique partielle pour tester les formats immersifs.',
-                'mimeType' => 'image/jpeg',
                 'width' => 2200,
                 'height' => 1100,
             ],
@@ -88,11 +96,10 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 'title' => 'Grand angle sur le port de Collioure',
                 'mediaType' => MediaType::Image,
                 'imageType' => ImageType::WideAngle,
-                'filePath' => '/uploads/demo/port-collioure-wide.jpg',
-                'thumbnailPath' => '/uploads/demo/thumbs/port-collioure-wide.jpg',
+                'fixture' => 'fixture_media_port_collioure_wide',
+                'palette' => ['sky', 'harbor', 'village'],
                 'altText' => 'Vue grand angle du port de Collioure',
                 'caption' => 'Le port de Collioure photographie au grand angle.',
-                'mimeType' => 'image/jpeg',
                 'width' => 1800,
                 'height' => 1000,
             ],
@@ -101,26 +108,122 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 'mediaType' => MediaType::Video,
                 'videoType' => VideoType::Youtube,
                 'externalUrl' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-                'thumbnailPath' => '/uploads/demo/thumbs/video-collioure.jpg',
+                'fixture' => 'fixture_media_video_collioure',
+                'palette' => ['sky', 'sea', 'village'],
                 'altText' => 'Miniature de la vidéo de découverte de Collioure',
                 'caption' => 'Video externe de demonstration pour tester les contenus YouTube.',
                 'durationSeconds' => 212,
+                'width' => 1280,
+                'height' => 720,
+            ],
+            self::MONTAGNE_REFERENCE => [
+                'title' => 'Reliefs du Canigou',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::Standard,
+                'fixture' => 'fixture_media_montagne',
+                'palette' => ['sky', 'mountain', 'forest'],
+                'altText' => 'Reliefs de montagne au-dessus du Conflent',
+                'caption' => 'Image locale de test pour les randonnées de montagne.',
+                'width' => 1600,
+                'height' => 900,
+            ],
+            self::MER_REFERENCE => [
+                'title' => 'Côte rocheuse méditerranéenne',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::WideAngle,
+                'fixture' => 'fixture_media_mer',
+                'palette' => ['sky', 'sea', 'stone'],
+                'altText' => 'Mer bleue et côte rocheuse',
+                'caption' => 'Image locale de test pour les contenus de bord de mer.',
+                'width' => 1800,
+                'height' => 1000,
+            ],
+            self::VILLAGE_REFERENCE => [
+                'title' => 'Village catalan',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::Standard,
+                'fixture' => 'fixture_media_village',
+                'palette' => ['sky', 'village', 'vineyard'],
+                'altText' => 'Ruelles et toits d un village catalan',
+                'caption' => 'Image locale de test pour les pages village.',
+                'width' => 1600,
+                'height' => 900,
+            ],
+            self::RANDONNEE_REFERENCE => [
+                'title' => 'Sentier de randonnée',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::Standard,
+                'fixture' => 'fixture_media_randonnee',
+                'palette' => ['sky', 'trail', 'forest'],
+                'altText' => 'Sentier balisé entre pins et collines',
+                'caption' => 'Image locale de test pour les cartes GPS et galeries de randonnée.',
+                'width' => 1600,
+                'height' => 900,
+            ],
+            self::RUELLE_REFERENCE => [
+                'title' => 'Ruelle colorée',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::Standard,
+                'fixture' => 'fixture_media_ruelle',
+                'palette' => ['stone', 'village', 'sunset'],
+                'altText' => 'Ruelle colorée dans un centre ancien',
+                'caption' => 'Image locale de test pour les visites de ville.',
+                'width' => 1600,
+                'height' => 900,
+            ],
+            self::CHATEAU_REFERENCE => [
+                'title' => 'Château et remparts',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::Standard,
+                'fixture' => 'fixture_media_chateau',
+                'palette' => ['sky', 'stone', 'village'],
+                'altText' => 'Remparts et silhouette de château',
+                'caption' => 'Image locale de test pour les contenus patrimoine.',
+                'width' => 1600,
+                'height' => 900,
+            ],
+            self::LAC_REFERENCE => [
+                'title' => 'Lac de montagne',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::Panorama,
+                'fixture' => 'fixture_media_lac',
+                'palette' => ['sky', 'lake', 'forest'],
+                'altText' => 'Lac calme entoure de pins',
+                'caption' => 'Image locale de test pour les lieux naturels.',
+                'width' => 1800,
+                'height' => 900,
+            ],
+            self::FORET_REFERENCE => [
+                'title' => 'Forêt méditerranéenne',
+                'mediaType' => MediaType::Image,
+                'imageType' => ImageType::Standard,
+                'fixture' => 'fixture_media_foret',
+                'palette' => ['forest', 'trail', 'mountain'],
+                'altText' => 'Sous-bois et chemin de forêt',
+                'caption' => 'Image locale de test pour les galeries nature.',
+                'width' => 1600,
+                'height' => 900,
             ],
         ];
 
         foreach ($mediaAssets as $reference => $data) {
+            $paths = isset($data['fixture'])
+                ? $this->generateImage($data['fixture'], $data['width'] ?? 1600, $data['height'] ?? 900, $data['palette'] ?? ['sky', 'sea', 'village'])
+                : ['path' => $data['filePath'] ?? null, 'thumb' => $data['thumbnailPath'] ?? null, 'mime' => $data['mimeType'] ?? null, 'size' => null];
+
             $mediaAsset = (new MediaAsset())
                 ->setUploadedBy($admin)
                 ->setTitle($data['title'])
                 ->setMediaType($data['mediaType'])
                 ->setImageType($data['imageType'] ?? null)
                 ->setVideoType($data['videoType'] ?? null)
-                ->setFilePath($data['filePath'] ?? null)
-                ->setThumbnailPath($data['thumbnailPath'])
+                ->setFilePath($data['mediaType'] === MediaType::Image ? $paths['path'] : null)
+                ->setThumbnailPath($paths['thumb'])
                 ->setExternalUrl($data['externalUrl'] ?? null)
                 ->setAltText($data['altText'])
                 ->setCaption($data['caption'])
-                ->setMimeType($data['mimeType'] ?? null)
+                ->setMimeType($paths['mime'])
+                ->setFileSize($paths['size'])
                 ->setWidth($data['width'] ?? null)
                 ->setHeight($data['height'] ?? null)
                 ->setDurationSeconds($data['durationSeconds'] ?? null)
@@ -144,5 +247,99 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
     private function getUser(string $reference): User
     {
         return $this->getReference($reference, User::class);
+    }
+
+    /**
+     * @param list<string> $palette
+     * @return array{path: string|null, thumb: string|null, mime: string|null, size: int|null}
+     */
+    private function generateImage(string $basename, int $width, int $height, array $palette): array
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return ['path' => null, 'thumb' => null, 'mime' => null, 'size' => null];
+        }
+
+        $supportsWebp = function_exists('imagewebp');
+        $extension = $supportsWebp ? 'webp' : 'jpg';
+        $mime = $supportsWebp ? 'image/webp' : 'image/jpeg';
+        $directory = $this->projectDir.'/public/uploads/media';
+        if (!is_dir($directory)) {
+            mkdir($directory, 0775, true);
+        }
+
+        $relativePath = sprintf('/uploads/media/%s.%s', $basename, $extension);
+        $relativeThumbPath = sprintf('/uploads/media/%s_thumb.%s', $basename, $extension);
+        $absolutePath = $this->projectDir.'/public'.$relativePath;
+        $absoluteThumbPath = $this->projectDir.'/public'.$relativeThumbPath;
+
+        $this->drawImage($absolutePath, $width, $height, $palette, $supportsWebp);
+        $this->drawImage($absoluteThumbPath, 480, 270, $palette, $supportsWebp);
+
+        return [
+            'path' => $relativePath,
+            'thumb' => $relativeThumbPath,
+            'mime' => $mime,
+            'size' => is_file($absolutePath) ? filesize($absolutePath) ?: null : null,
+        ];
+    }
+
+    /**
+     * @param list<string> $palette
+     */
+    private function drawImage(string $path, int $width, int $height, array $palette, bool $webp): void
+    {
+        $image = imagecreatetruecolor($width, $height);
+        if ($image === false) {
+            return;
+        }
+
+        $colors = array_map(fn(string $name): int => $this->allocateColor($image, $name), $palette);
+        $sky = $colors[0] ?? $this->allocateColor($image, 'sky');
+        $middle = $colors[1] ?? $this->allocateColor($image, 'sea');
+        $foreground = $colors[2] ?? $this->allocateColor($image, 'village');
+
+        imagefilledrectangle($image, 0, 0, $width, (int) ($height * 0.55), $sky);
+        imagefilledrectangle($image, 0, (int) ($height * 0.55), $width, $height, $middle);
+
+        $points = [
+            0, (int) ($height * 0.62),
+            (int) ($width * 0.22), (int) ($height * 0.34),
+            (int) ($width * 0.48), (int) ($height * 0.62),
+            (int) ($width * 0.72), (int) ($height * 0.28),
+            $width, (int) ($height * 0.62),
+            $width, $height,
+            0, $height,
+        ];
+        imagefilledpolygon($image, $points, $foreground);
+
+        $accent = imagecolorallocate($image, 255, 237, 179);
+        if ($accent !== false) {
+            imagefilledellipse($image, (int) ($width * 0.82), (int) ($height * 0.18), (int) ($width * 0.12), (int) ($width * 0.12), $accent);
+        }
+
+        $webp ? imagewebp($image, $path, 86) : imagejpeg($image, $path, 88);
+        imagedestroy($image);
+    }
+
+    /**
+     * @param resource|\GdImage $image
+     */
+    private function allocateColor($image, string $name): int
+    {
+        $rgb = [
+            'sky' => [143, 191, 214],
+            'sea' => [36, 121, 151],
+            'village' => [199, 111, 74],
+            'sunset' => [238, 159, 92],
+            'mountain' => [90, 112, 91],
+            'stone' => [150, 137, 116],
+            'vineyard' => [113, 134, 74],
+            'harbor' => [51, 145, 168],
+            'forest' => [58, 105, 72],
+            'trail' => [178, 143, 92],
+            'lake' => [67, 142, 177],
+        ][$name] ?? [120, 120, 120];
+
+        return imagecolorallocate($image, ...$rgb) ?: 0;
     }
 }

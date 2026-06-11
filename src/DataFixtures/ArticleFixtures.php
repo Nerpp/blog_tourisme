@@ -28,6 +28,11 @@ final class ArticleFixtures extends Fixture implements DependentFixtureInterface
     public const BEST_PO_REFERENCE = 'article.plus-beaux-lieux-pyrenees-orientales';
     public const FORT_SAINT_ELME_REFERENCE = 'article.visiter-fort-saint-elme';
     public const PERPIGNAN_WEEKEND_DRAFT_REFERENCE = 'article.idees-week-end-perpignan';
+    public const MEDITERRANEAN_HIKE_REFERENCE = 'article.preparer-randonnee-climat-mediterraneen';
+    public const ALBERES_REFERENCE = 'article.decouvrir-alberes-mer-montagne';
+    public const ARTICLE_NO_IMAGE_REFERENCE = 'article.sejour-sans-voiture-pyrenees-orientales';
+    public const LONG_ARTICLE_REFERENCE = 'article.grand-guide-cote-vermeille';
+    public const ARCHIVED_FUTURE_REFERENCE = 'article.fete-ete-cote-vermeille';
 
     public function load(ObjectManager $manager): void
     {
@@ -186,6 +191,149 @@ TEXT,
             [MediaAssetFixtures::PORT_COLLIOURE_WIDE_REFERENCE, MediaRole::Cover, 0],
         ]);
 
+        $hikePrep = $this->createArticle(
+            title: 'Préparer une randonnée en climat méditerranéen',
+            slug: 'preparer-une-randonnee-en-climat-mediterraneen',
+            category: $this->getCategory(CategoryFixtures::INFOS_PRATIQUES_REFERENCE),
+            author: $admin,
+            excerpt: 'Chaleur, eau, vent et orientation : les points a verifier avant une balade en Roussillon.',
+            content: <<<TEXT
+Marcher en climat mediterraneen demande une preparation differente d une sortie de plaine temperee. La chaleur peut arriver vite, meme au printemps, et les zones d ombre sont parfois rares sur les cretes, les vignes ou les sentiers littoraux.
+
+Prevoyez une reserve d eau superieure a votre habitude, un depart matinal, une protection solaire et une marge horaire suffisante. Le vent peut aussi modifier la sensation de temperature et compliquer le retour sur les passages exposes.
+
+Avant de partir, verifiez le denivele reel, la disponibilite des points d eau et la lisibilite de l itineraire. Sur ce site, les traces et points GPS de fixture permettent de tester les cartes publiques, mais une sortie reelle demande toujours une verification terrain.
+TEXT,
+            status: ContentStatus::Published,
+            featuredImage: $this->getMedia(MediaAssetFixtures::RANDONNEE_REFERENCE),
+            seoTitle: 'Préparer une randonnée méditerranéenne',
+            seoDescription: 'Conseils pratiques pour marcher sous climat méditerranéen : eau, chaleur, vent, horaires et sécurité.',
+            publishedAt: $basePublishedAt->modify('+5 days'),
+        );
+        $manager->persist($hikePrep);
+        $this->addReference(self::MEDITERRANEAN_HIKE_REFERENCE, $hikePrep);
+        $this->linkDestinations($manager, $hikePrep, [
+            [DestinationFixtures::OCCITANIE_REFERENCE, 0],
+        ]);
+        $this->linkTags($manager, $hikePrep, [
+            TagFixtures::RANDONNEE_REFERENCE,
+            TagFixtures::NATURE_REFERENCE,
+            TagFixtures::MONTAGNE_REFERENCE,
+        ]);
+        $this->linkMedia($manager, $hikePrep, [
+            [MediaAssetFixtures::RANDONNEE_REFERENCE, MediaRole::Cover, 0],
+            [MediaAssetFixtures::FORET_REFERENCE, MediaRole::Gallery, 1],
+        ]);
+
+        $alberes = $this->createArticle(
+            title: 'Découvrir les Albères entre mer et montagne',
+            slug: 'decouvrir-les-alberes-entre-mer-et-montagne',
+            category: $this->getCategory(CategoryFixtures::NATURE_REFERENCE),
+            author: $admin,
+            excerpt: 'Un territoire court mais contrasté, entre criques, vignes, forts et premiers sommets.',
+            content: <<<TEXT
+Les Albères marquent la rencontre directe entre les Pyrenees et la Mediterranee. Depuis Banyuls-sur-Mer, les pentes se redressent rapidement au-dessus du port et dessinent une succession de belvederes, de vignes en terrasse et de petites routes panoramiques.
+
+Le secteur se prete aux courts sejours actifs : une visite de village le matin, une plage ou une crique l apres-midi, puis une balade au-dessus de la cote en fin de journee. Les contrastes sont visibles sans parcourir de longues distances.
+
+Pour tester les pages publiques, cet article relie volontairement une destination geographique, des medias de mer et de montagne, ainsi que des contenus de randonnée et de visite rattaches par fixtures separees.
+TEXT,
+            status: ContentStatus::Published,
+            featuredImage: $this->getMedia(MediaAssetFixtures::MER_REFERENCE),
+            seoTitle: 'Les Albères entre mer et montagne',
+            seoDescription: 'Criques, vignes, sentiers et villages pour decouvrir les Albères autour de Banyuls-sur-Mer.',
+            publishedAt: $basePublishedAt->modify('+6 days'),
+        );
+        $manager->persist($alberes);
+        $this->addReference(self::ALBERES_REFERENCE, $alberes);
+        $this->linkDestinations($manager, $alberes, [
+            [DestinationFixtures::BANYULS_SUR_MER_REFERENCE, 0],
+        ]);
+        $this->linkTags($manager, $alberes, [
+            TagFixtures::BORD_DE_MER_REFERENCE,
+            TagFixtures::MONTAGNE_REFERENCE,
+            TagFixtures::PANORAMIQUE_REFERENCE,
+        ]);
+        $this->linkMedia($manager, $alberes, [
+            [MediaAssetFixtures::MER_REFERENCE, MediaRole::Cover, 0],
+            [MediaAssetFixtures::MONTAGNE_REFERENCE, MediaRole::Gallery, 1],
+        ]);
+
+        $noImage = $this->createArticle(
+            title: 'Séjour sans voiture dans les Pyrénées-Orientales',
+            slug: 'sejour-sans-voiture-dans-les-pyrenees-orientales',
+            category: $this->getCategory(CategoryFixtures::CONSEIL_VOYAGE_REFERENCE),
+            author: $admin,
+            excerpt: 'Un article volontairement sans image pour verifier les fallbacks de liste et de detail.',
+            content: 'Ce contenu publie sans image sert de cas limite pour les cartes, les listes d articles et les balises sociales. Il donne aussi un point de test pour les destinations avec contenu indirect.',
+            status: ContentStatus::Published,
+            featuredImage: null,
+            seoTitle: 'Séjour sans voiture dans les Pyrénées-Orientales',
+            seoDescription: 'Conseils pour organiser un séjour sans voiture et tester les fallbacks image du site.',
+            publishedAt: $basePublishedAt->modify('+7 days'),
+        );
+        $manager->persist($noImage);
+        $this->addReference(self::ARTICLE_NO_IMAGE_REFERENCE, $noImage);
+        $this->linkDestinations($manager, $noImage, [
+            [DestinationFixtures::PYRENEES_ORIENTALES_REFERENCE, 0],
+        ]);
+        $this->linkTags($manager, $noImage, [
+            TagFixtures::ACCESSIBLE_REFERENCE,
+            TagFixtures::WEEK_END_REFERENCE,
+        ]);
+
+        $longArticle = $this->createArticle(
+            title: 'Grand guide de la côte Vermeille pour un premier séjour',
+            slug: 'grand-guide-cote-vermeille-premier-sejour',
+            category: $this->getCategory(CategoryFixtures::CONSEIL_VOYAGE_REFERENCE),
+            author: $admin,
+            excerpt: 'Un contenu long pour tester la typographie, les espacements, les paragraphes et les extraits.',
+            content: $this->longContent(),
+            status: ContentStatus::Published,
+            featuredImage: $this->getMedia(MediaAssetFixtures::COTE_VERMEILLE_180_REFERENCE),
+            seoTitle: 'Grand guide de la côte Vermeille',
+            seoDescription: 'Guide complet de test pour organiser un premier séjour sur la côte Vermeille.',
+            publishedAt: $basePublishedAt->modify('+8 days'),
+        );
+        $manager->persist($longArticle);
+        $this->addReference(self::LONG_ARTICLE_REFERENCE, $longArticle);
+        $this->linkDestinations($manager, $longArticle, [
+            [DestinationFixtures::COLLIOURE_REFERENCE, 0],
+            [DestinationFixtures::BANYULS_SUR_MER_REFERENCE, 1],
+        ]);
+        $this->linkTags($manager, $longArticle, [
+            TagFixtures::BORD_DE_MER_REFERENCE,
+            TagFixtures::PHOTO_REFERENCE,
+            TagFixtures::INCONTOURNABLE_REFERENCE,
+        ]);
+        $this->linkMedia($manager, $longArticle, [
+            [MediaAssetFixtures::COTE_VERMEILLE_180_REFERENCE, MediaRole::Cover, 0],
+            [MediaAssetFixtures::MER_REFERENCE, MediaRole::Gallery, 1],
+            [MediaAssetFixtures::VILLAGE_REFERENCE, MediaRole::Gallery, 2],
+        ]);
+
+        $archivedFuture = $this->createArticle(
+            title: 'Fête d’été sur la côte Vermeille',
+            slug: 'fete-ete-cote-vermeille',
+            category: $this->getCategory(CategoryFixtures::CULTURE_REFERENCE),
+            author: $admin,
+            excerpt: 'Contenu non public servant de substitut au statut planifie absent du modèle.',
+            content: 'Le modèle Article ne possède pas de statut scheduled. Cette fixture utilise archived pour tester un contenu non public avec une date future.',
+            status: ContentStatus::Archived,
+            featuredImage: $this->getMedia(MediaAssetFixtures::VILLAGE_REFERENCE),
+            seoTitle: 'Fête d’été sur la côte Vermeille',
+            seoDescription: 'Fixture non publique datee dans le futur pour tester les statuts et filtres.',
+            publishedAt: new DateTimeImmutable('2026-08-15 09:00:00'),
+        );
+        $manager->persist($archivedFuture);
+        $this->addReference(self::ARCHIVED_FUTURE_REFERENCE, $archivedFuture);
+        $this->linkDestinations($manager, $archivedFuture, [
+            [DestinationFixtures::COLLIOURE_REFERENCE, 0],
+        ]);
+        $this->linkMedia($manager, $archivedFuture, [
+            [MediaAssetFixtures::VILLAGE_REFERENCE, MediaRole::Cover, 0],
+        ]);
+
         $manager->flush();
     }
 
@@ -209,7 +357,7 @@ TEXT,
         string $excerpt,
         string $content,
         ContentStatus $status,
-        MediaAsset $featuredImage,
+        ?MediaAsset $featuredImage,
         string $seoTitle,
         string $seoDescription,
         ?DateTimeImmutable $publishedAt = null,
@@ -316,5 +464,19 @@ TEXT,
     private function getMedia(string $reference): MediaAsset
     {
         return $this->getReference($reference, MediaAsset::class);
+    }
+
+    private function longContent(): string
+    {
+        $paragraphs = [
+            'La cote Vermeille concentre des paysages faciles a comprendre mais riches a parcourir lentement. Pour un premier sejour, le plus simple consiste a alterner une base villageoise, une sortie panoramique et une vraie pause au bord de l eau.',
+            'Collioure fonctionne tres bien comme porte d entree. Le village est dense, vivant, photogenique, mais il demande de composer avec l affluence. En haute saison, les debuts de matinee et fins de journee sont les moments les plus confortables.',
+            'Banyuls-sur-Mer propose une ambiance differente. Les vignes en terrasse, les caps et les routes en balcon donnent rapidement le sentiment d un littoral plus sauvage. Les distances restent courtes mais les deniveles surprennent parfois.',
+            'Pour les familles, il vaut mieux preparer peu d etapes et garder des marges. Les plages de galets, les escaliers, les parkings et la chaleur rendent les journees plus physiques qu elles ne paraissent sur une carte.',
+            'Pour les marcheurs, les sentiers littoraux et les chemins vers les forts sont les meilleurs terrains de test. Ils permettent de verifier les cartes GPS, les points d interet, la galerie et les conseils pratiques du site.',
+            'Enfin, un bon itineraire garde toujours une place pour l improvisation. Une ruelle, une lumiere ou un point de vue suffisent souvent a donner sa coherence a la journee.',
+        ];
+
+        return implode("\n\n", array_merge($paragraphs, $paragraphs));
     }
 }
