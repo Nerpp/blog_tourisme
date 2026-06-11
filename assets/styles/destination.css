@@ -4,6 +4,17 @@
   color: #18322a;
 }
 
+.destinations-page,
+.destination-detail-page,
+.destinations-page *,
+.destinations-page *::before,
+.destinations-page *::after,
+.destination-detail-page *,
+.destination-detail-page *::before,
+.destination-detail-page *::after {
+  box-sizing: border-box;
+}
+
 .destinations-container {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -37,6 +48,7 @@
   line-height: 0.96;
   letter-spacing: -0.06em;
   font-weight: 950;
+  overflow-wrap: anywhere;
 }
 
 .destinations-intro {
@@ -65,6 +77,7 @@
 
 .destinations-toolbar {
   display: flex;
+  min-width: 0;
   align-items: end;
   justify-content: space-between;
   gap: 18px;
@@ -73,6 +86,7 @@
 
 .destinations-search {
   display: grid;
+  min-width: 0;
   flex: 1 1 420px;
   gap: 8px;
   color: rgba(24, 50, 42, 0.68);
@@ -83,6 +97,7 @@
 }
 
 .destinations-search input {
+  min-width: 0;
   min-height: 54px;
   width: 100%;
   padding: 0 18px;
@@ -105,6 +120,7 @@
 
 .destinations-toolbar-actions {
   display: flex;
+  min-width: 0;
   flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -112,6 +128,7 @@
 }
 
 .destination-tool-btn {
+  max-width: 100%;
   min-height: 46px;
   padding: 0 18px;
   border: 1px solid #4f9f75;
@@ -120,6 +137,7 @@
   color: #fff;
   font: inherit;
   font-weight: 900;
+  white-space: normal;
   box-shadow: 0 12px 28px rgba(79, 159, 117, 0.22);
 }
 
@@ -147,6 +165,7 @@
 
 .destination-summary-card {
   display: grid;
+  min-width: 0;
   gap: 8px;
   padding: 16px;
   border: 1px solid rgba(24, 50, 42, 0.08);
@@ -243,6 +262,7 @@
 .destination-main {
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
   min-width: 0;
   gap: 12px;
 }
@@ -301,6 +321,7 @@
   font-weight: 950;
   line-height: 1.2;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .destination-name:hover {
@@ -320,7 +341,7 @@
 
 .destination-stats {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
@@ -328,6 +349,7 @@
 
 .destination-stat {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
@@ -337,7 +359,8 @@
   font-size: 0.8rem;
   font-weight: 850;
   text-decoration: none;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
   transition: background 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
@@ -359,6 +382,7 @@ a.destination-stat:focus-visible {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  max-width: 100%;
   min-height: 34px;
   padding: 0 13px;
   border-radius: 999px;
@@ -367,6 +391,7 @@ a.destination-stat:focus-visible {
   font-size: 0.82rem;
   font-weight: 900;
   text-decoration: none;
+  text-align: center;
   transition: background 180ms ease, transform 180ms ease;
 }
 
@@ -521,6 +546,7 @@ a.destination-stat:focus-visible {
 .destination-detail-hero__content {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .destination-detail-kicker {
@@ -539,6 +565,7 @@ a.destination-stat:focus-visible {
   font-size: clamp(3rem, 8vw, 6.8rem);
   line-height: 0.92;
   font-weight: 950;
+  overflow-wrap: anywhere;
 }
 
 .destination-detail-hero p {
@@ -559,6 +586,7 @@ a.destination-stat:focus-visible {
 .destination-detail-admin-link {
   display: inline-flex;
   width: fit-content;
+  max-width: 100%;
   min-height: 36px;
   align-items: center;
   justify-content: center;
@@ -569,6 +597,7 @@ a.destination-stat:focus-visible {
   font-size: 0.86rem;
   font-weight: 900;
   text-decoration: none;
+  text-align: center;
 }
 
 .destination-detail-badges a:hover,
@@ -583,6 +612,7 @@ a.destination-stat:focus-visible {
 .destination-detail-info {
   display: grid;
   gap: 18px;
+  min-width: 0;
   padding: 22px;
   border: 1px solid rgba(126, 214, 167, 0.2);
   border-radius: 8px;
@@ -615,6 +645,7 @@ a.destination-stat:focus-visible {
   position: relative;
   display: grid;
   gap: 14px;
+  min-width: 0;
   margin-top: 12px;
   padding: 22px;
   border: 1px solid rgba(24, 33, 31, 0.1);
@@ -633,9 +664,11 @@ a.destination-stat:focus-visible {
   display: flex;
   gap: 10px;
   align-items: center;
+  min-width: 0;
 }
 
 .destination-detail-search input {
+  min-width: 0;
   width: 100%;
   min-height: 52px;
   box-sizing: border-box;
@@ -658,13 +691,15 @@ a.destination-stat:focus-visible {
 .destination-detail-department-filters button,
 .destination-detail-department-panel button,
 .destination-mini-card__actions button {
+  max-width: 100%;
   min-height: 38px;
   border: 1px solid rgba(24, 33, 31, 0.1);
   border-radius: 999px;
   background: #edf5ef;
   color: #12615c;
   font-weight: 900;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
 }
 
 .destination-detail-filters {
@@ -709,6 +744,7 @@ a.destination-stat:focus-visible {
 
 .destination-detail-department-panel div {
   display: grid;
+  min-width: 0;
   gap: 2px;
 }
 
@@ -748,6 +784,7 @@ a.destination-stat:focus-visible {
 .destination-detail-search__suggestion {
   display: grid;
   gap: 3px;
+  min-width: 0;
   padding: 11px 12px;
   border-radius: 8px;
   color: #18211f;
@@ -787,6 +824,7 @@ a.destination-stat:focus-visible {
 
 .destination-detail-section__heading {
   display: flex;
+  min-width: 0;
   gap: 18px;
   justify-content: space-between;
   align-items: end;
@@ -798,10 +836,12 @@ a.destination-stat:focus-visible {
   color: #18211f;
   font-size: clamp(2rem, 4vw, 3.45rem);
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .destination-detail-section__heading > span {
   display: inline-flex;
+  max-width: 100%;
   padding: 8px 12px;
   border-radius: 999px;
   background: #e0eee4;
@@ -826,6 +866,7 @@ a.destination-stat:focus-visible {
 
 .destination-mini-card,
 .destination-resource-card {
+  min-width: 0;
   overflow: hidden;
   border: 1px solid rgba(24, 33, 31, 0.1);
   border-radius: 8px;
@@ -863,6 +904,7 @@ a.destination-stat:focus-visible {
   margin: 0;
   font-size: 1.2rem;
   line-height: 1.16;
+  overflow-wrap: anywhere;
 }
 
 .destination-mini-card h3 a,
@@ -953,6 +995,7 @@ a.destination-stat:focus-visible {
 .destination-resource-card__body {
   display: grid;
   gap: 12px;
+  min-width: 0;
   padding: 18px;
 }
 
@@ -972,6 +1015,7 @@ a.destination-stat:focus-visible {
 .destination-resource-card__cta {
   display: inline-flex;
   width: fit-content;
+  max-width: 100%;
   min-height: 38px;
   align-items: center;
   justify-content: center;
@@ -981,6 +1025,7 @@ a.destination-stat:focus-visible {
   color: #fff;
   font-weight: 900;
   text-decoration: none;
+  text-align: center;
 }
 
 .destination-resource-card__cta:hover,
@@ -1005,6 +1050,11 @@ a.destination-stat:focus-visible {
     flex-direction: column;
   }
 
+  .destinations-search {
+    flex: none;
+    width: 100%;
+  }
+
   .destinations-toolbar-actions {
     justify-content: stretch;
   }
@@ -1023,12 +1073,25 @@ a.destination-stat:focus-visible {
   }
 
   .destination-stats {
+    width: 100%;
     justify-content: flex-start;
+  }
+
+  .destination-open-link {
+    flex: 0 1 auto;
   }
 
   .destination-section-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .destination-detail-page {
+    background: #f4f7f0;
+  }
+
+  .destination-detail-hero {
+    background: #10271f;
   }
 
   .destination-detail-hero__inner,
@@ -1046,8 +1109,13 @@ a.destination-stat:focus-visible {
     width: min(100% - 24px, 1180px);
   }
 
+  .destinations-hero {
+    padding: 58px 0 104px;
+  }
+
   .destinations-title {
-    font-size: clamp(2.45rem, 16vw, 3.4rem);
+    font-size: clamp(1.9rem, 9.8vw, 2.9rem);
+    letter-spacing: -0.035em;
   }
 
   .destinations-intro {
@@ -1055,7 +1123,25 @@ a.destination-stat:focus-visible {
   }
 
   .destinations-content {
-    margin-top: -70px;
+    margin-top: -64px;
+  }
+
+  .destinations-panel {
+    padding: 16px;
+  }
+
+  .destinations-search input {
+    min-height: 50px;
+    padding: 0 14px;
+    border-radius: 18px;
+  }
+
+  .destinations-toolbar-actions {
+    gap: 8px;
+  }
+
+  .destination-tool-btn {
+    flex-basis: 100%;
   }
 
   .destinations-summary-grid {
@@ -1078,5 +1164,52 @@ a.destination-stat:focus-visible {
     width: 42px;
     height: 42px;
     border-radius: 14px;
+  }
+
+  .destination-detail-shell {
+    width: min(100% - 24px, 1180px);
+  }
+
+  .destination-detail-hero {
+    padding: 54px 0 38px;
+  }
+
+  .destination-detail-hero h1 {
+    font-size: clamp(2.45rem, 15vw, 3.65rem);
+  }
+
+  .destination-detail-search {
+    padding: 18px;
+  }
+
+  .destination-detail-search__field {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .destination-detail-search__suggestions {
+    right: 12px;
+    left: 12px;
+    max-height: min(320px, 62vh);
+  }
+
+  .destination-detail-section__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 360px) {
+  .destinations-container,
+  .destination-detail-shell {
+    width: min(100% - 20px, 1180px);
+  }
+
+  .destinations-page .destination-tree .destination-tree {
+    padding-left: 12px;
+  }
+
+  .destinations-page .destination-tree .destination-tree::before {
+    left: 4px;
   }
 }

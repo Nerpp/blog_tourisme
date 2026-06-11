@@ -4,6 +4,13 @@
   color: #18211f;
 }
 
+.article-index-page,
+.article-index-page *,
+.article-index-page *::before,
+.article-index-page *::after {
+  box-sizing: border-box;
+}
+
 .article-index-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -27,6 +34,7 @@
 .article-index-hero__content {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .article-index-kicker {
@@ -45,6 +53,7 @@
   font-size: clamp(2.7rem, 6vw, 5.8rem);
   line-height: 0.96;
   font-weight: 950;
+  overflow-wrap: anywhere;
 }
 
 .article-index-hero p {
@@ -59,6 +68,7 @@
   position: relative;
   display: grid;
   gap: 14px;
+  min-width: 0;
   padding: 22px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
@@ -77,12 +87,13 @@
   display: flex;
   gap: 10px;
   align-items: center;
+  min-width: 0;
 }
 
 .article-index-search input {
+  min-width: 0;
   width: 100%;
   min-height: 52px;
-  box-sizing: border-box;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
@@ -99,13 +110,14 @@
 
 .article-index-search__field button,
 .article-index-search__filters button {
+  max-width: 100%;
   min-height: 38px;
   border-radius: 999px;
   border-color: rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   font-size: 0.88rem;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .article-index-search__field button:hover,
@@ -139,6 +151,7 @@
 .article-index-search__suggestion {
   display: grid;
   gap: 3px;
+  min-width: 0;
   padding: 11px 12px;
   border-radius: 8px;
   color: #18211f;
@@ -162,6 +175,7 @@
 
 .article-index-section-heading {
   display: flex;
+  min-width: 0;
   gap: 18px;
   justify-content: space-between;
   align-items: end;
@@ -178,6 +192,7 @@
 
 .article-index-count {
   display: inline-flex;
+  max-width: 100%;
   padding: 8px 12px;
   border-radius: 999px;
   background: #e0eee4;
@@ -203,6 +218,7 @@
 
 .article-list-card {
   display: grid;
+  min-width: 0;
   overflow: hidden;
   border: 1px solid rgba(24, 33, 31, 0.1);
   border-radius: 8px;
@@ -245,6 +261,7 @@
 .article-list-card__body {
   display: grid;
   gap: 12px;
+  min-width: 0;
   padding: 18px;
 }
 
@@ -256,6 +273,7 @@
 
 .article-list-card__badges span {
   display: inline-flex;
+  max-width: 100%;
   min-height: 24px;
   align-items: center;
   padding: 0 9px;
@@ -276,6 +294,7 @@
   margin: 0;
   font-size: 1.22rem;
   line-height: 1.18;
+  overflow-wrap: anywhere;
 }
 
 .article-list-card h3 a {
@@ -298,6 +317,7 @@
 .article-list-card__cta {
   display: inline-flex;
   width: fit-content;
+  max-width: 100%;
   min-height: 38px;
   align-items: center;
   justify-content: center;
@@ -307,6 +327,7 @@
   color: #fff;
   font-weight: 900;
   text-decoration: none;
+  text-align: center;
 }
 
 .article-list-card__cta:hover {
@@ -326,8 +347,16 @@
 }
 
 @media (max-width: 680px) {
+  .article-index-shell {
+    width: min(100% - 24px, 1180px);
+  }
+
   .article-index-hero {
     padding: 42px 0 52px;
+  }
+
+  .article-index-search {
+    padding: 18px;
   }
 
   .article-index-search__field,
@@ -343,5 +372,6 @@
   .article-index-search__suggestions {
     right: 12px;
     left: 12px;
+    max-height: min(320px, 62vh);
   }
 }
