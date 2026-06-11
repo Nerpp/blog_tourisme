@@ -84,9 +84,11 @@
 .home-secondary-btn,
 .home-outline-btn,
 .home-newsletter-form button {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  max-width: 100%;
   min-height: 46px;
   padding: 0 20px;
   border-radius: 999px;
@@ -258,6 +260,10 @@
   align-items: end;
   gap: 24px;
   margin-bottom: 40px;
+}
+
+.home-section-header > * {
+  min-width: 0;
 }
 
 .home-section-header h2,
