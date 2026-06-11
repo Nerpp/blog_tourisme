@@ -1,4 +1,5 @@
 .profile-page {
+  overflow-x: clip;
   min-height: calc(100vh - 137px);
   padding: clamp(28px, 5vw, 64px) 16px 72px;
   background:
@@ -8,8 +9,16 @@
   color: #18322a;
 }
 
+.profile-page,
+.profile-page *,
+.profile-page *::before,
+.profile-page *::after {
+  box-sizing: border-box;
+}
+
 .profile-shell {
   width: min(1120px, 100%);
+  min-width: 0;
   margin: 0 auto;
 }
 
@@ -19,6 +28,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: clamp(18px, 3vw, 30px);
   align-items: center;
+  min-width: 0;
   overflow: hidden;
   padding: clamp(24px, 4vw, 42px);
   border: 1px solid rgba(245, 247, 243, 0.18);
@@ -52,6 +62,7 @@
   font-weight: 950;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .profile-hero .profile-kicker {
@@ -71,6 +82,7 @@
   color: #fff;
   font-size: clamp(2.3rem, 5vw, 4.6rem);
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .profile-hero p:not(.profile-kicker) {
@@ -94,6 +106,8 @@
   font-weight: 950;
   text-decoration: none;
   cursor: pointer;
+  max-width: 100%;
+  text-align: center;
 }
 
 .profile-hero__link {
@@ -185,6 +199,7 @@
   grid-template-columns: minmax(0, 1fr) 330px;
   gap: 24px;
   align-items: start;
+  min-width: 0;
   margin-top: 24px;
 }
 
@@ -199,9 +214,11 @@
   top: 92px;
   display: grid;
   gap: 20px;
+  min-width: 0;
 }
 
 .profile-card {
+  min-width: 0;
   padding: clamp(22px, 3vw, 32px);
   border: 1px solid rgba(24, 50, 42, 0.08);
   border-radius: 26px;
@@ -218,6 +235,7 @@
   color: #18322a;
   font-size: clamp(1.55rem, 3vw, 2.2rem);
   line-height: 1.08;
+  overflow-wrap: anywhere;
 }
 
 .profile-card--compact h2 {
@@ -232,6 +250,7 @@
 .profile-avatar-editor__field {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .profile-field label,
@@ -243,6 +262,8 @@
 
 .profile-input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 48px;
   padding: 0 14px;
   border: 1px solid rgba(24, 50, 42, 0.16);
@@ -268,6 +289,7 @@
 
 .profile-readonly-grid div,
 .profile-stats div {
+  min-width: 0;
   padding: 16px;
   border: 1px solid rgba(24, 50, 42, 0.08);
   border-radius: 18px;
@@ -297,6 +319,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 18px;
   align-items: center;
+  min-width: 0;
   padding: 16px;
   border: 1px dashed rgba(18, 97, 92, 0.26);
   border-radius: 22px;
@@ -309,10 +332,13 @@
   color: rgba(24, 50, 42, 0.66);
   font-size: 0.92rem;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .profile-file-input {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   color: #33413e;
   font: inherit;
 }
@@ -335,6 +361,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
   align-items: start;
+  min-width: 0;
   padding: 16px;
   border: 1px solid rgba(24, 50, 42, 0.08);
   border-radius: 18px;
@@ -352,6 +379,8 @@
 .profile-toggle strong,
 .profile-toggle small {
   display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .profile-toggle strong {
@@ -446,6 +475,26 @@
     border-radius: 22px;
   }
 
+  .profile-hero,
+  .profile-card {
+    padding: 20px;
+  }
+
+  .profile-avatar--large,
+  .profile-avatar--editor {
+    width: 76px;
+    height: 76px;
+  }
+
+  .profile-avatar--large {
+    border-width: 4px;
+    font-size: 1.7rem;
+  }
+
+  .profile-avatar--editor {
+    font-size: 1.45rem;
+  }
+
   .profile-readonly-grid,
   .profile-avatar-editor {
     grid-template-columns: 1fr;
@@ -453,5 +502,11 @@
 
   .profile-actions {
     display: grid;
+  }
+
+  .profile-file-input::file-selector-button {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 8px;
   }
 }

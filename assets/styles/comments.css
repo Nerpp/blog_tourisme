@@ -477,14 +477,23 @@
 .comment-notifications-page {
   width: 100%;
   box-sizing: border-box;
+  overflow-x: clip;
   padding: 48px 16px 72px;
   background:
     linear-gradient(180deg, rgba(229, 240, 237, 0.72), rgba(246, 247, 242, 0) 260px),
     #f6f7f2;
 }
 
+.comment-notifications-page,
+.comment-notifications-page *,
+.comment-notifications-page *::before,
+.comment-notifications-page *::after {
+  box-sizing: border-box;
+}
+
 .comment-notifications {
   width: min(920px, 100%);
+  min-width: 0;
   margin: 0 auto;
   display: grid;
   gap: 18px;
@@ -495,6 +504,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
+  min-width: 0;
   padding: 22px;
   border: 1px solid rgba(24, 33, 31, 0.1);
   border-radius: 8px;
@@ -507,10 +517,12 @@
   color: #18211f;
   font-size: clamp(1.55rem, 3vw, 2.15rem);
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .comment-notifications__eyebrow {
   width: fit-content;
+  max-width: 100%;
   margin: 0;
   padding: 4px 9px;
   border-radius: 999px;
@@ -519,6 +531,7 @@
   font-size: 0.78rem;
   font-weight: 900;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .comment-notifications__intro {
@@ -526,9 +539,11 @@
   margin: 8px 0 0;
   color: #68736f;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .comment-notifications__clear {
+  max-width: 100%;
   min-height: 40px;
   padding: 0 14px;
   border: 0;
@@ -537,6 +552,7 @@
   color: #9f2d2d;
   font: inherit;
   font-weight: 900;
+  text-align: center;
   cursor: pointer;
 }
 
@@ -547,6 +563,7 @@
 .comment-notification-list {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .comment-notification {
@@ -554,6 +571,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
+  min-width: 0;
   padding: 16px;
   border: 1px solid rgba(24, 33, 31, 0.11);
   border-radius: 8px;
@@ -570,6 +588,8 @@
 .comment-notification__meta,
 .comment-notification__excerpt {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .comment-notification__title {
@@ -588,6 +608,8 @@
   color: #68736f;
   font-size: 0.75rem;
   font-weight: 900;
+  vertical-align: middle;
+  white-space: normal;
 }
 
 .comment-notification.is-unread .comment-notification__state {
@@ -608,15 +630,19 @@
 }
 
 .comment-notification__link {
+  max-width: 100%;
   min-height: 36px;
   padding: 0 14px;
   border-radius: 999px;
   background: #e5f0ed;
   color: #12615c;
   font-weight: 900;
+  text-align: center;
+  white-space: normal;
 }
 
 .comment-notifications__empty {
+  min-width: 0;
   padding: 22px;
   border: 1px solid rgba(24, 33, 31, 0.1);
   border-radius: 8px;
@@ -627,6 +653,7 @@
 
 .comment-notifications__empty p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .login-callout {
@@ -667,5 +694,21 @@
 
   .comment-notification__link {
     width: fit-content;
+  }
+}
+
+@media (max-width: 520px) {
+  .comment-notifications-page {
+    padding: 28px 10px 52px;
+  }
+
+  .comment-notifications__header,
+  .comment-notification,
+  .comment-notifications__empty {
+    padding: 16px;
+  }
+
+  .comment-notification__link {
+    width: 100%;
   }
 }

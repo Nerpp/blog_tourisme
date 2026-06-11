@@ -1,69 +1,64 @@
 <section class="home-hero">
-    <div class="home-hero__overlay"></div>
+	<div class="home-hero__overlay"></div>
 
-    <div class="home-container home-hero__container">
-        <div class="home-hero__content">
-            <p class="home-kicker">Carnet d’exploration</p>
+	<div class="home-container home-hero__container">
+		<div class="home-hero__content">
+			<p class="home-kicker">Carnet d’exploration</p>
 
-            <h1>
-                Voyager entre mer, montagne et lumière.
-            </h1>
+			<h1>
+				Voyager entre mer, montagne et lumière.
+			</h1>
 
-            <p class="home-hero__text">
-                Découvrez des randonnées, villages et paysages méditerranéens
-                à travers une approche immersive mêlant drone, photographie
-                et exploration.
-            </p>
+			<p class="home-hero__text">
+				Découvrez des randonnées, villages et paysages
+				                à travers une approche immersive mêlant drone, photographie
+				                et exploration.
+			</p>
 
-            <div class="home-hero__actions">
-    <a class="home-primary-btn" href="#derniers-articles">
-        Voir les 3 derniers articles
-    </a>
-</div>
-            
-        </div>
+			<div class="home-hero__actions">
+				<a class="home-primary-btn" href="#derniers-articles">
+					Voir les 3 dernieres destinations
+				</a>
+			</div>
 
-        {% if latest_homepage_item %}
-            <article
-                class="home-latest-card"
-                {% if latest_homepage_item.image %}
-                    style="--latest-card-image: url('{{ asset(latest_homepage_item.image)|e('html_attr') }}');"
-                {% endif %}
-            >
-                <div class="home-latest-card__overlay">
-                    <p>{{ latest_homepage_item.label }}</p>
+		</div>
 
-                    <h2>{{ latest_homepage_item.title }}</h2>
+		{% if latest_homepage_item %}
+			<article class="home-latest-card" {% if latest_homepage_item.image %} style="--latest-card-image: url('{{ asset(latest_homepage_item.image)|e('html_attr') }}');" {% endif %}>
+				<div class="home-latest-card__overlay">
+					<p>{{ latest_homepage_item.label }}</p>
 
-                    {% if latest_homepage_item.secondary_title is defined %}
-                        <span class="home-latest-card__secondary-label">
-                            {{ latest_homepage_item.secondary_title }}
-                        </span>
-                    {% endif %}
+					<h2>{{ latest_homepage_item.title }}</h2>
 
-                    <div class="home-latest-card__actions">
-                        <a class="home-latest-card__cta" href="{{ latest_homepage_item.url }}">
-                            {{ latest_homepage_item.primary_cta|default('Découvrir') }}
-                        </a>
+					{% if latest_homepage_item.secondary_title is defined %}
+						<span class="home-latest-card__secondary-label">
+							{{ latest_homepage_item.secondary_title }}
+						</span>
+					{% endif %}
 
-                        {% if latest_homepage_item.secondary_url is defined and latest_homepage_item.secondary_cta is defined %}
-                            <a class="home-latest-card__secondary-cta" href="{{ latest_homepage_item.secondary_url }}">
-                                {{ latest_homepage_item.secondary_cta }}
-                            </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </article>
-        {% else %}
-            <aside class="home-latest-card">
-                <div class="home-latest-card__overlay">
-                    <p>Dernière publication</p>
+					<div class="home-latest-card__actions">
+						<a class="home-latest-card__cta" href="{{ latest_homepage_item.url }}">
+							{{ latest_homepage_item.primary_cta|default('Découvrir') }}
+						</a>
 
-                    <h2>Exploration à venir</h2>
+						{% if latest_homepage_item.secondary_url is defined and latest_homepage_item.secondary_cta is defined %}
+							<a class="home-latest-card__secondary-cta" href="{{ latest_homepage_item.secondary_url }}">
+								{{ latest_homepage_item.secondary_cta }}
+							</a>
+						{% endif %}
+					</div>
+				</div>
+			</article>
+		{% else %}
+			<aside class="home-latest-card">
+				<div class="home-latest-card__overlay">
+					<p>Dernière publication</p>
 
-                    <span>Mer, montagne et lumière</span>
-                </div>
-            </aside>
-        {% endif %}
-    </div>
+					<h2>Exploration à venir</h2>
+
+					<span>Mer, montagne et lumière</span>
+				</div>
+			</aside>
+		{% endif %}
+	</div>
 </section>

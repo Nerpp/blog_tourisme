@@ -387,12 +387,13 @@
 
   .navbar-brand {
     min-width: 0;
+    max-width: 100%;
   }
 
   .navbar-brand__title {
     display: block;
     overflow: hidden;
-    max-width: 170px;
+    max-width: min(170px, 100%);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
@@ -503,7 +504,7 @@
   }
 
   .navbar-brand__title {
-    max-width: 135px;
+    max-width: min(135px, 100%);
     font-size: 0.98rem;
   }
 
