@@ -99,6 +99,10 @@
                             </div>
                             <form class="comment-inline-form comment-composer__form" method="post" action="{{ path('app_comment_reply', { id: comment.id }) }}" data-comment-reply-form>
                                 <input type="hidden" name="_token" value="{{ csrf_token('reply-comment-' ~ comment.id) }}">
+                                <div class="comment-honeypot" aria-hidden="true">
+                                    <label for="reply-website-{{ comment.id }}">Site web</label>
+                                    <input id="reply-website-{{ comment.id }}" type="text" name="website" tabindex="-1" autocomplete="off">
+                                </div>
                                 <label class="sr-only" for="reply-content-{{ comment.id }}">Votre réponse</label>
                                 <textarea id="reply-content-{{ comment.id }}" name="content" rows="1" maxlength="5000" required placeholder="Ajoutez une réponse…"></textarea>
                                 <div class="comment-composer__actions">

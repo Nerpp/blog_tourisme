@@ -28,6 +28,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $author = $this->createUser();
         $article = $this->createArticle();
+        $content = 'Un commentaire fonctionnel valide et suffisamment long.';
         $client->loginUser($author);
 
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
@@ -35,7 +36,7 @@ final class CommentControllerTest extends FunctionalTestCase
 
         $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
             'comment' => [
-                'content' => 'Un commentaire fonctionnel valide et suffisamment long.',
+                'content' => $content,
                 '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
             ],
         ]);
@@ -52,6 +53,42 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
         self::assertInstanceOf(Comment::class, $comment);
         self::assertSame(CommentStatus::Approved, $comment->getStatus());
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($content, (string) $client->getResponse()->getContent());
+    }
+
+    public function testVerifiedUserCanPostReplyPublishedByDefault(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $replyContent = 'Une réponse publiée immédiatement et suffisamment longue.';
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/reply', $parent->getId())),
+            'content' => $replyContent,
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects();
+        $reply = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'parent' => $parent,
+            'author' => $replyAuthor,
+        ]);
+        self::assertInstanceOf(Comment::class, $reply);
+        self::assertSame(CommentStatus::Approved, $reply->getStatus());
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($replyContent, (string) $client->getResponse()->getContent());
     }
 
     public function testInvalidArticleCommentIsRejected(): void
@@ -76,6 +113,113 @@ final class CommentControllerTest extends FunctionalTestCase
 
         self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
         self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testHoneypotFilledArticleCommentIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['article' => $article]);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'Commentaire avec honeypot rempli côté robot.',
+                'website' => 'https://spam.example',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testCommentWithTooManyLinksIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['article' => $article]);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'Voici trop de liens https://a.example https://b.example https://c.example dans ce commentaire.',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testRecentDuplicateCommentIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $content = 'Commentaire doublon exact suffisamment long.';
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => $content,
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects();
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => $content,
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame(1, $repository->count(['article' => $article, 'author' => $author]));
+    }
+
+    public function testCommentContentIsEscapedOnPublicPage(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => '<script>alert(1)</script> commentaire suffisamment long.',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects();
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $html = (string) $client->getResponse()->getContent();
+        self::assertStringNotContainsString('<script>alert(1)</script>', $html);
+        self::assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
     }
 
     public function testLikeToggleCreatesAndRemovesLike(): void
@@ -122,16 +266,21 @@ final class CommentControllerTest extends FunctionalTestCase
             'message' => 'Signalement de test.',
         ];
         $client->request('POST', sprintf('/comments/%d/report', $comment->getId()), $payload);
-        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
 
         $client->request('POST', sprintf('/comments/%d/report', $comment->getId()), $payload);
-        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
 
         $reportRepository = $this->entityManager()->getRepository(\App\Entity\CommentReport::class);
         self::assertInstanceOf(CommentReportRepository::class, $reportRepository);
         self::assertSame(1, $reportRepository->count(['comment' => $comment, 'reporter' => $reporter]));
         $comment = $this->refresh($comment);
         self::assertSame(1, $comment->getReportedCount());
+        self::assertSame(CommentStatus::HiddenPendingReport, $comment->getStatus());
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString('Commentaire fonctionnel assez long.', (string) $client->getResponse()->getContent());
     }
 
     public function testVerifiedAdminCanHeartAndPinApprovedComment(): void

@@ -59,7 +59,7 @@ class Comment
     private ?string $content = null;
 
     #[ORM\Column(length: 20, enumType: CommentStatus::class)]
-    private CommentStatus $status = CommentStatus::Pending;
+    private CommentStatus $status = CommentStatus::Approved;
 
     #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'children')]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]

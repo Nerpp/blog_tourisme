@@ -15,19 +15,23 @@ use DateTimeImmutable;
 
 final class CommentModerationIntegrationTest extends IntegrationTestCase
 {
-    public function testRejectedAndDeletedCommentsAreNotPublicForAnonymousReaders(): void
+    public function testNonVisibleCommentsAreNotPublicForAnonymousReaders(): void
     {
         $token = bin2hex(random_bytes(4));
         $author = $this->createUser();
         $article = $this->createArticle($token, $author);
         $approved = $this->createComment($author, $article, CommentStatus::Approved, 'Approved public comment '.$token);
         $rejected = $this->createComment($author, $article, CommentStatus::Rejected, 'Rejected private comment '.$token);
+        $reported = $this->createComment($author, $article, CommentStatus::HiddenPendingReport, 'Reported hidden private comment '.$token);
+        $hiddenByAdmin = $this->createComment($author, $article, CommentStatus::HiddenByAdmin, 'Admin hidden private comment '.$token);
         $deleted = $this->createComment($author, $article, CommentStatus::Deleted, 'Deleted private comment '.$token);
 
         $this->entityManager->persist($author);
         $this->entityManager->persist($article);
         $this->entityManager->persist($approved);
         $this->entityManager->persist($rejected);
+        $this->entityManager->persist($reported);
+        $this->entityManager->persist($hiddenByAdmin);
         $this->entityManager->persist($deleted);
         $this->entityManager->flush();
 
@@ -35,6 +39,8 @@ final class CommentModerationIntegrationTest extends IntegrationTestCase
 
         self::assertContains($approved, $visibleComments);
         self::assertNotContains($rejected, $visibleComments);
+        self::assertNotContains($reported, $visibleComments);
+        self::assertNotContains($hiddenByAdmin, $visibleComments);
         self::assertNotContains($deleted, $visibleComments);
     }
 
@@ -53,11 +59,11 @@ final class CommentModerationIntegrationTest extends IntegrationTestCase
 
         $this->moderationService()->moderateNew($comment);
 
-        self::assertSame(CommentStatus::Approved, $comment->getStatus());
+        self::assertSame(CommentStatus::Spam, $comment->getStatus());
         self::assertSame(100, $comment->getSpamScore());
         self::assertStringContainsString('integration-blocked-keyword', (string) $comment->getModerationReason());
-        self::assertNotNull($comment->getApprovedAt());
-        self::assertNotNull($comment->getPublishedAt());
+        self::assertNull($comment->getApprovedAt());
+        self::assertNull($comment->getPublishedAt());
     }
 
     public function testReportThresholdMarksApprovedCommentForModerationReview(): void
@@ -70,8 +76,8 @@ final class CommentModerationIntegrationTest extends IntegrationTestCase
 
         $this->moderationService()->applyReportThreshold($comment);
 
-        self::assertSame(CommentStatus::Approved, $comment->getStatus());
-        self::assertSame('Seuil de signalements atteint.', $comment->getModerationReason());
+        self::assertSame(CommentStatus::HiddenPendingReport, $comment->getStatus());
+        self::assertSame('Signalement en attente de modération.', $comment->getModerationReason());
         self::assertNotNull($comment->getModeratedAt());
     }
 

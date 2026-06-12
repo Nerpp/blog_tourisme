@@ -549,6 +549,24 @@ a {
     background: #f9fbf9;
 }
 
+.admin-report-list {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-report-list__item {
+    display: grid;
+    gap: 4px;
+    padding: 10px;
+    border: 1px solid var(--admin-line);
+    border-radius: var(--admin-radius);
+    background: #f9fbf9;
+}
+
+.admin-report-list__item p {
+    margin: 0;
+}
+
 .admin-reject-form {
     display: grid;
     min-width: min(100%, 320px);

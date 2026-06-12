@@ -9,6 +9,7 @@
     </head>
     <body>
         {% set route = app.request.attributes.get('_route') %}
+        {% set pending_comment_reports = comment_pending_report_count() %}
         <div class="admin-shell">
             <aside class="admin-sidebar">
                 <a class="admin-brand" href="{{ path('admin') }}">Administration</a>
@@ -30,8 +31,10 @@
                     </section>
                     <section>
                         <h2>Modération</h2>
-                        <a href="{{ path('admin_comments_index') }}" class="{{ route starts with 'admin_comments' ? 'is-active' }}">Commentaires</a>
-                        <a href="{{ path('admin_comments_reported') }}" class="{{ route == 'admin_comments_reported' ? 'is-active' }}">Signalements</a>
+                        <a href="{{ path('admin_comments_index') }}" class="{{ route in ['admin_comments_index', 'admin_comments_pending'] ? 'is-active' }}">Commentaires</a>
+                        <a href="{{ path('admin_comments_reports') }}" class="{{ route in ['admin_comments_reports', 'admin_comments_reported'] ? 'is-active' }}">
+                            Signalements{% if pending_comment_reports > 0 %} : {{ pending_comment_reports }}{% endif %}
+                        </a>
                         <a href="{{ path('admin_moderation_keywords_index') }}" class="{{ route starts with 'admin_moderation_keywords' ? 'is-active' }}">Mots-clés de modération</a>
                     </section>
                     <section>

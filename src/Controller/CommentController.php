@@ -19,6 +19,7 @@ use App\Security\Voter\CommentVoter;
 use App\Service\CommentDeletionService;
 use App\Service\CommentModerationService;
 use App\Service\CommentReplyNotificationService;
+use App\Service\CommentSpamGuard;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -46,6 +47,7 @@ final class CommentController extends AbstractController
         EntityManagerInterface $entityManager,
         CommentModerationService $moderationService,
         CommentReplyNotificationService $notificationService,
+        CommentSpamGuard $spamGuard,
     ): RedirectResponse {
         $article = $articleRepository->findPublishedBySlug($slug);
         if ($article === null) {
@@ -88,13 +90,26 @@ final class CommentController extends AbstractController
         }
 
         if ($form->isValid()) {
+            if (($spamMessage = $spamGuard->validate($comment)) !== null) {
+                $this->addFlash('error', $spamMessage);
+
+                return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
+            }
+
             $moderationService->moderateNew($comment);
             $entityManager->persist($comment);
-            $notificationService->createForApprovedComment($comment);
+            if ($comment->getStatus() === CommentStatus::Approved) {
+                $notificationService->createForApprovedComment($comment);
+            }
             $entityManager->flush();
 
-            $this->addFlash('success', 'Votre commentaire a été publié.');
+            if ($comment->getStatus() !== CommentStatus::Approved) {
+                $this->addFlash('warning', 'Votre commentaire a été bloqué par l’anti-spam.');
 
+                return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
+            }
+
+            $this->addFlash('success', 'Votre commentaire a été publié.');
             return $this->redirectToCommentTarget($comment);
         }
 
@@ -112,6 +127,7 @@ final class CommentController extends AbstractController
         EntityManagerInterface $entityManager,
         CommentModerationService $moderationService,
         CommentReplyNotificationService $notificationService,
+        CommentSpamGuard $spamGuard,
     ): RedirectResponse {
         $place = $placeRepository->findPublishedBySlug($slug);
         if ($place === null) {
@@ -154,13 +170,26 @@ final class CommentController extends AbstractController
         }
 
         if ($form->isValid()) {
+            if (($spamMessage = $spamGuard->validate($comment)) !== null) {
+                $this->addFlash('error', $spamMessage);
+
+                return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
+            }
+
             $moderationService->moderateNew($comment);
             $entityManager->persist($comment);
-            $notificationService->createForApprovedComment($comment);
+            if ($comment->getStatus() === CommentStatus::Approved) {
+                $notificationService->createForApprovedComment($comment);
+            }
             $entityManager->flush();
 
-            $this->addFlash('success', 'Votre commentaire a été publié.');
+            if ($comment->getStatus() !== CommentStatus::Approved) {
+                $this->addFlash('warning', 'Votre commentaire a été bloqué par l’anti-spam.');
 
+                return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
+            }
+
+            $this->addFlash('success', 'Votre commentaire a été publié.');
             return $this->redirectToCommentTarget($comment);
         }
 
@@ -177,10 +206,17 @@ final class CommentController extends AbstractController
         EntityManagerInterface $entityManager,
         CommentModerationService $moderationService,
         CommentReplyNotificationService $notificationService,
+        CommentSpamGuard $spamGuard,
         ValidatorInterface $validator,
     ): RedirectResponse {
         if (!$this->isCsrfTokenValid('reply-comment-'.$parent->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
+        }
+
+        if (trim($request->request->getString('website')) !== '') {
+            $this->addFlash('error', 'Votre réponse n’a pas pu être envoyée.');
+
+            return $this->redirectToCommentTarget($parent);
         }
 
         if ($parent->getParent() !== null) {
@@ -228,13 +264,26 @@ final class CommentController extends AbstractController
             return $this->redirectToCommentTarget($parent);
         }
 
+        if (($spamMessage = $spamGuard->validate($reply)) !== null) {
+            $this->addFlash('error', $spamMessage);
+
+            return $this->redirectToCommentTarget($parent);
+        }
+
         $moderationService->moderateNew($reply);
         $entityManager->persist($reply);
-        $notificationService->createForApprovedComment($reply);
+        if ($reply->getStatus() === CommentStatus::Approved) {
+            $notificationService->createForApprovedComment($reply);
+        }
         $entityManager->flush();
 
-        $this->addFlash('success', 'Votre réponse a été publiée.');
+        if ($reply->getStatus() !== CommentStatus::Approved) {
+            $this->addFlash('warning', 'Votre réponse a été bloquée par l’anti-spam.');
 
+            return $this->redirectToCommentTarget($parent);
+        }
+
+        $this->addFlash('success', 'Votre réponse a été publiée.');
         return $this->redirectToCommentTarget($reply);
     }
 
@@ -246,6 +295,7 @@ final class CommentController extends AbstractController
         EntityManagerInterface $entityManager,
         CommentModerationService $moderationService,
         CommentReplyNotificationService $notificationService,
+        CommentSpamGuard $spamGuard,
         ValidatorInterface $validator,
     ): RedirectResponse {
         $this->denyAccessUnlessGranted(CommentVoter::EDIT, $comment);
@@ -266,6 +316,13 @@ final class CommentController extends AbstractController
             return $this->redirectToCommentTarget($comment);
         }
 
+        if (($spamMessage = $spamGuard->validate($comment, $comment)) !== null) {
+            $comment->setContent((string) $previousContent);
+            $this->addFlash('error', $spamMessage);
+
+            return $this->redirectToCommentTarget($comment);
+        }
+
         $comment->setEditedAt(new \DateTimeImmutable());
         $moderationService->moderateEdited(
             $comment,
@@ -273,10 +330,17 @@ final class CommentController extends AbstractController
             $this->isGranted('ROLE_ADMIN'),
             $previousStatus,
         );
-        $notificationService->createForApprovedComment($comment);
+        if ($comment->getStatus() === CommentStatus::Approved) {
+            $notificationService->createForApprovedComment($comment);
+        }
 
         $entityManager->flush();
-        $this->addFlash('success', 'Votre commentaire a été modifié.');
+        $this->addFlash(
+            $comment->getStatus() === CommentStatus::Approved ? 'success' : 'warning',
+            $comment->getStatus() === CommentStatus::Approved
+                ? 'Votre commentaire a été modifié.'
+                : 'Votre commentaire a été masqué par l’anti-spam.',
+        );
 
         return $this->redirectToCommentTarget($comment);
     }
@@ -401,20 +465,20 @@ final class CommentController extends AbstractController
         EntityManagerInterface $entityManager,
         CommentModerationService $moderationService,
     ): RedirectResponse {
-        $this->denyAccessUnlessGranted(CommentVoter::REPORT, $comment);
-
         if (!$this->isCsrfTokenValid('report-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
 
         $reporter = $this->getAuthenticatedUser();
-        if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentReport($request, $reporter))) {
-            return $this->redirectToCommentTarget($comment);
-        }
-
         if ($reportRepository->findOneByCommentAndReporter($comment, $reporter) !== null) {
             $this->addFlash('warning', 'Vous avez déjà signalé ce commentaire.');
 
+            return $this->redirectToCommentTarget($comment);
+        }
+
+        $this->denyAccessUnlessGranted(CommentVoter::REPORT, $comment);
+
+        if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentReport($request, $reporter))) {
             return $this->redirectToCommentTarget($comment);
         }
 
@@ -430,7 +494,7 @@ final class CommentController extends AbstractController
             ->setUserAgent($request->headers->get('User-Agent'));
 
         $comment->incrementReportedCount();
-        $moderationService->applyReportThreshold($comment);
+        $moderationService->hideForPendingReportReview($comment);
 
         $entityManager->persist($report);
         $entityManager->flush();
@@ -501,7 +565,11 @@ final class CommentController extends AbstractController
         }
 
         $user = $this->getUser();
-        if ($user instanceof User && $comment->getAuthor()?->getId() === $user->getId()) {
+        if (
+            $user instanceof User
+            && $comment->getAuthor()?->getId() === $user->getId()
+            && in_array($comment->getStatus(), [CommentStatus::Pending, CommentStatus::Rejected], true)
+        ) {
             return 'comment-'.$comment->getId();
         }
 

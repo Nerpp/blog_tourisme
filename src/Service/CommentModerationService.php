@@ -36,15 +36,17 @@ class CommentModerationService
     public function moderateNew(Comment $comment): void
     {
         [$score, $reasons] = $this->analyze($comment->getContent() ?? '');
+        $status = $score >= self::HIGH_SPAM_SCORE ? CommentStatus::Spam : CommentStatus::Approved;
 
-        $this->applyModeration($comment, CommentStatus::Approved, $score, $reasons);
+        $this->applyModeration($comment, $status, $score, $reasons);
     }
 
     public function moderateEdited(Comment $comment, User $editor, bool $isAdmin, CommentStatus $previousStatus): void
     {
         [$score, $reasons] = $this->analyze($comment->getContent() ?? '');
+        $status = $score >= self::HIGH_SPAM_SCORE && !$isAdmin ? CommentStatus::Spam : CommentStatus::Approved;
 
-        $this->applyModeration($comment, CommentStatus::Approved, $score, $reasons);
+        $this->applyModeration($comment, $status, $score, $reasons);
     }
 
     public function applyReportThreshold(Comment $comment): void
@@ -57,8 +59,18 @@ class CommentModerationService
             return;
         }
 
+        $this->hideForPendingReportReview($comment);
+    }
+
+    public function hideForPendingReportReview(Comment $comment): void
+    {
+        if ($comment->getStatus() !== CommentStatus::Approved) {
+            return;
+        }
+
         $comment
-            ->setModerationReason('Seuil de signalements atteint.')
+            ->setStatus(CommentStatus::HiddenPendingReport)
+            ->setModerationReason('Signalement en attente de modération.')
             ->setModeratedAt(new DateTimeImmutable());
     }
 
@@ -128,7 +140,6 @@ class CommentModerationService
         array $reasons,
         ?User $moderator = null,
     ): void {
-        $wasApproved = $comment->getStatus() === CommentStatus::Approved;
         $firstApproval = $comment->getApprovedAt() === null;
         $now = new DateTimeImmutable();
 
@@ -146,7 +157,7 @@ class CommentModerationService
         $comment->setPublishedAt($comment->getPublishedAt() ?? $now);
         $comment->setApprovedAt($comment->getApprovedAt() ?? $now);
 
-        if (!$wasApproved && $firstApproval) {
+        if ($firstApproval) {
             $comment->getAuthor()?->incrementApprovedCommentsCount();
         }
     }

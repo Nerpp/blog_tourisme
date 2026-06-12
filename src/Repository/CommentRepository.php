@@ -8,6 +8,7 @@ use App\Entity\Place;
 use App\Entity\User;
 use App\Enum\CommentReportStatus;
 use App\Enum\CommentStatus;
+use DateTimeImmutable;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -61,12 +62,29 @@ class CommentRepository extends ServiceEntityRepository
     }
 
     /** @return list<Comment> */
+    public function findHiddenForModeration(): array
+    {
+        return $this->createModerationQueryBuilder()
+            ->andWhere('c.status IN (:statuses)')
+            ->setParameter('statuses', [CommentStatus::HiddenByAdmin, CommentStatus::Spam])
+            ->orderBy('c.moderatedAt', 'DESC')
+            ->addOrderBy('c.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /** @return list<Comment> */
     public function findReportedForModeration(): array
     {
         return $this->createModerationQueryBuilder()
             ->innerJoin('c.reports', 'pending_report', 'WITH', 'pending_report.status = :report_status')
             ->andWhere('c.status IN (:statuses)')
-            ->setParameter('statuses', [CommentStatus::Pending, CommentStatus::Approved])
+            ->setParameter('statuses', [
+                CommentStatus::HiddenPendingReport,
+                CommentStatus::Approved,
+                CommentStatus::Pending,
+                CommentStatus::Spam,
+            ])
             ->setParameter('report_status', CommentReportStatus::Pending)
             ->orderBy('c.reportedCount', 'DESC')
             ->addOrderBy('c.createdAt', 'DESC')
@@ -81,10 +99,28 @@ class CommentRepository extends ServiceEntityRepository
             ->select('COUNT(DISTINCT c.id)')
             ->innerJoin('c.reports', 'r', 'WITH', 'r.status = :report_status')
             ->andWhere('c.status IN (:statuses)')
-            ->setParameter('statuses', [CommentStatus::Pending, CommentStatus::Approved])
+            ->setParameter('statuses', [
+                CommentStatus::HiddenPendingReport,
+                CommentStatus::Approved,
+                CommentStatus::Pending,
+                CommentStatus::Spam,
+            ])
             ->setParameter('report_status', CommentReportStatus::Pending)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /** @return list<Comment> */
+    public function findDismissedReportsForModeration(int $limit = 100): array
+    {
+        return $this->createModerationQueryBuilder()
+            ->innerJoin('c.reports', 'dismissed_report', 'WITH', 'dismissed_report.status = :report_status')
+            ->setParameter('report_status', CommentReportStatus::Dismissed)
+            ->orderBy('dismissed_report.reviewedAt', 'DESC')
+            ->addOrderBy('c.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
     }
 
     /** @return list<Comment> */
@@ -141,6 +177,36 @@ class CommentRepository extends ServiceEntityRepository
             ->setParameter('status', CommentStatus::Approved)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    public function hasRecentDuplicate(Comment $comment, DateTimeImmutable $since, ?Comment $exclude = null): bool
+    {
+        $author = $comment->getAuthor();
+        $content = trim((string) $comment->getContent());
+        if ($author === null || $content === '') {
+            return false;
+        }
+
+        $queryBuilder = $this->createQueryBuilder('c')
+            ->select('COUNT(c.id)')
+            ->andWhere('c.content = :content')
+            ->andWhere('c.createdAt >= :since')
+            ->andWhere('c.status != :deleted')
+            ->setParameter('content', $content)
+            ->setParameter('since', $since)
+            ->setParameter('deleted', CommentStatus::Deleted);
+
+        $queryBuilder
+            ->andWhere('c.author = :author')
+            ->setParameter('author', $author);
+
+        if ($exclude instanceof Comment && $exclude->getId() !== null) {
+            $queryBuilder
+                ->andWhere('c != :excluded_comment')
+                ->setParameter('excluded_comment', $exclude);
+        }
+
+        return (int) $queryBuilder->getQuery()->getSingleScalarResult() > 0;
     }
 
     /**

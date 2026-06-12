@@ -22,7 +22,6 @@ final class CommentModerationAdminService
 
     public function approve(Comment $comment, User $admin): void
     {
-        $wasApproved = $comment->getStatus() === CommentStatus::Approved;
         $firstApproval = $comment->getApprovedAt() === null;
         $now = new DateTimeImmutable();
 
@@ -34,7 +33,7 @@ final class CommentModerationAdminService
             ->setPublishedAt($comment->getPublishedAt() ?? $now)
             ->setApprovedAt($comment->getApprovedAt() ?? $now);
 
-        if (!$wasApproved && $firstApproval) {
+        if ($firstApproval) {
             $comment->getAuthor()?->incrementApprovedCommentsCount();
         }
     }
@@ -77,7 +76,7 @@ final class CommentModerationAdminService
     public function hide(Comment $comment, User $admin, ?string $reason = null): void
     {
         $comment
-            ->setStatus(CommentStatus::Spam)
+            ->setStatus(CommentStatus::HiddenByAdmin)
             ->setModerationReason(trim((string) $reason) ?: 'Commentaire masqué par la modération.')
             ->setModeratedAt(new DateTimeImmutable())
             ->setModeratedBy($admin);
@@ -86,6 +85,7 @@ final class CommentModerationAdminService
     public function restore(Comment $comment, User $admin): void
     {
         $now = new DateTimeImmutable();
+        $firstApproval = $comment->getApprovedAt() === null;
 
         $comment
             ->setStatus(CommentStatus::Approved)
@@ -94,6 +94,10 @@ final class CommentModerationAdminService
             ->setModeratedBy($admin)
             ->setPublishedAt($comment->getPublishedAt() ?? $now)
             ->setApprovedAt($comment->getApprovedAt() ?? $now);
+
+        if ($firstApproval) {
+            $comment->getAuthor()?->incrementApprovedCommentsCount();
+        }
     }
 
     public function softDelete(Comment $comment, User $admin, ?string $reason = null): void

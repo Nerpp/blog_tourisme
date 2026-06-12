@@ -6,8 +6,10 @@ use App\Entity\Comment;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Validator\Constraints\Blank;
 
 /** @extends AbstractType<Comment> */
 class CommentType extends AbstractType
@@ -24,6 +26,22 @@ class CommentType extends AbstractType
                 ],
                 'label_attr' => [
                     'class' => 'sr-only',
+                ],
+            ])
+            ->add('website', TextType::class, [
+                'mapped' => false,
+                'required' => false,
+                'label' => false,
+                'constraints' => [
+                    new Blank(message: 'Votre commentaire n’a pas pu être envoyé.'),
+                ],
+                'row_attr' => [
+                    'class' => 'comment-honeypot',
+                    'aria-hidden' => 'true',
+                ],
+                'attr' => [
+                    'autocomplete' => 'off',
+                    'tabindex' => '-1',
                 ],
             ])
             ->add('submit', SubmitType::class, [

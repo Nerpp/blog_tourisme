@@ -1,36 +1,43 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Commentaires{% endblock %}
+{% block title %}Signalements commentaires{% endblock %}
 
 {% block body %}
     <header class="admin-header">
         <div>
-            <h1 class="admin-title">Commentaires</h1>
-            <p class="admin-subtitle">Modération lisible, actions rapides et suivi des signalements.</p>
+            <h1 class="admin-title">Signalements commentaires</h1>
+            <p class="admin-subtitle">Commentaires masqués temporairement, décisions admin et historique de traitement.</p>
         </div>
     </header>
 
-    <nav class="admin-tabs" aria-label="Filtres commentaires">
-        <a class="admin-tab {{ current_filter == 'reported' ? 'is-active' }}" href="{{ path('admin_comments_reported') }}">Signalés</a>
-        <a class="admin-tab {{ current_filter == 'recent' ? 'is-active' }}" href="{{ path('admin_comments_index', { filter: 'recent' }) }}">Récents</a>
-        <a class="admin-tab {{ current_filter == 'approved' ? 'is-active' }}" href="{{ path('admin_comments_index', { filter: 'approved' }) }}">Approuvés</a>
-        <a class="admin-tab {{ current_filter == 'hidden' ? 'is-active' }}" href="{{ path('admin_comments_index', { filter: 'hidden' }) }}">Masqués</a>
-        <a class="admin-tab {{ current_filter == 'all' ? 'is-active' }}" href="{{ path('admin_comments_index', { filter: 'all' }) }}">Tous</a>
-        <a class="admin-tab {{ current_filter == 'pending' ? 'is-active' }}" href="{{ path('admin_comments_pending') }}">En attente</a>
+    <nav class="admin-tabs" aria-label="Filtres signalements commentaires">
+        <a class="admin-tab {{ current_filter == 'reported' ? 'is-active' }}" href="{{ path('admin_comments_reports', { filter: 'reported' }) }}">
+            À traiter{% if pending_reports_count|default(0) > 0 %} · {{ pending_reports_count }}{% endif %}
+        </a>
+        <a class="admin-tab {{ current_filter == 'restored' ? 'is-active' }}" href="{{ path('admin_comments_reports', { filter: 'restored' }) }}">Restaurés / faux signalements</a>
+        <a class="admin-tab {{ current_filter == 'hidden' ? 'is-active' }}" href="{{ path('admin_comments_reports', { filter: 'hidden' }) }}">Masqués par admin</a>
+        <a class="admin-tab {{ current_filter == 'deleted' ? 'is-active' }}" href="{{ path('admin_comments_reports', { filter: 'deleted' }) }}">Supprimés</a>
+        <a class="admin-tab {{ current_filter == 'all' ? 'is-active' }}" href="{{ path('admin_comments_reports', { filter: 'all' }) }}">Tous</a>
     </nav>
 
     <section class="admin-card-list">
         {% for comment in comments %}
             {% set status_label = status_labels[comment.status.value] ?? comment.status.value %}
             {% set target = comment.article ?: comment.place %}
-            {% set target_preview_url = null %}
+            {% set target_public_url = null %}
             {% if comment.article and comment.article.slug is not empty and comment.article.status.value == 'published' %}
-                {% set target_preview_url = path('app_article_show', { slug: comment.article.slug }) ~ '#comment-' ~ comment.id %}
+                {% set target_public_url = path('app_article_show', { slug: comment.article.slug }) %}
             {% elseif comment.place and comment.place.slug is not empty and comment.place.status.value == 'published' %}
-                {% set target_preview_url = path('app_place_show', { slug: comment.place.slug }) ~ '#comment-' ~ comment.id %}
+                {% set target_public_url = path('app_place_show', { slug: comment.place.slug }) %}
             {% endif %}
-            {% set pending_reports = comment.reports|filter(report => report.status.value == 'pending')|length %}
-            {% set report_reasons = comment.reports|map(report => report.reason.value) %}
+            {% set pending_reports = comment.reports|filter(report => report.status.value == 'pending') %}
+            {% set reviewed_reports = comment.reports|filter(report => report.status.value != 'pending') %}
+            {% set report_reasons = pending_reports|length > 0
+                ? pending_reports|map(report => report.reason.value)
+                : comment.reports|map(report => report.reason.value)
+            %}
+            {% set status_badge_class = comment.status.value in ['pending', 'report_hidden'] ? 'admin-badge--warning' : (comment.status.value in ['spam', 'admin_hidden', 'deleted', 'rejected'] ? 'admin-badge--danger' : '') %}
+
             <article class="admin-comment-card">
                 <div class="admin-comment-card__header">
                     <div>
@@ -38,22 +45,20 @@
                         <div class="admin-muted">{{ comment.author.email }}</div>
                     </div>
                     <div class="admin-row-actions">
-                        <span class="admin-badge {{ comment.status.value == 'pending' ? 'admin-badge--warning' : (comment.status.value in ['spam', 'deleted', 'rejected'] ? 'admin-badge--danger' : '') }}">{{ status_label }}</span>
-                        {% if pending_reports > 0 %}
-                            <span class="admin-badge admin-badge--danger">Signalé {{ pending_reports }} fois</span>
-                        {% elseif comment.reports|length > 0 %}
-                            <span class="admin-badge admin-badge--muted">Signalements traités {{ comment.reports|length }}</span>
+                        <span class="admin-badge {{ status_badge_class }}">{{ status_label }}</span>
+                        {% if pending_reports|length > 0 %}
+                            <span class="admin-badge admin-badge--danger">Signalé {{ pending_reports|length }} fois</span>
+                            <span class="admin-badge admin-badge--warning">Masqué temporairement</span>
+                        {% elseif reviewed_reports|length > 0 %}
+                            <span class="admin-badge admin-badge--muted">Signalements traités {{ reviewed_reports|length }}</span>
                         {% else %}
                             <span class="admin-badge admin-badge--muted">Signalements 0</span>
                         {% endif %}
-                        <span class="admin-badge {{ comment.author.banned ? 'admin-badge--danger' : 'admin-badge--muted' }}">
-                            {{ comment.author.rejectedCommentsCount }} refus / 3
-                        </span>
-                        {% if comment.author.banned %}
-                            <span class="admin-badge admin-badge--danger">Utilisateur banni</span>
-                        {% endif %}
                         {% if comment.pinnedAt %}
                             <span class="admin-badge admin-badge--warning">Épinglé</span>
+                        {% endif %}
+                        {% if comment.adminHeartedAt %}
+                            <span class="admin-badge admin-badge--info">Cœur admin</span>
                         {% endif %}
                         {% if comment.spamScore >= 70 %}
                             <span class="admin-badge admin-badge--danger">Spam suspect</span>
@@ -67,7 +72,7 @@
 
                 <div class="admin-grid">
                     <div>
-                        <span class="admin-label">Contenu concerné</span><br>
+                        <span class="admin-label">Contexte</span><br>
                         {% if comment.article %}
                             Article : {{ comment.article.title }}
                         {% elseif comment.place %}
@@ -77,7 +82,11 @@
                         {% endif %}
                     </div>
                     <div>
-                        <span class="admin-label">Date</span><br>
+                        <span class="admin-label">Auteur du commentaire</span><br>
+                        {{ comment.author.displayName ?: comment.author.email }}
+                    </div>
+                    <div>
+                        <span class="admin-label">Date du commentaire</span><br>
                         {{ comment.createdAt ? comment.createdAt|date('d/m/Y H:i') : '-' }}
                     </div>
                     <div>
@@ -94,22 +103,66 @@
                     </div>
                 </div>
 
+                {% if comment.reports|length > 0 %}
+                    <div class="admin-report-list">
+                        {% for report in comment.reports|slice(0, 5) %}
+                            <div class="admin-report-list__item">
+                                <strong>{{ report.reason.value }}</strong>
+                                <span class="admin-muted">
+                                    par {{ report.reporter ? (report.reporter.displayName ?: report.reporter.email) : 'utilisateur supprimé' }}
+                                    · {{ report.createdAt ? report.createdAt|date('d/m/Y H:i') : '-' }}
+                                    · {{ report.status.value }}
+                                </span>
+                                {% if report.message %}
+                                    <p>{{ report.message }}</p>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
                 <div class="admin-row-actions">
-                    {% if comment.status.value != 'approved' %}
+                    {% if comment.status.value == 'pending' %}
                         <form method="post" action="{{ path('admin_comments_approve', { id: comment.id }) }}">
                             <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
                             <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
-                            <button class="admin-button admin-button--small" type="submit">Accepter</button>
+                            <button class="admin-button admin-button--small" type="submit">Publier</button>
                         </form>
                     {% endif %}
-                    {% if comment.status.value == 'spam' %}
+
+                    {% if comment.status.value in ['spam', 'report_hidden', 'admin_hidden'] %}
                         <form method="post" action="{{ path('admin_comments_restore', { id: comment.id }) }}">
                             <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
                             <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
-                            <button class="admin-button admin-button--small" type="submit">Restaurer</button>
+                            <button class="admin-button admin-button--small" type="submit">Restaurer et rejeter le signalement</button>
                         </form>
                     {% endif %}
-                    {% if comment.status.value != 'rejected' %}
+
+                    {% if comment.status.value not in ['admin_hidden', 'deleted'] %}
+                        <form method="post" action="{{ path('admin_comments_hide', { id: comment.id }) }}" onsubmit="return confirm('Masquer définitivement ce commentaire ?');">
+                            <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
+                            <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
+                            <button class="admin-button admin-button--small admin-button--secondary" type="submit">Masquer définitivement</button>
+                        </form>
+                    {% endif %}
+
+                    {% if comment.status.value != 'deleted' %}
+                        <form method="post" action="{{ path('admin_comments_delete', { id: comment.id }) }}" onsubmit="return confirm('Supprimer ce commentaire ?');">
+                            <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
+                            <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
+                            <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer</button>
+                        </form>
+                    {% endif %}
+
+                    {% if pending_reports|length > 0 %}
+                        <form method="post" action="{{ path('admin_comments_reports_review', { id: comment.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
+                            <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
+                            <button class="admin-button admin-button--small admin-button--secondary" type="submit">Marquer comme traité</button>
+                        </form>
+                    {% endif %}
+
+                    {% if comment.status.value != 'rejected' and current_filter in ['pending', 'all'] %}
                         <form class="admin-reject-form" method="post" action="{{ path('admin_comments_reject', { id: comment.id }) }}" onsubmit="return confirm('Refuser ce commentaire, créer un avertissement et envoyer un email ?');">
                             <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
                             <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
@@ -118,25 +171,7 @@
                             <button class="admin-button admin-button--small admin-button--secondary" type="submit">Refuser</button>
                         </form>
                     {% endif %}
-                    {% if comment.status.value not in ['spam', 'deleted'] %}
-                        <form method="post" action="{{ path('admin_comments_hide', { id: comment.id }) }}" onsubmit="return confirm('Masquer ce commentaire ?');">
-                            <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
-                            <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
-                            <button class="admin-button admin-button--small admin-button--secondary" type="submit">Masquer</button>
-                        </form>
-                    {% endif %}
-                    <form method="post" action="{{ path('admin_comments_delete', { id: comment.id }) }}" onsubmit="return confirm('Supprimer définitivement ce commentaire et ses données liées ? Cette action est irréversible.');">
-                            <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
-                            <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
-                        <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer définitivement</button>
-                    </form>
-                    {% if pending_reports > 0 %}
-                        <form method="post" action="{{ path('admin_comments_reports_review', { id: comment.id }) }}">
-                            <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
-                            <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}">
-                            <button class="admin-button admin-button--small admin-button--secondary" type="submit">Signalements traités</button>
-                        </form>
-                    {% endif %}
+
                     {% if comment.parent is null and comment.status.value == 'approved' %}
                         <form method="post" action="{{ path('admin_comments_pin', { id: comment.id }) }}">
                             <input type="hidden" name="_token" value="{{ csrf_token('admin_comment_action_' ~ comment.id) }}">
@@ -146,14 +181,15 @@
                             </button>
                         </form>
                     {% endif %}
+
                     <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_users_show', { id: comment.author.id }) }}">Voir utilisateur</a>
-                    {% if target and target_preview_url and comment.status.value in ['approved', 'deleted'] %}
-                        <a class="admin-button admin-button--small admin-button--secondary" href="{{ target_preview_url }}" target="_blank" rel="noopener noreferrer">
-                            Voir sur le site
+                    {% if target_public_url %}
+                        <a class="admin-button admin-button--small admin-button--secondary" href="{{ target_public_url ~ (comment.status.value == 'approved' ? '#comment-' ~ comment.id : '#comments') }}" target="_blank" rel="noopener noreferrer">
+                            Voir le contenu public
                         </a>
                     {% endif %}
                     {% if comment.reports|length > 0 %}
-                        <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_comment_reports_index') }}">Voir les signalements</a>
+                        <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_comments_reports', { filter: 'all' }) }}">Voir tous les signalements</a>
                     {% endif %}
                 </div>
             </article>

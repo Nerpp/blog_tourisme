@@ -295,6 +295,14 @@
   gap: 14px;
 }
 
+.comment-honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 .comments-section {
   display: grid;
   gap: 22px;

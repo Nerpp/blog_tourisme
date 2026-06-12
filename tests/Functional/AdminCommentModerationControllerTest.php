@@ -3,6 +3,9 @@
 namespace App\Tests\Functional;
 
 use App\Entity\Comment;
+use App\Entity\CommentReport;
+use App\Enum\CommentReportReason;
+use App\Enum\CommentReportStatus;
 use App\Enum\CommentStatus;
 
 final class AdminCommentModerationControllerTest extends FunctionalTestCase
@@ -125,6 +128,68 @@ final class AdminCommentModerationControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects('/admin/comments?filter=all');
-        self::assertNull($this->entityManager()->find(Comment::class, $commentId));
+        $comment = $this->entityManager()->find(Comment::class, $commentId);
+        self::assertInstanceOf(Comment::class, $comment);
+        self::assertSame(CommentStatus::Deleted, $comment->getStatus());
+    }
+
+    public function testVerifiedAdminCanRestoreReportedCommentAndDismissReport(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenPendingReport)
+            ->setReportedCount(1);
+        $report = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Spam)
+            ->setStatus(CommentReportStatus::Pending);
+        $this->persistAndFlush($comment, $report);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments/reports');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/restore', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/restore', $comment->getId())),
+            'returnUrl' => '/admin/comments/reports',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/reports');
+        $comment = $this->refresh($comment);
+        $report = $this->refresh($report);
+        self::assertSame(CommentStatus::Approved, $comment->getStatus());
+        self::assertSame(0, $comment->getReportedCount());
+        self::assertSame(CommentReportStatus::Dismissed, $report->getStatus());
+    }
+
+    public function testVerifiedAdminCanHideReportedCommentAndReviewReport(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenPendingReport)
+            ->setReportedCount(1);
+        $report = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Inappropriate)
+            ->setStatus(CommentReportStatus::Pending);
+        $this->persistAndFlush($comment, $report);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments/reports');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/hide', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/hide', $comment->getId())),
+            'returnUrl' => '/admin/comments/reports',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/reports');
+        $comment = $this->refresh($comment);
+        $report = $this->refresh($report);
+        self::assertSame(CommentStatus::HiddenByAdmin, $comment->getStatus());
+        self::assertSame(0, $comment->getReportedCount());
+        self::assertSame(CommentReportStatus::Reviewed, $report->getStatus());
     }
 }

@@ -62,13 +62,15 @@ final class CommentVoterIntegrationTest extends IntegrationTestCase
         self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter()->vote($this->token($owner), $comment, [CommentVoter::EDIT]));
     }
 
-    public function testDeletedAndSpamCommentsAreNotEditableButRejectedCommentIsEditableByOwner(): void
+    public function testHiddenDeletedAndSpamCommentsAreNotEditableButRejectedCommentIsEditableByOwner(): void
     {
         $owner = $this->persistUser();
         $voter = $this->voter();
 
         self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->token($owner), $this->persistComment($owner, CommentStatus::Deleted), [CommentVoter::EDIT]));
         self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->token($owner), $this->persistComment($owner, CommentStatus::Spam), [CommentVoter::EDIT]));
+        self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->token($owner), $this->persistComment($owner, CommentStatus::HiddenPendingReport), [CommentVoter::EDIT]));
+        self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->token($owner), $this->persistComment($owner, CommentStatus::HiddenByAdmin), [CommentVoter::EDIT]));
         self::assertSame(VoterInterface::ACCESS_GRANTED, $voter->vote($this->token($owner), $this->persistComment($owner, CommentStatus::Rejected), [CommentVoter::EDIT]));
     }
 
