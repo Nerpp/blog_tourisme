@@ -3,9 +3,15 @@
 <header class="site-header">
     <nav class="navbar" aria-label="Navigation principale">
         <div class="navbar-container">
-            <a class="navbar-brand" href="{{ path('app_home') }}">
-                <span class="navbar-brand__title">Blog Tourisme</span>
-                <span class="navbar-brand__subtitle">Carnet d'exploration</span>
+            <a class="navbar-brand" href="{{ path('app_home') }}" aria-label="Accueil Estela Explorations">
+                <img
+                    src="{{ asset('images/brand/estela-star-navbar-44.webp') }}"
+                    alt="Estela Explorations"
+                    class="navbar-brand__logo"
+                    width="44"
+                    height="44"
+                >
+                <span class="navbar-brand__text">Estela</span>
             </a>
 
             <div class="navbar-mobile-account">
