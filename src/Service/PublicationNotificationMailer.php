@@ -86,7 +86,7 @@ final class PublicationNotificationMailer
                 $email = (new TemplatedEmail())
                     ->from($this->from)
                     ->to((string) $user->getEmail())
-                    ->subject('Nouvelle publication sur Blog Tourisme')
+                    ->subject('Nouvelle publication sur Estela Explorations')
                     ->htmlTemplate('emails/new_publication.html.twig')
                     ->context([
                         'user' => $user,

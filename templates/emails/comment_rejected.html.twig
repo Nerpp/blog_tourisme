@@ -1,19 +1,42 @@
-<p>Bonjour {{ author.displayName ?: author.email }},</p>
+{% extends 'emails/base.html.twig' %}
 
-<p>Votre commentaire publié sur notre blog tourisme n’a pas été accepté par la modération.</p>
+{% block subject %}Votre commentaire n’a pas été accepté - Estela Explorations{% endblock %}
+{% block preheader %}Information de modération concernant votre commentaire.{% endblock %}
+{% block email_title %}Votre commentaire n’a pas été accepté{% endblock %}
 
-<p><strong>Raison :</strong> {{ reason }}</p>
+{% block content %}
+    <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
+        Bonjour {{ author.displayName ?: author.email }},
+    </p>
 
-<p>Nombre de commentaires refusés : {{ rejected_count }}/3.</p>
+    <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
+        Votre commentaire publié sur Estela Explorations n’a pas été accepté par la modération.
+    </p>
 
-<p>Ce refus constitue un avertissement sur votre compte.</p>
+    <div style="margin:22px 0;padding:16px;border:1px solid #e7dfcf;border-left:4px solid #d6b16a;border-radius:10px;background:#fff8e8;">
+        <p style="margin:0;color:#243b36;font-size:15px;line-height:1.65;">
+            <strong>Raison :</strong> {{ reason }}
+        </p>
+    </div>
 
-{% if auto_banned %}
-<p>Votre compte est suspendu automatiquement après 3 commentaires refusés.</p>
-{% else %}
-<p>Après 3 commentaires refusés, le compte peut être suspendu automatiquement.</p>
-{% endif %}
+    <p style="margin:0 0 14px;color:#66756d;font-size:15px;line-height:1.7;">
+        Nombre de commentaires refusés : {{ rejected_count }}/3.
+    </p>
+    <p style="margin:0 0 14px;color:#66756d;font-size:15px;line-height:1.7;">
+        Ce refus constitue un avertissement sur votre compte.
+    </p>
 
-<p>Merci de respecter les règles de publication du site.</p>
+    {% if auto_banned %}
+        <p style="margin:0 0 14px;color:#8a3f2d;font-size:15px;line-height:1.7;font-weight:700;">
+            Votre compte est suspendu automatiquement après 3 commentaires refusés.
+        </p>
+    {% else %}
+        <p style="margin:0 0 14px;color:#66756d;font-size:15px;line-height:1.7;">
+            Après 3 commentaires refusés, le compte peut être suspendu automatiquement.
+        </p>
+    {% endif %}
 
-<p>L’équipe Blog Tourisme</p>
+    <p style="margin:22px 0 0;color:#243b36;font-size:15px;line-height:1.7;">
+        Merci de respecter les règles de publication du site.
+    </p>
+{% endblock %}

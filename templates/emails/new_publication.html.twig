@@ -1,84 +1,56 @@
-<div style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent;">
-    Une nouvelle publication est disponible sur Blog Tourisme.
-</div>
+{% extends 'emails/base.html.twig' %}
 
-<div style="margin: 0; padding: 28px 12px; background: #f6f3ea; font-family: Inter, Arial, Helvetica, sans-serif; color: #18211f;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse;">
+{% block subject %}Nouvelle publication - Estela Explorations{% endblock %}
+{% block preheader %}Une nouvelle publication est disponible sur Estela Explorations.{% endblock %}
+{% block email_title %}Nouvelle publication sur Estela Explorations{% endblock %}
+
+{% block content %}
+    <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
+        Bonjour {{ user.displayName ?: user.email }},
+    </p>
+
+    <p style="margin:0 0 18px;color:#66756d;font-size:15px;line-height:1.7;">
+        Une nouvelle étape à découvrir entre nature, ville et grands paysages.
+    </p>
+
+    <div style="margin:0 0 22px;padding:18px;border:1px solid #e7dfcf;border-radius:12px;background:#f4fbfa;">
+        <p style="margin:0 0 8px;color:#45aeb0;font-size:12px;font-weight:700;letter-spacing:0;text-transform:uppercase;">
+            {{ content_type_label }}
+        </p>
+        <h2 style="margin:0;color:#243b36;font-size:23px;line-height:1.25;font-weight:700;">
+            {{ content_title }}
+        </h2>
+        {% if content_summary %}
+            <p style="margin:12px 0 0;color:#66756d;font-size:15px;line-height:1.65;">
+                {{ content_summary }}
+            </p>
+        {% endif %}
+    </div>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:24px auto;">
         <tr>
-            <td align="center">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width: 100%; max-width: 600px; overflow: hidden; border-collapse: separate; border-spacing: 0; border: 1px solid #dce8e3; border-radius: 16px; background: #fffdf8;">
-                    <tr>
-                        <td style="padding: 30px 30px 34px; background: linear-gradient(135deg, #0e4d55 0%, #12615c 55%, #77b6ad 100%); color: #ffffff;">
-                            <p style="margin: 0 0 12px; color: #f3c975; font-size: 12px; font-weight: 800; letter-spacing: 0; text-transform: uppercase;">
-                                Blog Tourisme
-                            </p>
-                            <h1 style="margin: 0; color: #ffffff; font-size: 30px; line-height: 1.15; font-weight: 850;">
-                                Nouvelle publication sur Blog Tourisme
-                            </h1>
-                            <p style="margin: 14px 0 0; color: #edf8f5; font-size: 16px; line-height: 1.65;">
-                                Une nouvelle étape à découvrir entre nature, ville et grands paysages.
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td style="padding: 32px 30px 12px;">
-                            <p style="margin: 0 0 18px; color: #31413d; font-size: 16px; line-height: 1.7;">
-                                Bonjour {{ user.displayName ?: user.email }},
-                            </p>
-
-                            <div style="margin: 0 0 22px; padding: 18px; border: 1px solid #dce8e3; border-radius: 12px; background: #f3faf7;">
-                                <p style="margin: 0 0 8px; color: #12615c; font-size: 12px; font-weight: 850; letter-spacing: 0; text-transform: uppercase;">
-                                    {{ content_type_label }}
-                                </p>
-                                <h2 style="margin: 0; color: #18211f; font-size: 23px; line-height: 1.25; font-weight: 850;">
-                                    {{ content_title }}
-                                </h2>
-                                {% if content_summary %}
-                                    <p style="margin: 12px 0 0; color: #51605b; font-size: 15px; line-height: 1.65;">
-                                        {{ content_summary }}
-                                    </p>
-                                {% endif %}
-                            </div>
-
-                            <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 24px 0;">
-                                <tr>
-                                    <td style="border-radius: 10px; background: #12615c;">
-                                        <a href="{{ publication_url }}" style="display: inline-block; padding: 15px 22px; color: #ffffff; font-size: 16px; font-weight: 800; text-decoration: none;">
-                                            Découvrir la publication
-                                        </a>
-                                    </td>
-                                </tr>
-                            </table>
-
-                            <p style="margin: 0 0 8px; color: #5f6f6a; font-size: 13px; line-height: 1.6;">
-                                Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :
-                            </p>
-                            <p style="margin: 0 0 22px; color: #12615c; font-size: 13px; line-height: 1.6; word-break: break-all;">
-                                <a href="{{ publication_url }}" style="color: #12615c; text-decoration: underline;">{{ publication_url }}</a>
-                            </p>
-
-                            <div style="margin: 22px 0; padding: 16px; border: 1px solid #eadfbd; border-left: 4px solid #f3c975; border-radius: 10px; background: #fff8e8;">
-                                <p style="margin: 0; color: #5f563f; font-size: 13px; line-height: 1.65;">
-                                    Vous recevez cet email car vous avez activé les notifications de nouvelles publications dans votre profil.
-                                </p>
-                            </div>
-
-                            <p style="margin: 0; color: #5f6f6a; font-size: 13px; line-height: 1.65;">
-                                <a href="{{ profile_url }}" style="color: #12615c; font-weight: 800; text-decoration: underline;">Gérer mes préférences email</a>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td style="padding: 22px 30px 30px;">
-                            <p style="margin: 0; color: #31413d; font-size: 15px; line-height: 1.7;">
-                                L’équipe Blog Tourisme
-                            </p>
-                        </td>
-                    </tr>
-                </table>
+            <td style="border-radius:999px;background:#243b36;">
+                <a href="{{ publication_url }}" style="display:inline-block;padding:12px 20px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;border-radius:999px;">
+                    Découvrir la publication
+                </a>
             </td>
         </tr>
     </table>
-</div>
+
+    <p style="margin:0 0 8px;color:#66756d;font-size:13px;line-height:1.6;">
+        Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :
+    </p>
+    <p style="margin:0 0 22px;color:#66756d;font-size:12px;line-height:1.6;word-break:break-all;">
+        <a href="{{ publication_url }}" style="color:#243b36;text-decoration:underline;">{{ publication_url }}</a>
+    </p>
+
+    <div style="margin:22px 0;padding:16px;border:1px solid #eadfbd;border-left:4px solid #d6b16a;border-radius:10px;background:#fff8e8;">
+        <p style="margin:0;color:#66756d;font-size:13px;line-height:1.65;">
+            Vous recevez cet email car vous avez activé les notifications de nouvelles publications dans votre profil.
+        </p>
+    </div>
+
+    <p style="margin:0;color:#66756d;font-size:13px;line-height:1.65;">
+        <a href="{{ profile_url }}" style="color:#243b36;font-weight:700;text-decoration:underline;">Gérer mes préférences email</a>
+    </p>
+{% endblock %}

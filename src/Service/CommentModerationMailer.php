@@ -27,7 +27,7 @@ final class CommentModerationMailer
         $email = (new TemplatedEmail())
             ->from($this->from)
             ->to($author->getEmail())
-            ->subject('Votre commentaire n’a pas été accepté')
+            ->subject('Votre commentaire n’a pas été accepté sur Estela Explorations')
             ->htmlTemplate('emails/comment_rejected.html.twig')
             ->context([
                 'author' => $author,
