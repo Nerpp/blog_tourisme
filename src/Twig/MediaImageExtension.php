@@ -3,6 +3,7 @@
 namespace App\Twig;
 
 use App\Entity\MediaAsset;
+use App\Enum\MediaType;
 use App\Service\Media\MediaSeoTextService;
 use Symfony\Component\Asset\Packages;
 use Twig\Extension\AbstractExtension;
@@ -16,6 +17,7 @@ use Twig\TwigFunction;
 final class MediaImageExtension extends AbstractExtension
 {
     private const RESPONSIVE_SIZES = ['thumb', 'medium', 'large'];
+    private const IMAGE_PLACEHOLDER = '/images/placeholders/destination-card-placeholder.webp';
 
     public function __construct(
         private readonly Packages $packages,
@@ -63,17 +65,19 @@ final class MediaImageExtension extends AbstractExtension
         if (in_array($size, ['medium', 'large'], true)) {
             return $this->toPublicUrl(
                 $this->variantPath($media->getVariants(), $size, 'fallback')
-                    ?? $media->getFilePath()
+                    ?? $media->getThumbnailPath()
                     ?? $media->getExternalUrl()
-                    ?? $media->getThumbnailPath(),
+                    ?? $this->specialImageFilePath($media)
+                    ?? self::IMAGE_PLACEHOLDER,
             );
         }
 
         return $this->toPublicUrl(
             $this->variantPath($media->getVariants(), $size, 'fallback')
                 ?? $media->getThumbnailPath()
-                ?? $media->getFilePath()
-                ?? $media->getExternalUrl(),
+                ?? $media->getExternalUrl()
+                ?? $this->specialImageFilePath($media)
+                ?? self::IMAGE_PLACEHOLDER,
         );
     }
 
@@ -86,9 +90,10 @@ final class MediaImageExtension extends AbstractExtension
         return $this->toPublicUrl(
             $this->variantPath($media->getVariants(), 'large', 'webp')
                 ?? $this->variantPath($media->getVariants(), 'large', 'fallback')
-                ?? $media->getFilePath()
+                ?? $this->specialImageFilePath($media)
                 ?? $media->getExternalUrl()
-                ?? $media->getThumbnailPath(),
+                ?? $media->getThumbnailPath()
+                ?? self::IMAGE_PLACEHOLDER,
         );
     }
 
@@ -205,5 +210,19 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         return $this->packages->getUrl($path);
+    }
+
+    private function specialImageFilePath(MediaAsset $media): ?string
+    {
+        if ($media->getMediaType() !== MediaType::Image) {
+            return null;
+        }
+
+        $imageType = $media->getImageType();
+        if ($imageType === null || $imageType->value === 'standard') {
+            return null;
+        }
+
+        return $media->getFilePath();
     }
 }

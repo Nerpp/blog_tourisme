@@ -8,8 +8,7 @@
             {% set card_anchor_prefix = card_anchor_prefix|default(media.mediaType.value == 'video' ? 'video' : 'media') %}
             {% set card_anchor = card_anchor_prefix ~ '-' ~ media_link.id %}
             {% set delete_redirect_anchor = delete_redirect_anchor|default('section-medias') %}
-            {% set image_path = media.thumbnailPath ?: media.filePath %}
-            {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
+            {% set image_src = media.mediaType.value == 'image' ? media_image_url(media, 'thumb') : null %}
             {% set current_point_target = media.id and media_point_targets[media.id] is defined ? media_point_targets[media.id] : null %}
             {% set current_association = current_point_target ? 'point:' ~ current_point_target : (media_link.role.value == 'cover' ? 'main' : 'gallery') %}
             <article id="{{ card_anchor }}" class="studio-media-card {{ media.mediaType.value == 'video' ? 'studio-video-card' : '' }}" {% if media.mediaType.value == 'video' %}data-video-card{% endif %}>

@@ -26,8 +26,11 @@
             </thead>
             <tbody>
                 {% for media in media_assets %}
-                    {% set src = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
-                    {% set preview_src = src and (src starts with '/' or src starts with 'http') ? src : (src ? asset(src) : null) %}
+                    {% set raw_preview_src = media.thumbnailPath ?: media.filePath ?: media.externalUrl %}
+                    {% set preview_src = media.mediaType.value == 'image'
+                        ? media_image_url(media, 'thumb')
+                        : (raw_preview_src and (raw_preview_src starts with '/' or raw_preview_src starts with 'http') ? raw_preview_src : (raw_preview_src ? asset(raw_preview_src) : null))
+                    %}
                     <tr>
                         <td>
                             {% if media.mediaType.value == 'image' and preview_src %}

@@ -3,6 +3,7 @@
 namespace App\Tests\Unit\Twig;
 
 use App\Entity\MediaAsset;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Service\Media\MediaSeoTextService;
 use App\Twig\MediaImageExtension;
@@ -14,7 +15,7 @@ use Symfony\Component\String\Slugger\AsciiSlugger;
 
 final class MediaImageExtensionTest extends TestCase
 {
-    public function testImageUrlPrefersRequestedVariantAndFallsBackToOriginal(): void
+    public function testImageUrlPrefersRequestedVariantAndFallsBackToPlaceholderForStandardWithoutVariants(): void
     {
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
@@ -28,8 +29,18 @@ final class MediaImageExtensionTest extends TestCase
 
         self::assertSame('/uploads/media/variants/thumb.jpg', $extension->imageUrl($media, 'thumb'));
         self::assertSame('/uploads/media/variants/large.jpg', $extension->imageUrl($media, 'large'));
-        self::assertSame('/uploads/media/original.jpg', $extension->imageUrl((new MediaAsset())->setMediaType(MediaType::Image)->setFilePath('/uploads/media/original.jpg'), 'large'));
+        self::assertSame('/images/placeholders/destination-card-placeholder.webp', $extension->imageUrl((new MediaAsset())->setMediaType(MediaType::Image)->setFilePath('/uploads/media/original.jpg'), 'large'));
         self::assertNull($extension->imageUrl(null));
+    }
+
+    public function testSpecialImageUrlCanStillFallBackToFilePath(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Panorama)
+            ->setFilePath('/uploads/media/panorama.jpg');
+
+        self::assertSame('/uploads/media/panorama.jpg', $this->extension()->imageUrl($media, 'large'));
     }
 
     public function testModalUrlPrefersLargeWebpBeforeFallback(): void

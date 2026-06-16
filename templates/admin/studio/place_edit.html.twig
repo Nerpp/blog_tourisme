@@ -708,11 +708,10 @@
                 <div class="studio-media-grid">
                     {% for media_link in photo_links %}
                         {% set media = media_link.mediaAsset %}
-                        {% set image_path = media.thumbnailPath ?: media.filePath %}
-                        {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
+                        {% set image_src = media_image_url(media, 'thumb') %}
                         {% set current_usage = media_link.role.value == 'cover' ? 'main' : 'gallery' %}
                         <article class="studio-media-card">
-                            {% if media.filePath %}
+                            {% if image_src %}
                                 <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: place.name }}">
                             {% endif %}
                             <form class="studio-media-card__body" method="post" action="{{ path('admin_studio_place_media_update', { id: media_link.id }) }}">
@@ -882,10 +881,9 @@
                 <div class="studio-media-grid">
                     {% for media_link in immersive_links %}
                         {% set media = media_link.mediaAsset %}
-                        {% set image_path = media.thumbnailPath ?: media.filePath %}
-                        {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
+                        {% set image_src = media_image_url(media, 'thumb') %}
                         <article class="studio-media-card">
-                            {% if media.filePath %}
+                            {% if image_src %}
                                 <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: place.name }}">
                             {% endif %}
                             <div class="studio-meta">

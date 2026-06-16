@@ -28,6 +28,7 @@ use App\Service\Media\ImageTypeDetector;
 use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\PublicMediaMasterCleanupService;
 use App\Service\Media\VideoThumbnailGenerator;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -64,6 +65,7 @@ final class PlaceStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly PublicMediaMasterCleanupService $publicMediaMasterCleanupService,
         private readonly BulkMediaUploadService $bulkMediaUploadService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly ActionRateLimiter $actionRateLimiter,
@@ -191,6 +193,8 @@ final class PlaceStudioController extends AbstractController
             $variantResult = $this->mediaVariantService->generateForMedia($media);
             if ($variantResult['status'] === 'error') {
                 $this->addFlash('warning', sprintf('Image "%s" ajoutée, mais variantes responsive non générées.', $file->getClientOriginalName()));
+            } else {
+                $this->publicMediaMasterCleanupService->cleanupIfSafe($media);
             }
 
             $placeMedia = (new PlaceMedia())

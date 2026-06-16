@@ -17,6 +17,7 @@ use Symfony\Component\RateLimiter\RateLimit;
  * @property-read \App\Service\Media\ImageTypeDetector $imageTypeDetector
  * @property-read \App\Service\Media\VideoThumbnailGenerator $videoThumbnailGenerator
  * @property-read \App\Service\Media\BulkMediaUploadService $bulkMediaUploadService
+ * @property-read \App\Service\Media\PublicMediaMasterCleanupService $publicMediaMasterCleanupService
  */
 trait StudioMediaHelperTrait
 {
@@ -81,6 +82,8 @@ trait StudioMediaHelperTrait
         $variantResult = $this->mediaVariantService->generateForMedia($media);
         if ($variantResult['status'] === 'error') {
             $this->addFlash('warning', 'L’image a été ajoutée, mais ses variantes responsive n’ont pas pu être générées.');
+        } else {
+            $this->publicMediaMasterCleanupService->cleanupIfSafe($media);
         }
 
         return $media;

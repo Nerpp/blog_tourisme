@@ -27,6 +27,7 @@ use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\MediaDeletionService;
+use App\Service\Media\PublicMediaMasterCleanupService;
 use App\Service\Media\VideoThumbnailGenerator;
 use App\Service\Geography\LocationDraftHydrationException;
 use App\Service\Geography\LocationDraftHydrator;
@@ -63,6 +64,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly PublicMediaMasterCleanupService $publicMediaMasterCleanupService,
         private readonly BulkMediaUploadService $bulkMediaUploadService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,
         private readonly MediaDeletionService $mediaDeletionService,

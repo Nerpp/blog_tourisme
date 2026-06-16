@@ -3,8 +3,10 @@
 namespace App\Tests\Integration\Media;
 
 use App\Entity\MediaAsset;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\PublicMediaMasterCleanupService;
 use App\Tests\Integration\IntegrationTestCase;
 use App\Tests\Support\TestImageFactory;
 
@@ -91,6 +93,47 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->trackVariantFiles($media->getVariants());
     }
 
+    public function testCleanupDeletesClassicPublicMasterOnlyAfterVariantsExist(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+
+        $this->mediaVariantService()->generateForMedia($media);
+        $this->trackVariantFiles($media->getVariants());
+
+        $result = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
+
+        self::assertTrue($result['deleted']);
+        self::assertFalse(is_file($source));
+        self::assertNull($media->getFilePath());
+        self::assertIsArray($media->getMetadata());
+        self::assertSame(TestImageFactory::publicPathFor($source), $media->getMetadata()['deletedPublicMasterPath']);
+    }
+
+    public function testCleanupSkipsSpecialImageTypes(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Panorama)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+
+        $this->mediaVariantService()->generateForMedia($media);
+        $this->trackVariantFiles($media->getVariants());
+
+        $result = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
+
+        self::assertTrue($result['skipped']);
+        self::assertSame('média non standard', $result['reason']);
+        self::assertFileExists($source);
+        self::assertSame(TestImageFactory::publicPathFor($source), $media->getFilePath());
+    }
+
     /** @param array<string, mixed>|null $variants */
     private function trackVariantFiles(?array $variants): void
     {
@@ -114,6 +157,14 @@ final class MediaVariantServiceTest extends IntegrationTestCase
     {
         $service = $this->service(MediaVariantService::class);
         self::assertInstanceOf(MediaVariantService::class, $service);
+
+        return $service;
+    }
+
+    private function publicMediaMasterCleanupService(): PublicMediaMasterCleanupService
+    {
+        $service = $this->service(PublicMediaMasterCleanupService::class);
+        self::assertInstanceOf(PublicMediaMasterCleanupService::class, $service);
 
         return $service;
     }

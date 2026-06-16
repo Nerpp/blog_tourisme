@@ -8,6 +8,7 @@ use App\Entity\HikeDraft;
 use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\HikeDraftStatus;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
@@ -29,6 +30,8 @@ use App\Repository\HikeDraftRepository;
  */
 final readonly class HomepageLatestContentProvider
 {
+    private const IMAGE_PLACEHOLDER = '/images/placeholders/destination-card-placeholder.webp';
+
     public function __construct(
         private ArticleRepository $articleRepository,
         private HikeDraftRepository $hikeDraftRepository,
@@ -241,8 +244,24 @@ final readonly class HomepageLatestContentProvider
             return null;
         }
 
-        return $mediaAsset->getThumbnailPath()
-            ?: $mediaAsset->getFilePath()
-            ?: $mediaAsset->getExternalUrl();
+        $variants = $mediaAsset->getVariants();
+        $thumb = is_array($variants) && isset($variants['thumb']) && is_array($variants['thumb'])
+            ? $variants['thumb']
+            : [];
+
+        return (is_string($thumb['fallback'] ?? null) ? $thumb['fallback'] : null)
+            ?: $mediaAsset->getThumbnailPath()
+            ?: $mediaAsset->getExternalUrl()
+            ?: $this->specialImageFilePath($mediaAsset)
+            ?: self::IMAGE_PLACEHOLDER;
+    }
+
+    private function specialImageFilePath(MediaAsset $mediaAsset): ?string
+    {
+        return $mediaAsset->getMediaType() === MediaType::Image
+            && $mediaAsset->getImageType() !== null
+            && $mediaAsset->getImageType() !== ImageType::Standard
+            ? $mediaAsset->getFilePath()
+            : null;
     }
 }

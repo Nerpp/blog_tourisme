@@ -2,8 +2,7 @@
     <div class="studio-media-grid">
         {% for media_link in media_links %}
             {% set media = media_link.mediaAsset %}
-            {% set image_path = media.thumbnailPath ?: media.filePath %}
-            {% set image_src = image_path ? (image_path starts with '/' ? image_path : asset(image_path)) : null %}
+            {% set image_src = media_image_url(media, 'thumb') %}
             <article class="studio-media-card">
                 {% if image_src %}
                     <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: subject_label }}">

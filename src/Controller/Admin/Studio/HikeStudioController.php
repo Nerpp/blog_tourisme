@@ -27,6 +27,7 @@ use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\PublicMediaMasterCleanupService;
 use App\Service\Media\VideoThumbnailGenerator;
 use App\Service\Geography\LocationDraftHydrationException;
 use App\Service\Geography\LocationDraftHydrator;
@@ -65,6 +66,7 @@ final class HikeStudioController extends AbstractController
         private readonly ImageTypeDetector $imageTypeDetector,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly PublicMediaMasterCleanupService $publicMediaMasterCleanupService,
         private readonly MediaDeletionService $mediaDeletionService,
         private readonly BulkMediaUploadService $bulkMediaUploadService,
         private readonly VideoThumbnailGenerator $videoThumbnailGenerator,

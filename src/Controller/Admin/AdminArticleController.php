@@ -27,6 +27,7 @@ use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\Media\MediaVariantService;
+use App\Service\Media\PublicMediaMasterCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -54,6 +55,7 @@ final class AdminArticleController extends AbstractController
         private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
         private readonly MediaDeletionService $mediaDeletionService,
         private readonly MediaVariantService $mediaVariantService,
+        private readonly PublicMediaMasterCleanupService $publicMediaMasterCleanupService,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly ParameterBagInterface $parameterBag,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
@@ -519,6 +521,8 @@ final class AdminArticleController extends AbstractController
         $variantResult = $this->mediaVariantService->generateForMedia($media);
         if ($variantResult['status'] === 'error') {
             $this->addFlash('warning', 'L’image a été ajoutée, mais ses variantes responsive n’ont pas pu être générées.');
+        } else {
+            $this->publicMediaMasterCleanupService->cleanupIfSafe($media);
         }
 
         return $media;
