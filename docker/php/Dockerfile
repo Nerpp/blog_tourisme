@@ -26,6 +26,7 @@ RUN apt-get update \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-configure intl \
     && docker-php-ext-install -j"$(nproc)" gd intl mbstring opcache pdo_mysql zip \
+    && pecl channel-update pecl.php.net \
     && pecl install xdebug \
     && docker-php-ext-enable xdebug \
     && rm -rf /var/lib/apt/lists/*

@@ -39,7 +39,7 @@ final class EmailVerifierTest extends TestCase
             ->expects(self::once())
             ->method('send')
             ->with(self::callback(function (TemplatedEmail $email): bool {
-                self::assertSame('Confirmez votre adresse email', $email->getSubject());
+                self::assertSame('Confirmez votre adresse email Estela Explorations', $email->getSubject());
                 self::assertSame('registration/confirmation_email.html.twig', $email->getHtmlTemplate());
                 self::assertSame('no-reply@example.test', $email->getFrom()[0]->getAddress());
                 self::assertSame('test@example.test', $email->getTo()[0]->getAddress());

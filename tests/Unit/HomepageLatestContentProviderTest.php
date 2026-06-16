@@ -33,7 +33,7 @@ final class HomepageLatestContentProviderTest extends TestCase
     public function testReturnsNewestContentAcrossArticlesHikesAndCityVisits(): void
     {
         $article = $this->article('Article recent', 'article-recent', new \DateTimeImmutable('-3 days'));
-        $hike = $this->hike('Hike newest', 'hike-newest', new \DateTimeImmutable('-1 day'), $this->image('/uploads/hike.jpg'));
+        $hike = $this->hike('Hike newest', 'hike-newest', new \DateTimeImmutable('-1 day'), $this->image('/uploads/hike-original.jpg', '/uploads/hike.jpg'));
         $cityVisit = $this->cityVisit('City older', 'city-older', new \DateTimeImmutable('-2 days'));
 
         $latest = $this->provider($article, $hike, $cityVisit)->getLatest();
