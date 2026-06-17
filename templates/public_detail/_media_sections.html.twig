@@ -7,6 +7,7 @@
 {% set valid_gps_points = [] %}
 {% set hike_map_points = [] %}
 {% set route_map_id = gallery_id ~ '-route-map' %}
+{% set point_media_gallery_links = [] %}
 
 {% for mediaLink in item.mediaLinks %}
     {% set media = mediaLink.mediaAsset %}
@@ -38,6 +39,14 @@
             longitude: point.longitude
         }]) %}
     {% endif %}
+
+    {% for pointMediaLink in point.mediaLinks %}
+        {% set media = pointMediaLink.mediaAsset %}
+
+        {% if media and media.mediaType.value in ['image', 'video'] %}
+            {% set point_media_gallery_links = point_media_gallery_links|merge([pointMediaLink]) %}
+        {% endif %}
+    {% endfor %}
 {% endfor %}
 
 {% if standard_media_links|length > 0 %}
@@ -736,6 +745,7 @@
 
     <div class="public-point-list">
         {% set point_map_index = 0 %}
+        {% set point_media_gallery_index = 0 %}
 
         {% for point in item.points %}
             <article class="public-point-card">
@@ -799,8 +809,25 @@
 
                                         {% if image_url %}
                                             {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
+                                            {% set point_media_caption = media.caption ?: point_media_title %}
+                                            {% set modal_image_url = media_modal_url(media) %}
 
-                                            <figure class="point-media-card point-media-card--image">
+                                            <figure
+                                                class="point-media-card point-media-card--image"
+                                                role="button"
+                                                tabindex="0"
+                                                aria-label="Voir la photo"
+                                                data-gallery-target="#{{ gallery_id }}-point-media-gallery"
+                                                data-gallery-index="{{ point_media_gallery_index }}"
+                                                data-gallery-type="image"
+                                                data-gallery-src="{{ modal_image_url }}"
+                                                {% if point_media_title %}
+                                                    data-gallery-title="{{ point_media_title|e('html_attr') }}"
+                                                {% endif %}
+                                                {% if point_media_caption %}
+                                                    data-gallery-caption="{{ point_media_caption|striptags|e('html_attr') }}"
+                                                {% endif %}
+                                            >
                                                 {% if media.imageType and media.imageType.value in ['360', '180'] %}
                                                     <span class="point-media-card__badge">{{ media.imageType.value == '360' ? '360°' : '180°' }}</span>
                                                 {% endif %}
@@ -812,18 +839,47 @@
                                                     sizes: '(min-width: 760px) 240px, 45vw'
                                                 } only %}
 
-                                                {% if media.caption or point_media_title %}
-                                                    <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
-                                                {% endif %}
+                                            {% if media.caption or point_media_title %}
+                                                <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
+                                            {% endif %}
                                             </figure>
+
+                                            {% set point_media_gallery_index = point_media_gallery_index + 1 %}
                                         {% endif %}
                                     {% elseif media.mediaType.value == 'video' %}
                                         {% set local_video = media.filePath %}
                                         {% set external_video = media.externalUrl %}
+                                        {% set embed_url = media|video_embed_url %}
                                         {% set poster_url = media_poster_url(media, 'thumb') ?: video_thumbnail_url(external_video) %}
                                         {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
+                                        {% set point_media_caption = media.caption ?: point_media_title %}
+                                        {% set point_media_source = local_video ? (local_video starts with 'http' ? local_video : asset(local_video)) : (embed_url ?: external_video) %}
+                                        {% set point_gallery_type = local_video ? 'video' : (embed_url ? 'embed' : 'video') %}
 
-                                        <figure class="point-media-card point-media-card--video">
+                                        <figure
+                                            class="point-media-card point-media-card--video"
+                                            role="button"
+                                            tabindex="0"
+                                            aria-label="Voir la vidéo"
+                                            data-gallery-target="#{{ gallery_id }}-point-media-gallery"
+                                            data-gallery-index="{{ point_media_gallery_index }}"
+                                            data-gallery-type="{{ point_gallery_type }}"
+                                            {% if point_media_source %}
+                                                data-gallery-src="{{ point_media_source }}"
+                                            {% endif %}
+                                            {% if embed_url and media.videoType %}
+                                                data-gallery-provider="{{ media.videoType.value }}"
+                                            {% endif %}
+                                            {% if poster_url %}
+                                                data-gallery-poster="{{ poster_url }}"
+                                            {% endif %}
+                                            {% if point_media_title %}
+                                                data-gallery-title="{{ point_media_title|e('html_attr') }}"
+                                            {% endif %}
+                                            {% if point_media_caption %}
+                                                data-gallery-caption="{{ point_media_caption|striptags|e('html_attr') }}"
+                                            {% endif %}
+                                        >
                                             <span class="point-media-card__badge">Vidéo</span>
 
                                             {% if local_video %}
@@ -839,6 +895,18 @@
                                                     <source src="{{ local_video_url }}" type="{{ media.mimeType ?: 'video/mp4' }}">
                                                     Votre navigateur ne supporte pas la lecture vidéo.
                                                 </video>
+                                            {% elseif embed_url %}
+                                                <div class="point-media-card__external-video">
+                                                    {% if poster_url %}
+                                                        <img
+                                                            src="{{ poster_url }}"
+                                                            alt="{{ media_public_alt(media, item, point_media_title) }}"
+                                                            loading="lazy"
+                                                            decoding="async"
+                                                        >
+                                                    {% endif %}
+                                                    <span>Lire la vidéo</span>
+                                                </div>
                                             {% elseif external_video %}
                                                 <a
                                                     class="point-media-card__external-video"
@@ -866,6 +934,8 @@
                                                 <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
                                             {% endif %}
                                         </figure>
+
+                                        {% set point_media_gallery_index = point_media_gallery_index + 1 %}
                                     {% endif %}
                                 {% endif %}
                             {% endfor %}
@@ -877,4 +947,190 @@
             <p class="empty-media-note">Aucune étape détaillée pour le moment.</p>
         {% endfor %}
     </div>
+
+    {% if point_media_gallery_links|length > 0 %}
+        <div
+            id="{{ gallery_id }}-point-media-gallery"
+            class="gallery-modal js-gallery-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="{{ gallery_id }}-point-media-gallery-title"
+            data-gallery-autoplay="false"
+            hidden
+        >
+            <div class="gallery-modal__dialog gallery-modal__dialog--point-media" role="document">
+                <header class="gallery-modal__header">
+                    <div>
+                        <h2 id="{{ gallery_id }}-point-media-gallery-title" class="gallery-modal__title">
+                            Médias du parcours
+                        </h2>
+
+                        <div class="gallery-modal__counter js-gallery-counter">
+                            1 / {{ point_media_gallery_links|length }}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__close js-gallery-close"
+                        aria-label="Fermer la galerie"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <div class="gallery-modal__body">
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--prev js-gallery-prev"
+                        aria-label="Média précédent"
+                    >
+                        ‹
+                    </button>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--next js-gallery-next"
+                        aria-label="Média suivant"
+                    >
+                        ›
+                    </button>
+
+                    {% for pointMediaLink in point_media_gallery_links %}
+                        {% set media = pointMediaLink.mediaAsset %}
+
+                        {% if media and media.mediaType.value == 'image' %}
+                            {% set image_url = media_modal_url(media) %}
+                            {% set point = pointMediaLink.point %}
+                            {% set point_media_title = media_public_title(media, item, point ? (point.title ?: item_title) : item_title) %}
+                            {% set point_media_caption = media.caption ?: point_media_title %}
+                            {% set has_caption = point_media_caption is not empty %}
+
+                            {% if image_url %}
+                                <article class="gallery-modal__slide js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                    <figure class="gallery-modal__media">
+                                        <img
+                                            data-gallery-src="{{ image_url }}"
+                                            alt="{{ media_public_alt(media, item, point ? (point.title ?: item_title) : item_title) }}"
+                                            decoding="async"
+                                            {% if media.width and media.height %}
+                                                width="{{ media.width }}"
+                                                height="{{ media.height }}"
+                                            {% endif %}
+                                        >
+                                    </figure>
+
+                                    {% if has_caption %}
+                                        <div class="gallery-modal__caption">
+                                            <p>{{ point_media_caption|nl2br }}</p>
+                                        </div>
+                                    {% endif %}
+                                </article>
+                            {% endif %}
+                        {% elseif media and media.mediaType.value == 'video' %}
+                            {% set point = pointMediaLink.point %}
+                            {% set local_video = media.filePath %}
+                            {% set external_video = media.externalUrl %}
+                            {% set embed_url = media|video_embed_url %}
+                            {% set poster_url = media_poster_url(media, 'medium') ?: video_thumbnail_url(external_video) %}
+                            {% set point_media_title = media_public_title(media, item, point ? (point.title ?: item_title) : item_title) %}
+                            {% set point_media_caption = media.caption ?: point_media_title %}
+                            {% set has_caption = point_media_caption is not empty %}
+
+                            {% set video_shape = 'unknown' %}
+                            {% if media.width and media.height %}
+                                {% if media.height > media.width %}
+                                    {% set video_shape = 'portrait' %}
+                                {% elseif media.width > media.height %}
+                                    {% set video_shape = 'landscape' %}
+                                {% else %}
+                                    {% set video_shape = 'square' %}
+                                {% endif %}
+                            {% elseif external_video is not empty and '/shorts/' in external_video %}
+                                {% set video_shape = 'portrait' %}
+                            {% endif %}
+
+                            <article class="gallery-modal__slide gallery-modal__slide--video gallery-modal__slide--video-{{ video_shape }} js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                <figure class="gallery-modal__media gallery-modal__video-frame gallery-modal__video-frame--{{ video_shape }} {{ local_video ? 'gallery-modal__video-frame--local' : 'gallery-modal__video-frame--external' }}">
+                                    {% if local_video %}
+                                        {% set local_video_url = local_video starts with 'http' ? local_video : asset(local_video) %}
+                                        <video
+                                            controls
+                                            playsinline
+                                            preload="metadata"
+                                            data-video-src="{{ local_video_url }}"
+                                            data-video-type="{{ media.mimeType ?: 'video/mp4' }}"
+                                            {% if poster_url %}
+                                                poster="{{ poster_url }}"
+                                            {% endif %}
+                                        >
+                                            Votre navigateur ne supporte pas la lecture vidéo.
+                                        </video>
+                                    {% elseif embed_url %}
+                                        <iframe
+                                            data-video-src="{{ embed_url }}"
+                                            title="{{ point_media_title ?: 'Vidéo du parcours' }}"
+                                            loading="lazy"
+                                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            sandbox="allow-scripts allow-same-origin allow-presentation"
+                                            referrerpolicy="strict-origin-when-cross-origin"
+                                            allowfullscreen
+                                        ></iframe>
+                                    {% elseif external_video %}
+                                        <div class="gallery-modal__external-video-card">
+                                            {% if poster_url %}
+                                                <img
+                                                    src="{{ poster_url }}"
+                                                    alt="{{ media_public_alt(media, item, point_media_title) }}"
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                >
+                                            {% endif %}
+
+                                            <div>
+                                                <p>Cette vidéo ne peut pas être lue directement ici.</p>
+                                                <a
+                                                    class="video-external-link"
+                                                    href="{{ external_video }}"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    Ouvrir la vidéo
+                                                </a>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="gallery-modal__external-video-card">
+                                            <div>
+                                                <p>Vidéo indisponible</p>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </figure>
+
+                                {% if has_caption %}
+                                    <div class="gallery-modal__caption gallery-modal__caption--video">
+                                        <p>{{ point_media_caption|nl2br }}</p>
+                                    </div>
+                                {% endif %}
+                            </article>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <footer class="gallery-modal__footer" aria-label="Navigation médias de parcours">
+                    {% for pointMediaLink in point_media_gallery_links %}
+                        {% set media = pointMediaLink.mediaAsset %}
+                        <button
+                            type="button"
+                            class="gallery-modal__dot js-gallery-dot {{ loop.first ? 'is-active' : '' }}"
+                            aria-label="Afficher {{ media and media.mediaType.value == 'video' ? 'la vidéo' : 'la photo' }} {{ loop.index }}"
+                            aria-current="{{ loop.first ? 'true' : 'false' }}"
+                        ></button>
+                    {% endfor %}
+                </footer>
+            </div>
+        </div>
+    {% endif %}
 </section>

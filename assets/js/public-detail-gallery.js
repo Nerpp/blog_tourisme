@@ -50,10 +50,11 @@ export function initPublicDetailGallery() {
         const slide = slides[(index + slides.length) % slides.length];
         const iframes = slide ? slide.querySelectorAll('iframe[data-video-src]') : [];
         const videos = slide ? slide.querySelectorAll('video[data-video-src]') : [];
+        const shouldAutoplay = modal.dataset.galleryAutoplay !== 'false';
 
         iframes.forEach((iframe) => {
           if (!iframe.src && iframe.dataset.videoSrc) {
-            iframe.src = appendAutoplayParam(iframe.dataset.videoSrc);
+            iframe.src = shouldAutoplay ? appendAutoplayParam(iframe.dataset.videoSrc) : iframe.dataset.videoSrc;
           }
         });
 
@@ -69,6 +70,10 @@ export function initPublicDetailGallery() {
             video.insertBefore(source, video.firstChild);
             video.dataset.videoLoaded = 'true';
             video.load();
+          }
+
+          if (!shouldAutoplay) {
+            return;
           }
 
           const playPromise = video.play();
@@ -263,6 +268,9 @@ export function initPublicDetailGallery() {
           event.stopPropagation();
 
           const index = Number.parseInt(button.dataset.galleryIndex || '0', 10);
+          button.querySelectorAll('video').forEach((video) => {
+            video.pause();
+          });
 
           openModal(Number.isNaN(index) ? 0 : index);
         };
