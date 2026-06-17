@@ -8,6 +8,7 @@ use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\MediaAsset;
 use App\Entity\Place;
+use App\Enum\MediaRole;
 use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
@@ -71,18 +72,7 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        if ($article->getFeaturedImage()?->getMediaType() === MediaType::Image) {
-            return $article->getFeaturedImage();
-        }
-
-        foreach ($article->getMediaLinks() as $mediaLink) {
-            $media = $mediaLink->getMediaAsset();
-            if ($media->getMediaType() === MediaType::Image) {
-                return $media;
-            }
-        }
-
-        return null;
+        return $this->mainImageFromLinks($article->getMediaLinks(), $article->getFeaturedImage());
     }
 
     private function firstHikeMedia(?HikeDraft $hike): ?MediaAsset
@@ -91,14 +81,7 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        foreach ($hike->getMediaLinks() as $mediaLink) {
-            $media = $mediaLink->getMediaAsset();
-            if ($media->getMediaType() === MediaType::Image) {
-                return $media;
-            }
-        }
-
-        return null;
+        return $this->mainImageFromLinks($hike->getMediaLinks());
     }
 
     private function firstCityVisitMedia(?CityVisitDraft $cityVisit): ?MediaAsset
@@ -107,14 +90,7 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        foreach ($cityVisit->getMediaLinks() as $mediaLink) {
-            $media = $mediaLink->getMediaAsset();
-            if ($media->getMediaType() === MediaType::Image) {
-                return $media;
-            }
-        }
-
-        return null;
+        return $this->mainImageFromLinks($cityVisit->getMediaLinks());
     }
 
     private function firstPlaceMedia(?Place $place): ?MediaAsset
@@ -123,17 +99,30 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        if ($place->getFeaturedImage()?->getMediaType() === MediaType::Image) {
-            return $place->getFeaturedImage();
-        }
+        return $this->mainImageFromLinks($place->getMediaLinks(), $place->getFeaturedImage());
+    }
 
-        foreach ($place->getMediaLinks() as $mediaLink) {
+    private function mainImageFromLinks(iterable $mediaLinks, ?MediaAsset $featuredImage = null): ?MediaAsset
+    {
+        $fallback = $featuredImage?->getMediaType() === MediaType::Image ? $featuredImage : null;
+
+        foreach ($mediaLinks as $mediaLink) {
+            if (!method_exists($mediaLink, 'getMediaAsset') || !method_exists($mediaLink, 'getRole')) {
+                continue;
+            }
+
             $media = $mediaLink->getMediaAsset();
-            if ($media->getMediaType() === MediaType::Image) {
+            if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+                continue;
+            }
+
+            if ($mediaLink->getRole() === MediaRole::Cover) {
                 return $media;
             }
+
+            $fallback ??= $media;
         }
 
-        return null;
+        return $fallback;
     }
 }

@@ -191,8 +191,8 @@ class ArticleRepository extends ServiceEntityRepository
 
     public function findLatestPublishedWithMediaByDestination(Destination $destination): ?Article
     {
-        return $this->createQueryBuilder('a')
-            ->addSelect('featuredImage', 'destinationLinks', 'destinations', 'mediaLinks', 'mediaAssets', 'hikeLinks', 'hikes', 'hikeGeographicDestinations', 'hikeDestinations', 'cityVisitLinks', 'cityVisits', 'cityVisitGeographicDestinations', 'cityVisitDestinations')
+        $latestArticleRow = $this->createQueryBuilder('a')
+            ->select('a.id')
             ->leftJoin('a.featuredImage', 'featuredImage')
             ->leftJoin('a.destinationLinks', 'destinationLinks')
             ->leftJoin('destinationLinks.destination', 'destinations')
@@ -227,8 +227,33 @@ class ArticleRepository extends ServiceEntityRepository
             ], ArrayParameterType::STRING)
             ->orderBy('a.publishedAt', 'DESC')
             ->addOrderBy('a.id', 'DESC')
-            ->addOrderBy('mediaLinks.position', 'ASC')
             ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($latestArticleRow === null) {
+            return null;
+        }
+
+        return $this->createQueryBuilder('a')
+            ->addSelect('featuredImage', 'destinationLinks', 'destinations', 'mediaLinks', 'mediaAssets', 'hikeLinks', 'hikes', 'hikeGeographicDestinations', 'hikeDestinations', 'cityVisitLinks', 'cityVisits', 'cityVisitGeographicDestinations', 'cityVisitDestinations')
+            ->leftJoin('a.featuredImage', 'featuredImage')
+            ->leftJoin('a.destinationLinks', 'destinationLinks')
+            ->leftJoin('destinationLinks.destination', 'destinations')
+            ->leftJoin('a.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->leftJoin('a.hikeLinks', 'hikeLinks')
+            ->leftJoin('hikeLinks.hikeDraft', 'hikes')
+            ->leftJoin('hikes.geographicDestination', 'hikeGeographicDestinations')
+            ->leftJoin('hikes.destination', 'hikeDestinations')
+            ->leftJoin('a.cityVisitLinks', 'cityVisitLinks')
+            ->leftJoin('cityVisitLinks.cityVisitDraft', 'cityVisits')
+            ->leftJoin('cityVisits.geographicDestination', 'cityVisitGeographicDestinations')
+            ->leftJoin('cityVisits.destination', 'cityVisitDestinations')
+            ->andWhere('a.id = :id')
+            ->setParameter('id', $latestArticleRow['id'])
+            ->orderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
     }

@@ -99,8 +99,8 @@ class HikeDraftRepository extends ServiceEntityRepository
 
     public function findLatestPublicWithMediaByDestination(Destination $destination): ?HikeDraft
     {
-        return $this->createQueryBuilder('h')
-            ->addSelect('mediaLinks', 'mediaAssets')
+        $latestHikeRow = $this->createQueryBuilder('h')
+            ->select('h.id')
             ->innerJoin('h.mediaLinks', 'mediaLinks')
             ->innerJoin('mediaLinks.mediaAsset', 'mediaAssets', 'WITH', 'mediaAssets.mediaType = :mediaType')
             ->leftJoin('h.geographicDestination', 'geographicDestination')
@@ -114,8 +114,22 @@ class HikeDraftRepository extends ServiceEntityRepository
             ])
             ->orderBy('h.finishedAt', 'DESC')
             ->addOrderBy('h.id', 'DESC')
-            ->addOrderBy('mediaLinks.position', 'ASC')
             ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($latestHikeRow === null) {
+            return null;
+        }
+
+        return $this->createQueryBuilder('h')
+            ->addSelect('mediaLinks', 'mediaAssets')
+            ->leftJoin('h.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('h.id = :id')
+            ->setParameter('id', $latestHikeRow['id'])
+            ->orderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
     }

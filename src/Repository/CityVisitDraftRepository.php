@@ -99,8 +99,8 @@ class CityVisitDraftRepository extends ServiceEntityRepository
 
     public function findLatestPublicWithMediaByDestination(Destination $destination): ?CityVisitDraft
     {
-        return $this->createQueryBuilder('c')
-            ->addSelect('mediaLinks', 'mediaAssets')
+        $latestCityVisitRow = $this->createQueryBuilder('c')
+            ->select('c.id')
             ->innerJoin('c.mediaLinks', 'mediaLinks')
             ->innerJoin('mediaLinks.mediaAsset', 'mediaAssets', 'WITH', 'mediaAssets.mediaType = :mediaType')
             ->leftJoin('c.geographicDestination', 'geographicDestination')
@@ -114,8 +114,22 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ])
             ->orderBy('c.finishedAt', 'DESC')
             ->addOrderBy('c.id', 'DESC')
-            ->addOrderBy('mediaLinks.position', 'ASC')
             ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($latestCityVisitRow === null) {
+            return null;
+        }
+
+        return $this->createQueryBuilder('c')
+            ->addSelect('mediaLinks', 'mediaAssets')
+            ->leftJoin('c.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('c.id = :id')
+            ->setParameter('id', $latestCityVisitRow['id'])
+            ->orderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
     }

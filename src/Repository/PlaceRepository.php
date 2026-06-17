@@ -85,8 +85,8 @@ class PlaceRepository extends ServiceEntityRepository
 
     public function findLatestPublishedWithMediaByDestination(Destination $destination): ?Place
     {
-        return $this->createQueryBuilder('p')
-            ->addSelect('featuredImage', 'mediaLinks', 'mediaAssets')
+        $latestPlaceRow = $this->createQueryBuilder('p')
+            ->select('p.id')
             ->leftJoin('p.featuredImage', 'featuredImage')
             ->leftJoin('p.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
@@ -98,8 +98,23 @@ class PlaceRepository extends ServiceEntityRepository
             ->setParameter('mediaType', MediaType::Image)
             ->orderBy('p.publishedAt', 'DESC')
             ->addOrderBy('p.id', 'DESC')
-            ->addOrderBy('mediaLinks.position', 'ASC')
             ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($latestPlaceRow === null) {
+            return null;
+        }
+
+        return $this->createQueryBuilder('p')
+            ->addSelect('featuredImage', 'mediaLinks', 'mediaAssets')
+            ->leftJoin('p.featuredImage', 'featuredImage')
+            ->leftJoin('p.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->andWhere('p.id = :id')
+            ->setParameter('id', $latestPlaceRow['id'])
+            ->orderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
     }
