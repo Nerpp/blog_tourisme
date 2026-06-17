@@ -13,6 +13,12 @@
 
     {% include 'admin/studio/_studio_quick_nav.html.twig' with {
         nav_id: 'studio-city-visit-quick-nav',
+        action_links: [
+            { label: 'Retour au site public', href: path('app_home') },
+            city_visit.slug is not empty and city_visit.status.value in ['finished', 'converted']
+                ? { label: 'Aperçu public', href: path('app_city_visit_show', { slug: city_visit.slug }), target: '_blank', rel: 'noopener noreferrer' }
+                : { label: 'Aperçu public', disabled_label: 'Aperçu indisponible' }
+        ],
         items: [
             { label: 'Général', anchor: 'studio-general' },
             { label: 'Publication', anchor: 'studio-publication' },
@@ -20,7 +26,8 @@
             { label: 'Étapes', anchor: 'studio-points' },
             { label: 'Photos', anchor: 'studio-photos' },
             { label: 'Vidéos', anchor: 'studio-videos' }
-        ]
+        ],
+        submit_form_id: main_form_id
     } only %}
 
     <div class="studio-page studio-page--with-quick-nav">

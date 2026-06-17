@@ -246,7 +246,7 @@ a {
 }
 
 .studio-page--with-quick-nav {
-    padding-right: 172px;
+    padding-right: 198px;
 }
 
 .studio-quick-nav {
@@ -254,7 +254,7 @@ a {
     top: 50%;
     right: 18px;
     z-index: 30;
-    width: min(190px, calc(100vw - 32px));
+    width: min(214px, calc(100vw - 32px));
     transform: translateY(-50%);
 }
 
@@ -274,7 +274,7 @@ a {
 
 .studio-quick-nav__links {
     display: grid;
-    gap: 4px;
+    gap: 8px;
     padding: 8px;
     border: 1px solid rgba(21, 94, 66, 0.18);
     border-radius: var(--admin-radius);
@@ -283,21 +283,68 @@ a {
     backdrop-filter: blur(8px);
 }
 
-.studio-quick-nav__links a {
+.studio-quick-nav__group {
+    display: grid;
+    gap: 4px;
+}
+
+.studio-quick-nav__group + .studio-quick-nav__group {
+    padding-top: 8px;
+    border-top: 1px solid rgba(21, 94, 66, 0.12);
+}
+
+.studio-quick-nav__item,
+.studio-quick-nav__submit {
     display: block;
+    width: 100%;
     padding: 8px 10px;
+    border: 0;
     border-radius: calc(var(--admin-radius) - 2px);
+    background: transparent;
     color: var(--admin-text);
+    cursor: pointer;
+    font: inherit;
     font-size: 0.88rem;
     font-weight: 800;
+    text-align: left;
     text-decoration: none;
 }
 
-.studio-quick-nav__links a:hover,
-.studio-quick-nav__links a:focus-visible {
+.studio-quick-nav__item:hover,
+.studio-quick-nav__item:focus-visible,
+.studio-quick-nav__submit:focus-visible {
     outline: none;
     background: var(--admin-primary-soft);
     color: var(--admin-primary);
+}
+
+.studio-quick-nav__item--action {
+    color: var(--admin-primary);
+}
+
+.studio-quick-nav__item--disabled {
+    color: var(--admin-muted);
+    cursor: default;
+    opacity: 0.72;
+}
+
+.studio-quick-nav__item--disabled:hover,
+.studio-quick-nav__item--disabled:focus-visible {
+    background: transparent;
+    color: var(--admin-muted);
+}
+
+.studio-quick-nav__submit {
+    background: var(--admin-primary);
+    color: #fff;
+    font-weight: 850;
+    text-align: center;
+}
+
+.studio-quick-nav__submit:hover,
+.studio-quick-nav__submit:focus-visible {
+    background: #0f4a33;
+    color: #fff;
 }
 
 .studio-scroll-anchor {
