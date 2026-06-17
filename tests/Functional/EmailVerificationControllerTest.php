@@ -47,4 +47,19 @@ final class EmailVerificationControllerTest extends FunctionalTestCase
 
         $client->request('POST', '/verify/resend', ['_token' => 'bad-token']);
     }
+
+    public function testUnverifiedUserCanRequestVerificationEmailResend(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(verified: false));
+
+        $crawler = $client->request('GET', '/verify/resend');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', '/verify/resend', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+        ]);
+
+        self::assertResponseRedirects('/profile');
+    }
 }

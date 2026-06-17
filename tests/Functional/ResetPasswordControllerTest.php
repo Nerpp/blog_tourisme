@@ -30,6 +30,16 @@ final class ResetPasswordControllerTest extends FunctionalTestCase
         self::assertResponseRedirects('/reset-password/check-email');
     }
 
+    public function testCheckEmailPageShowsGenericMessage(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/reset-password/check-email');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Si un compte existe avec cette adresse email');
+    }
+
     public function testKnownEmailUsesSameGenericResetFlowWithoutExternalService(): void
     {
         $client = static::createClient();

@@ -46,4 +46,27 @@ final class AuthenticationTest extends WebTestCase
 
         self::assertResponseRedirects('/');
     }
+
+    public function testLoggedInUserIsRedirectedAwayFromLoginPage(): void
+    {
+        $client = static::createClient();
+        $token = bin2hex(random_bytes(6));
+        $user = (new User())
+            ->setEmail(sprintf('already-logged-%s@example.test', $token))
+            ->setDisplayName(sprintf('Already Logged %s', $token))
+            ->setPassword('x')
+            ->setRoles(['ROLE_USER'])
+            ->setIsVerified(true);
+
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $entityManager->persist($user);
+        $entityManager->flush();
+
+        $client->loginUser($user);
+
+        $client->request('GET', '/login');
+
+        self::assertResponseRedirects('/profile');
+    }
 }
