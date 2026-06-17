@@ -74,7 +74,7 @@
         .studio-link { color: var(--admin-primary); font-weight: 800; }
         .studio-hidden { display: none; }
         .studio-button-danger { border: 1px solid #dba0a0; background: #fff5f5; color: #8c1d18; }
-        .studio-section, .studio-media-card, .studio-point { scroll-margin-top: 18px; }
+        .studio-section, .studio-hero, .quick-destination, .studio-scroll-target, .studio-media-card, .studio-point { scroll-margin-top: 84px; }
         .studio-section:target, .studio-media-card:target, .studio-point:target { outline: 2px solid rgba(46, 125, 90, 0.35); box-shadow: 0 0 0 6px rgba(46, 125, 90, 0.08); }
         .quick-destination { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fbfcfb; }
         .quick-destination__title { margin: 0; font-size: 1.05rem; }
@@ -107,8 +107,20 @@
     <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_hike_edit_' ~ hike.id) }}">
     <input form="{{ main_form_id }}" type="hidden" name="_redirect_anchor" value="section-publication">
 
-    <div class="studio-page">
-        <section class="studio-hero">
+    {% include 'admin/studio/_studio_quick_nav.html.twig' with {
+        nav_id: 'studio-hike-quick-nav',
+        items: [
+            { label: 'Général', anchor: 'studio-general' },
+            { label: 'Publication', anchor: 'studio-publication' },
+            { label: 'Localisation', anchor: 'studio-location' },
+            { label: 'Points GPS', anchor: 'studio-points' },
+            { label: 'Photos', anchor: 'studio-photos' },
+            { label: 'Vidéos', anchor: 'studio-videos' }
+        ]
+    } only %}
+
+    <div class="studio-page studio-page--with-quick-nav">
+        <section id="studio-general" class="studio-hero">
             <div>
                 <p class="studio-eyebrow">Studio randonnée rapide</p>
                 <h1 class="studio-title">{{ hike.title }}</h1>
@@ -146,7 +158,8 @@
             </div>
         </section>
 
-        <section id="section-publication" class="studio-section">
+        <span id="section-publication" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-publication" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Préparation publication</h2>
@@ -184,7 +197,7 @@
                     <textarea form="{{ main_form_id }}" id="hike-notes" name="notes" rows="8">{{ hike.notes }}</textarea>
                 </div>
             </div>
-            <section class="quick-destination" aria-labelledby="hike-current-location-title">
+            <section id="studio-location" class="quick-destination" aria-labelledby="hike-current-location-title">
                 <div class="quick-destination__header">
                     <div>
                         <h2 id="hike-current-location-title" class="quick-destination__title">Localisation actuellement enregistrée</h2>
@@ -270,7 +283,8 @@
             } only %}
         </section>
 
-        <section id="section-points" class="studio-section">
+        <span id="section-points" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-points" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Points GPS</h2>
@@ -365,7 +379,8 @@
             </div>
         </section>
 
-        <section id="section-photos" class="studio-section">
+        <span id="section-photos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-photos" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Photos</h2>
@@ -419,7 +434,8 @@
             } only %}
         </section>
 
-        <section id="section-videos" class="studio-section">
+        <span id="section-videos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-videos" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Galerie générale - vidéos</h2>

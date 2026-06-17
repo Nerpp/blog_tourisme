@@ -11,8 +11,20 @@
     <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_edit_' ~ city_visit.id) }}">
     <input form="{{ main_form_id }}" type="hidden" name="_redirect_anchor" value="section-publication">
 
-    <div class="studio-page">
-        <section class="studio-hero">
+    {% include 'admin/studio/_studio_quick_nav.html.twig' with {
+        nav_id: 'studio-city-visit-quick-nav',
+        items: [
+            { label: 'Général', anchor: 'studio-general' },
+            { label: 'Publication', anchor: 'studio-publication' },
+            { label: 'Localisation', anchor: 'studio-location' },
+            { label: 'Étapes', anchor: 'studio-points' },
+            { label: 'Photos', anchor: 'studio-photos' },
+            { label: 'Vidéos', anchor: 'studio-videos' }
+        ]
+    } only %}
+
+    <div class="studio-page studio-page--with-quick-nav">
+        <section id="studio-general" class="studio-hero">
             <div>
                 <p class="studio-eyebrow">Studio visite de ville rapide</p>
                 <h1 class="studio-title">{{ city_visit.title }}</h1>
@@ -37,7 +49,8 @@
             </div>
         </section>
 
-        <section id="section-publication" class="studio-section">
+        <span id="section-publication" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-publication" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Préparation visite</h2>
@@ -72,6 +85,7 @@
                     <span class="studio-help">Ce texte est affiché publiquement sous le titre de la visite et sur la carte de la destination associée.</span>
                 </div>
             </div>
+            <div id="studio-location" class="studio-scroll-target">
             {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
                 picker_id: 'studio-city-visit-location-' ~ city_visit.id,
                 ui_context: 'studio',
@@ -112,6 +126,7 @@
                 commune_center_latitude: location_picker_data.communeCenterLatitude,
                 commune_center_longitude: location_picker_data.communeCenterLongitude
             } only %}
+            </div>
             {% include 'admin/_quick_destination_form.html.twig' with {
                 ui_context: 'studio',
                 current_destination: city_visit.destination,
@@ -121,7 +136,8 @@
             } only %}
         </section>
 
-        <section class="studio-section">
+        <span id="section-points" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-points" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Points à visiter</h2>
@@ -157,7 +173,8 @@
             </div>
         </section>
 
-        <section class="studio-section">
+        <span id="section-photos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-photos" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Photos</h2>
@@ -206,7 +223,8 @@
             } only %}
         </section>
 
-        <section class="studio-section">
+        <span id="section-videos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-videos" class="studio-section">
             <div class="studio-section__header">
                 <div>
                     <h2>Galerie générale - vidéos</h2>

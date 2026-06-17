@@ -245,6 +245,77 @@ a {
     color: var(--admin-primary);
 }
 
+.studio-page--with-quick-nav {
+    padding-right: 172px;
+}
+
+.studio-quick-nav {
+    position: fixed;
+    top: 50%;
+    right: 18px;
+    z-index: 30;
+    width: min(190px, calc(100vw - 32px));
+    transform: translateY(-50%);
+}
+
+.studio-quick-nav__toggle {
+    display: none;
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid rgba(21, 94, 66, 0.28);
+    border-radius: var(--admin-radius);
+    background: var(--admin-primary);
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 850;
+    box-shadow: 0 10px 24px rgba(20, 41, 28, 0.18);
+}
+
+.studio-quick-nav__links {
+    display: grid;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid rgba(21, 94, 66, 0.18);
+    border-radius: var(--admin-radius);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 12px 32px rgba(20, 41, 28, 0.16);
+    backdrop-filter: blur(8px);
+}
+
+.studio-quick-nav__links a {
+    display: block;
+    padding: 8px 10px;
+    border-radius: calc(var(--admin-radius) - 2px);
+    color: var(--admin-text);
+    font-size: 0.88rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.studio-quick-nav__links a:hover,
+.studio-quick-nav__links a:focus-visible {
+    outline: none;
+    background: var(--admin-primary-soft);
+    color: var(--admin-primary);
+}
+
+.studio-scroll-anchor {
+    display: block;
+    height: 0;
+    scroll-margin-top: 84px;
+}
+
+.studio-scroll-target {
+    scroll-margin-top: 84px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    html {
+        scroll-behavior: smooth;
+    }
+}
+
 .admin-button--danger {
     background: var(--admin-danger);
     color: #fff;
@@ -680,5 +751,38 @@ a {
 
     .article-admin-layout {
         grid-template-columns: 1fr;
+    }
+
+    .studio-page--with-quick-nav {
+        padding-right: 0;
+    }
+
+    .studio-quick-nav {
+        top: auto;
+        right: 14px;
+        bottom: 76px;
+        width: min(210px, calc(100vw - 28px));
+        transform: none;
+    }
+
+    .studio-quick-nav.is-collapsed {
+        width: auto;
+    }
+
+    .studio-quick-nav__toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 14px;
+    }
+
+    .studio-quick-nav__links {
+        max-height: min(54vh, 360px);
+        margin-bottom: 8px;
+        overflow: auto;
+    }
+
+    .studio-quick-nav.is-collapsed .studio-quick-nav__links {
+        display: none;
     }
 }
