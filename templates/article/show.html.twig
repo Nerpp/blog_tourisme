@@ -1,17 +1,26 @@
 {% extends 'base.html.twig' %}
 
 {% set article_cover_media = null %}
+{% set article_fallback_cover_media = null %}
 
-{% if article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
-	{% set article_cover_media = article.featuredImage %}
-{% else %}
-	{% for mediaLink in article.mediaLinks %}
-		{% set media = mediaLink.mediaAsset %}
-		{% if article_cover_media is null and media and media.mediaType.value == 'image' %}
+{% for mediaLink in article.mediaLinks %}
+	{% set media = mediaLink.mediaAsset %}
+	{% if media and media.mediaType.value == 'image' %}
+		{% if article_fallback_cover_media is null %}
+			{% set article_fallback_cover_media = media %}
+		{% endif %}
+
+		{% if article_cover_media is null and mediaLink.role.value == 'cover' %}
 			{% set article_cover_media = media %}
 		{% endif %}
-	{% endfor %}
+	{% endif %}
+{% endfor %}
+
+{% if article_cover_media is null and article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
+	{% set article_cover_media = article.featuredImage %}
 {% endif %}
+
+{% set article_cover_media = article_cover_media ?: article_fallback_cover_media %}
 
 {% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, 'large') : null %}
 

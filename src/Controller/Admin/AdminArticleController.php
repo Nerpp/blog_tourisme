@@ -395,7 +395,7 @@ final class AdminArticleController extends AbstractController
         $orphanCandidates = [];
 
         if ($request->request->getBoolean('removeCover')) {
-            array_push($orphanCandidates, ...$this->removeCover($article));
+            $this->demoteArticleCover($article);
         }
 
         foreach ($this->requestIds($request, 'removeMediaLinks') as $mediaLinkId) {
@@ -405,11 +405,16 @@ final class AdminArticleController extends AbstractController
             }
         }
 
+        $promotedMediaLinkId = $this->nullableInt($request->request->get('promoteCoverMedia'));
+        if ($promotedMediaLinkId !== null) {
+            $this->promoteArticleMediaToCover($article, $promotedMediaLinkId);
+        }
+
         $coverFile = $request->files->get('coverImage');
         if ($coverFile instanceof UploadedFile && $coverFile->getSize() !== false && $coverFile->getSize() > 0) {
             $media = $this->createArticleImageAssetFromUpload($coverFile, $article, MediaRole::Cover);
             if ($media instanceof MediaAsset) {
-                array_push($orphanCandidates, ...$this->removeCover($article));
+                $this->demoteArticleCover($article);
                 $this->attachArticleMedia($article, $media, MediaRole::Cover, 0);
                 $article->setFeaturedImage($media);
             }
@@ -426,28 +431,102 @@ final class AdminArticleController extends AbstractController
             }
         }
 
+        $this->normalizeArticleCoverRole($article);
+
         return $this->uniqueMediaAssets($orphanCandidates);
     }
 
-    /** @return list<MediaAsset> */
-    private function removeCover(Article $article): array
+    private function demoteArticleCover(Article $article): void
     {
-        $removedMedia = [];
+        $featuredImage = $article->getFeaturedImage();
+        $featuredImageHasLink = false;
+
         foreach ($article->getMediaLinks()->toArray() as $link) {
+            if ($featuredImage instanceof MediaAsset && $link->getMediaAsset() === $featuredImage) {
+                $featuredImageHasLink = true;
+            }
+
             if ($link->getRole() === MediaRole::Cover) {
-                $removedMedia[] = $link->getMediaAsset();
-                $article->getMediaLinks()->removeElement($link);
-                $this->entityManager->remove($link);
+                $link->setRole(MediaRole::Gallery);
             }
         }
 
-        if ($article->getFeaturedImage() instanceof MediaAsset) {
-            $removedMedia[] = $article->getFeaturedImage();
+        if ($featuredImage instanceof MediaAsset && !$featuredImageHasLink) {
+            $this->attachArticleMedia($article, $featuredImage, MediaRole::Gallery, $this->nextMediaPosition($article));
         }
 
         $article->setFeaturedImage(null);
+    }
 
-        return $removedMedia;
+    private function promoteArticleMediaToCover(Article $article, int $mediaLinkId): void
+    {
+        $selectedLink = null;
+        foreach ($article->getMediaLinks()->toArray() as $link) {
+            if ($link->getId() === $mediaLinkId) {
+                $selectedLink = $link;
+                break;
+            }
+        }
+
+        if (!$selectedLink instanceof ArticleMedia) {
+            return;
+        }
+
+        $media = $selectedLink->getMediaAsset();
+        if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+            return;
+        }
+
+        foreach ($article->getMediaLinks()->toArray() as $link) {
+            if ($link !== $selectedLink && $link->getRole() === MediaRole::Cover) {
+                $link->setRole(MediaRole::Gallery);
+            }
+        }
+
+        $selectedLink->setRole(MediaRole::Cover);
+        $article->setFeaturedImage($media);
+    }
+
+    private function normalizeArticleCoverRole(Article $article): void
+    {
+        $featuredImage = $article->getFeaturedImage();
+        $featuredLink = null;
+        $keptCoverLink = null;
+
+        foreach ($article->getMediaLinks()->toArray() as $link) {
+            $media = $link->getMediaAsset();
+            if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+                continue;
+            }
+
+            if ($featuredImage instanceof MediaAsset && $media === $featuredImage) {
+                $featuredLink = $link;
+            }
+
+            if ($link->getRole() !== MediaRole::Cover) {
+                continue;
+            }
+
+            if (!$keptCoverLink instanceof ArticleMedia) {
+                $keptCoverLink = $link;
+                continue;
+            }
+
+            $link->setRole(MediaRole::Gallery);
+        }
+
+        if ($featuredLink instanceof ArticleMedia) {
+            if ($keptCoverLink instanceof ArticleMedia && $keptCoverLink !== $featuredLink) {
+                $keptCoverLink->setRole(MediaRole::Gallery);
+            }
+
+            $featuredLink->setRole(MediaRole::Cover);
+            return;
+        }
+
+        if ($keptCoverLink instanceof ArticleMedia) {
+            $article->setFeaturedImage($keptCoverLink->getMediaAsset());
+        }
     }
 
     private function removeArticleMediaLink(Article $article, int $mediaLinkId): ?MediaAsset

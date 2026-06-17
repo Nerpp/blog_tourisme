@@ -4,7 +4,15 @@
 {% set cover_media = null %}
 {% set cover_is_special = false %}
 
-{% if featured_media and featured_media.mediaType.value == 'image' and featured_media.imageType and featured_media.imageType.value == 'standard' %}
+{% set cover_standard_media_links = media_links|filter(link => link.role.value == 'cover' and link.mediaAsset.mediaType.value == 'image' and link.mediaAsset.imageType and link.mediaAsset.imageType.value == 'standard') %}
+{% set cover_preview_media_links = media_links|filter(link => link.role.value == 'cover' and link.mediaAsset.mediaType.value == 'image' and link.mediaAsset.thumbnailPath) %}
+
+{% if cover_standard_media_links|length > 0 %}
+    {% set cover_media = (cover_standard_media_links|first).mediaAsset %}
+{% elseif cover_preview_media_links|length > 0 %}
+    {% set cover_media = (cover_preview_media_links|first).mediaAsset %}
+    {% set cover_is_special = cover_media.imageType and cover_media.imageType.value != 'standard' %}
+{% elseif featured_media and featured_media.mediaType.value == 'image' and featured_media.imageType and featured_media.imageType.value == 'standard' %}
     {% set cover_media = featured_media %}
 {% elseif featured_media and featured_media.mediaType.value == 'image' and featured_media.thumbnailPath %}
     {% set cover_media = featured_media %}

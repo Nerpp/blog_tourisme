@@ -84,7 +84,12 @@
                             {% for media_link in article_image_links %}
                                 {% set media = media_link.mediaAsset %}
                                 {% set media_title = media_public_title(media, article, 'Image d’article') %}
-                                <article class="article-admin-media-item">
+                                {% set is_cover_image = media_link.role.value == 'cover' or (article.featuredImage and media.id and article.featuredImage.id == media.id) %}
+                                <article
+                                    class="article-admin-media-item {{ is_cover_image ? 'is-main-media' : '' }}"
+                                    data-main-media-card
+                                    data-main-media-state="{{ is_cover_image ? 'main' : 'gallery' }}"
+                                >
                                     {% include 'public_detail/_responsive_image.html.twig' with {
                                         media: media,
                                         alt: media_public_alt(media, article, media_title),
@@ -95,11 +100,19 @@
 
                                     <div>
                                         <strong>{{ media_title }}</strong>
+                                        <span class="studio-media-role-badge" data-main-media-badge>
+                                            {{ is_cover_image ? 'Image principale' : 'Galerie générale' }}
+                                        </span>
                                         <code>[[media:{{ media.id }}]]</code>
                                         <div class="article-admin-media-actions">
                                             <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">
                                                 Insérer
                                             </button>
+                                            {% if not is_cover_image %}
+                                                <button type="submit" class="admin-button admin-button--secondary" name="promoteCoverMedia" value="{{ media_link.id }}">
+                                                    Définir comme image principale
+                                                </button>
+                                            {% endif %}
                                             <label class="article-admin-check">
                                                 <input type="checkbox" name="removeMediaLinks[]" value="{{ media_link.id }}">
                                                 Retirer
@@ -155,7 +168,7 @@
                             } only %}
                             <label class="article-admin-check">
                                 <input type="checkbox" name="removeCover" value="1">
-                                Retirer la couverture
+                                Retirer comme image principale
                             </label>
                         </div>
                     {% endif %}

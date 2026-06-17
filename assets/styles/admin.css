@@ -220,6 +220,31 @@ a {
     color: var(--admin-text);
 }
 
+.studio-media-card.is-main-media,
+.article-admin-media-item.is-main-media {
+    border-color: rgba(21, 94, 66, 0.45);
+    background: #f2faf5;
+    box-shadow: 0 0 0 3px rgba(21, 94, 66, 0.08);
+}
+
+.studio-media-role-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    min-height: 28px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef0ee;
+    color: var(--admin-muted);
+    font-size: 0.82rem;
+    font-weight: 850;
+}
+
+.is-main-media .studio-media-role-badge {
+    background: var(--admin-primary-soft);
+    color: var(--admin-primary);
+}
+
 .admin-button--danger {
     background: var(--admin-danger);
     color: #fff;

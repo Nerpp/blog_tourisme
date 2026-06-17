@@ -107,12 +107,15 @@
                         {% set related_title = (article.placeLinks|first).place.name %}
                     {% endif %}
 
-                    {% set cover_media = article.featuredImage %}
-                    {% if not cover_media %}
-                        {% set image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
-                        {% if image_links|length > 0 %}
-                            {% set cover_media = (image_links|first).mediaAsset %}
-                        {% endif %}
+                    {% set cover_media = null %}
+                    {% set image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+                    {% set cover_image_links = image_links|filter(link => link.role.value == 'cover') %}
+                    {% if cover_image_links|length > 0 %}
+                        {% set cover_media = (cover_image_links|first).mediaAsset %}
+                    {% elseif article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
+                        {% set cover_media = article.featuredImage %}
+                    {% elseif image_links|length > 0 %}
+                        {% set cover_media = (image_links|first).mediaAsset %}
                     {% endif %}
 
                     {% set search_text %}

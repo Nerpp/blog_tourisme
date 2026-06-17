@@ -5,6 +5,7 @@ namespace App\Controller\Admin\Studio;
 use App\Entity\MediaAsset;
 use App\Entity\User;
 use App\Enum\ImageType;
+use App\Enum\MediaRole;
 use App\Enum\MediaType;
 use App\Enum\VideoType;
 use InvalidArgumentException;
@@ -168,6 +169,62 @@ trait StudioMediaHelperTrait
                 $this->videoThumbnailGenerator->generateForMedia($media);
             }
         }
+    }
+
+    private function promoteClassicImageToCover(iterable $mediaLinks, object $selectedLink): void
+    {
+        if (!$this->isClassicImageMediaLink($selectedLink)) {
+            if (method_exists($selectedLink, 'setRole')) {
+                $selectedLink->setRole(MediaRole::Gallery);
+            }
+
+            return;
+        }
+
+        $this->normalizeClassicCoverImages($mediaLinks, $selectedLink);
+    }
+
+    private function normalizeClassicCoverImages(iterable $mediaLinks, ?object $selectedCoverLink = null): void
+    {
+        $keptCoverLink = $selectedCoverLink;
+
+        foreach ($mediaLinks as $mediaLink) {
+            if (!is_object($mediaLink) || !$this->isClassicImageMediaLink($mediaLink)) {
+                continue;
+            }
+
+            if ($selectedCoverLink !== null) {
+                if ($mediaLink === $selectedCoverLink) {
+                    $mediaLink->setRole(MediaRole::Cover);
+                } elseif ($mediaLink->getRole() === MediaRole::Cover) {
+                    $mediaLink->setRole(MediaRole::Gallery);
+                }
+
+                continue;
+            }
+
+            if ($mediaLink->getRole() !== MediaRole::Cover) {
+                continue;
+            }
+
+            if ($keptCoverLink === null) {
+                $keptCoverLink = $mediaLink;
+                continue;
+            }
+
+            $mediaLink->setRole(MediaRole::Gallery);
+        }
+    }
+
+    private function isClassicImageMediaLink(object $mediaLink): bool
+    {
+        if (!method_exists($mediaLink, 'getMediaAsset') || !method_exists($mediaLink, 'getRole') || !method_exists($mediaLink, 'setRole')) {
+            return false;
+        }
+
+        $media = $mediaLink->getMediaAsset();
+
+        return $media instanceof MediaAsset && $media->getMediaType() === MediaType::Image;
     }
 
     /**

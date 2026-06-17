@@ -710,10 +710,18 @@
                         {% set media = media_link.mediaAsset %}
                         {% set image_src = media_image_url(media, 'thumb') %}
                         {% set current_usage = media_link.role.value == 'cover' ? 'main' : 'gallery' %}
-                        <article class="studio-media-card">
+                        {% set is_main_image = current_usage == 'main' %}
+                        <article
+                            class="studio-media-card {{ is_main_image ? 'is-main-media' : '' }}"
+                            data-main-media-card
+                            data-main-media-state="{{ is_main_image ? 'main' : 'gallery' }}"
+                        >
                             {% if image_src %}
                                 <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: place.name }}">
                             {% endif %}
+                            <span class="studio-media-role-badge" data-main-media-badge>
+                                {{ is_main_image ? 'Image principale' : 'Galerie générale' }}
+                            </span>
                             <form class="studio-media-card__body" method="post" action="{{ path('admin_studio_place_media_update', { id: media_link.id }) }}">
                                 <input type="hidden" name="_token" value="{{ csrf_token('studio_place_media_update_' ~ media_link.id) }}">
                                 <div class="studio-field">
@@ -740,7 +748,7 @@
                                     </div>
                                     <div class="studio-field">
                                         <label for="photo-usage-{{ media_link.id }}">Associer à</label>
-                                        <select id="photo-usage-{{ media_link.id }}" name="usage">
+                                        <select id="photo-usage-{{ media_link.id }}" name="usage" data-main-media-select>
                                             {% for value, label in photo_usage_options %}
                                                 <option value="{{ value }}" {% if current_usage == value %}selected{% endif %}>{{ label }}</option>
                                             {% endfor %}

@@ -98,6 +98,7 @@ final class CityVisitStudioController extends AbstractController
 
             $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
 
+            $this->normalizeClassicCoverImages($cityVisitDraft->getMediaLinks());
             $this->entityManager->flush();
             $this->notifyNewPublication($cityVisitDraft, $shouldNotifyPublication);
 
@@ -220,10 +221,15 @@ final class CityVisitStudioController extends AbstractController
                 $this->entityManager->persist((new CityVisitPointMedia())->setCityVisitPoint($targetPoint)->setMediaAsset($media));
             } else {
                 $link = (new CityVisitDraftMedia())
-                    ->setCityVisitDraft($cityVisitDraft)
                     ->setMediaAsset($media)
-                    ->setRole($this->mediaRoleForPhotoAssociation($association))
                     ->setPosition($nextPosition);
+
+                $cityVisitDraft->addMediaLink($link);
+                if ((string) $association === self::MEDIA_ASSOCIATION_MAIN) {
+                    $this->promoteClassicImageToCover($cityVisitDraft->getMediaLinks(), $link);
+                } else {
+                    $link->setRole(MediaRole::Gallery);
+                }
 
                 $this->entityManager->persist($link);
                 ++$nextPosition;
@@ -421,6 +427,7 @@ final class CityVisitStudioController extends AbstractController
             return $mediaId === null || !isset($mediaPointTargets[$mediaId]);
         }));
         $photoLinks = array_values(array_filter($generalMediaLinks, fn(CityVisitDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image));
+        $this->normalizeClassicCoverImages($photoLinks);
 
         return $this->render('admin/studio/city_visit_edit.html.twig', [
             'city_visit' => $cityVisitDraft,
@@ -658,11 +665,13 @@ final class CityVisitStudioController extends AbstractController
             $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
         }
 
-        $mediaLink->setRole(
-            $media->getMediaType() === MediaType::Image
-                ? $this->mediaRoleForPhotoAssociation($association)
-                : MediaRole::Gallery
-        );
+        if ($media->getMediaType() === MediaType::Image && (string) $association === self::MEDIA_ASSOCIATION_MAIN) {
+            $this->promoteClassicImageToCover($cityVisitDraft->getMediaLinks(), $mediaLink);
+
+            return;
+        }
+
+        $mediaLink->setRole(MediaRole::Gallery);
     }
 
     /** @return list<CityVisitDraftMedia> */
@@ -853,13 +862,6 @@ final class CityVisitStudioController extends AbstractController
     private function isPointAssociation(mixed $association): bool
     {
         return str_starts_with(trim((string) $association), self::MEDIA_ASSOCIATION_POINT_PREFIX);
-    }
-
-    private function mediaRoleForPhotoAssociation(mixed $association): MediaRole
-    {
-        return (string) $association === self::MEDIA_ASSOCIATION_MAIN
-            ? MediaRole::Cover
-            : MediaRole::Gallery;
     }
 
     private function findPointById(CityVisitDraft $cityVisitDraft, mixed $pointId): ?CityVisitPoint

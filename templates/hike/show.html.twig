@@ -1,14 +1,23 @@
 {% extends 'base.html.twig' %}
 
 {% set cover_media = null %}
+{% set fallback_cover_media = null %}
 
 {% for mediaLink in hike.mediaLinks %}
     {% set media = mediaLink.mediaAsset %}
 
-    {% if cover_media is null and media and media.mediaType.value == 'image' %}
-        {% set cover_media = media %}
+    {% if media and media.mediaType.value == 'image' %}
+        {% if fallback_cover_media is null %}
+            {% set fallback_cover_media = media %}
+        {% endif %}
+
+        {% if cover_media is null and mediaLink.role.value == 'cover' %}
+            {% set cover_media = media %}
+        {% endif %}
     {% endif %}
 {% endfor %}
+
+{% set cover_media = cover_media ?: fallback_cover_media %}
 
 {% set cover_image = null %}
 

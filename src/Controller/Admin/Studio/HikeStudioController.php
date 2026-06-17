@@ -100,6 +100,7 @@ final class HikeStudioController extends AbstractController
 
             $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($hikeDraft->getStatus());
 
+            $this->normalizeClassicCoverImages($hikeDraft->getMediaLinks());
             $this->entityManager->flush();
             $this->notifyNewPublication($hikeDraft, $shouldNotifyPublication);
 
@@ -221,10 +222,15 @@ final class HikeStudioController extends AbstractController
                 $this->entityManager->persist((new HikePointMedia())->setHikePoint($targetPoint)->setMediaAsset($media));
             } else {
                 $link = (new HikeDraftMedia())
-                    ->setHikeDraft($hikeDraft)
                     ->setMediaAsset($media)
-                    ->setRole($this->mediaRoleForPhotoAssociation($association))
                     ->setPosition($nextPosition);
+
+                $hikeDraft->addMediaLink($link);
+                if ((string) $association === self::MEDIA_ASSOCIATION_MAIN) {
+                    $this->promoteClassicImageToCover($hikeDraft->getMediaLinks(), $link);
+                } else {
+                    $link->setRole(MediaRole::Gallery);
+                }
 
                 $this->entityManager->persist($link);
                 ++$nextPosition;
@@ -524,6 +530,7 @@ final class HikeStudioController extends AbstractController
             return $mediaId === null || !isset($mediaPointTargets[$mediaId]);
         }));
         $photoLinks = array_values(array_filter($generalMediaLinks, fn(HikeDraftMedia $link): bool => $link->getMediaAsset()?->getMediaType() === MediaType::Image));
+        $this->normalizeClassicCoverImages($photoLinks);
 
         return $this->render('admin/studio/hike_edit.html.twig', [
             'hike' => $hikeDraft,
@@ -1041,11 +1048,13 @@ final class HikeStudioController extends AbstractController
             $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
         }
 
-        $mediaLink->setRole(
-            $media->getMediaType() === MediaType::Image
-                ? $this->mediaRoleForPhotoAssociation($association)
-                : MediaRole::Gallery
-        );
+        if ($media->getMediaType() === MediaType::Image && (string) $association === self::MEDIA_ASSOCIATION_MAIN) {
+            $this->promoteClassicImageToCover($hikeDraft->getMediaLinks(), $mediaLink);
+
+            return;
+        }
+
+        $mediaLink->setRole(MediaRole::Gallery);
     }
 
     /** @return list<HikeDraftMedia> */
@@ -1240,13 +1249,6 @@ final class HikeStudioController extends AbstractController
     private function isPointAssociation(mixed $association): bool
     {
         return str_starts_with(trim((string) $association), self::MEDIA_ASSOCIATION_POINT_PREFIX);
-    }
-
-    private function mediaRoleForPhotoAssociation(mixed $association): MediaRole
-    {
-        return (string) $association === self::MEDIA_ASSOCIATION_MAIN
-            ? MediaRole::Cover
-            : MediaRole::Gallery;
     }
 
     private function findPointById(HikeDraft $hikeDraft, mixed $pointId): ?HikePoint

@@ -34,13 +34,23 @@
                 {% set article = article_link.article %}
                 {% set modal_id = modal_id_prefix ~ '-' ~ article.id %}
                 {% set role = article_link.role is defined ? article_link.role : 'related' %}
+                {% set article_image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+                {% set article_cover_links = article_image_links|filter(link => link.role.value == 'cover') %}
+                {% set article_cover_media = null %}
+                {% if article_cover_links|length > 0 %}
+                    {% set article_cover_media = (article_cover_links|first).mediaAsset %}
+                {% elseif article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
+                    {% set article_cover_media = article.featuredImage %}
+                {% elseif article_image_links|length > 0 %}
+                    {% set article_cover_media = (article_image_links|first).mediaAsset %}
+                {% endif %}
 
                 <article class="related-article-card">
-                    {% if article.featuredImage %}
+                    {% if article_cover_media %}
                         <div class="related-article-card__visual">
                             {% include 'public_detail/_responsive_image.html.twig' with {
-                                media: article.featuredImage,
-                                alt: media_public_alt(article.featuredImage, article, article.title),
+                                media: article_cover_media,
+                                alt: media_public_alt(article_cover_media, article, article.title),
                                 image_size: 'thumb',
                                 sizes: '(min-width: 900px) 320px, 100vw',
                                 img_class: 'related-article-card__image'
@@ -107,11 +117,11 @@
                             </button>
                         </header>
 
-                        {% if article.featuredImage %}
+                        {% if article_cover_media %}
                             <div class="related-article-modal__cover">
                                 {% include 'public_detail/_responsive_image.html.twig' with {
-                                    media: article.featuredImage,
-                                    alt: media_public_alt(article.featuredImage, article, article.title),
+                                    media: article_cover_media,
+                                    alt: media_public_alt(article_cover_media, article, article.title),
                                     image_size: 'medium',
                                     sizes: '(min-width: 900px) 900px, 100vw'
                                 } only %}

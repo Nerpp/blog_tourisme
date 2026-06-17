@@ -85,6 +85,7 @@ final class PlaceStudioController extends AbstractController
             }
 
             $this->updatePlaceFromRequest($place, $request);
+            $this->normalizePlaceCoverImages($place, $this->sortedMediaLinks($place));
             $this->entityManager->flush();
 
             $this->addFlash('success', 'Le repérage a été enregistré.');
@@ -153,6 +154,7 @@ final class PlaceStudioController extends AbstractController
         $createdCount = 0;
         $results = [];
         $createdMedia = [];
+        $createdLinks = [];
         $nextPosition = $this->nextMediaPosition($place);
         $captions = $this->requestArray($request, 'photoCaptions');
         $imageTypes = $this->requestArray($request, 'photoImageTypes');
@@ -206,8 +208,11 @@ final class PlaceStudioController extends AbstractController
             $this->entityManager->persist($media);
             $this->entityManager->persist($placeMedia);
             if ($role === MediaRole::Cover) {
-                $place->setFeaturedImage($media);
+                $this->promotePlaceMediaToCover($place, $placeMedia, $createdLinks);
+            } else {
+                $placeMedia->setRole(MediaRole::Gallery);
             }
+            $createdLinks[] = $placeMedia;
             $nextPosition = max($nextPosition, $position + 1);
             ++$createdCount;
             $createdMedia[] = [$media, $file];
@@ -345,12 +350,13 @@ final class PlaceStudioController extends AbstractController
             ? $this->resolvePhotoUsage($request->request->get('usage'))
             : $this->resolveVideoUsage($request->request->get('usage'));
         $role = $this->mediaRoleForUsage($usage);
-        $placeMedia->setRole($role);
-
         if ($role === MediaRole::Cover) {
-            $place->setFeaturedImage($media);
+            $this->promotePlaceMediaToCover($place, $placeMedia);
         } elseif ($place->getFeaturedImage() === $media) {
+            $placeMedia->setRole(MediaRole::Gallery);
             $place->setFeaturedImage(null);
+        } else {
+            $placeMedia->setRole(MediaRole::Gallery);
         }
 
         $this->entityManager->flush();
@@ -390,6 +396,7 @@ final class PlaceStudioController extends AbstractController
     private function renderStudio(Place $place): Response
     {
         $mediaLinks = $this->sortedMediaLinks($place);
+        $this->normalizePlaceCoverImages($place, $mediaLinks);
         $destinations = $this->destinationRepository->findBy([], ['type' => 'ASC', 'name' => 'ASC']);
 
         return $this->render('admin/studio/place_edit.html.twig', [
@@ -733,6 +740,85 @@ final class PlaceStudioController extends AbstractController
     private function mediaRoleForUsage(string $usage): MediaRole
     {
         return $usage === self::MEDIA_USAGE_MAIN ? MediaRole::Cover : MediaRole::Gallery;
+    }
+
+    /**
+     * @param list<PlaceMedia> $additionalLinks
+     */
+    private function promotePlaceMediaToCover(Place $place, PlaceMedia $selectedMedia, array $additionalLinks = []): void
+    {
+        $media = $selectedMedia->getMediaAsset();
+        if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+            $selectedMedia->setRole(MediaRole::Gallery);
+
+            return;
+        }
+
+        $seenLinks = [];
+        foreach (array_merge($place->getMediaLinks()->toArray(), $additionalLinks, [$selectedMedia]) as $mediaLink) {
+            if (!$mediaLink instanceof PlaceMedia) {
+                continue;
+            }
+
+            $linkKey = spl_object_id($mediaLink);
+            if (isset($seenLinks[$linkKey])) {
+                continue;
+            }
+
+            $seenLinks[$linkKey] = true;
+            $linkedMedia = $mediaLink->getMediaAsset();
+            if (
+                $mediaLink !== $selectedMedia
+                && $linkedMedia instanceof MediaAsset
+                && $linkedMedia->getMediaType() === MediaType::Image
+                && $mediaLink->getRole() === MediaRole::Cover
+            ) {
+                $mediaLink->setRole(MediaRole::Gallery);
+            }
+        }
+
+        $selectedMedia->setRole(MediaRole::Cover);
+        $place->setFeaturedImage($media);
+    }
+
+    /**
+     * @param list<PlaceMedia> $mediaLinks
+     */
+    private function normalizePlaceCoverImages(Place $place, array $mediaLinks): void
+    {
+        $keptCover = null;
+        $featuredLink = null;
+        $featuredImage = $place->getFeaturedImage();
+        foreach ($mediaLinks as $mediaLink) {
+            $media = $mediaLink->getMediaAsset();
+            if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+                continue;
+            }
+
+            if ($featuredImage instanceof MediaAsset && $media === $featuredImage) {
+                $featuredLink = $mediaLink;
+            }
+
+            if ($mediaLink->getRole() !== MediaRole::Cover) {
+                continue;
+            }
+
+            if (!$keptCover instanceof PlaceMedia) {
+                $keptCover = $mediaLink;
+                continue;
+            }
+
+            $mediaLink->setRole(MediaRole::Gallery);
+        }
+
+        if (!$keptCover instanceof PlaceMedia && $featuredLink instanceof PlaceMedia) {
+            $featuredLink->setRole(MediaRole::Cover);
+            $keptCover = $featuredLink;
+        }
+
+        if ($keptCover instanceof PlaceMedia && $keptCover->getMediaAsset() instanceof MediaAsset) {
+            $place->setFeaturedImage($keptCover->getMediaAsset());
+        }
     }
 
     private function nullableInt(mixed $value): ?int

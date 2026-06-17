@@ -11,9 +11,21 @@
             {% set image_src = media.mediaType.value == 'image' ? media_image_url(media, 'thumb') : null %}
             {% set current_point_target = media.id and media_point_targets[media.id] is defined ? media_point_targets[media.id] : null %}
             {% set current_association = current_point_target ? 'point:' ~ current_point_target : (media_link.role.value == 'cover' ? 'main' : 'gallery') %}
-            <article id="{{ card_anchor }}" class="studio-media-card {{ media.mediaType.value == 'video' ? 'studio-video-card' : '' }}" {% if media.mediaType.value == 'video' %}data-video-card{% endif %}>
+            {% set is_main_image = media.mediaType.value == 'image' and current_association == 'main' %}
+            <article
+                id="{{ card_anchor }}"
+                class="studio-media-card {{ media.mediaType.value == 'video' ? 'studio-video-card' : '' }} {{ is_main_image ? 'is-main-media' : '' }}"
+                {% if media.mediaType.value == 'video' %}data-video-card{% endif %}
+                {% if media.mediaType.value == 'image' %}
+                    data-main-media-card
+                    data-main-media-state="{{ is_main_image ? 'main' : 'gallery' }}"
+                {% endif %}
+            >
                 {% if media.mediaType.value == 'image' and image_src %}
                     <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: subject_label }}">
+                    <span class="studio-media-role-badge" data-main-media-badge>
+                        {{ is_main_image ? 'Image principale' : 'Galerie générale' }}
+                    </span>
                 {% elseif media.mediaType.value == 'video' %}
                     {% include 'admin/studio/_video_thumbnail.html.twig' with { media: media, subject_label: subject_label } only %}
                     {% if media.externalUrl %}
@@ -65,7 +77,11 @@
                         {% endif %}
                         <div class="studio-field">
                             <label for="media-point-target-{{ media_link.id }}">Associer à</label>
-                            <select id="media-point-target-{{ media_link.id }}" name="association">
+                            <select
+                                id="media-point-target-{{ media_link.id }}"
+                                name="association"
+                                {% if media.mediaType.value == 'image' %}data-main-media-select{% endif %}
+                            >
                                 {% for value, label in association_options %}
                                     <option value="{{ value }}" {% if current_association == value %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
