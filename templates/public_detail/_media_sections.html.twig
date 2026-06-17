@@ -794,22 +794,74 @@
                                 {% set media = pointMediaLink.mediaAsset %}
 
                                 {% if media %}
-                                    {% set image_url = media_image_url(media, 'thumb') %}
+                                    {% if media.mediaType.value == 'image' %}
+                                        {% set image_url = media_image_url(media, 'thumb') %}
 
-                                    {% if image_url and media.mediaType.value == 'image' %}
-                                        <figure class="point-media-card">
-                                            {% if media.imageType and media.imageType.value in ['360', '180'] %}
-                                                <span class="point-media-card__badge">{{ media.imageType.value == '360' ? '360°' : '180°' }}</span>
+                                        {% if image_url %}
+                                            {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
+
+                                            <figure class="point-media-card point-media-card--image">
+                                                {% if media.imageType and media.imageType.value in ['360', '180'] %}
+                                                    <span class="point-media-card__badge">{{ media.imageType.value == '360' ? '360°' : '180°' }}</span>
+                                                {% endif %}
+
+                                                {% include 'public_detail/_responsive_image.html.twig' with {
+                                                    media: media,
+                                                    alt: media_public_alt(media, item, point.title ?: item_title),
+                                                    image_size: 'thumb',
+                                                    sizes: '(min-width: 760px) 240px, 45vw'
+                                                } only %}
+
+                                                {% if media.caption or point_media_title %}
+                                                    <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
+                                                {% endif %}
+                                            </figure>
+                                        {% endif %}
+                                    {% elseif media.mediaType.value == 'video' %}
+                                        {% set local_video = media.filePath %}
+                                        {% set external_video = media.externalUrl %}
+                                        {% set poster_url = media_poster_url(media, 'thumb') ?: video_thumbnail_url(external_video) %}
+                                        {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
+
+                                        <figure class="point-media-card point-media-card--video">
+                                            <span class="point-media-card__badge">Vidéo</span>
+
+                                            {% if local_video %}
+                                                {% set local_video_url = local_video starts with 'http' ? local_video : asset(local_video) %}
+                                                <video
+                                                    controls
+                                                    playsinline
+                                                    preload="metadata"
+                                                    {% if poster_url %}
+                                                        poster="{{ poster_url }}"
+                                                    {% endif %}
+                                                >
+                                                    <source src="{{ local_video_url }}" type="{{ media.mimeType ?: 'video/mp4' }}">
+                                                    Votre navigateur ne supporte pas la lecture vidéo.
+                                                </video>
+                                            {% elseif external_video %}
+                                                <a
+                                                    class="point-media-card__external-video"
+                                                    href="{{ external_video }}"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    {% if poster_url %}
+                                                        <img
+                                                            src="{{ poster_url }}"
+                                                            alt="{{ media_public_alt(media, item, point_media_title) }}"
+                                                            loading="lazy"
+                                                            decoding="async"
+                                                        >
+                                                    {% endif %}
+                                                    <span>Ouvrir la vidéo</span>
+                                                </a>
+                                            {% else %}
+                                                <div class="point-media-card__fallback">
+                                                    Vidéo indisponible
+                                                </div>
                                             {% endif %}
 
-                                            {% include 'public_detail/_responsive_image.html.twig' with {
-                                                media: media,
-                                                alt: media_public_alt(media, item, point.title ?: item_title),
-                                                image_size: 'thumb',
-                                                sizes: '(min-width: 760px) 240px, 45vw'
-                                            } only %}
-
-                                            {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
                                             {% if media.caption or point_media_title %}
                                                 <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
                                             {% endif %}

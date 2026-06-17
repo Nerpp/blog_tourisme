@@ -354,6 +354,60 @@ final class CityVisitStudioController extends AbstractController
         return $this->redirectToStudio($cityVisitDraft);
     }
 
+    #[Route('/city-visit-point-media/{id}/update', name: 'admin_studio_city_visit_point_media_update', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updatePointMedia(CityVisitPointMedia $pointMedia, Request $request): RedirectResponse
+    {
+        $point = $pointMedia->getCityVisitPoint();
+        $cityVisitDraft = $point?->getCityVisitDraft();
+        if (!$point instanceof CityVisitPoint || !$cityVisitDraft instanceof CityVisitDraft) {
+            throw $this->createNotFoundException('Média de point introuvable.');
+        }
+
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $cityVisitDraft);
+
+        if (!$this->isCsrfTokenValid('studio_city_visit_point_media_update_' . $pointMedia->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le formulaire média a expiré. Réessayez.');
+
+            return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'city-visit-point-' . $point->getId());
+        }
+
+        $media = $pointMedia->getMediaAsset();
+        if (!$media instanceof MediaAsset) {
+            throw $this->createNotFoundException('Média introuvable.');
+        }
+
+        $this->updateSimpleMediaAssetFromRequest($media, $request);
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Le média du point a été mis à jour.');
+
+        return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'city-visit-point-' . $point->getId());
+    }
+
+    #[Route('/city-visit-point-media/{id}/delete', name: 'admin_studio_city_visit_point_media_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function deletePointMedia(CityVisitPointMedia $pointMedia, Request $request): RedirectResponse
+    {
+        $point = $pointMedia->getCityVisitPoint();
+        $cityVisitDraft = $point?->getCityVisitDraft();
+        if (!$point instanceof CityVisitPoint || !$cityVisitDraft instanceof CityVisitDraft) {
+            throw $this->createNotFoundException('Média de point introuvable.');
+        }
+
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $cityVisitDraft);
+
+        if (!$this->isCsrfTokenValid('studio_city_visit_point_media_delete_' . $pointMedia->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le retrait a expiré. Réessayez.');
+
+            return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'city-visit-point-' . $point->getId());
+        }
+
+        $point->removeMediaLink($pointMedia);
+        $this->entityManager->remove($pointMedia);
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Le média a été retiré du point.');
+
+        return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'city-visit-point-' . $point->getId());
+    }
+
     private function renderStudio(CityVisitDraft $cityVisitDraft): Response
     {
         $mediaLinks = $this->sortedMediaLinks($cityVisitDraft);

@@ -56,10 +56,19 @@
         .studio-video-card__thumbnail { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--admin-radius); background: #eef3ee; }
         .studio-video-card__thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
         .studio-video-card__thumbnail-placeholder { width: 100%; height: 100%; display: grid; place-items: center; color: #5f6f64; font-weight: 800; }
-        .studio-point-media { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-        .studio-point-media-card { display: grid; gap: 6px; }
-        .studio-point-media-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
+        .studio-point-media-section { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--admin-line); }
+        .studio-point-media-section h3 { margin: 0; font-size: .98rem; }
+        .studio-point-media { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+        .studio-point-media-card { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fff; }
+        .studio-point-media-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
         .studio-point-media-label { color: #2d352f; font-size: .85rem; font-weight: 800; }
+        .studio-point-media-meta { display: grid; gap: 5px; margin: 0; color: var(--admin-muted); font-size: .82rem; }
+        .studio-point-media-meta div { display: grid; gap: 2px; min-width: 0; }
+        .studio-point-media-meta dt { color: #2d352f; font-weight: 850; }
+        .studio-point-media-meta dd { margin: 0; overflow-wrap: anywhere; }
+        .studio-point-media-edit summary { cursor: pointer; color: var(--admin-primary); font-weight: 850; }
+        .studio-point-media-edit[open] { display: grid; gap: 8px; }
+        .studio-point-media-placeholder { display: grid; min-height: 130px; place-items: center; border-radius: var(--admin-radius); background: #eef0ee; color: var(--admin-muted); font-weight: 800; }
         .studio-media-card__body, .studio-video-form { display: grid; gap: 10px; }
         .studio-media-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         .studio-link { color: var(--admin-primary); font-weight: 800; }
@@ -337,26 +346,18 @@
                                 {% endif %}
                             </div>
                         </form>
-                        {% if point_media_enabled and point.mediaLinks|length > 0 %}
-                            <div class="studio-point-media">
-                                {% for point_media in point.mediaLinks %}
-                                    {% set linked_media = point_media.mediaAsset %}
-                                    {% set linked_image_path = linked_media.thumbnailPath ?: linked_media.filePath %}
-                                    {% set linked_image_src = linked_image_path ? (linked_image_path starts with '/' ? linked_image_path : asset(linked_image_path)) : null %}
-                                    <article class="studio-point-media-card">
-                                        <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
-                                        {% if linked_media.mediaType.value == 'image' and linked_image_src %}
-                                            <img src="{{ linked_image_src }}" alt="{{ linked_media.altText ?: linked_media.title ?: (point_labels[point.id] ?? 'Point à visiter') }}">
-                                        {% elseif linked_media.mediaType.value == 'video' %}
-                                            {% include 'admin/studio/_video_thumbnail.html.twig' with { media: linked_media, subject_label: point_labels[point.id] ?? 'Point à visiter' } only %}
-                                            {% if linked_media.externalUrl %}
-                                                <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
-                                            {% endif %}
-                                        {% endif %}
-                                    </article>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                        {% include 'admin/studio/_point_media_cards.html.twig' with {
+                            point: point,
+                            point_label: point_labels[point.id] ?? 'Point GPS',
+                            point_anchor: 'point-' ~ point.id,
+                            point_anchor_prefix: 'hike',
+                            point_media_enabled: point_media_enabled,
+                            update_route: 'admin_studio_hike_point_media_update',
+                            delete_route: 'admin_studio_hike_point_media_delete',
+                            update_token_prefix: 'studio_hike_point_media_update_',
+                            delete_token_prefix: 'studio_hike_point_media_delete_',
+                            video_type_options: video_type_options
+                        } only %}
                     </article>
                 {% else %}
                     <p class="admin-muted">Aucun point GPS.</p>

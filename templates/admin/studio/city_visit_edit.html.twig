@@ -133,31 +133,23 @@
             </div>
             <div class="studio-media-grid">
                 {% for point in city_visit.points %}
-                    <article class="studio-point">
+                    <article id="city-visit-point-{{ point.id }}" class="studio-point">
                         <strong>{{ point_labels[point.id] ?? (point.title ?: 'Point à visiter') }}</strong>
                         <span>{{ point.latitude }}, {{ point.longitude }}</span>
                         <span class="admin-muted">{{ point.detectedCommuneName ?: city_visit.detectedCommuneName ?: 'Commune non détectée' }}</span>
                         {% if point.note %}<p>{{ point.note }}</p>{% endif %}
-                        {% if point_media_enabled and point.mediaLinks|length > 0 %}
-                            <div class="studio-point-media">
-                                {% for point_media in point.mediaLinks %}
-                                    {% set linked_media = point_media.mediaAsset %}
-                                    {% set linked_image_path = linked_media.thumbnailPath ?: linked_media.filePath %}
-                                    {% set linked_image_src = linked_image_path ? (linked_image_path starts with '/' ? linked_image_path : asset(linked_image_path)) : null %}
-                                    <article class="studio-point-media-card">
-                                        <span class="studio-point-media-label">{{ linked_media.mediaType.value == 'video' ? 'Vidéo liée à ce point' : 'Photo liée à ce point' }}</span>
-                                        {% if linked_media.mediaType.value == 'image' and linked_image_src %}
-                                            <img src="{{ linked_image_src }}" alt="{{ linked_media.altText ?: linked_media.title ?: (point_labels[point.id] ?? 'Point à visiter') }}">
-                                        {% elseif linked_media.mediaType.value == 'video' %}
-                                            {% include 'admin/studio/_video_thumbnail.html.twig' with { media: linked_media, subject_label: point_labels[point.id] ?? 'Point à visiter' } only %}
-                                            {% if linked_media.externalUrl %}
-                                                <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
-                                            {% endif %}
-                                        {% endif %}
-                                    </article>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                        {% include 'admin/studio/_point_media_cards.html.twig' with {
+                            point: point,
+                            point_label: point_labels[point.id] ?? 'Point à visiter',
+                            point_anchor: 'city-visit-point-' ~ point.id,
+                            point_anchor_prefix: 'city-visit',
+                            point_media_enabled: point_media_enabled,
+                            update_route: 'admin_studio_city_visit_point_media_update',
+                            delete_route: 'admin_studio_city_visit_point_media_delete',
+                            update_token_prefix: 'studio_city_visit_point_media_update_',
+                            delete_token_prefix: 'studio_city_visit_point_media_delete_',
+                            video_type_options: video_type_options
+                        } only %}
                     </article>
                 {% else %}
                     <p class="admin-muted">Aucun point à visiter.</p>

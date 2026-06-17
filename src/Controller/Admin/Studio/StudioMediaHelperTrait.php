@@ -142,6 +142,34 @@ trait StudioMediaHelperTrait
         return $media;
     }
 
+    private function updateSimpleMediaAssetFromRequest(MediaAsset $media, Request $request): void
+    {
+        $media
+            ->setTitle($this->nullIfBlank($request->request->getString('title')))
+            ->setCaption($this->nullIfBlank($request->request->getString('caption')));
+
+        if ($media->getMediaType() === MediaType::Image) {
+            $media->setAltText($this->nullIfBlank($request->request->getString('altText')));
+        }
+
+        if ($media->getMediaType() === MediaType::Video) {
+            $previousExternalUrl = $media->getExternalUrl();
+            $externalUrl = $this->nullIfBlank($request->request->getString('externalUrl'));
+            $videoType = VideoType::tryFrom($request->request->getString('videoType')) ?? $media->getVideoType() ?? VideoType::External;
+            $media
+                ->setVideoType($videoType === VideoType::Local ? VideoType::External : $videoType)
+                ->setExternalUrl($externalUrl);
+
+            if ($externalUrl !== $previousExternalUrl) {
+                $media->setThumbnailPath(null);
+            }
+
+            if ($media->getThumbnailPath() === null || $media->getThumbnailPath() === '') {
+                $this->videoThumbnailGenerator->generateForMedia($media);
+            }
+        }
+    }
+
     /**
      * @return array{title: string, altText: string, path: string, thumbnailPath?: string|null, mimeType: string|null, fileSize: int|null, width: int|null, height: int|null, projection?: string|null, metadata?: array<string, mixed>|null}
      */

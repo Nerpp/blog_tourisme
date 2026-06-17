@@ -1,0 +1,105 @@
+<div class="studio-point-media-section">
+    <h3>Médias associés à ce point</h3>
+
+    {% if point_media_enabled|default(false) %}
+        {% if point.mediaLinks|length > 0 %}
+            <div class="studio-point-media">
+                {% for point_media in point.mediaLinks %}
+                    {% set linked_media = point_media.mediaAsset %}
+
+                    {% if linked_media %}
+                        {% set linked_image_src = linked_media.mediaType.value == 'image' ? media_image_url(linked_media, 'thumb') : null %}
+                        {% set media_label = linked_media.mediaType.value == 'video' ? 'Vidéo' : (linked_media.mediaType.value == 'image' ? 'Photo' : 'Média') %}
+                        {% set point_media_anchor = point_anchor_prefix ~ '-point-media-' ~ point_media.id %}
+
+                        <article id="{{ point_media_anchor }}" class="studio-point-media-card {{ linked_media.mediaType.value == 'video' ? 'studio-point-media-card--video' : '' }}">
+                            <span class="studio-point-media-label">{{ media_label }} liée à ce point</span>
+
+                            {% if linked_media.mediaType.value == 'image' and linked_image_src %}
+                                <img src="{{ linked_image_src }}" alt="{{ linked_media.altText ?: linked_media.title ?: point_label }}">
+                            {% elseif linked_media.mediaType.value == 'video' %}
+                                {% include 'admin/studio/_video_thumbnail.html.twig' with { media: linked_media, subject_label: point_label } only %}
+                                {% if linked_media.externalUrl %}
+                                    <a class="studio-link" href="{{ linked_media.externalUrl }}" target="_blank" rel="noopener noreferrer">{{ linked_media.title ?: 'Ouvrir la vidéo' }}</a>
+                                {% endif %}
+                            {% else %}
+                                <div class="studio-point-media-placeholder">Média sans aperçu</div>
+                            {% endif %}
+
+                            <dl class="studio-point-media-meta">
+                                <div>
+                                    <dt>Type</dt>
+                                    <dd>{{ media_label }}</dd>
+                                </div>
+                                {% if linked_media.title %}
+                                    <div>
+                                        <dt>Titre</dt>
+                                        <dd>{{ linked_media.title }}</dd>
+                                    </div>
+                                {% endif %}
+                                {% if linked_media.caption %}
+                                    <div>
+                                        <dt>Légende</dt>
+                                        <dd>{{ linked_media.caption }}</dd>
+                                    </div>
+                                {% endif %}
+                                {% if point_media.createdAt %}
+                                    <div>
+                                        <dt>Ajout</dt>
+                                        <dd>{{ point_media.createdAt|date('d/m/Y H:i') }}</dd>
+                                    </div>
+                                {% endif %}
+                            </dl>
+
+                            <details class="studio-point-media-edit">
+                                <summary>Modifier les infos</summary>
+                                <form class="studio-media-card__body" method="post" action="{{ path(update_route, { id: point_media.id }) }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token(update_token_prefix ~ point_media.id) }}">
+                                    <input type="hidden" name="_redirect_anchor" value="{{ point_media_anchor }}">
+                                    <div class="studio-field">
+                                        <label for="{{ point_media_anchor }}-title">Titre</label>
+                                        <input id="{{ point_media_anchor }}-title" name="title" value="{{ linked_media.title }}">
+                                    </div>
+                                    {% if linked_media.mediaType.value == 'image' %}
+                                        <div class="studio-field">
+                                            <label for="{{ point_media_anchor }}-alt">Texte alternatif</label>
+                                            <input id="{{ point_media_anchor }}-alt" name="altText" value="{{ linked_media.altText }}">
+                                        </div>
+                                    {% elseif linked_media.mediaType.value == 'video' %}
+                                        <div class="studio-field">
+                                            <label for="{{ point_media_anchor }}-url">URL vidéo</label>
+                                            <input id="{{ point_media_anchor }}-url" name="externalUrl" type="url" value="{{ linked_media.externalUrl }}" data-video-url-input>
+                                        </div>
+                                        <div class="studio-field">
+                                            <label for="{{ point_media_anchor }}-video-type">Type vidéo</label>
+                                            <select id="{{ point_media_anchor }}-video-type" name="videoType">
+                                                {% for value, label in video_type_options %}
+                                                    <option value="{{ value }}" {% if linked_media.videoType and linked_media.videoType.value == value %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    {% endif %}
+                                    <div class="studio-field">
+                                        <label for="{{ point_media_anchor }}-caption">Légende</label>
+                                        <textarea id="{{ point_media_anchor }}-caption" name="caption" rows="3">{{ linked_media.caption }}</textarea>
+                                    </div>
+                                    <button class="admin-button" type="submit">Mettre à jour</button>
+                                </form>
+                            </details>
+
+                            <form method="post" action="{{ path(delete_route, { id: point_media.id }) }}" onsubmit="return confirm('Retirer ce média du point ?');">
+                                <input type="hidden" name="_token" value="{{ csrf_token(delete_token_prefix ~ point_media.id) }}">
+                                <input type="hidden" name="_redirect_anchor" value="{{ point_anchor }}">
+                                <button class="admin-button admin-button--secondary studio-button-danger" type="submit">Retirer</button>
+                            </form>
+                        </article>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="admin-muted">Aucun média associé à ce point.</p>
+        {% endif %}
+    {% else %}
+        <p class="admin-muted">La liaison des médias aux points nécessite la migration dédiée.</p>
+    {% endif %}
+</div>

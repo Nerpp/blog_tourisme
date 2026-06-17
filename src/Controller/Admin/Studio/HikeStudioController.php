@@ -457,6 +457,60 @@ final class HikeStudioController extends AbstractController
         return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
     }
 
+    #[Route('/hike-point-media/{id}/update', name: 'admin_studio_hike_point_media_update', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updatePointMedia(HikePointMedia $pointMedia, Request $request): RedirectResponse
+    {
+        $point = $pointMedia->getHikePoint();
+        $hikeDraft = $point?->getHikeDraft();
+        if (!$point instanceof HikePoint || !$hikeDraft instanceof HikeDraft) {
+            throw $this->createNotFoundException('Média de point introuvable.');
+        }
+
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
+
+        if (!$this->isCsrfTokenValid('studio_hike_point_media_update_' . $pointMedia->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le formulaire média a expiré. Réessayez.');
+
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-' . $point->getId());
+        }
+
+        $media = $pointMedia->getMediaAsset();
+        if (!$media instanceof MediaAsset) {
+            throw $this->createNotFoundException('Média introuvable.');
+        }
+
+        $this->updateSimpleMediaAssetFromRequest($media, $request);
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Le média du point a été mis à jour.');
+
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-' . $point->getId());
+    }
+
+    #[Route('/hike-point-media/{id}/delete', name: 'admin_studio_hike_point_media_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function deletePointMedia(HikePointMedia $pointMedia, Request $request): RedirectResponse
+    {
+        $point = $pointMedia->getHikePoint();
+        $hikeDraft = $point?->getHikeDraft();
+        if (!$point instanceof HikePoint || !$hikeDraft instanceof HikeDraft) {
+            throw $this->createNotFoundException('Média de point introuvable.');
+        }
+
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
+
+        if (!$this->isCsrfTokenValid('studio_hike_point_media_delete_' . $pointMedia->getId(), (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'Le retrait a expiré. Réessayez.');
+
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-' . $point->getId());
+        }
+
+        $point->removeMediaLink($pointMedia);
+        $this->entityManager->remove($pointMedia);
+        $this->entityManager->flush();
+        $this->addFlash('success', 'Le média a été retiré du point.');
+
+        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-' . $point->getId());
+    }
+
     private function renderStudio(HikeDraft $hikeDraft): Response
     {
         $mediaLinks = $this->sortedMediaLinks($hikeDraft);
