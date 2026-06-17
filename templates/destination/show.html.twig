@@ -17,6 +17,22 @@
 {% set city_visit_count = city_visits|length %}
 {% set child_count = child_destinations|length %}
 {% set content_count = article_count + hike_count + city_visit_count %}
+{% set discover_items = [] %}
+{% if article_count > 0 %}
+    {% set discover_items = discover_items|merge([article_count ~ ' article' ~ (article_count > 1 ? 's' : '')]) %}
+{% endif %}
+{% if hike_count > 0 %}
+    {% set discover_items = discover_items|merge([hike_count ~ ' randonnée' ~ (hike_count > 1 ? 's' : '')]) %}
+{% endif %}
+{% if city_visit_count > 0 %}
+    {% set discover_items = discover_items|merge([city_visit_count ~ ' visite' ~ (city_visit_count > 1 ? 's' : '')]) %}
+{% endif %}
+{% set discover_label = discover_items|length == 0
+    ? 'Aucun contenu publié pour le moment'
+    : (discover_items|length == 1
+        ? discover_items|first
+        : discover_items|slice(0, -1)|join(', ') ~ ' et ' ~ discover_items|last)
+%}
 {% set explore_title = is_country
     ? 'Régions à explorer'
     : (is_region
@@ -77,7 +93,7 @@
                     <div>
                         <strong>À découvrir</strong>
                         {% if is_content_level %}
-                            <span>{{ content_count }} article{{ content_count > 1 ? 's' : '' }}, randonnées et visites</span>
+                            <span>{{ discover_label }}</span>
                         {% else %}
                             <span>{{ child_badge_label }}</span>
                         {% endif %}
