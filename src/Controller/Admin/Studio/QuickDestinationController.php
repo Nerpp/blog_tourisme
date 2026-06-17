@@ -14,7 +14,6 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
-use App\Service\GeographicHierarchyResolver;
 use App\Service\Geography\LocationDraftHydrationException;
 use App\Service\Geography\LocationDraftHydrator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -42,7 +41,6 @@ final class QuickDestinationController extends AbstractController
         private readonly DestinationRepository $destinationRepository,
         private readonly HikeDraftRepository $hikeDraftRepository,
         private readonly CityVisitDraftRepository $cityVisitDraftRepository,
-        private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
         private readonly LocationDraftHydrator $locationDraftHydrator,
         private readonly SluggerInterface $slugger,
     ) {

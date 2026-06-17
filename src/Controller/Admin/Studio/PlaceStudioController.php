@@ -754,8 +754,11 @@ final class PlaceStudioController extends AbstractController
             return;
         }
 
+        /** @var list<mixed> $candidateLinks */
+        $candidateLinks = array_merge($place->getMediaLinks()->toArray(), $additionalLinks, [$selectedMedia]);
+
         $seenLinks = [];
-        foreach (array_merge($place->getMediaLinks()->toArray(), $additionalLinks, [$selectedMedia]) as $mediaLink) {
+        foreach ($candidateLinks as $mediaLink) {
             if (!$mediaLink instanceof PlaceMedia) {
                 continue;
             }

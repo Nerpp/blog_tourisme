@@ -203,6 +203,7 @@ final readonly class HomepageLatestContentProvider
         return null;
     }
 
+    /** @param iterable<object> $mediaLinks */
     private function mainImageFromLinks(iterable $mediaLinks, ?MediaAsset $featuredImage = null): ?MediaAsset
     {
         $fallback = $featuredImage?->getMediaType() === MediaType::Image ? $featuredImage : null;

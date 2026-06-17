@@ -32,7 +32,7 @@ final class UserFixtures extends Fixture implements FixtureGroupInterface
     {
         $users = [
             self::ADMIN_REFERENCE => [
-                'email' => 'admin@blog-tourisme.local',
+                'email' => 'admin-test@example.test',
                 'password' => 'PasswordAdmin2026!',
                 'roles' => ['ROLE_ADMIN', 'ROLE_USER'],
                 'displayName' => 'Admin Blog Tourisme',
@@ -42,7 +42,7 @@ final class UserFixtures extends Fixture implements FixtureGroupInterface
                 'avatar' => 'fixture_avatar_admin',
             ],
             self::USER_REFERENCE => [
-                'email' => 'user@blog-tourisme.local',
+                'email' => 'user-test@example.test',
                 'password' => 'PasswordUser2026!',
                 'roles' => ['ROLE_USER'],
                 'displayName' => 'Aurélien Test',

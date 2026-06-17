@@ -40,6 +40,7 @@ final class HikeStudioLocationPickerPantherTest extends PantherTestCase
         self::assertSame('studio-hike-main-form', $this->pickerFormOwner($webDriver, $pickerSelector, 'detectedCommuneName'));
         $this->mockCommuneSearch($webDriver, $narbonne);
 
+        $this->scrollIntoView($webDriver, $pickerSelector.' [data-commune-edit]');
         $webDriver->findElement(WebDriverBy::cssSelector($pickerSelector.' [data-commune-edit]'))->click();
         $this->waitUntil($webDriver, static fn () => (bool) $webDriver->executeScript(
             "return document.querySelector('$pickerSelector [name=\"detectedCommuneName\"]')?.value === ''
@@ -201,7 +202,18 @@ final class HikeStudioLocationPickerPantherTest extends PantherTestCase
                 view: window
             }));
         JS);
+        $this->scrollIntoView($webDriver, $pickerSelector.' [data-validate-point]');
         $webDriver->findElement(WebDriverBy::cssSelector($pickerSelector.' [data-validate-point]'))->click();
+    }
+
+    private function scrollIntoView(\Facebook\WebDriver\Remote\RemoteWebDriver $webDriver, string $selector): void
+    {
+        $encodedSelector = json_encode($selector, JSON_THROW_ON_ERROR);
+        $webDriver->executeScript(<<<JS
+            document
+                .querySelector($encodedSelector)
+                ?.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+        JS);
     }
 
     private function pickerValue(\Facebook\WebDriver\Remote\RemoteWebDriver $webDriver, string $pickerSelector, string $name): string

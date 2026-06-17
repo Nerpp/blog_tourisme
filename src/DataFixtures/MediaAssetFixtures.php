@@ -207,9 +207,7 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
         ];
 
         foreach ($mediaAssets as $reference => $data) {
-            $paths = isset($data['fixture'])
-                ? $this->generateImage($data['fixture'], $data['width'] ?? 1600, $data['height'] ?? 900, $data['palette'] ?? ['sky', 'sea', 'village'])
-                : ['path' => $data['filePath'] ?? null, 'thumb' => $data['thumbnailPath'] ?? null, 'mime' => $data['mimeType'] ?? null, 'size' => null];
+            $paths = $this->generateImage($data['fixture'], $data['width'], $data['height'], $data['palette']);
 
             $mediaAsset = (new MediaAsset())
                 ->setUploadedBy($admin)
@@ -224,8 +222,8 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 ->setCaption($data['caption'])
                 ->setMimeType($paths['mime'])
                 ->setFileSize($paths['size'])
-                ->setWidth($data['width'] ?? null)
-                ->setHeight($data['height'] ?? null)
+                ->setWidth($data['width'])
+                ->setHeight($data['height'])
                 ->setDurationSeconds($data['durationSeconds'] ?? null)
                 ->setProjection($data['projection'] ?? null)
                 ->setMetadata($data['metadata'] ?? null);

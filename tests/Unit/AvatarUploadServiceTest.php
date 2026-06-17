@@ -42,6 +42,17 @@ final class AvatarUploadServiceTest extends TestCase
         $this->service()->upload(new UploadedFile($path, 'avatar.jpg', null, null, true));
     }
 
+    public function testTooLargeAvatarIsRejected(): void
+    {
+        $path = $this->workspace.'/avatar.jpg';
+        file_put_contents($path, str_repeat('x', 5_242_881));
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('L’image de profil ne doit pas dépasser 5 Mo.');
+
+        $this->service()->upload(new UploadedFile($path, 'avatar.jpg', null, null, true));
+    }
+
     public function testValidPngAvatarIsAcceptedAndConvertedToWebp(): void
     {
         if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng') || !function_exists('imagewebp')) {

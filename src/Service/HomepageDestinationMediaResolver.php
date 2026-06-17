@@ -102,6 +102,7 @@ final readonly class HomepageDestinationMediaResolver
         return $this->mainImageFromLinks($place->getMediaLinks(), $place->getFeaturedImage());
     }
 
+    /** @param iterable<object> $mediaLinks */
     private function mainImageFromLinks(iterable $mediaLinks, ?MediaAsset $featuredImage = null): ?MediaAsset
     {
         $fallback = $featuredImage?->getMediaType() === MediaType::Image ? $featuredImage : null;

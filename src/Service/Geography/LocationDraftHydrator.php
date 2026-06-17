@@ -112,7 +112,10 @@ final class LocationDraftHydrator
         $this->syncCityVisitPoint($draft, $data);
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
     private function normalizeData(array $data): array
     {
         $centerLatitude = $this->coordinate($this->value($data, ['communeCenterLatitude', 'centerLatitude']), -90, 90, 'La latitude du centre de commune');
@@ -290,7 +293,10 @@ final class LocationDraftHydrator
         return null;
     }
 
-    /** @param list<string> $keys */
+    /**
+     * @param array<string, mixed> $data
+     * @param list<string> $keys
+     */
     private function value(array $data, array $keys): mixed
     {
         foreach ($keys as $key) {

@@ -43,6 +43,34 @@ final class ProfileControllerTest extends FunctionalTestCase
         self::assertStringContainsString('/uploads/avatars/test-avatar.png', $client->getResponse()->getContent() ?: '');
     }
 
+    public function testPrivateProfileDisplaysAvatarPathWhenPresent(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser();
+        $user->setAvatarPath('/uploads/avatars/private-avatar.webp');
+        $this->persistAndFlush($user);
+        $client->loginUser($user);
+
+        $client->request('GET', '/profile');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('/uploads/avatars/private-avatar.webp', $client->getResponse()->getContent() ?: '');
+    }
+
+    public function testConnectedHeaderDisplaysAvatarWhenPresent(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser();
+        $user->setAvatarPath('/uploads/avatars/header-avatar.webp');
+        $this->persistAndFlush($user);
+        $client->loginUser($user);
+
+        $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('/uploads/avatars/header-avatar.webp', $client->getResponse()->getContent() ?: '');
+    }
+
     public function testProfileDisplayNameCanBeUpdatedWithValidCsrf(): void
     {
         $client = static::createClient();

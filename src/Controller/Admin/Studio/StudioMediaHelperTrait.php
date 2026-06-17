@@ -171,6 +171,7 @@ trait StudioMediaHelperTrait
         }
     }
 
+    /** @param iterable<mixed> $mediaLinks */
     private function promoteClassicImageToCover(iterable $mediaLinks, object $selectedLink): void
     {
         if (!$this->isClassicImageMediaLink($selectedLink)) {
@@ -184,6 +185,7 @@ trait StudioMediaHelperTrait
         $this->normalizeClassicCoverImages($mediaLinks, $selectedLink);
     }
 
+    /** @param iterable<mixed> $mediaLinks */
     private function normalizeClassicCoverImages(iterable $mediaLinks, ?object $selectedCoverLink = null): void
     {
         $keptCoverLink = $selectedCoverLink;
