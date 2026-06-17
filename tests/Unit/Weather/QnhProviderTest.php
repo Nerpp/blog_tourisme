@@ -51,6 +51,47 @@ final class QnhProviderTest extends TestCase
         self::assertSame(1016, $result['qnhHpa']);
     }
 
+    public function testItUsesNumericAltimAndObservationTimestampWhenRawTokenIsAbsent(): void
+    {
+        $timestamp = 1_760_000_000;
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse(json_encode([
+                [
+                    'icaoId' => 'LFMP',
+                    'obsTime' => $timestamp,
+                    'altim' => 29.92,
+                ],
+            ], \JSON_THROW_ON_ERROR)),
+        ]), new ArrayAdapter());
+
+        $result = $provider->provide(42.70, 2.80);
+
+        self::assertTrue($result['ok']);
+        self::assertSame('metar', $result['source']);
+        self::assertSame(1013, $result['qnhHpa']);
+        self::assertSame(gmdate('Y-m-d\TH:i:s\Z', $timestamp), $result['observedAt']);
+        self::assertNull($result['raw']);
+    }
+
+    public function testItFallsBackToOpenMeteoWhenNearbyMetarReturnsNoContent(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse('', ['http_code' => 204]),
+            new MockResponse(json_encode([
+                'current' => [
+                    'time' => '2026-06-05T12:15',
+                    'pressure_msl' => 1008.7,
+                ],
+            ], \JSON_THROW_ON_ERROR)),
+        ]), new ArrayAdapter());
+
+        $result = $provider->provide(42.70, 2.80);
+
+        self::assertTrue($result['ok']);
+        self::assertSame('open_meteo', $result['source']);
+        self::assertSame(1009, $result['qnhHpa']);
+    }
+
     public function testItFallsBackToOpenMeteoWhenNoMetarStationIsCloseEnough(): void
     {
         $provider = new QnhProvider(new MockHttpClient([
@@ -72,6 +113,28 @@ final class QnhProviderTest extends TestCase
         self::assertSame('Estimation météo, pas METAR station', $result['reliability']);
     }
 
+    public function testItReturnsUnavailableWhenMetarAndOpenMeteoDoNotProvidePressure(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse(json_encode([
+                [
+                    'icaoId' => 'LFMP',
+                    'rawOb' => 'METAR LFMP NIL',
+                ],
+            ], \JSON_THROW_ON_ERROR)),
+            new MockResponse(json_encode([
+                'current' => [
+                    'time' => '2026-06-05T12:15',
+                ],
+            ], \JSON_THROW_ON_ERROR)),
+        ]), new ArrayAdapter());
+
+        $result = $provider->provide(42.70, 2.80);
+
+        self::assertFalse($result['ok']);
+        self::assertSame('QNH indisponible pour cette position. Réessayez plus tard ou utilisez une source météo locale.', $result['message']);
+    }
+
     public function testItRejectsInvalidCoordinates(): void
     {
         $provider = new QnhProvider(new MockHttpClient([]), new ArrayAdapter());
@@ -79,5 +142,15 @@ final class QnhProviderTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         $provider->provide(120, 2.8);
+    }
+
+    public function testItRejectsInvalidLongitude(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([]), new ArrayAdapter());
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Longitude invalide.');
+
+        $provider->provide(42.7, 220);
     }
 }

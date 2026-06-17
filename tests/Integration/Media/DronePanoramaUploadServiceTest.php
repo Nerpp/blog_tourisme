@@ -44,6 +44,24 @@ final class DronePanoramaUploadServiceTest extends IntegrationTestCase
         self::assertNull($result['metadata']['mobilePath']);
     }
 
+    public function testValidEquirectangularPngKeepsTransparencyCapablePipeline(): void
+    {
+        $source = TestImageFactory::createPng(TestImageFactory::testMediaDirectory(), 400, 200, 'panorama-test.png');
+        $this->files[] = $source;
+        $upload = TestImageFactory::createUploadedFile($source, 'Transparent Panorama.PNG', 'image/png');
+
+        $result = $this->panoramaUploadService()->upload($upload, 'Transparent Drone');
+
+        self::assertSame('Transparent Panorama', $result['title']);
+        self::assertSame('image/png', $result['mimeType']);
+        self::assertSame(400, $result['width']);
+        self::assertSame(200, $result['height']);
+        self::assertSame('equirectangular', $result['projection']);
+        $this->assertPublicImage($result['path'], 'image/png', 400, 200);
+        $this->assertPublicImage($result['thumbnailPath'], 'image/png', 400, 200);
+        $this->assertPublicImage($result['metadata']['originalPath'], 'image/png', 400, 200);
+    }
+
     public function testRejectsNonEquirectangularImage(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 200, 200, 'square.jpg');
@@ -51,6 +69,17 @@ final class DronePanoramaUploadServiceTest extends IntegrationTestCase
 
         $this->expectException(InvalidArgumentException::class);
         $this->panoramaUploadService()->upload(TestImageFactory::createUploadedFile($source, 'square.jpg', 'image/jpeg'));
+    }
+
+    public function testRejectsExtensionThatDoesNotMatchRealMimeType(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 400, 200, 'mismatch.jpg');
+        $this->files[] = $source;
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('l’extension du fichier ne correspond pas au type réel de l’image.');
+
+        $this->panoramaUploadService()->upload(TestImageFactory::createUploadedFile($source, 'panorama.png', 'image/jpeg'));
     }
 
     public function testRejectsSvgAndPhpRenamedAsImage(): void

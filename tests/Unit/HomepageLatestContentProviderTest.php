@@ -3,6 +3,9 @@
 namespace App\Tests\Unit;
 
 use App\Entity\Article;
+use App\Entity\ArticleCityVisit;
+use App\Entity\ArticleHike;
+use App\Entity\ArticleMedia;
 use App\Entity\CityVisitDraft;
 use App\Entity\CityVisitDraftMedia;
 use App\Entity\HikeDraft;
@@ -11,6 +14,8 @@ use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\ContentStatus;
 use App\Enum\HikeDraftStatus;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
 use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
@@ -58,6 +63,100 @@ final class HomepageLatestContentProviderTest extends TestCase
         self::assertSame('article', $latest['type']);
         self::assertSame('/uploads/thumb.jpg', $latest['image']);
         self::assertSame('/articles/article-newest', $latest['url']);
+    }
+
+    public function testArticleLinkedToPublicHikePromotesTheHikeCardWithArticleSecondaryLink(): void
+    {
+        $galleryMedia = $this->image('/uploads/hike-gallery.jpg', '/uploads/hike-gallery-thumb.jpg');
+        $coverMedia = $this->image('/uploads/hike-cover.jpg', '/uploads/hike-cover-thumb.jpg');
+        $article = $this->article('Carnet de balade', 'carnet-balade', new \DateTimeImmutable('-1 day'));
+        $hike = $this->hike('Sentier du lac', 'sentier-du-lac', new \DateTimeImmutable('-10 days'));
+        $hike->getMediaLinks()->add((new HikeDraftMedia())->setHikeDraft($hike)->setMediaAsset($galleryMedia));
+        $hike->getMediaLinks()->add(
+            (new HikeDraftMedia())
+                ->setHikeDraft($hike)
+                ->setMediaAsset($coverMedia)
+                ->setRole(MediaRole::Cover),
+        );
+        $article->getHikeLinks()->add((new ArticleHike())->setArticle($article)->setHikeDraft($hike));
+
+        $latest = $this->provider($article)->getLatest();
+
+        self::assertIsArray($latest);
+        self::assertSame('hike', $latest['type']);
+        self::assertSame('Nouvel article', $latest['label']);
+        self::assertSame('Sentier du lac', $latest['title']);
+        self::assertSame('/hikes/sentier-du-lac', $latest['url']);
+        self::assertSame('/uploads/hike-cover-thumb.jpg', $latest['image']);
+        self::assertSame('Découvrir la balade', $latest['primary_cta']);
+        self::assertSame('Carnet de balade', $latest['secondary_title']);
+        self::assertSame('/articles/carnet-balade', $latest['secondary_url']);
+        self::assertSame('Lire l’article', $latest['secondary_cta']);
+    }
+
+    public function testArticleSkipsDraftLinkedHikeAndPromotesPublicCityVisit(): void
+    {
+        $article = $this->article('Carnet urbain', 'carnet-urbain', new \DateTimeImmutable('-1 day'));
+        $draftHike = $this->hike('Brouillon randonnée', 'brouillon-randonnee', new \DateTimeImmutable('-2 days'));
+        $draftHike->setStatus(HikeDraftStatus::Draft);
+        $cityVisit = $this->cityVisit(
+            'Balade en ville',
+            'balade-en-ville',
+            new \DateTimeImmutable('-5 days'),
+            $this->image('/uploads/city.jpg', '/uploads/city-thumb.jpg'),
+        );
+        $cityVisit->setStatus(CityVisitDraftStatus::Converted);
+        $article->getHikeLinks()->add((new ArticleHike())->setArticle($article)->setHikeDraft($draftHike));
+        $article->getCityVisitLinks()->add((new ArticleCityVisit())->setArticle($article)->setCityVisitDraft($cityVisit));
+
+        $latest = $this->provider($article)->getLatest();
+
+        self::assertIsArray($latest);
+        self::assertSame('city_visit', $latest['type']);
+        self::assertSame('Balade en ville', $latest['title']);
+        self::assertSame('/city-visits/balade-en-ville', $latest['url']);
+        self::assertSame('/uploads/city-thumb.jpg', $latest['image']);
+        self::assertSame('Découvrir la visite', $latest['primary_cta']);
+        self::assertSame('/articles/carnet-urbain', $latest['secondary_url']);
+    }
+
+    public function testArticleCoverMediaBeatsFeaturedImageAndIgnoresVideoMedia(): void
+    {
+        $featured = $this->image('/uploads/featured.jpg', '/uploads/featured-thumb.jpg');
+        $gallery = $this->image('/uploads/gallery.jpg', '/uploads/gallery-thumb.jpg');
+        $cover = $this->image('/uploads/cover.jpg', '/uploads/cover-thumb.jpg');
+        $video = (new MediaAsset())->setMediaType(MediaType::Video)->setThumbnailPath('/uploads/video-thumb.jpg');
+        $article = $this->article('Article media', 'article-media', new \DateTimeImmutable('-1 day'), $featured);
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($video));
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($gallery));
+        $article->getMediaLinks()->add(
+            (new ArticleMedia())
+                ->setArticle($article)
+                ->setMediaAsset($cover)
+                ->setRole(MediaRole::Cover),
+        );
+
+        $latest = $this->provider($article)->getLatest();
+
+        self::assertIsArray($latest);
+        self::assertSame('article', $latest['type']);
+        self::assertSame('/uploads/cover-thumb.jpg', $latest['image']);
+    }
+
+    public function testSpecialImagesCanUseOriginalPathButStandardImagesKeepPlaceholderFallback(): void
+    {
+        $specialImage = $this->image('/uploads/panorama.jpg')->setImageType(ImageType::Panorama);
+        $standardImage = $this->image('/uploads/standard.jpg')->setImageType(ImageType::Standard);
+        $specialArticle = $this->article('Panorama', 'panorama', new \DateTimeImmutable('-2 days'), $specialImage);
+        $standardArticle = $this->article('Standard', 'standard', new \DateTimeImmutable('-1 day'), $standardImage);
+
+        $specialLatest = $this->provider($specialArticle)->getLatest();
+        $standardLatest = $this->provider($standardArticle)->getLatest();
+
+        self::assertIsArray($specialLatest);
+        self::assertIsArray($standardLatest);
+        self::assertSame('/uploads/panorama.jpg', $specialLatest['image']);
+        self::assertSame('/images/placeholders/destination-card-placeholder.webp', $standardLatest['image']);
     }
 
     public function testIgnoresItemsWithoutDatesOrUrls(): void

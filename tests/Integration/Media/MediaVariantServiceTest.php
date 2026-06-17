@@ -45,6 +45,73 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->trackVariantFiles($media->getVariants());
     }
 
+    public function testReportsSupportedOutputFormatsAndMediaSupportRules(): void
+    {
+        $service = $this->mediaVariantService();
+        $formats = $service->supportedOutputFormats();
+
+        self::assertContains('fallback', $formats);
+        self::assertSame(in_array('webp', $formats, true), $service->supportsWebp());
+        self::assertSame(in_array('avif', $formats, true), $service->supportsAvif());
+        self::assertTrue($service->supports(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setMimeType('image/png')
+                ->setFilePath('/uploads/media/photo.png'),
+        ));
+        self::assertFalse($service->supports(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setMimeType('image/svg+xml')
+                ->setFilePath('/uploads/media/photo.svg'),
+        ));
+        self::assertFalse($service->supports(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setFilePath('https://example.test/photo.jpg'),
+        ));
+        self::assertTrue($service->supports(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Video)
+                ->setThumbnailPath('/uploads/media/poster.jpg'),
+        ));
+        self::assertFalse($service->supports(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Video)
+                ->setThumbnailPath('https://example.test/poster.jpg'),
+        ));
+    }
+
+    public function testDetectsUsableImageAndVideoVariants(): void
+    {
+        $service = $this->mediaVariantService();
+
+        self::assertTrue($service->hasUsableVariants(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setVariants([
+                    'thumb' => ['fallback' => '/uploads/media/thumb.jpg'],
+                    'medium' => ['fallback' => '/uploads/media/medium.jpg'],
+                    'large' => ['fallback' => '/uploads/media/large.jpg'],
+                ]),
+        ));
+        self::assertFalse($service->hasUsableVariants(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setVariants(['thumb' => ['fallback' => '/uploads/media/thumb.jpg']]),
+        ));
+        self::assertTrue($service->hasUsableVariants(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Video)
+                ->setVariants(['poster' => ['fallback' => '/uploads/media/poster.jpg']]),
+        ));
+        self::assertFalse($service->hasUsableVariants(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Video)
+                ->setVariants(['thumb' => ['fallback' => '/uploads/media/thumb.jpg']]),
+        ));
+    }
+
     public function testSkipsWhenUsableVariantsAlreadyExistUnlessForced(): void
     {
         $source = TestImageFactory::createPng(TestImageFactory::publicMediaDirectory(), 40, 20);
@@ -62,6 +129,19 @@ final class MediaVariantServiceTest extends IntegrationTestCase
 
         self::assertSame('skipped', $result['status']);
         self::assertFalse($result['generated']);
+    }
+
+    public function testMissingLocalVideoPosterIsSkippedWithDiagnostic(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setThumbnailPath('/uploads/media/missing-video-poster.jpg');
+
+        $result = $this->mediaVariantService()->generateForMedia($media);
+
+        self::assertSame('skipped', $result['status']);
+        self::assertFalse($result['generated']);
+        self::assertStringContainsString('Vidéo externe avec poster local manquant.', (string) $result['message']);
     }
 
     public function testMissingImageSourceReturnsErrorAndExternalVideoIsSkipped(): void
@@ -91,6 +171,30 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertIsArray($media->getVariants());
         self::assertArrayHasKey('poster', $media->getVariants());
         $this->trackVariantFiles($media->getVariants());
+    }
+
+    public function testCleanupDryRunKeepsClassicPublicMasterAfterVariantValidation(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+
+        $this->mediaVariantService()->generateForMedia($media);
+        $this->trackVariantFiles($media->getVariants());
+
+        $cleanupService = $this->publicMediaMasterCleanupService();
+        self::assertSame(['valid' => true, 'reason' => null], $cleanupService->validateCriticalVariants($media));
+
+        $result = $cleanupService->cleanupIfSafe($media, dryRun: true);
+
+        self::assertFalse($result['deleted']);
+        self::assertFalse($result['skipped']);
+        self::assertTrue($result['dryRun']);
+        self::assertFileExists($source);
+        self::assertSame(TestImageFactory::publicPathFor($source), $media->getFilePath());
     }
 
     public function testCleanupDeletesClassicPublicMasterOnlyAfterVariantsExist(): void
@@ -132,6 +236,43 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertSame('média non standard', $result['reason']);
         self::assertFileExists($source);
         self::assertSame(TestImageFactory::publicPathFor($source), $media->getFilePath());
+    }
+
+    public function testCleanupSkipsUnsafeMasterPathsAndMissingVariants(): void
+    {
+        $cleanupService = $this->publicMediaMasterCleanupService();
+
+        $withoutPath = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard);
+        $externalPath = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('https://example.test/photo.jpg');
+        $nestedPath = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/nested/photo.jpg');
+        $withoutVariants = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/photo.jpg');
+        $missingFallback = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setVariants([
+                'thumb' => ['fallback' => '/uploads/media/missing-thumb.jpg'],
+                'medium' => ['fallback' => '/uploads/media/missing-medium.jpg'],
+                'large' => ['fallback' => '/uploads/media/missing-large.jpg'],
+            ]);
+
+        self::assertTrue($cleanupService->isClassicImage($withoutPath));
+        self::assertFalse($cleanupService->isClassicImage((new MediaAsset())->setMediaType(MediaType::Video)));
+        self::assertSame('chemin maître absent ou non supprimable', $cleanupService->cleanupIfSafe($withoutPath)['reason']);
+        self::assertSame('chemin maître absent ou non supprimable', $cleanupService->cleanupIfSafe($externalPath)['reason']);
+        self::assertSame('chemin maître absent ou non supprimable', $cleanupService->cleanupIfSafe($nestedPath)['reason']);
+        self::assertSame('aucune variante enregistrée', $cleanupService->cleanupIfSafe($withoutVariants)['reason']);
+        self::assertSame('fallback thumb absent', $cleanupService->validateCriticalVariants($missingFallback)['reason']);
     }
 
     /** @param array<string, mixed>|null $variants */
