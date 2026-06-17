@@ -258,13 +258,26 @@ export function initPublicDetailGallery() {
       const openButtons = document.querySelectorAll(`[data-gallery-target="#${modal.id}"]`);
 
       openButtons.forEach((button) => {
-        button.addEventListener('click', (event) => {
+        const openFromTrigger = (event) => {
           event.preventDefault();
+          event.stopPropagation();
 
           const index = Number.parseInt(button.dataset.galleryIndex || '0', 10);
 
           openModal(Number.isNaN(index) ? 0 : index);
-        });
+        };
+
+        button.addEventListener('click', openFromTrigger);
+
+        if (button.tagName !== 'BUTTON' && button.tagName !== 'A') {
+          button.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+              return;
+            }
+
+            openFromTrigger(event);
+          });
+        }
       });
 
       setActiveSlide(0, false);

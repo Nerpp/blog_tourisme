@@ -8,11 +8,17 @@
 
 .journey-gallery-card {
   position: relative;
+  display: block;
   min-height: 240px;
   overflow: hidden;
   margin: 0;
+  padding: 0;
+  border: 0;
   border-radius: 28px;
   background: #dbe6dd;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
 }
 
 .journey-gallery-card--large {
@@ -34,6 +40,11 @@
 .journey-gallery-card:hover img,
 .journey-gallery-card:hover video {
   transform: scale(1.04);
+}
+
+.journey-gallery-card:focus-visible {
+  outline: 4px solid rgba(79, 159, 117, 0.45);
+  outline-offset: 4px;
 }
 
 .journey-gallery-card .media-badge {
@@ -485,15 +496,6 @@ html.has-gallery-modal {
 
 .media-visualize-btn:hover {
   background: #458f68;
-}
-
-.journey-gallery-card button.media-badge {
-  border: 0;
-  cursor: pointer;
-}
-
-.journey-gallery-card button.media-badge:hover {
-  background: rgba(255, 255, 255, 0.96);
 }
 
 .journey-gallery-card__more {

@@ -75,15 +75,16 @@
                     {% if image_url %}
                         {% set card_sizes = loop.first ? '(min-width: 900px) 50vw, 90vw' : '(min-width: 900px) 25vw, 45vw' %}
 
-                        <figure class="journey-gallery-card {{ loop.first ? 'journey-gallery-card--large' : '' }}">
-                            <button
-                                type="button"
-                                class="media-badge"
-                                data-gallery-target="#{{ gallery_id }}"
-                                data-gallery-index="{{ loop.index0 }}"
-                            >
+                        <button
+                            type="button"
+                            class="journey-gallery-card {{ loop.first ? 'journey-gallery-card--large' : '' }}"
+                            aria-label="Afficher la photo {{ loop.index }} en grand"
+                            data-gallery-target="#{{ gallery_id }}"
+                            data-gallery-index="{{ loop.index0 }}"
+                        >
+                            <span class="media-badge" aria-hidden="true">
                                 Photo
-                            </button>
+                            </span>
 
                             {% include 'public_detail/_responsive_image.html.twig' with {
                                 media: media,
@@ -97,7 +98,7 @@
                                     +{{ standard_media_links|length - 5 }} photo{{ standard_media_links|length - 5 > 1 ? 's' : '' }}
                                 </span>
                             {% endif %}
-                        </figure>
+                        </button>
                     {% endif %}
                 {% endif %}
             {% endfor %}
