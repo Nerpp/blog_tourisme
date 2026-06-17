@@ -132,4 +132,25 @@ final class ProfileControllerTest extends FunctionalTestCase
             '_token' => 'bad-token',
         ]);
     }
+
+    public function testDeleteAvatarWithValidCsrfClearsAvatarPath(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser();
+        $user->setAvatarPath('/uploads/avatars/test-avatar.png');
+        $this->persistAndFlush($user);
+        $client->loginUser($user);
+
+        $crawler = $client->request('GET', '/profile');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', '/profile', [
+            '_profile_action' => 'delete_avatar',
+            '_token' => $this->inputValue($crawler, 'form#profile-avatar-delete-form input[name="_token"]'),
+        ]);
+
+        self::assertResponseRedirects('/profile');
+        $user = $this->refresh($user);
+        self::assertNull($user->getAvatarPath());
+    }
 }

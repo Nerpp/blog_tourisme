@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\CommentReplyNotification;
+use App\Enum\CommentStatus;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 final class CommentNotificationControllerTest extends FunctionalTestCase
@@ -89,5 +90,34 @@ final class CommentNotificationControllerTest extends FunctionalTestCase
         self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
         $notification = $this->refresh($notification);
         self::assertTrue($notification->isRead());
+    }
+
+    public function testOpeningAnotherUsersNotificationIsDenied(): void
+    {
+        $client = static::createClient();
+        $recipient = $this->createUser();
+        $notification = $this->createCommentReplyNotification($recipient, $this->createComment($this->createUser(), $this->createArticle()));
+        $client->loginUser($this->createUser());
+        $client->catchExceptions(false);
+
+        $this->expectException(AccessDeniedException::class);
+
+        $client->request('GET', sprintf('/notifications/commentaires/%d', $notification->getId()));
+    }
+
+    public function testOpeningNotificationForUnavailableCommentDeletesItAndRedirectsToNotifications(): void
+    {
+        $client = static::createClient();
+        $recipient = $this->createUser();
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::Rejected);
+        $notification = $this->createCommentReplyNotification($recipient, $comment);
+        $notificationId = $notification->getId();
+        self::assertNotNull($notificationId);
+        $client->loginUser($recipient);
+
+        $client->request('GET', sprintf('/notifications/commentaires/%d', $notificationId));
+
+        self::assertResponseRedirects('/notifications/commentaires');
+        self::assertNull($this->entityManager()->find(CommentReplyNotification::class, $notificationId));
     }
 }

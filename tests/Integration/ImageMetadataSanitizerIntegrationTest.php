@@ -79,6 +79,30 @@ final class ImageMetadataSanitizerIntegrationTest extends IntegrationTestCase
         self::assertSame(12, $result['height']);
     }
 
+    public function testPngTextMarkerIsDetectedAndRemovedBySanitizing(): void
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            self::markTestSkipped('GD is required for image sanitizer integration tests.');
+        }
+
+        $publicPath = $this->createPngPublicUpload(22, 11);
+        file_put_contents($this->absolutePath($publicPath), 'tEXtAuthor'.random_bytes(4).'iTXtComment', FILE_APPEND);
+        $sanitizer = $this->sanitizer();
+
+        $inspection = $sanitizer->inspectPublicPath($publicPath);
+
+        self::assertSame('image/png', $inspection['mimeType']);
+        self::assertContains('PNG_TEXT', $inspection['markers']);
+        self::assertTrue($inspection['hasSensitiveMetadata']);
+
+        $result = $sanitizer->sanitizePublicPath($publicPath);
+
+        self::assertContains('PNG_TEXT', $result['markersBefore']);
+        self::assertNotContains('PNG_TEXT', $result['markersAfter']);
+        self::assertSame(22, $result['width']);
+        self::assertSame(11, $result['height']);
+    }
+
     public function testWebpXmpMarkerIsDetectedAndRemovedBySanitizing(): void
     {
         if (!function_exists('imagecreatefromwebp')) {
@@ -103,6 +127,21 @@ final class ImageMetadataSanitizerIntegrationTest extends IntegrationTestCase
         self::assertNotContains('XMP', $result['markersAfter']);
         self::assertSame(20, $result['width']);
         self::assertSame(10, $result['height']);
+    }
+
+    public function testGifCanBeInspectedButNotSanitizedWithoutSupport(): void
+    {
+        $file = $this->createUploadFile('unsupported.gif', base64_decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==') ?: '');
+        $sanitizer = $this->sanitizer();
+        $inspection = $sanitizer->inspectPublicPath($this->publicPath($file));
+
+        self::assertSame('image/gif', $inspection['mimeType']);
+        self::assertFalse($inspection['supported']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('ne peut pas être nettoyé');
+
+        $sanitizer->sanitizePublicPath($this->publicPath($file));
     }
 
     public function testNonImageUploadIsRejected(): void

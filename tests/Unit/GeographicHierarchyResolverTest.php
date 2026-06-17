@@ -133,6 +133,34 @@ final class GeographicHierarchyResolverTest extends TestCase
         self::assertSame('bors-16052', $existing->getSlug());
     }
 
+    public function testBlankCommuneNameReturnsNullWithoutSchedulingDestination(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $resolver = $this->createResolver($database, $scheduled);
+
+        self::assertNull($resolver->resolveCommune('  ', '16052', 'Charente', 'Nouvelle-Aquitaine'));
+        self::assertSame([], $scheduled);
+    }
+
+    public function testCommuneWithoutDepartmentOrRegionIsAttachedToCountry(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $resolver = $this->createResolver($database, $scheduled);
+
+        $commune = $resolver->resolveCommune('Village Test', null, null, null);
+
+        self::assertInstanceOf(Destination::class, $commune);
+        self::assertSame(DestinationType::City, $commune->getType());
+        self::assertSame('village-test-city', $commune->getSlug());
+        $country = $commune->getParent();
+        self::assertInstanceOf(Destination::class, $country);
+        self::assertSame(DestinationType::Country, $country->getType());
+        self::assertSame('France', $country->getName());
+        self::assertSame('FR', $country->getCode());
+    }
+
     public function testCommuneWithDifferentInseeCodeIsNotReusedByName(): void
     {
         $existing = (new Destination())
@@ -188,6 +216,62 @@ final class GeographicHierarchyResolverTest extends TestCase
         self::assertSame(DestinationType::Region, $region->getType());
         self::assertSame('11', $region->getCode());
         self::assertSame('ile-de-france-11', $region->getSlug());
+    }
+
+    public function testCorsicaAndOverseasCodesAreDerivedFromFrenchCommuneCodes(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $resolver = $this->createResolver($database, $scheduled);
+
+        $ajaccio = $resolver->resolveCommune('Ajaccio', '2A004', 'Corse-du-Sud', 'Corse');
+        $mamoudzou = $resolver->resolveCommune('Mamoudzou', '97611', 'Mayotte', 'Mayotte');
+
+        self::assertInstanceOf(Destination::class, $ajaccio);
+        $corsicanDepartment = $ajaccio->getParent();
+        self::assertInstanceOf(Destination::class, $corsicanDepartment);
+        self::assertSame('2A', $corsicanDepartment->getCode());
+        $corsicanRegion = $corsicanDepartment->getParent();
+        self::assertInstanceOf(Destination::class, $corsicanRegion);
+        self::assertSame('94', $corsicanRegion->getCode());
+
+        self::assertInstanceOf(Destination::class, $mamoudzou);
+        $overseasDepartment = $mamoudzou->getParent();
+        self::assertInstanceOf(Destination::class, $overseasDepartment);
+        self::assertSame('976', $overseasDepartment->getCode());
+        $overseasRegion = $overseasDepartment->getParent();
+        self::assertInstanceOf(Destination::class, $overseasRegion);
+        self::assertSame('06', $overseasRegion->getCode());
+    }
+
+    public function testNonFrenchCountryDoesNotDeriveFrenchAdministrativeCodes(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $resolver = $this->createResolver($database, $scheduled);
+
+        $city = $resolver->resolveCommune(
+            'Genève',
+            '01234',
+            'Canton de Genève',
+            'Romandie',
+            'Suisse',
+            departmentCode: null,
+            regionCode: null,
+            countryCode: 'CH',
+        );
+
+        self::assertInstanceOf(Destination::class, $city);
+        self::assertSame('01234', $city->getCode());
+        $department = $city->getParent();
+        self::assertInstanceOf(Destination::class, $department);
+        self::assertNull($department->getCode());
+        $region = $department->getParent();
+        self::assertInstanceOf(Destination::class, $region);
+        self::assertNull($region->getCode());
+        $country = $region->getParent();
+        self::assertInstanceOf(Destination::class, $country);
+        self::assertSame('CH', $country->getCode());
     }
 
     public function testExistingAmbiguousParisDepartmentKeepsSlugAndGetsCode(): void

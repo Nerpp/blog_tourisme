@@ -40,7 +40,26 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
             if (isset($variants[$size]['webp'])) {
                 $this->assertPublicImage($variants[$size]['webp'], 'image/webp', 80, 40);
             }
+
+            if (isset($variants[$size]['avif'])) {
+                $this->assertPublicImage($variants[$size]['avif'], 'image/avif', 80, 40);
+            }
         }
+    }
+
+    public function testReportsSupportedFormatsAndMimeTypes(): void
+    {
+        $generator = $this->generator();
+        $formats = $generator->supportedOutputFormats();
+
+        self::assertSame('fallback', $formats[0]);
+        self::assertSame(in_array('webp', $formats, true), $generator->supportsWebp());
+        self::assertSame(in_array('avif', $formats, true), $generator->supportsAvif());
+        self::assertTrue($generator->supportsMimeType('image/jpeg'));
+        self::assertTrue($generator->supportsMimeType('image/png'));
+        self::assertTrue($generator->supportsMimeType('image/webp'));
+        self::assertFalse($generator->supportsMimeType('image/svg+xml'));
+        self::assertFalse($generator->supportsMimeType(null));
     }
 
     public function testGeneratesVariantsForValidPng(): void
@@ -54,10 +73,42 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         $this->assertPublicImage($variants['thumb']['fallback'], 'image/png', 64, 32);
     }
 
+    public function testGeneratesVariantsForValidWebp(): void
+    {
+        if (!function_exists('imagecreatefromwebp')) {
+            self::markTestSkipped('GD WebP read support is required for this variant integration test.');
+        }
+
+        $source = TestImageFactory::createWebp(TestImageFactory::publicMediaDirectory(), 48, 24);
+        $this->files[] = $source;
+
+        $variants = $this->generator()->generate(TestImageFactory::publicPathFor($source), 'webp-test');
+
+        self::assertSame('image/webp', $variants['source']['mimeType']);
+        self::assertSame(['fallback', ...array_values(array_filter(['webp', 'avif'], fn (string $format): bool => in_array($format, $variants['source']['formats'], true)))], $variants['source']['formats']);
+        $this->assertPublicImage($variants['thumb']['fallback'], 'image/webp', 48, 24);
+
+        if (isset($variants['thumb']['webp'])) {
+            self::assertSame($variants['thumb']['fallback'], $variants['thumb']['webp']);
+        }
+
+        if (isset($variants['thumb']['avif'])) {
+            $this->assertPublicImage($variants['thumb']['avif'], 'image/avif', 48, 24);
+        }
+    }
+
     public function testRejectsMissingSourceAndNonImages(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->generator()->generate('/uploads/media/missing-variant-source.jpg');
+    }
+
+    public function testRejectsExternalSource(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('médias externes');
+
+        $this->generator()->generate('https://example.test/photo.jpg');
     }
 
     public function testRejectsSvgAndPhpRenamedAsImage(): void
