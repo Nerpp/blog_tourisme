@@ -1,6 +1,6 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Utilisateur{% endblock %}
+{% block admin_title %}Utilisateur — {{ user_account.displayName ?: user_account.email }}{% endblock %}
 
 {% block body %}
     <header class="admin-header">

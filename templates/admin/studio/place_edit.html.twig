@@ -1,6 +1,6 @@
 {% extends 'admin/base.html.twig' %}
 
-{% block title %}Studio repérage{% endblock %}
+{% block admin_title %}Studio repérage{% endblock %}
 
 {% set main_form_id = 'studio-place-main-form' %}
 {% set public_url = place.slug is not empty ? path('app_place_show', { slug: place.slug }) : null %}

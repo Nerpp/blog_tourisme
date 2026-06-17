@@ -3,7 +3,9 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{% block title %}Administration{% endblock %} - Blog Tourisme</title>
+        <link rel="icon" type="image/webp" sizes="32x32" href="{{ asset('images/brand/estela-favicon-32.webp') }}">
+        <link rel="icon" type="image/webp" sizes="48x48" href="{{ asset('images/brand/estela-favicon-48.webp') }}">
+        <title>{% block title %}Admin — {% block admin_title %}Administration{% endblock %} — Estela{% endblock %}</title>
         {{ vite_entry_link_tags('assets/js/admin.js') }}
         {% block stylesheets %}{% endblock %}
     </head>
