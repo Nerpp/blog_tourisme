@@ -42,6 +42,16 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testVerifiedAdminGetsNotFoundForMissingCityVisitDraft(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
+
+        $client->request('GET', '/admin/studio/city-visits/2147483647/edit');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
     public function testVerifiedAdminCanEditCityVisitWithGeographicCommuneOnly(): void
     {
         $client = static::createClient();

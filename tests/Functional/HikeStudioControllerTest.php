@@ -41,6 +41,16 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testVerifiedAdminGetsNotFoundForMissingHikeDraft(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
+
+        $client->request('GET', '/admin/studio/hikes/2147483647/edit');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
     public function testStudioHeaderSeparatesEditorialDestinationAndMissingGeographicLocation(): void
     {
         $client = static::createClient();

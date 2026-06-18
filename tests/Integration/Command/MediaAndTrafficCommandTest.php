@@ -2,10 +2,17 @@
 
 namespace App\Tests\Integration\Command;
 
+use App\Entity\HikeDraft;
+use App\Entity\HikeDraftMedia;
 use App\Entity\MediaAsset;
+use App\Entity\Place;
 use App\Entity\TrafficEvent;
+use App\Enum\ContentStatus;
+use App\Enum\HikeDraftStatus;
 use App\Enum\ImageType;
 use App\Enum\MediaType;
+use App\Enum\PlaceDifficulty;
+use App\Enum\PriceType;
 use App\Enum\VideoType;
 use App\Service\Media\MediaVariantService;
 use App\Tests\Integration\IntegrationTestCase;
@@ -65,6 +72,43 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         self::assertStringContainsString('contradictoires', $tester->getDisplay());
     }
 
+    public function testGenerateMediaVariantsGeneratesFilesAndReportsMissingSourceFailure(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $validMedia = (new MediaAsset())
+            ->setTitle('Commande variantes succès')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+        $missingMedia = (new MediaAsset())
+            ->setTitle('Commande variantes source absente')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/missing-command-source.jpg');
+        $this->persist($validMedia, $missingMedia);
+
+        $successTester = $this->commandTester('app:media:generate-variants');
+        $successStatus = $successTester->execute([
+            '--id' => (string) $validMedia->getId(),
+            '--force' => true,
+        ]);
+        $this->trackVariantFiles($validMedia->getVariants());
+
+        self::assertSame(Command::SUCCESS, $successStatus);
+        self::assertStringContainsString(sprintf('#%d variantes générées', $validMedia->getId()), $successTester->getDisplay());
+        self::assertNotNull($validMedia->getVariants());
+
+        $failureTester = $this->commandTester('app:media:generate-variants');
+        $failureStatus = $failureTester->execute([
+            '--id' => (string) $missingMedia->getId(),
+            '--force' => true,
+        ]);
+
+        self::assertSame(Command::FAILURE, $failureStatus);
+        self::assertStringContainsString(sprintf('#%d erreur', $missingMedia->getId()), $failureTester->getDisplay());
+    }
+
     public function testMediaCommandsWarnWhenRestrictedMediaDoesNotExist(): void
     {
         foreach (['app:media:generate-variants', 'app:media:cleanup-public-masters'] as $commandName) {
@@ -103,6 +147,40 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         self::assertSame(TestImageFactory::publicPathFor($source), $media->getFilePath());
     }
 
+    public function testCleanupPublicMastersDeletesSafeMasterAndSkipsUnsupportedMedia(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setTitle('Commande cleanup suppression')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+        $video = (new MediaAsset())
+            ->setTitle('Commande cleanup vidéo ignorée')
+            ->setMediaType(MediaType::Video)
+            ->setExternalUrl('https://example.test/video');
+        $this->persist($media, $video);
+
+        $this->mediaVariantService()->generateForMedia($media, force: true);
+        $this->trackVariantFiles($media->getVariants());
+        $this->entityManager->flush();
+
+        $deleteTester = $this->commandTester('app:media:cleanup-public-masters');
+        $deleteStatus = $deleteTester->execute(['--id' => (string) $media->getId()]);
+
+        self::assertSame(Command::SUCCESS, $deleteStatus);
+        self::assertStringContainsString(sprintf('#%d supprimé', $media->getId()), $deleteTester->getDisplay());
+        self::assertFileDoesNotExist($source);
+        self::assertNull($media->getFilePath());
+
+        $skipTester = $this->commandTester('app:media:cleanup-public-masters');
+        $skipStatus = $skipTester->execute(['--id' => (string) $video->getId()]);
+
+        self::assertSame(Command::SUCCESS, $skipStatus);
+        self::assertStringContainsString(sprintf('#%d ignoré', $video->getId()), $skipTester->getDisplay());
+    }
+
     public function testGenerateVideoThumbnailsDryRunReportsYoutubeVideoWithoutWritingThumbnail(): void
     {
         $media = (new MediaAsset())
@@ -118,6 +196,252 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         self::assertSame(Command::SUCCESS, $status);
         self::assertStringContainsString(sprintf('#%d serait traitée', $media->getId()), $tester->getDisplay());
         self::assertNull($media->getThumbnailPath());
+    }
+
+    public function testGenerateVideoThumbnailsGeneratesYoutubeThumbnailAndSkipsUnsupportedVideo(): void
+    {
+        $youtube = (new MediaAsset())
+            ->setTitle('Commande miniature YouTube')
+            ->setMediaType(MediaType::Video)
+            ->setVideoType(VideoType::Youtube)
+            ->setExternalUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+        $unsupported = (new MediaAsset())
+            ->setTitle('Commande miniature externe non supportée')
+            ->setMediaType(MediaType::Video)
+            ->setVideoType(VideoType::External)
+            ->setExternalUrl('https://example.test/video');
+        $this->persist($youtube, $unsupported);
+
+        $tester = $this->commandTester('app:media:generate-video-thumbnails');
+        $status = $tester->execute([]);
+
+        self::assertSame(Command::SUCCESS, $status);
+        self::assertStringContainsString(sprintf('#%d miniature générée', $youtube->getId()), $tester->getDisplay());
+        self::assertStringContainsString(sprintf('#%d ignorée', $unsupported->getId()), $tester->getDisplay());
+        self::assertSame('https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg', $youtube->getThumbnailPath());
+    }
+
+    public function testSanitizeMetadataRejectsContradictoryOptionsAndHandlesMissingMedia(): void
+    {
+        $invalidTester = $this->commandTester('app:media:sanitize-metadata');
+        $invalidStatus = $invalidTester->execute([
+            '--force' => true,
+            '--missing-only' => true,
+        ]);
+
+        self::assertSame(Command::INVALID, $invalidStatus);
+        self::assertStringContainsString('contradictoires', $invalidTester->getDisplay());
+
+        $emptyTester = $this->commandTester('app:media:sanitize-metadata');
+        $emptyStatus = $emptyTester->execute(['--id' => '999999999']);
+
+        self::assertSame(Command::SUCCESS, $emptyStatus);
+        self::assertStringContainsString('Aucun fichier média local à analyser', $emptyTester->getDisplay());
+    }
+
+    public function testSanitizeMetadataDryRunAndForceProcessTemporaryImage(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 33, 17);
+        file_put_contents($source, '<x:xmpmeta>command metadata</x:xmpmeta>', FILE_APPEND);
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setTitle('Commande sanitize')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+        $this->persist($media);
+
+        $dryRunTester = $this->commandTester('app:media:sanitize-metadata');
+        $dryRunStatus = $dryRunTester->execute([
+            '--id' => (string) $media->getId(),
+            '--dry-run' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $dryRunStatus);
+        self::assertStringContainsString('serait nettoyé', $dryRunTester->getDisplay());
+        self::assertStringContainsString('x:xmpmeta', file_get_contents($source) ?: '');
+
+        $forceTester = $this->commandTester('app:media:sanitize-metadata');
+        $forceStatus = $forceTester->execute([
+            '--id' => (string) $media->getId(),
+            '--force' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $forceStatus);
+        self::assertStringContainsString('nettoyé : avant XMP', $forceTester->getDisplay());
+        self::assertSame('image/jpeg', $media->getMimeType());
+        self::assertSame(33, $media->getWidth());
+        self::assertSame(17, $media->getHeight());
+        self::assertStringNotContainsString('x:xmpmeta', file_get_contents($source) ?: '');
+    }
+
+    public function testSanitizeMetadataSkipsUnsupportedFileAndReportsMissingFileError(): void
+    {
+        $gif = TestImageFactory::publicMediaDirectory().'/command-'.$this->uniqueToken('unsupported').'.gif';
+        file_put_contents($gif, base64_decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==') ?: '');
+        $this->files[] = $gif;
+        $unsupported = (new MediaAsset())
+            ->setTitle('Commande sanitize gif')
+            ->setMediaType(MediaType::Image)
+            ->setFilePath('/uploads/media/'.basename($gif));
+        $missing = (new MediaAsset())
+            ->setTitle('Commande sanitize absent')
+            ->setMediaType(MediaType::Image)
+            ->setFilePath('/uploads/media/missing-sanitize-command.jpg');
+        $this->persist($unsupported, $missing);
+
+        $skipTester = $this->commandTester('app:media:sanitize-metadata');
+        $skipStatus = $skipTester->execute(['--id' => (string) $unsupported->getId()]);
+
+        self::assertSame(Command::SUCCESS, $skipStatus);
+        self::assertStringContainsString('type non supporté image/gif', $skipTester->getDisplay());
+
+        $errorTester = $this->commandTester('app:media:sanitize-metadata');
+        $errorStatus = $errorTester->execute(['--id' => (string) $missing->getId()]);
+
+        self::assertSame(Command::FAILURE, $errorStatus);
+        self::assertStringContainsString('erreur', $errorTester->getDisplay());
+    }
+
+    public function testSeoFillDryRunThenForceUpdatesTechnicalTextForScopedHikeMedia(): void
+    {
+        $user = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $hike = (new HikeDraft())
+            ->setTitle('Boucle du Canigou')
+            ->setSlug($this->uniqueToken('seo-hike'))
+            ->setStatus(HikeDraftStatus::Draft)
+            ->setCreatedBy($user);
+        $media = (new MediaAsset())
+            ->setTitle('IMG_1234.JPG')
+            ->setAltText(null)
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/IMG_1234.JPG');
+        $link = (new HikeDraftMedia())
+            ->setHikeDraft($hike)
+            ->setMediaAsset($media);
+        $hike->addMediaLink($link);
+        $media->getHikeDraftLinks()->add($link);
+        $this->persist($user, $hike, $media, $link);
+
+        $dryRunTester = $this->commandTester('app:media:seo-fill');
+        $dryRunStatus = $dryRunTester->execute([
+            '--id' => (string) $media->getId(),
+            '--hike-id' => (string) $hike->getId(),
+            '--dry-run' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $dryRunStatus);
+        self::assertStringContainsString(sprintf('MediaAsset #%d serait mis à jour', $media->getId()), $dryRunTester->getDisplay());
+        self::assertSame('IMG_1234.JPG', $media->getTitle());
+        self::assertNull($media->getAltText());
+
+        $forceTester = $this->commandTester('app:media:seo-fill');
+        $forceStatus = $forceTester->execute([
+            '--id' => (string) $media->getId(),
+            '--hike-id' => (string) $hike->getId(),
+            '--force' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $forceStatus);
+        self::assertStringContainsString(sprintf('MediaAsset #%d mis à jour', $media->getId()), $forceTester->getDisplay());
+        self::assertNotSame('IMG_1234.JPG', $media->getTitle());
+        self::assertStringContainsString('Boucle du Canigou', (string) $media->getTitle());
+        self::assertNotSame('', $media->getAltText());
+    }
+
+    public function testSeoFillIgnoresUnknownMediaAndExistingHumanText(): void
+    {
+        $orphan = (new MediaAsset())
+            ->setTitle('DSC_9876.JPG')
+            ->setMediaType(MediaType::Image)
+            ->setFilePath('/uploads/media/DSC_9876.JPG');
+        $this->persist($orphan);
+
+        $tester = $this->commandTester('app:media:seo-fill');
+        $status = $tester->execute([
+            '--id' => (string) $orphan->getId(),
+            '--force' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $status);
+        self::assertStringContainsString('Ignorés', $tester->getDisplay());
+        self::assertSame('DSC_9876.JPG', $orphan->getTitle());
+    }
+
+    public function testCleanupOrphansRequiresModeAndDryRunKeepsOrphan(): void
+    {
+        $invalidTester = $this->commandTester('app:media:cleanup-orphans');
+        $invalidStatus = $invalidTester->execute([]);
+
+        self::assertSame(Command::INVALID, $invalidStatus);
+        self::assertStringContainsString('Utilisez --dry-run', $invalidTester->getDisplay());
+
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory());
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setTitle('Commande orphelin dry-run')
+            ->setMediaType(MediaType::Image)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+        $this->persist($media);
+        $mediaId = $media->getId();
+
+        $dryRunTester = $this->commandTester('app:media:cleanup-orphans');
+        $dryRunStatus = $dryRunTester->execute([
+            '--id' => (string) $mediaId,
+            '--dry-run' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $dryRunStatus);
+        self::assertStringContainsString(sprintf('#%d orphelin (dry-run)', $mediaId), $dryRunTester->getDisplay());
+        self::assertFileExists($source);
+        self::assertNotNull($this->entityManager->find(MediaAsset::class, $mediaId));
+    }
+
+    public function testCleanupOrphansForceDeletesOrphanAndKeepsUsedMedia(): void
+    {
+        $orphanFile = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory());
+        $usedFile = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory());
+        $this->files[] = $orphanFile;
+        $this->files[] = $usedFile;
+        $orphan = (new MediaAsset())
+            ->setTitle('Commande orphelin suppression')
+            ->setMediaType(MediaType::Image)
+            ->setFilePath(TestImageFactory::publicPathFor($orphanFile));
+        $used = (new MediaAsset())
+            ->setTitle('Commande média utilisé')
+            ->setMediaType(MediaType::Image)
+            ->setFilePath(TestImageFactory::publicPathFor($usedFile));
+        $place = (new Place())
+            ->setName('Lieu commande cleanup '.$this->uniqueToken('place'))
+            ->setSlug($this->uniqueToken('place-slug'))
+            ->setStatus(ContentStatus::Draft)
+            ->setDifficulty(PlaceDifficulty::Unknown)
+            ->setPriceType(PriceType::Unknown)
+            ->setFeaturedImage($used);
+        $this->persist($orphan, $used, $place);
+        $orphanId = $orphan->getId();
+
+        $deleteTester = $this->commandTester('app:media:cleanup-orphans');
+        $deleteStatus = $deleteTester->execute([
+            '--id' => (string) $orphanId,
+            '--force' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $deleteStatus);
+        self::assertStringContainsString('1 supprimé(s)', $deleteTester->getDisplay());
+        self::assertFileDoesNotExist($orphanFile);
+        self::assertNull($this->entityManager->find(MediaAsset::class, $orphanId));
+
+        $keepTester = $this->commandTester('app:media:cleanup-orphans');
+        $keepStatus = $keepTester->execute([
+            '--id' => (string) $used->getId(),
+            '--force' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $keepStatus);
+        self::assertStringContainsString(sprintf('#%d conservé', $used->getId()), $keepTester->getDisplay());
+        self::assertFileExists($usedFile);
     }
 
     public function testPruneTrafficEventsSupportsDryRunAndNonInteractiveDeletion(): void
