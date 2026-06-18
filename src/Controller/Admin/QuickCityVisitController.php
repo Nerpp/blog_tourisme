@@ -172,7 +172,6 @@ final class QuickCityVisitController extends AbstractController
     }
 
     #[Route('/{id}/finish', name: 'finish', requirements: ['id' => '\d+'], methods: ['POST'])]
-    #[Route('/{id}/finish', name: 'finish', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function finish(Request $request, CityVisitDraft $cityVisitDraft): Response
     {
         if ($redirect = $this->denyUnlessAdmin()) {
