@@ -5,13 +5,17 @@ namespace App\Tests\Functional;
 use App\Entity\Article;
 use App\Entity\Category;
 use App\Entity\CityVisitDraft;
+use App\Entity\CityVisitDraftMedia;
 use App\Entity\CityVisitPoint;
 use App\Entity\Comment;
 use App\Entity\CommentReplyNotification;
 use App\Entity\Destination;
 use App\Entity\HikeDraft;
+use App\Entity\HikeDraftMedia;
 use App\Entity\HikePoint;
+use App\Entity\MediaAsset;
 use App\Entity\Place;
+use App\Entity\PlaceMedia;
 use App\Entity\User;
 use App\Enum\CategoryType;
 use App\Enum\CityVisitPointType;
@@ -21,6 +25,9 @@ use App\Enum\ContentStatus;
 use App\Enum\DestinationType;
 use App\Enum\HikePointType;
 use App\Enum\HikeDraftStatus;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
+use App\Enum\MediaType;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -224,6 +231,66 @@ abstract class FunctionalTestCase extends WebTestCase
         $this->persistAndFlush($category);
 
         return $category;
+    }
+
+    protected function createImageMedia(?string $title = null): MediaAsset
+    {
+        $token = $this->uniqueToken('media');
+        $media = (new MediaAsset())
+            ->setTitle($title ?? 'Image test '.$token)
+            ->setAltText('Texte alternatif '.$token)
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/'.$token.'.jpg');
+
+        $this->persistAndFlush($media);
+
+        return $media;
+    }
+
+    protected function linkHikeMedia(HikeDraft $hike, MediaAsset $media, MediaRole $role = MediaRole::Gallery, int $position = 0): HikeDraftMedia
+    {
+        $link = (new HikeDraftMedia())
+            ->setHikeDraft($hike)
+            ->setMediaAsset($media)
+            ->setRole($role)
+            ->setPosition($position);
+        $hike->addMediaLink($link);
+        $media->getHikeDraftLinks()->add($link);
+        $this->persistAndFlush($link);
+
+        return $link;
+    }
+
+    protected function linkCityVisitMedia(CityVisitDraft $cityVisit, MediaAsset $media, MediaRole $role = MediaRole::Gallery, int $position = 0): CityVisitDraftMedia
+    {
+        $link = (new CityVisitDraftMedia())
+            ->setCityVisitDraft($cityVisit)
+            ->setMediaAsset($media)
+            ->setRole($role)
+            ->setPosition($position);
+        $cityVisit->addMediaLink($link);
+        $media->getCityVisitDraftLinks()->add($link);
+        $this->persistAndFlush($link);
+
+        return $link;
+    }
+
+    protected function linkPlaceMedia(Place $place, MediaAsset $media, MediaRole $role = MediaRole::Gallery, int $position = 0): PlaceMedia
+    {
+        $link = (new PlaceMedia())
+            ->setPlace($place)
+            ->setMediaAsset($media)
+            ->setRole($role)
+            ->setPosition($position);
+        $place->getMediaLinks()->add($link);
+        $media->getPlaceLinks()->add($link);
+        if ($role === MediaRole::Cover) {
+            $place->setFeaturedImage($media);
+        }
+        $this->persistAndFlush($link, $place);
+
+        return $link;
     }
 
     protected function persistAndFlush(object ...$entities): void

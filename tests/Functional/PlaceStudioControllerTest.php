@@ -2,8 +2,12 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\MediaAsset;
+use App\Entity\PlaceMedia;
 use App\Enum\CategoryType;
 use App\Enum\ContentStatus;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
 
@@ -48,6 +52,110 @@ final class PlaceStudioControllerTest extends FunctionalTestCase
         $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
 
         $client->request('GET', '/admin/studio/places/2147483647/edit');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testPlacePhotoUploadAccessIsProtectedAndEmptyUploadIsRejected(): void
+    {
+        $client = static::createClient();
+        $place = $this->createPlace();
+
+        $client->request('POST', sprintf('/admin/studio/places/%d/media/photos', $place->getId()));
+        self::assertResponseRedirects('/login');
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $client->request('POST', sprintf('/admin/studio/places/%d/media/photos', $place->getId()));
+        self::assertResponseRedirects('/');
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+        $mediaRepository = $this->entityManager()->getRepository(MediaAsset::class);
+        $before = $mediaRepository->count([]);
+
+        $client->request('POST', sprintf('/admin/studio/places/%d/media/photos', $place->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/places/%d/media/photos', $place->getId())),
+            'ajax' => '1',
+        ], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString('Aucune photo valide', (string) $client->getResponse()->getContent());
+        self::assertSame($before, $mediaRepository->count([]));
+    }
+
+    public function testPlaceMediaPromotionUpdatesFeaturedImageAndDemotesOldCover(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $place = $this->createPlace();
+        $oldMedia = $this->createImageMedia('Ancienne cover lieu');
+        $newMedia = $this->createImageMedia('Nouvelle cover lieu');
+        $oldCover = $this->linkPlaceMedia($place, $oldMedia, MediaRole::Cover, 0);
+        $newCover = $this->linkPlaceMedia($place, $newMedia, MediaRole::Gallery, 1);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/place-media/%d/update', $newCover->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/place-media/%d/update', $newCover->getId())),
+            'title' => 'Nouvelle cover lieu',
+            'altText' => 'Image principale lieu',
+            'caption' => '',
+            'imageType' => ImageType::Standard->value,
+            'usage' => 'main',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        $oldCover = $this->refresh($oldCover);
+        $newCover = $this->refresh($newCover);
+        $place = $this->refresh($place);
+        self::assertSame(MediaRole::Gallery, $oldCover->getRole());
+        self::assertSame(MediaRole::Cover, $newCover->getRole());
+        self::assertSame($newMedia->getId(), $place->getFeaturedImage()?->getId());
+    }
+
+    public function testPlaceMediaDeletionRequiresCsrfAndClearsFeaturedImageOnlyForDeletedCover(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $place = $this->createPlace();
+        $cover = $this->linkPlaceMedia($place, $this->createImageMedia('Cover lieu supprimée'), MediaRole::Cover, 0);
+        $kept = $this->linkPlaceMedia($place, $this->createImageMedia('Galerie lieu conservée'), MediaRole::Gallery, 1);
+        $coverId = $cover->getId();
+        $keptId = $kept->getId();
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/studio/place-media/%d/delete', $coverId), ['_token' => 'invalid-token']);
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertNotNull($this->entityManager()->find(PlaceMedia::class, $coverId));
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/place-media/%d/delete', $coverId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/place-media/%d/delete', $coverId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertNull($this->entityManager()->find(PlaceMedia::class, $coverId));
+        self::assertNotNull($this->entityManager()->find(PlaceMedia::class, $keptId));
+        $place = $this->refresh($place);
+        self::assertNull($place->getFeaturedImage());
+    }
+
+    public function testMissingPlaceMediaReturnsNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $client->request('POST', '/admin/studio/place-media/2147483647/delete', [
+            '_token' => 'irrelevant',
+        ]);
 
         self::assertResponseStatusCodeSame(404);
     }

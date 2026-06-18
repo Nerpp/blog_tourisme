@@ -3,8 +3,12 @@
 namespace App\Tests\Functional;
 
 use App\Entity\Destination;
+use App\Entity\HikeDraftMedia;
+use App\Entity\MediaAsset;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
 
 final class HikeStudioControllerTest extends FunctionalTestCase
 {
@@ -47,6 +51,128 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
 
         $client->request('GET', '/admin/studio/hikes/2147483647/edit');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testHikePhotoUploadAccessIsProtected(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createHikeDraft($this->createVerifiedAdmin());
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId()));
+        self::assertResponseRedirects('/login');
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId()));
+
+        self::assertResponseRedirects('/');
+    }
+
+    public function testHikePhotoUploadRejectsInvalidCsrfAndNonImageWithoutCreatingMedia(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $mediaRepository = $this->entityManager()->getRepository(MediaAsset::class);
+        $before = $mediaRepository->count([]);
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId()), [
+            '_token' => 'invalid-token',
+            'ajax' => '1',
+        ], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        self::assertResponseStatusCodeSame(419);
+        self::assertSame($before, $mediaRepository->count([]));
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $path = tempnam(sys_get_temp_dir(), 'hike-invalid-');
+        self::assertIsString($path);
+        file_put_contents($path, 'not an image');
+
+        try {
+            $client->request('POST', sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId()), [
+                '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId())),
+                'ajax' => '1',
+            ], [
+                'photos' => [new \Symfony\Component\HttpFoundation\File\UploadedFile($path, 'fake.jpg', 'image/jpeg', null, true)],
+            ], ['HTTP_ACCEPT' => 'application/json']);
+
+            self::assertResponseStatusCodeSame(422);
+            self::assertStringContainsString('error', (string) $client->getResponse()->getContent());
+            self::assertSame($before, $mediaRepository->count([]));
+        } finally {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    public function testHikeMediaUpdatePromotesCoverAndDemotesPreviousCover(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $oldCover = $this->linkHikeMedia($hike, $this->createImageMedia('Ancienne cover randonnée'), MediaRole::Cover, 0);
+        $newCover = $this->linkHikeMedia($hike, $this->createImageMedia('Nouvelle cover randonnée'), MediaRole::Gallery, 1);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hike-media/%d/update', $newCover->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-media/%d/update', $newCover->getId())),
+            'title' => 'Nouvelle cover randonnée',
+            'altText' => 'Nouvelle image principale',
+            'caption' => '',
+            'imageType' => ImageType::Standard->value,
+            'association' => 'main',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        $oldCover = $this->refresh($oldCover);
+        $newCover = $this->refresh($newCover);
+        self::assertSame(MediaRole::Gallery, $oldCover->getRole());
+        self::assertSame(MediaRole::Cover, $newCover->getRole());
+    }
+
+    public function testHikeMediaDeletionRequiresCsrfAndKeepsOtherLink(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $deletedLink = $this->linkHikeMedia($hike, $this->createImageMedia('Photo randonnée supprimée'), MediaRole::Gallery, 0);
+        $keptLink = $this->linkHikeMedia($hike, $this->createImageMedia('Photo randonnée conservée'), MediaRole::Gallery, 1);
+        $deletedId = $deletedLink->getId();
+        $keptId = $keptLink->getId();
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/studio/hike-media/%d/delete', $deletedId), ['_token' => 'invalid-token']);
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertNotNull($this->entityManager()->find(HikeDraftMedia::class, $deletedId));
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hike-media/%d/delete', $deletedId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-media/%d/delete', $deletedId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-photos', $hike->getId()));
+        self::assertNull($this->entityManager()->find(HikeDraftMedia::class, $deletedId));
+        self::assertNotNull($this->entityManager()->find(HikeDraftMedia::class, $keptId));
+    }
+
+    public function testMissingHikeMediaReturnsNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $client->request('POST', '/admin/studio/hike-media/2147483647/delete', [
+            '_token' => 'irrelevant',
+        ]);
 
         self::assertResponseStatusCodeSame(404);
     }

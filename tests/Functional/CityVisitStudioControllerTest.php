@@ -2,10 +2,16 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\CityVisitDraftMedia;
 use App\Entity\Destination;
+use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\CityVisitPointType;
 use App\Enum\DestinationType;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
+use App\Tests\Support\TestImageFactory;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class CityVisitStudioControllerTest extends FunctionalTestCase
 {
@@ -48,6 +54,135 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
 
         $client->request('GET', '/admin/studio/city-visits/2147483647/edit');
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testCityVisitVideoActionIsProtectedAndRejectsMissingUrl(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId()));
+        self::assertResponseRedirects('/login');
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId()));
+        self::assertResponseRedirects('/');
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $mediaRepository = $this->entityManager()->getRepository(MediaAsset::class);
+        $before = $mediaRepository->count([]);
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId())),
+            'externalUrl' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertSame($before, $mediaRepository->count([]));
+    }
+
+    public function testCityVisitPhotoUploadCreatesCoverThroughRealForm(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 96, 48);
+        $createdMedia = null;
+
+        try {
+            $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/photos', $cityVisit->getId()), [
+                '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visits/%d/media/photos', $cityVisit->getId())),
+                'photoCaptions' => ['Photo principale fonctionnelle'],
+                'photoImageTypes' => [ImageType::Standard->value],
+                'photoAssociations' => ['main'],
+                'ajax' => '1',
+            ], [
+                'photos' => [new UploadedFile($source, 'city-cover.jpg', 'image/jpeg', null, true)],
+            ], ['HTTP_ACCEPT' => 'application/json']);
+
+            self::assertResponseIsSuccessful();
+            self::assertStringContainsString('"success":true', (string) $client->getResponse()->getContent());
+            $createdMedia = $this->entityManager()->getRepository(MediaAsset::class)->findOneBy(
+                ['uploadedBy' => $admin],
+                ['id' => 'DESC'],
+            );
+            self::assertInstanceOf(MediaAsset::class, $createdMedia);
+            $link = $this->entityManager()->getRepository(CityVisitDraftMedia::class)->findOneBy([
+                'cityVisitDraft' => $cityVisit,
+                'mediaAsset' => $createdMedia,
+            ]);
+            self::assertInstanceOf(CityVisitDraftMedia::class, $link);
+            self::assertSame(MediaRole::Cover, $link->getRole());
+            self::assertSame('Photo principale fonctionnelle', $createdMedia->getCaption());
+        } finally {
+            if ($createdMedia instanceof MediaAsset) {
+                $this->removeGeneratedMediaFiles($createdMedia);
+            }
+            if (is_file($source)) {
+                unlink($source);
+            }
+        }
+    }
+
+    public function testCityVisitMediaPromotionAndDeletionUseRealCsrfForms(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $oldCover = $this->linkCityVisitMedia($cityVisit, $this->createImageMedia('Ancienne cover visite'), MediaRole::Cover, 0);
+        $selected = $this->linkCityVisitMedia($cityVisit, $this->createImageMedia('Nouvelle cover visite'), MediaRole::Gallery, 1);
+        $kept = $this->linkCityVisitMedia($cityVisit, $this->createImageMedia('Galerie visite conservée'), MediaRole::Gallery, 2);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/city-visit-media/%d/update', $selected->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visit-media/%d/update', $selected->getId())),
+            'title' => 'Nouvelle cover visite',
+            'altText' => 'Image principale visite',
+            'imageType' => ImageType::Standard->value,
+            'association' => 'main',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        $oldCover = $this->refresh($oldCover);
+        $selected = $this->refresh($selected);
+        self::assertSame(MediaRole::Gallery, $oldCover->getRole());
+        self::assertSame(MediaRole::Cover, $selected->getRole());
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $selectedId = $selected->getId();
+        $keptId = $kept->getId();
+        $client->request('POST', sprintf('/admin/studio/city-visit-media/%d/delete', $selectedId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visit-media/%d/delete', $selectedId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertNull($this->entityManager()->find(CityVisitDraftMedia::class, $selectedId));
+        self::assertNotNull($this->entityManager()->find(CityVisitDraftMedia::class, $keptId));
+    }
+
+    public function testMissingCityVisitMediaReturnsNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $client->request('POST', '/admin/studio/city-visit-media/2147483647/update', [
+            '_token' => 'irrelevant',
+        ]);
 
         self::assertResponseStatusCodeSame(404);
     }
@@ -220,5 +355,27 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         $client->request('GET', sprintf('/destinations/%s', $beziers->getSlug()));
         self::assertResponseIsSuccessful();
         self::assertStringNotContainsString($title, $client->getResponse()->getContent() ?: '');
+    }
+
+    private function removeGeneratedMediaFiles(MediaAsset $media): void
+    {
+        $paths = [$media->getFilePath(), $media->getThumbnailPath()];
+        $variants = $media->getVariants() ?? [];
+        array_walk_recursive($variants, static function (mixed $value) use (&$paths): void {
+            if (is_string($value)) {
+                $paths[] = $value;
+            }
+        });
+
+        foreach (array_unique(array_filter($paths, 'is_string')) as $path) {
+            if (!str_starts_with($path, '/uploads/media/')) {
+                continue;
+            }
+
+            $absolutePath = dirname(__DIR__, 2).'/public/'.ltrim($path, '/');
+            if (is_file($absolutePath)) {
+                unlink($absolutePath);
+            }
+        }
     }
 }
