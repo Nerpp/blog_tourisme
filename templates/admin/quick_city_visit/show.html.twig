@@ -65,7 +65,7 @@
 
                 <div class="field-row">
                     <label class="field-label" for="quick_city_visit_point_type">Type de point</label>
-                    <select id="quick_city_visit_point_type" class="field-select" name="quick_city_visit_point[type]" data-gps-type>
+                    <select id="quick_city_visit_point_type" class="field-select field-select--point-type" name="quick_city_visit_point[type]" size="6" data-gps-type>
                         {% for value, label in point_types %}
                             <option value="{{ value }}">{{ label }}</option>
                         {% endfor %}

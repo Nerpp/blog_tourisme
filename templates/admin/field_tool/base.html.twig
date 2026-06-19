@@ -124,6 +124,29 @@
                 font: inherit;
             }
 
+            .field-select--point-type {
+                display: block;
+                height: auto;
+                min-height: 0;
+                max-height: 220px;
+                overflow-y: auto;
+                padding: 6px;
+                line-height: 1.35;
+            }
+
+            .field-select--point-type option {
+                min-height: 34px;
+                padding: 8px 10px;
+                background-color: #fff;
+                color: var(--field-text);
+                font: inherit;
+            }
+
+            .field-select--point-type:focus {
+                outline: 3px solid rgba(46, 125, 50, 0.25);
+                outline-offset: 2px;
+            }
+
             .field-textarea {
                 min-height: 86px;
                 resize: vertical;
