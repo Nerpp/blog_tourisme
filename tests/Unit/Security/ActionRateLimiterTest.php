@@ -56,6 +56,18 @@ final class ActionRateLimiterTest extends TestCase
         ], $factory->keys);
     }
 
+    public function testAdminUploadFallsBackToUnknownIpWhenRequestHasNoClientIp(): void
+    {
+        $factory = new CollectingRateLimiterFactory($this->acceptedRateLimit());
+        $limiter = $this->limiter(adminUploadFactory: $factory);
+        $request = new Request(server: ['REQUEST_URI' => '/admin/media/upload']);
+
+        self::assertSame($factory->rateLimit, $limiter->consumeAdminUpload($request, null));
+        self::assertSame([
+            hash('sha256', 'admin_upload|anonymous|unknown-ip|/admin/media/upload'),
+        ], $factory->keys);
+    }
+
     private function limiter(
         ?CollectingRateLimiterFactory $commentCreateFactory = null,
         ?CollectingRateLimiterFactory $commentReportFactory = null,
