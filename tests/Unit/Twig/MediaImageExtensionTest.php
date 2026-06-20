@@ -15,6 +15,24 @@ use Symfony\Component\String\Slugger\AsciiSlugger;
 
 final class MediaImageExtensionTest extends TestCase
 {
+    public function testRegistersMediaTwigFunctions(): void
+    {
+        $functionNames = array_map(
+            static fn (\Twig\TwigFunction $function): string => $function->getName(),
+            $this->extension()->getFunctions(),
+        );
+
+        self::assertSame([
+            'media_image_url',
+            'media_modal_url',
+            'media_poster_url',
+            'media_image_srcset',
+            'media_image_dimensions',
+            'media_public_title',
+            'media_public_alt',
+        ], $functionNames);
+    }
+
     public function testImageUrlPrefersRequestedVariantAndFallsBackToPlaceholderForStandardWithoutVariants(): void
     {
         $media = (new MediaAsset())
@@ -58,6 +76,34 @@ final class MediaImageExtensionTest extends TestCase
         self::assertSame('/uploads/media/variants/large.webp', $this->extension()->modalUrl($media));
     }
 
+    public function testModalUrlFallsBackThroughSpecialImageExternalUrlThumbnailAndPlaceholder(): void
+    {
+        $extension = $this->extension();
+        $specialImage = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Degree180)
+            ->setFilePath('/uploads/media/180.jpg')
+            ->setExternalUrl('https://cdn.example.test/180.jpg')
+            ->setThumbnailPath('/uploads/media/180-thumb.jpg');
+        $externalImage = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setExternalUrl('https://cdn.example.test/photo.jpg')
+            ->setThumbnailPath('/uploads/media/photo-thumb.jpg');
+        $thumbnailOnly = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setThumbnailPath('/uploads/media/video-thumb.jpg');
+
+        self::assertSame('/uploads/media/180.jpg', $extension->modalUrl($specialImage));
+        self::assertSame('https://cdn.example.test/photo.jpg', $extension->modalUrl($externalImage));
+        self::assertSame('/uploads/media/video-thumb.jpg', $extension->modalUrl($thumbnailOnly));
+        self::assertSame('/images/placeholders/destination-card-placeholder.webp', $extension->modalUrl(new MediaAsset()));
+    }
+
+    public function testPosterUrlReturnsNullWhenNoPosterOrThumbnailExists(): void
+    {
+        self::assertNull($this->extension()->posterUrl(new MediaAsset()));
+    }
+
     public function testSrcsetDeduplicatesWidthsAndDimensionsUseVariantThenMetadataThenEntity(): void
     {
         $media = (new MediaAsset())
@@ -77,6 +123,14 @@ final class MediaImageExtensionTest extends TestCase
         self::assertSame(['width' => 320, 'height' => 160], $extension->imageDimensions($media, 'unknown'));
     }
 
+    public function testDimensionsReturnNullWithoutNumericData(): void
+    {
+        $media = (new MediaAsset())
+            ->setMetadata(['thumbnailWidth' => 'large', 'thumbnailHeight' => null]);
+
+        self::assertNull($this->extension()->imageDimensions($media));
+    }
+
     public function testPosterUrlAndPublicTextFallbacks(): void
     {
         $media = (new MediaAsset())
@@ -88,6 +142,32 @@ final class MediaImageExtensionTest extends TestCase
         self::assertSame('/uploads/media/poster-medium.jpg', $extension->posterUrl($media));
         self::assertSame('Fallback title', $extension->publicTitle(null, fallbackTitle: 'Fallback title'));
         self::assertSame('Fallback alt', $extension->publicAlt(null, fallbackTitle: 'Fallback alt'));
+    }
+
+    public function testNullableMediaHelpersReturnNullWithoutMedia(): void
+    {
+        $extension = $this->extension();
+
+        self::assertNull($extension->modalUrl(null));
+        self::assertNull($extension->posterUrl(null));
+        self::assertNull($extension->imageSrcset(null, 'webp'));
+        self::assertNull($extension->imageDimensions(null));
+    }
+
+    public function testSrcsetSkipsIncompleteVariantsAndPosterFallsBackToThumbnail(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setThumbnailPath('/uploads/media/poster-fallback.jpg')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/thumb.webp'],
+                'medium' => ['width' => 320],
+                'large' => ['webp' => '/uploads/media/large.webp', 'width' => '640'],
+            ]);
+        $extension = $this->extension();
+
+        self::assertSame('/uploads/media/large.webp 640w', $extension->imageSrcset($media, 'webp'));
+        self::assertSame('/uploads/media/poster-fallback.jpg', $extension->posterUrl($media));
     }
 
     public function testCurrentBehaviorAllowsExternalUrlFallback(): void
