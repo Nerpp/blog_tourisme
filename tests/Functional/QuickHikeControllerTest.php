@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Entity\HikeDraft;
 use App\Entity\HikePoint;
+use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
 
 final class QuickHikeControllerTest extends FunctionalTestCase
@@ -27,6 +28,16 @@ final class QuickHikeControllerTest extends FunctionalTestCase
         self::assertResponseRedirects('/');
     }
 
+    public function testVerifiedAdminIndexRedirectsToRequestedQuickHikeMode(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $client->request('GET', '/admin/quick-hike?mode=distance');
+
+        self::assertResponseRedirects('/admin/quick?type=hike&mode=distance');
+    }
+
     public function testVerifiedAdminCanStartFieldHikeWithoutDestination(): void
     {
         $client = static::createClient();
@@ -40,13 +51,25 @@ final class QuickHikeControllerTest extends FunctionalTestCase
             '_token' => $this->tokenFromFormAction($crawler, '/admin/quick-hike/start'),
             'title' => $title,
             'creation_mode' => 'field',
+            'detectedCommuneName' => 'Commune partielle ignorée',
+            'detectedCommuneCode' => '',
         ]);
 
         $hike = $this->entityManager()->getRepository(HikeDraft::class)->findOneBy(['title' => $title]);
         self::assertInstanceOf(HikeDraft::class, $hike);
         self::assertNull($hike->getDestination());
+        self::assertNull($hike->getGeographicDestination());
+        self::assertNull($hike->getDetectedCommuneName());
+        self::assertNull($hike->getDetectedCommuneCode());
+        self::assertCount(0, $hike->getPoints());
         self::assertSame($admin->getId(), $hike->getCreatedBy()?->getId());
         self::assertResponseRedirects(sprintf('/admin/quick-hike/%d', $hike->getId()));
+
+        $session = $client->getRequest()->getSession();
+        self::assertSame($hike->getId(), $session->get('quick_hike_active_field_draft_id'));
+        self::assertFalse($session->has('quick_hike_destination_id'));
+        self::assertFalse($session->has('quick_city_visit_destination_id'));
+        self::assertFalse($session->has('quick_hike_commune'));
     }
 
     public function testQuickHikeStartRequiresCsrf(): void
@@ -66,8 +89,9 @@ final class QuickHikeControllerTest extends FunctionalTestCase
     public function testQuickHikePointRejectsInvalidCoordinates(): void
     {
         $client = static::createClient();
-        $hike = $this->createHikeDraft($this->createVerifiedAdmin());
-        $client->loginUser($this->createVerifiedAdmin());
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
         $crawler = $client->request('GET', sprintf('/admin/quick-hike/%d', $hike->getId()));
         self::assertResponseIsSuccessful();
 
@@ -81,6 +105,11 @@ final class QuickHikeControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseStatusCodeSame(422);
+        self::assertSame(0, $this->entityManager()->getRepository(HikePoint::class)->count(['hikeDraft' => $hike]));
+        $stored = $this->refresh($hike);
+        self::assertInstanceOf(HikeDraft::class, $stored);
+        self::assertNull($stored->getGeographicDestination());
+        self::assertNull($stored->getDetectedCommuneName());
     }
 
     public function testQuickHikePointRejectsMissingCoordinates(): void
@@ -178,5 +207,36 @@ final class QuickHikeControllerTest extends FunctionalTestCase
         self::assertEqualsWithDelta(2.9012222, $points[1]->getLongitude(), 0.0000001);
         self::assertEqualsWithDelta(12.0, $points[1]->getAccuracy(), 0.0000001);
         self::assertSame(2, $points[1]->getPosition());
+    }
+
+    public function testVerifiedAdminCanFinishFieldHikeAndContinueInStudio(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $startPoint = $this->createHikePoint($hike);
+        $startPoint->setType(HikePointType::Start);
+        $this->persistAndFlush($startPoint);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/quick-hike/%d', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $session = $client->getRequest()->getSession();
+        $session->set('quick_hike_active_field_draft_id', $hike->getId());
+        $session->save();
+
+        $client->request('POST', sprintf('/admin/quick-hike/%d/finish', $hike->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/quick-hike/%d/finish', $hike->getId())),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        $stored = $this->refresh($hike);
+        self::assertInstanceOf(HikeDraft::class, $stored);
+        self::assertSame(HikeDraftStatus::Draft, $stored->getStatus());
+        self::assertNotNull($stored->getFinishedAt());
+        self::assertNull($stored->getDestination());
+        self::assertNull($stored->getGeographicDestination());
+        self::assertFalse($client->getRequest()->getSession()->has('quick_hike_active_field_draft_id'));
+        self::assertFalse($client->getRequest()->getSession()->has('quick_hike_destination_id'));
+        self::assertFalse($client->getRequest()->getSession()->has('quick_hike_commune'));
     }
 }
