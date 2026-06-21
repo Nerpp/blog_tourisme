@@ -30,7 +30,6 @@ final class GenerateMediaVariantsCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('missing-only', null, InputOption::VALUE_NONE, 'Only generate variants for media without usable variants.')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Regenerate variants even when variants already exist.')
             ->addOption('id', null, InputOption::VALUE_REQUIRED, 'Restrict generation to one media asset id.')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would be generated without writing files or database changes.');
@@ -41,19 +40,12 @@ final class GenerateMediaVariantsCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $dryRun = (bool) $input->getOption('dry-run');
         $force = (bool) $input->getOption('force');
-        $missingOnly = (bool) $input->getOption('missing-only');
         $id = $input->getOption('id');
 
         if (!$this->variantsColumnExists()) {
             $io->error('La colonne media_asset.variants est absente. Lancez d’abord la migration Doctrine générée, puis relancez cette commande.');
 
             return Command::FAILURE;
-        }
-
-        if ($force && $missingOnly) {
-            $io->error('Les options --force et --missing-only sont contradictoires.');
-
-            return Command::INVALID;
         }
 
         $mediaAssets = $this->resolveMediaAssets($id);
@@ -82,7 +74,7 @@ final class GenerateMediaVariantsCommand extends Command
                 continue;
             }
 
-            if (($missingOnly || !$force) && $this->mediaVariantService->hasUsableVariants($media)) {
+            if (!$force && $this->mediaVariantService->hasUsableVariants($media)) {
                 ++$skipped;
                 $io->text(sprintf('#%d ignoré : variantes déjà présentes.', $media->getId()));
 

@@ -60,16 +60,16 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         self::assertNull($media->getThumbnailPath());
     }
 
-    public function testGenerateMediaVariantsRejectsContradictoryOptions(): void
+    public function testGenerateMediaVariantsHelpOnlyExposesActiveOptions(): void
     {
-        $tester = $this->commandTester('app:media:generate-variants');
-        $status = $tester->execute([
-            '--force' => true,
-            '--missing-only' => true,
-        ]);
+        $application = new Application(static::$kernel);
+        $command = $application->find('app:media:generate-variants');
+        $definition = $command->getDefinition();
 
-        self::assertSame(Command::INVALID, $status);
-        self::assertStringContainsString('contradictoires', $tester->getDisplay());
+        self::assertFalse($definition->hasOption('missing-only'));
+        self::assertTrue($definition->hasOption('force'));
+        self::assertTrue($definition->hasOption('id'));
+        self::assertTrue($definition->hasOption('dry-run'));
     }
 
     public function testGenerateMediaVariantsGeneratesFilesAndReportsMissingSourceFailure(): void
@@ -98,6 +98,19 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         self::assertSame(Command::SUCCESS, $successStatus);
         self::assertStringContainsString(sprintf('#%d variantes générées', $validMedia->getId()), $successTester->getDisplay());
         self::assertNotNull($validMedia->getVariants());
+        self::assertNull($missingMedia->getVariants());
+
+        $regenerationTester = $this->commandTester('app:media:generate-variants');
+        $regenerationStatus = $regenerationTester->execute([
+            '--id' => (string) $validMedia->getId(),
+            '--force' => true,
+        ]);
+        $this->trackVariantFiles($validMedia->getVariants());
+
+        self::assertSame(Command::SUCCESS, $regenerationStatus);
+        self::assertStringContainsString(sprintf('#%d variantes générées', $validMedia->getId()), $regenerationTester->getDisplay());
+        self::assertNotNull($validMedia->getVariants());
+        self::assertNull($missingMedia->getVariants());
 
         $failureTester = $this->commandTester('app:media:generate-variants');
         $failureStatus = $failureTester->execute([
@@ -107,6 +120,53 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
 
         self::assertSame(Command::FAILURE, $failureStatus);
         self::assertStringContainsString(sprintf('#%d erreur', $missingMedia->getId()), $failureTester->getDisplay());
+    }
+
+    public function testGenerateMediaVariantsSkipsExternalImageAndVideoWithoutLocalPoster(): void
+    {
+        $externalImage = (new MediaAsset())
+            ->setTitle('Image externe sans variantes')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('https://example.test/external-image.jpg');
+        $videoWithoutPoster = (new MediaAsset())
+            ->setTitle('Vidéo sans poster local')
+            ->setMediaType(MediaType::Video)
+            ->setVideoType(VideoType::External)
+            ->setExternalUrl('https://example.test/external-video.mp4');
+        $this->persist($externalImage, $videoWithoutPoster);
+
+        foreach ([$externalImage, $videoWithoutPoster] as $media) {
+            $tester = $this->commandTester('app:media:generate-variants');
+            $status = $tester->execute(['--id' => (string) $media->getId()]);
+
+            self::assertSame(Command::SUCCESS, $status);
+            self::assertStringContainsString(sprintf('#%d ignoré : média externe ou type non supporté', $media->getId()), $tester->getDisplay());
+            self::assertNull($media->getVariants());
+        }
+    }
+
+    public function testGenerateMediaVariantsNormalExecutionSkipsUsableVariants(): void
+    {
+        $variants = [
+            'thumb' => ['fallback' => '/uploads/media/variants/thumb.jpg'],
+            'medium' => ['fallback' => '/uploads/media/variants/medium.jpg'],
+            'large' => ['fallback' => '/uploads/media/variants/large.jpg'],
+        ];
+        $media = (new MediaAsset())
+            ->setTitle('Image avec variantes existantes')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/existing-master.jpg')
+            ->setVariants($variants);
+        $this->persist($media);
+
+        $tester = $this->commandTester('app:media:generate-variants');
+        $status = $tester->execute(['--id' => (string) $media->getId()]);
+
+        self::assertSame(Command::SUCCESS, $status);
+        self::assertStringContainsString(sprintf('#%d ignoré : variantes déjà présentes', $media->getId()), $tester->getDisplay());
+        self::assertSame($variants, $media->getVariants());
     }
 
     public function testMediaCommandsWarnWhenRestrictedMediaDoesNotExist(): void
@@ -171,6 +231,14 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
 
         self::assertSame(Command::SUCCESS, $deleteStatus);
         self::assertStringContainsString(sprintf('#%d supprimé', $media->getId()), $deleteTester->getDisplay());
+        self::assertFileDoesNotExist($source);
+        self::assertNull($media->getFilePath());
+
+        $secondDeleteTester = $this->commandTester('app:media:cleanup-public-masters');
+        $secondDeleteStatus = $secondDeleteTester->execute(['--id' => (string) $media->getId()]);
+
+        self::assertSame(Command::SUCCESS, $secondDeleteStatus);
+        self::assertStringContainsString(sprintf('#%d ignoré : chemin maître absent ou non supprimable', $media->getId()), $secondDeleteTester->getDisplay());
         self::assertFileDoesNotExist($source);
         self::assertNull($media->getFilePath());
 
