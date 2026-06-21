@@ -28,6 +28,14 @@ final class CommentMentionServiceTest extends TestCase
         self::assertSame(['valid_user'], $service->extractHandles('@a email@test.local fin@mot @valid_user'));
     }
 
+    public function testExtractHandlesAcceptsMentionAtMaximumLength(): void
+    {
+        $service = $this->service([]);
+        $handle = str_repeat('a', 80);
+
+        self::assertSame([$handle], $service->extractHandles('@'.$handle));
+    }
+
     public function testFindMentionedUsersDelegatesNormalizedHandlesToRepository(): void
     {
         $user = (new User())->setEmail('alice@example.test')->setDisplayName('Alice')->setPassword('x');
