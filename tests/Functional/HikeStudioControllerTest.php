@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\Destination;
+use App\Entity\HikeDraft;
 use App\Entity\HikeDraftMedia;
 use App\Entity\MediaAsset;
 use App\Enum\DestinationType;
@@ -376,6 +377,90 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertSame(42.44, $point->getLatitude());
         self::assertSame(2.44, $point->getLongitude());
         self::assertSame($editorialDestination->getId(), $hike->getDestination()?->getId());
+    }
+
+    public function testPublishedHikeCanReturnToDraftWithoutLosingItsGeographicLocationOrPoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $communeCode = strtoupper(substr($this->uniqueToken('hike-draft'), 0, 18));
+        $geographicDestination = $this->createDestination('Commune hike retour brouillon', DestinationType::City, code: $communeCode);
+        $hike = $this->createPublishedHike($admin, $geographicDestination);
+        $hike
+            ->setGeographicDestination($geographicDestination)
+            ->setDetectedCommuneName('Commune hike retour brouillon')
+            ->setDetectedCommuneCode($communeCode);
+        $point = $this->createHikePoint($hike, 42.1234, 2.5678);
+        $finishedAt = $hike->getFinishedAt();
+        $this->persistAndFlush($hike);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $hike->getTitle(),
+            'destination' => (string) $geographicDestination->getId(),
+            'status' => HikeDraftStatus::Draft->value,
+            'detectedCommuneName' => '',
+            'detectedCommuneCode' => '',
+            'notes' => 'Retour en préparation.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $hike = $this->refresh($hike);
+        $point = $this->refresh($point);
+        self::assertSame(HikeDraftStatus::Draft, $hike->getStatus());
+        self::assertSame($geographicDestination->getId(), $hike->getDestination()?->getId());
+        self::assertSame($geographicDestination->getId(), $hike->getGeographicDestination()?->getId());
+        self::assertSame('Commune hike retour brouillon', $hike->getDetectedCommuneName());
+        self::assertSame(42.1234, $point->getLatitude());
+        self::assertSame(2.5678, $point->getLongitude());
+        self::assertSame($finishedAt?->getTimestamp(), $hike->getFinishedAt()?->getTimestamp());
+    }
+
+    public function testIncompleteHikeGpsRefusesPublicationWithoutPersistingPartialChanges(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $editorialDestination = $this->createDestination('Destination hike avant erreur');
+        $hike = $this->createHikeDraft($admin, $editorialDestination);
+        $originalTitle = (string) $hike->getTitle();
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Titre hike qui ne doit pas être persisté',
+            'destination' => (string) $editorialDestination->getId(),
+            'status' => HikeDraftStatus::Finished->value,
+            'detectedCommuneName' => 'Commune hike incomplète',
+            'detectedCommuneCode' => strtoupper(substr($this->uniqueToken('hike-error'), 0, 18)),
+            'detectedDepartmentName' => 'Département test',
+            'detectedRegionName' => 'Région test',
+            'locationLatitude' => '42.1234',
+            'locationLongitude' => '',
+            'notes' => 'Notes qui ne doivent pas être persistées.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'Le point GPS doit contenir une latitude et une longitude valides.',
+            (string) $client->getResponse()->getContent(),
+        );
+
+        $this->entityManager()->clear();
+        $stored = $this->entityManager()->find(HikeDraft::class, $hike->getId());
+        self::assertInstanceOf(HikeDraft::class, $stored);
+        self::assertSame($originalTitle, $stored->getTitle());
+        self::assertSame(HikeDraftStatus::Draft, $stored->getStatus());
+        self::assertSame($editorialDestination->getId(), $stored->getDestination()?->getId());
+        self::assertNull($stored->getGeographicDestination());
+        self::assertNull($stored->getNotes());
+        self::assertNull($stored->getFinishedAt());
     }
 
     public function testStudioManualLocationValidationUpdatesEditorialAndGeographicDestination(): void

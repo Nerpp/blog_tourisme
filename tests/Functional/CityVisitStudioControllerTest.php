@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\CityVisitDraftMedia;
+use App\Entity\CityVisitDraft;
 use App\Entity\Destination;
 use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
@@ -355,6 +356,92 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         $client->request('GET', sprintf('/destinations/%s', $beziers->getSlug()));
         self::assertResponseIsSuccessful();
         self::assertStringNotContainsString($title, $client->getResponse()->getContent() ?: '');
+    }
+
+    public function testPublishedCityVisitCanReturnToDraftWithoutLosingItsGeographicLocationOrPoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $communeCode = strtoupper(substr($this->uniqueToken('city-draft'), 0, 18));
+        $geographicDestination = $this->createDestination('Commune visite retour brouillon', DestinationType::City, code: $communeCode);
+        $cityVisit = $this->createPublishedCityVisit($admin, $geographicDestination);
+        $cityVisit
+            ->setGeographicDestination($geographicDestination)
+            ->setDetectedCommuneName('Commune visite retour brouillon')
+            ->setDetectedCommuneCode($communeCode);
+        $point = $this->createCityVisitPoint($cityVisit, 43.1234, 3.5678);
+        $finishedAt = $cityVisit->getFinishedAt();
+        $this->persistAndFlush($cityVisit);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => $cityVisit->getTitle(),
+            'destination' => (string) $geographicDestination->getId(),
+            'status' => CityVisitDraftStatus::Draft->value,
+            'detectedCommuneName' => '',
+            'detectedCommuneCode' => '',
+            'notes' => 'Retour en préparation.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#section-publication', $cityVisit->getId()));
+        $cityVisit = $this->refresh($cityVisit);
+        $point = $this->refresh($point);
+        self::assertSame(CityVisitDraftStatus::Draft, $cityVisit->getStatus());
+        self::assertSame($geographicDestination->getId(), $cityVisit->getDestination()?->getId());
+        self::assertSame($geographicDestination->getId(), $cityVisit->getGeographicDestination()?->getId());
+        self::assertSame('Commune visite retour brouillon', $cityVisit->getDetectedCommuneName());
+        self::assertSame(43.1234, $point->getLatitude());
+        self::assertSame(3.5678, $point->getLongitude());
+        self::assertSame($finishedAt?->getTimestamp(), $cityVisit->getFinishedAt()?->getTimestamp());
+        self::assertSame('Retour en préparation.', $cityVisit->getDestination()?->getDescription());
+    }
+
+    public function testIncompleteCityVisitGpsRefusesPublicationWithoutPersistingPartialChanges(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $editorialDestination = $this->createDestination('Destination visite avant erreur');
+        $cityVisit = $this->createCityVisitDraft($admin, $editorialDestination);
+        $originalTitle = (string) $cityVisit->getTitle();
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Titre visite qui ne doit pas être persisté',
+            'destination' => (string) $editorialDestination->getId(),
+            'status' => CityVisitDraftStatus::Finished->value,
+            'detectedCommuneName' => 'Commune visite incomplète',
+            'detectedCommuneCode' => strtoupper(substr($this->uniqueToken('city-error'), 0, 18)),
+            'detectedDepartmentName' => 'Département test',
+            'detectedRegionName' => 'Région test',
+            'locationLatitude' => '43.1234',
+            'locationLongitude' => '',
+            'notes' => 'Notes qui ne doivent pas être persistées.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#section-publication', $cityVisit->getId()));
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'Le point GPS doit contenir une latitude et une longitude valides.',
+            (string) $client->getResponse()->getContent(),
+        );
+
+        $this->entityManager()->clear();
+        $stored = $this->entityManager()->find(CityVisitDraft::class, $cityVisit->getId());
+        self::assertInstanceOf(CityVisitDraft::class, $stored);
+        self::assertSame($originalTitle, $stored->getTitle());
+        self::assertSame(CityVisitDraftStatus::Draft, $stored->getStatus());
+        self::assertSame($editorialDestination->getId(), $stored->getDestination()?->getId());
+        self::assertNull($stored->getGeographicDestination());
+        self::assertNull($stored->getNotes());
+        self::assertNull($stored->getFinishedAt());
+        self::assertNull($stored->getDestination()?->getDescription());
     }
 
     private function removeGeneratedMediaFiles(MediaAsset $media): void
