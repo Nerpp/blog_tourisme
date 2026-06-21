@@ -303,6 +303,74 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         self::assertStringContainsString('erreur', $errorTester->getDisplay());
     }
 
+    public function testSanitizeMetadataSecondRunSkipsAlreadyCleanedImageWithoutRewritingIt(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 48, 24);
+        file_put_contents($source, '<x:xmpmeta>idempotent metadata</x:xmpmeta>', FILE_APPEND);
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setTitle('Commande sanitize idempotente')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+        $this->persist($media);
+
+        $firstTester = $this->commandTester('app:media:sanitize-metadata');
+        $firstStatus = $firstTester->execute(['--id' => (string) $media->getId()]);
+
+        self::assertSame(Command::SUCCESS, $firstStatus);
+        self::assertStringContainsString('1 nettoyé(s)', $firstTester->getDisplay());
+        self::assertStringNotContainsString('<x:xmpmeta>', file_get_contents($source) ?: '');
+        $cleanHash = hash_file('sha256', $source);
+
+        $secondTester = $this->commandTester('app:media:sanitize-metadata');
+        $secondStatus = $secondTester->execute(['--id' => (string) $media->getId()]);
+
+        self::assertSame(Command::SUCCESS, $secondStatus);
+        self::assertStringContainsString('0 nettoyé(s), 1 ignoré(s)', $secondTester->getDisplay());
+        self::assertSame($cleanHash, hash_file('sha256', $source));
+    }
+
+    public function testSanitizeMetadataCollectsNestedVariantPathsOnce(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 60, 30);
+        $thumbnail = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 40, 20);
+        $variant = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 30, 15);
+        array_push($this->files, $source, $thumbnail, $variant);
+        $sourcePath = TestImageFactory::publicPathFor($source);
+        $thumbnailPath = TestImageFactory::publicPathFor($thumbnail);
+        $variantPath = TestImageFactory::publicPathFor($variant);
+        $media = (new MediaAsset())
+            ->setTitle('Commande sanitize variantes')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath($sourcePath)
+            ->setThumbnailPath($thumbnailPath)
+            ->setVariants([
+                'thumb' => ['fallback' => $thumbnailPath],
+                'medium' => [
+                    'fallback' => $variantPath,
+                    'duplicateSource' => $sourcePath,
+                ],
+                'external' => 'https://example.test/image.jpg',
+            ]);
+        $this->persist($media);
+
+        $tester = $this->commandTester('app:media:sanitize-metadata');
+        $status = $tester->execute([
+            '--id' => (string) $media->getId(),
+            '--dry-run' => true,
+            '--force' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $status);
+        self::assertStringContainsString('Rapport : 3 analysé(s), 3 nettoyé(s), 0 ignoré(s), 0 erreur(s).', $tester->getDisplay());
+        self::assertSame(1, substr_count($tester->getDisplay(), $sourcePath.' serait nettoyé'));
+        self::assertSame(1, substr_count($tester->getDisplay(), $thumbnailPath.' serait nettoyé'));
+        self::assertSame(1, substr_count($tester->getDisplay(), $variantPath.' serait nettoyé'));
+        self::assertStringNotContainsString('https://example.test/image.jpg', $tester->getDisplay());
+    }
+
     public function testSeoFillDryRunThenForceUpdatesTechnicalTextForScopedHikeMedia(): void
     {
         $user = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
