@@ -47,6 +47,27 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         }
     }
 
+    public function testDownsizesLargeImageAndRegeneratesStableVariantPaths(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 800, 400);
+        $this->files[] = $source;
+        $generator = $this->generator();
+
+        $first = $generator->generate(TestImageFactory::publicPathFor($source), 'stable-large-image');
+        $second = $generator->generate(TestImageFactory::publicPathFor($source), 'stable-large-image');
+
+        self::assertSame(600, $first['thumb']['width']);
+        self::assertSame(300, $first['thumb']['height']);
+        self::assertSame(800, $first['medium']['width']);
+        self::assertSame(400, $first['medium']['height']);
+        self::assertSame($first['thumb']['fallback'], $second['thumb']['fallback']);
+        self::assertSame($first['medium']['fallback'], $second['medium']['fallback']);
+        self::assertSame($first['large']['fallback'], $second['large']['fallback']);
+        $this->assertPublicImage($second['thumb']['fallback'], 'image/jpeg', 600, 300);
+        $this->assertPublicImage($second['medium']['fallback'], 'image/jpeg', 800, 400);
+        $this->assertPublicImage($second['large']['fallback'], 'image/jpeg', 800, 400);
+    }
+
     public function testReportsSupportedFormatsAndMimeTypes(): void
     {
         $generator = $this->generator();

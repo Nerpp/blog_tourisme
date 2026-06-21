@@ -45,6 +45,22 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->trackVariantFiles($media->getVariants());
     }
 
+    public function testGenerationPreservesExistingThumbnailPath(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setFilePath(TestImageFactory::publicPathFor($source))
+            ->setThumbnailPath('/uploads/media/manual-thumbnail.jpg');
+
+        $result = $this->mediaVariantService()->generateForMedia($media);
+
+        self::assertSame('generated', $result['status']);
+        self::assertSame('/uploads/media/manual-thumbnail.jpg', $media->getThumbnailPath());
+        $this->trackVariantFiles($media->getVariants());
+    }
+
     public function testReportsSupportedOutputFormatsAndMediaSupportRules(): void
     {
         $service = $this->mediaVariantService();
@@ -205,6 +221,27 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertSame('skipped', $this->mediaVariantService()->generateForMedia($externalVideo)['status']);
     }
 
+    public function testCorruptLocalImageReturnsControlledErrorWithoutVariants(): void
+    {
+        $source = TestImageFactory::createTextFile(
+            TestImageFactory::publicMediaDirectory(),
+            'jpg',
+            'not a real image',
+        );
+        $this->files[] = $source;
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setMimeType('image/jpeg')
+            ->setFilePath(TestImageFactory::publicPathFor($source));
+
+        $result = $this->mediaVariantService()->generateForMedia($media);
+
+        self::assertSame('error', $result['status']);
+        self::assertFalse($result['generated']);
+        self::assertStringContainsString('image source est illisible', (string) $result['message']);
+        self::assertNull($media->getVariants());
+    }
+
     public function testGeneratesPosterVariantsForVideoWithLocalThumbnail(): void
     {
         $poster = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 100, 50);
@@ -264,6 +301,35 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertNull($media->getFilePath());
         self::assertIsArray($media->getMetadata());
         self::assertSame(TestImageFactory::publicPathFor($source), $media->getMetadata()['deletedPublicMasterPath']);
+
+        $secondResult = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
+
+        self::assertFalse($secondResult['deleted']);
+        self::assertTrue($secondResult['skipped']);
+        self::assertSame('chemin maître absent ou non supprimable', $secondResult['reason']);
+    }
+
+    public function testCleanupSkipsAlreadyMissingMasterAfterValidVariantValidation(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $publicPath = TestImageFactory::publicPathFor($source);
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath($publicPath);
+
+        $this->mediaVariantService()->generateForMedia($media);
+        $this->trackVariantFiles($media->getVariants());
+        unlink($source);
+
+        $result = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
+
+        self::assertFalse($result['deleted']);
+        self::assertTrue($result['skipped']);
+        self::assertSame('fichier maître déjà absent', $result['reason']);
+        self::assertSame($publicPath, $media->getFilePath());
+        self::assertNull($media->getMetadata());
     }
 
     public function testCleanupSkipsSpecialImageTypes(): void
