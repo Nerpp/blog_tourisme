@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\RouterInterface;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 
@@ -162,6 +163,52 @@ final class GoogleAuthenticatorTest extends TestCase
         self::assertSame('/login', $response->headers->get('Location'));
         self::assertSame(
             ['La connexion Google a échoué. Réessayez ou utilisez votre mot de passe.'],
+            $session->getFlashBag()->peek('error'),
+        );
+    }
+
+    public function testAuthenticationSuccessUsesSavedTargetOrProfileFallback(): void
+    {
+        $router = $this->createMock(RouterInterface::class);
+        $router->expects(self::once())->method('generate')->with('app_profile')->willReturn('/profile');
+        $authenticator = $this->authenticator(router: $router);
+        $token = $this->createStub(TokenInterface::class);
+
+        $targetRequest = new Request();
+        $targetSession = new Session(new MockArraySessionStorage());
+        $targetSession->set('_security.main.target_path', '/destination-privee');
+        $targetRequest->setSession($targetSession);
+
+        $defaultRequest = new Request();
+        $defaultRequest->setSession(new Session(new MockArraySessionStorage()));
+
+        self::assertSame(
+            '/destination-privee',
+            $authenticator->onAuthenticationSuccess($targetRequest, $token, 'main')->headers->get('Location'),
+        );
+        self::assertSame(
+            '/profile',
+            $authenticator->onAuthenticationSuccess($defaultRequest, $token, 'main')->headers->get('Location'),
+        );
+    }
+
+    public function testAuthenticationFailureDisplaysExplicitSafeUserMessage(): void
+    {
+        $router = $this->createMock(RouterInterface::class);
+        $router->expects(self::once())->method('generate')->with('app_login')->willReturn('/login');
+        $authenticator = $this->authenticator(router: $router);
+        $request = new Request();
+        $session = new Session(new MockArraySessionStorage(), null, new FlashBag());
+        $request->setSession($session);
+
+        $response = $authenticator->onAuthenticationFailure(
+            $request,
+            new CustomUserMessageAuthenticationException('Votre email doit être vérifié par Google.'),
+        );
+
+        self::assertSame('/login', $response->headers->get('Location'));
+        self::assertSame(
+            ['Votre email doit être vérifié par Google.'],
             $session->getFlashBag()->peek('error'),
         );
     }
