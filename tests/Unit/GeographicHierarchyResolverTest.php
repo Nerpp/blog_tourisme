@@ -133,6 +133,22 @@ final class GeographicHierarchyResolverTest extends TestCase
         self::assertSame('bors-16052', $existing->getSlug());
     }
 
+    public function testRepeatedResolutionBeforeFlushReusesTheWholeHierarchy(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $resolver = $this->createResolver($database, $scheduled);
+
+        $first = $resolver->resolveCommune('Nyer', '66124', 'Pyrénées-Orientales', 'Occitanie');
+        $second = $resolver->resolveCommune('Nyer', '66124', 'Pyrénées-Orientales', 'Occitanie');
+
+        self::assertInstanceOf(Destination::class, $first);
+        self::assertSame($first, $second);
+        self::assertCount(4, $scheduled);
+        self::assertSame($first->getParent(), $second->getParent());
+        self::assertNoDuplicateSlugs($scheduled);
+    }
+
     public function testBlankCommuneNameReturnsNullWithoutSchedulingDestination(): void
     {
         $database = [];
@@ -159,6 +175,53 @@ final class GeographicHierarchyResolverTest extends TestCase
         self::assertSame(DestinationType::Country, $country->getType());
         self::assertSame('France', $country->getName());
         self::assertSame('FR', $country->getCode());
+    }
+
+    /**
+     * @return iterable<string, array{
+     *     departmentName: string|null,
+     *     regionName: string|null,
+     *     expectedParentType: DestinationType,
+     *     expectedGrandparentType: DestinationType
+     * }>
+     */
+    public static function partialHierarchyProvider(): iterable
+    {
+        yield 'region without department' => [
+            'departmentName' => null,
+            'regionName' => 'Occitanie',
+            'expectedParentType' => DestinationType::Region,
+            'expectedGrandparentType' => DestinationType::Country,
+        ];
+
+        yield 'department without region' => [
+            'departmentName' => 'Pyrénées-Orientales',
+            'regionName' => null,
+            'expectedParentType' => DestinationType::Department,
+            'expectedGrandparentType' => DestinationType::Country,
+        ];
+    }
+
+    #[DataProvider('partialHierarchyProvider')]
+    public function testPartialHierarchyAttachesCommuneToTheAvailableLevel(
+        ?string $departmentName,
+        ?string $regionName,
+        DestinationType $expectedParentType,
+        DestinationType $expectedGrandparentType,
+    ): void {
+        $database = [];
+        $scheduled = [];
+        $resolver = $this->createResolver($database, $scheduled);
+
+        $commune = $resolver->resolveCommune('Nyer', '66124', $departmentName, $regionName);
+
+        self::assertInstanceOf(Destination::class, $commune);
+        $parent = $commune->getParent();
+        self::assertInstanceOf(Destination::class, $parent);
+        self::assertSame($expectedParentType, $parent->getType());
+        $grandparent = $parent->getParent();
+        self::assertInstanceOf(Destination::class, $grandparent);
+        self::assertSame($expectedGrandparentType, $grandparent->getType());
     }
 
     public function testCommuneWithDifferentInseeCodeIsNotReusedByName(): void

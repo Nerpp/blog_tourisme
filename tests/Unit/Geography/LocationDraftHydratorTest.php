@@ -230,6 +230,64 @@ final class LocationDraftHydratorTest extends TestCase
         self::assertCount(0, $draft->getPoints());
     }
 
+    public function testHydrateCityVisitDraftWithoutGpsDoesNotOverwriteExistingPoint(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $hydrator = $this->createHydrator($database, $scheduled);
+        $draft = new CityVisitDraft();
+        $point = (new CityVisitPoint())
+            ->setType(CityVisitPointType::Start)
+            ->setTitle('Départ existant')
+            ->setPosition(1)
+            ->setLatitude(41.5)
+            ->setLongitude(2.5)
+            ->setAccuracy(3.0)
+            ->setDetectedCommuneName('Ancienne commune')
+            ->setDetectedCommuneCode('00000');
+        $draft->addPoint($point);
+
+        $hydrator->hydrateCityVisitDraft($draft, [
+            'communeName' => 'Céret',
+            'communeInseeCode' => '66049',
+            'departmentName' => 'Pyrénées-Orientales',
+            'regionName' => 'Occitanie',
+        ]);
+
+        self::assertCount(1, $draft->getPoints());
+        self::assertSame(41.5, $point->getLatitude());
+        self::assertSame(2.5, $point->getLongitude());
+        self::assertSame(3.0, $point->getAccuracy());
+        self::assertSame('Ancienne commune', $point->getDetectedCommuneName());
+        self::assertSame('00000', $point->getDetectedCommuneCode());
+        self::assertSame('Céret', $draft->getDetectedCommuneName());
+        self::assertSame('66049', $draft->getDetectedCommuneCode());
+    }
+
+    public function testHydrateHikeDraftRejectsIncompleteGpsCoordinatesBeforeMutation(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $hydrator = $this->createHydrator($database, $scheduled);
+        $draft = (new HikeDraft())->setDetectedCommuneName('Commune existante');
+
+        try {
+            $hydrator->hydrateHikeDraft($draft, [
+                'communeName' => 'Nyer',
+                'communeInseeCode' => '66124',
+                'latitude' => '42.542',
+            ]);
+            self::fail('Une longitude GPS manquante doit interrompre l’hydratation.');
+        } catch (LocationDraftHydrationException $exception) {
+            self::assertSame('Le point GPS doit contenir une latitude et une longitude valides.', $exception->getMessage());
+        }
+
+        self::assertSame('Commune existante', $draft->getDetectedCommuneName());
+        self::assertNull($draft->getGeographicDestination());
+        self::assertCount(0, $draft->getPoints());
+        self::assertSame([], $scheduled);
+    }
+
     /**
      * @param list<Destination> $database
      * @param list<Destination> $scheduled
