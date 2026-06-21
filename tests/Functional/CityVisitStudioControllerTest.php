@@ -221,6 +221,129 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertNotNull($cityVisit->getFinishedAt());
     }
 
+    public function testCityVisitDraftWithoutLocationCanBeSaved(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Brouillon visite incomplet',
+            'destination' => '',
+            'status' => CityVisitDraftStatus::Draft->value,
+            'detectedCommuneName' => '',
+            'detectedCommuneCode' => '',
+            'notes' => 'Notes conservées sans localisation.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#section-publication', $cityVisit->getId()));
+        $cityVisit = $this->refresh($cityVisit);
+        self::assertSame('Brouillon visite incomplet', $cityVisit->getTitle());
+        self::assertSame(CityVisitDraftStatus::Draft, $cityVisit->getStatus());
+        self::assertSame('Notes conservées sans localisation.', $cityVisit->getNotes());
+        self::assertNull($cityVisit->getDestination());
+        self::assertNull($cityVisit->getGeographicDestination());
+        self::assertNull($cityVisit->getFinishedAt());
+    }
+
+    public function testCityVisitPublicationWithoutValidatedLocationIsRefusedButOtherDraftChangesAreSaved(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Visite prête sauf localisation',
+            'destination' => '',
+            'status' => CityVisitDraftStatus::Finished->value,
+            'detectedCommuneName' => '',
+            'detectedCommuneCode' => '',
+            'notes' => 'Contenu éditorial sauvegardé.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#section-publication', $cityVisit->getId()));
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'Sélectionnez une commune valide dans les propositions avant de publier.',
+            (string) $client->getResponse()->getContent(),
+        );
+
+        $cityVisit = $this->refresh($cityVisit);
+        self::assertSame('Visite prête sauf localisation', $cityVisit->getTitle());
+        self::assertSame('Contenu éditorial sauvegardé.', $cityVisit->getNotes());
+        self::assertSame(CityVisitDraftStatus::Draft, $cityVisit->getStatus());
+        self::assertNull($cityVisit->getDestination());
+        self::assertNull($cityVisit->getGeographicDestination());
+        self::assertNull($cityVisit->getFinishedAt());
+    }
+
+    public function testPartialCityVisitCommuneWarnsAndPreservesExistingLocation(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $existingCode = strtoupper(substr($this->uniqueToken('city-existing'), 0, 18));
+        $geographicDestination = $this->createDestination(
+            'Commune visite existante',
+            DestinationType::City,
+            code: $existingCode,
+        );
+        $geographicDestination->setDescription('Description géographique existante.');
+        $cityVisit = $this->createCityVisitDraft($admin, $geographicDestination);
+        $cityVisit
+            ->setGeographicDestination($geographicDestination)
+            ->setDetectedCommuneName('Commune visite existante')
+            ->setDetectedCommuneCode($existingCode);
+        $point = $this->createCityVisitPoint($cityVisit, 43.4455, 3.6677);
+        $this->persistAndFlush($geographicDestination, $cityVisit);
+        $destinationCount = $this->entityManager()->getRepository(Destination::class)->count([]);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Brouillon visite modifié avec commune partielle',
+            'destination' => '',
+            'status' => CityVisitDraftStatus::Finished->value,
+            'detectedCommuneName' => 'Commune visite partielle',
+            'detectedCommuneCode' => '',
+            'locationLatitude' => '48.0000',
+            'locationLongitude' => '3.0000',
+            'notes' => 'Notes non géographiques conservées.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#section-publication', $cityVisit->getId()));
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'Sélectionnez une commune valide dans les propositions avant de publier.',
+            (string) $client->getResponse()->getContent(),
+        );
+
+        $cityVisit = $this->refresh($cityVisit);
+        $point = $this->refresh($point);
+        self::assertSame('Brouillon visite modifié avec commune partielle', $cityVisit->getTitle());
+        self::assertSame('Notes non géographiques conservées.', $cityVisit->getNotes());
+        self::assertSame(CityVisitDraftStatus::Draft, $cityVisit->getStatus());
+        self::assertSame($geographicDestination->getId(), $cityVisit->getDestination()?->getId());
+        self::assertSame($geographicDestination->getId(), $cityVisit->getGeographicDestination()?->getId());
+        self::assertSame('Commune visite existante', $cityVisit->getDetectedCommuneName());
+        self::assertSame($existingCode, $cityVisit->getDetectedCommuneCode());
+        self::assertSame(43.4455, $point->getLatitude());
+        self::assertSame(3.6677, $point->getLongitude());
+        self::assertSame('Description géographique existante.', $cityVisit->getDestination()?->getDescription());
+        self::assertSame($destinationCount, $this->entityManager()->getRepository(Destination::class)->count([]));
+    }
+
     public function testStudioCityVisitLocationPickerCreatesCommuneAndPrimaryPoint(): void
     {
         $client = static::createClient();

@@ -89,7 +89,7 @@ final class CityVisitStudioController extends AbstractController
             $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
 
             try {
-                $this->updateDraftFromRequest($cityVisitDraft, $request);
+                $locationIsValid = $this->updateDraftFromRequest($cityVisitDraft, $request);
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
 
@@ -102,8 +102,9 @@ final class CityVisitStudioController extends AbstractController
             $this->entityManager->flush();
             $this->notifyNewPublication($cityVisitDraft, $shouldNotifyPublication);
 
-
-            $this->addFlash('success', 'La visite de ville rapide a été enregistrée.');
+            if ($locationIsValid) {
+                $this->addFlash('success', 'La visite de ville rapide a été enregistrée.');
+            }
 
             return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
         }
@@ -461,23 +462,23 @@ final class CityVisitStudioController extends AbstractController
         ]);
     }
 
-    private function updateDraftFromRequest(CityVisitDraft $cityVisitDraft, Request $request): void
+    private function updateDraftFromRequest(CityVisitDraft $cityVisitDraft, Request $request): bool
     {
+        $previousStatus = $cityVisitDraft->getStatus();
         $title = $this->truncate($request->request->getString('title'), 180);
         if ($title !== '') {
             $cityVisitDraft->setTitle($title);
         }
 
         $destinationId = $this->nullableInt($request->request->get('destination'));
-        $hasSelectedCommune = $this->requestHasSelectedCommune($request);
+        $communeSelection = $this->communeSelectionState($request);
         $notes = $this->nullIfBlank($request->request->getString('notes'));
         $status = CityVisitDraftStatus::tryFrom($request->request->getString('status')) ?? $cityVisitDraft->getStatus();
 
-        $cityVisitDraft
-            ->setStatus($status)
-            ->setNotes($notes);
+        $cityVisitDraft->setNotes($notes);
+        $locationIsValid = true;
 
-        if ($hasSelectedCommune) {
+        if ($communeSelection === 'complete') {
             $this->locationDraftHydrator->hydrateCityVisitDraft(
                 $cityVisitDraft,
                 $this->locationDraftHydrator->dataFromRequest($request),
@@ -487,26 +488,68 @@ final class CityVisitStudioController extends AbstractController
             if ($geographicDestination instanceof Destination) {
                 $cityVisitDraft->setDestination($geographicDestination);
             }
+        } elseif ($communeSelection === 'partial') {
+            $locationIsValid = false;
         } else {
             $cityVisitDraft->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null);
         }
 
+        if ($this->isPublicStatus($status) && $communeSelection === 'partial') {
+            $status = $previousStatus;
+            $locationIsValid = false;
+            $this->addFlash('error', 'Sélectionnez une commune valide dans les propositions avant de publier.');
+        } elseif ($this->isPublicStatus($status) && !$this->hasValidatedGeographicLocation($cityVisitDraft)) {
+            $status = $previousStatus;
+            $locationIsValid = false;
+            $this->addFlash('error', 'Sélectionnez une commune valide dans les propositions avant de publier.');
+        } elseif ($communeSelection === 'partial') {
+            $this->addFlash('warning', 'Sélectionnez une commune complète dans les propositions avant d’enregistrer la localisation.');
+        }
+
+        $cityVisitDraft->setStatus($status);
         if ($this->isPublicStatus($status) && $cityVisitDraft->getFinishedAt() === null) {
             $cityVisitDraft->setFinishedAt(new DateTimeImmutable());
         }
 
         $destination = $cityVisitDraft->getDestination();
-        if ($destination instanceof Destination) {
+        if ($communeSelection !== 'partial' && $destination instanceof Destination) {
             $destination->setDescription($notes);
         }
+
+        return $locationIsValid;
     }
 
-    private function requestHasSelectedCommune(Request $request): bool
+    private function communeSelectionState(Request $request): string
     {
         $commune = trim($request->request->getString('detectedCommuneName'));
         $insee = trim($request->request->getString('detectedCommuneCode'));
 
-        return $commune !== '' && $insee !== '';
+        if ($commune === '' && $insee === '') {
+            return 'absent';
+        }
+
+        return $commune !== '' && $insee !== '' ? 'complete' : 'partial';
+    }
+
+    private function hasValidatedGeographicLocation(CityVisitDraft $cityVisitDraft): bool
+    {
+        $destination = $cityVisitDraft->getGeographicDestination();
+        if (
+            !$destination instanceof Destination
+            || $destination->getType() !== DestinationType::City
+            || trim((string) $destination->getName()) === ''
+            || trim((string) $destination->getCode()) === ''
+        ) {
+            return false;
+        }
+
+        $communeName = trim((string) $cityVisitDraft->getDetectedCommuneName());
+        $communeCode = trim((string) $cityVisitDraft->getDetectedCommuneCode());
+
+        return $communeName !== ''
+            && $communeCode !== ''
+            && $communeName === trim((string) $destination->getName())
+            && $communeCode === trim((string) $destination->getCode());
     }
 
     private function isPublicStatus(CityVisitDraftStatus $status): bool

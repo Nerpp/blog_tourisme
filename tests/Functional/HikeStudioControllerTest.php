@@ -10,6 +10,7 @@ use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class HikeStudioControllerTest extends FunctionalTestCase
 {
@@ -227,6 +228,157 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertSame('66053', $hike->getGeographicDestination()->getCode());
         self::assertSame($hike->getGeographicDestination()->getId(), $hike->getDestination()?->getId());
         self::assertNotNull($hike->getFinishedAt());
+    }
+
+    public function testDraftWithoutLocationCanBeSaved(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Brouillon randonnée incomplet',
+            'destination' => '',
+            'status' => HikeDraftStatus::Draft->value,
+            'detectedCommuneName' => '',
+            'detectedCommuneCode' => '',
+            'notes' => 'Notes conservées sans localisation.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $hike = $this->refresh($hike);
+        self::assertSame('Brouillon randonnée incomplet', $hike->getTitle());
+        self::assertSame(HikeDraftStatus::Draft, $hike->getStatus());
+        self::assertSame('Notes conservées sans localisation.', $hike->getNotes());
+        self::assertNull($hike->getDestination());
+        self::assertNull($hike->getGeographicDestination());
+        self::assertNull($hike->getFinishedAt());
+    }
+
+    public function testHikePublicationWithoutValidatedLocationIsRefusedButOtherDraftChangesAreSaved(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Randonnée prête sauf localisation',
+            'destination' => '',
+            'status' => HikeDraftStatus::Finished->value,
+            'detectedCommuneName' => '',
+            'detectedCommuneCode' => '',
+            'notes' => 'Contenu éditorial sauvegardé.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'Sélectionnez une commune valide dans les propositions avant de publier.',
+            (string) $client->getResponse()->getContent(),
+        );
+
+        $hike = $this->refresh($hike);
+        self::assertSame('Randonnée prête sauf localisation', $hike->getTitle());
+        self::assertSame('Contenu éditorial sauvegardé.', $hike->getNotes());
+        self::assertSame(HikeDraftStatus::Draft, $hike->getStatus());
+        self::assertNull($hike->getDestination());
+        self::assertNull($hike->getGeographicDestination());
+        self::assertNull($hike->getFinishedAt());
+    }
+
+    /**
+     * @return iterable<string, array{
+     *     communeName: string,
+     *     communeCode: string,
+     *     requestedStatus: HikeDraftStatus,
+     *     expectedMessage: string
+     * }>
+     */
+    public static function partialHikeCommuneProvider(): iterable
+    {
+        yield 'name without INSEE code' => [
+            'communeName' => 'Commune partielle',
+            'communeCode' => '',
+            'requestedStatus' => HikeDraftStatus::Draft,
+            'expectedMessage' => 'Sélectionnez une commune complète dans les propositions avant d’enregistrer la localisation.',
+        ];
+
+        yield 'INSEE code without name during publication' => [
+            'communeName' => '',
+            'communeCode' => '99301',
+            'requestedStatus' => HikeDraftStatus::Finished,
+            'expectedMessage' => 'Sélectionnez une commune valide dans les propositions avant de publier.',
+        ];
+    }
+
+    #[DataProvider('partialHikeCommuneProvider')]
+    public function testPartialHikeCommuneWarnsAndPreservesExistingLocation(
+        string $communeName,
+        string $communeCode,
+        HikeDraftStatus $requestedStatus,
+        string $expectedMessage,
+    ): void {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $existingCode = strtoupper(substr($this->uniqueToken('hike-existing'), 0, 18));
+        $geographicDestination = $this->createDestination(
+            'Commune randonnée existante',
+            DestinationType::City,
+            code: $existingCode,
+        );
+        $hike = $this->createHikeDraft($admin, $geographicDestination);
+        $hike
+            ->setGeographicDestination($geographicDestination)
+            ->setDetectedCommuneName('Commune randonnée existante')
+            ->setDetectedCommuneCode($existingCode);
+        $point = $this->createHikePoint($hike, 42.4455, 2.6677);
+        $this->persistAndFlush($hike);
+        $destinationCount = $this->entityManager()->getRepository(Destination::class)->count([]);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => 'Brouillon randonnée modifié avec commune partielle',
+            'destination' => '',
+            'status' => $requestedStatus->value,
+            'detectedCommuneName' => $communeName,
+            'detectedCommuneCode' => $communeCode,
+            'locationLatitude' => '48.0000',
+            'locationLongitude' => '3.0000',
+            'notes' => 'Notes non géographiques conservées.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            $expectedMessage,
+            (string) $client->getResponse()->getContent(),
+        );
+
+        $hike = $this->refresh($hike);
+        $point = $this->refresh($point);
+        self::assertSame('Brouillon randonnée modifié avec commune partielle', $hike->getTitle());
+        self::assertSame('Notes non géographiques conservées.', $hike->getNotes());
+        self::assertSame(HikeDraftStatus::Draft, $hike->getStatus());
+        self::assertSame($geographicDestination->getId(), $hike->getDestination()?->getId());
+        self::assertSame($geographicDestination->getId(), $hike->getGeographicDestination()?->getId());
+        self::assertSame('Commune randonnée existante', $hike->getDetectedCommuneName());
+        self::assertSame($existingCode, $hike->getDetectedCommuneCode());
+        self::assertSame(42.4455, $point->getLatitude());
+        self::assertSame(2.6677, $point->getLongitude());
+        self::assertSame($destinationCount, $this->entityManager()->getRepository(Destination::class)->count([]));
     }
 
     public function testVerifiedAdminCanUpdateHikePointCoordinatesAndAccuracy(): void

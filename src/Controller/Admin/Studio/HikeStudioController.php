@@ -91,7 +91,7 @@ final class HikeStudioController extends AbstractController
             $wasPublicStatus = $this->isPublicStatus($hikeDraft->getStatus());
 
             try {
-                $this->updateDraftFromRequest($hikeDraft, $request);
+                $locationIsValid = $this->updateDraftFromRequest($hikeDraft, $request);
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
 
@@ -104,7 +104,9 @@ final class HikeStudioController extends AbstractController
             $this->entityManager->flush();
             $this->notifyNewPublication($hikeDraft, $shouldNotifyPublication);
 
-            $this->addFlash('success', 'La randonnée rapide a été enregistrée.');
+            if ($locationIsValid) {
+                $this->addFlash('success', 'La randonnée rapide a été enregistrée.');
+            }
 
             return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
         }
@@ -568,8 +570,9 @@ final class HikeStudioController extends AbstractController
         ]);
     }
 
-    private function updateDraftFromRequest(HikeDraft $hikeDraft, Request $request): void
+    private function updateDraftFromRequest(HikeDraft $hikeDraft, Request $request): bool
     {
+        $previousStatus = $hikeDraft->getStatus();
         $previousTitle = $hikeDraft->getTitle();
         $title = $this->truncate($request->request->getString('title'), 180);
         if ($title !== '' && ($title !== $previousTitle || $this->shouldRefreshHikeSlug($hikeDraft, $title))) {
@@ -578,13 +581,12 @@ final class HikeStudioController extends AbstractController
         }
 
         $destinationId = $this->nullableInt($request->request->get('destination'));
-        $hasSelectedCommune = $this->requestHasSelectedCommune($request);
+        $communeSelection = $this->communeSelectionState($request);
         $status = HikeDraftStatus::tryFrom($request->request->getString('status')) ?? $hikeDraft->getStatus();
-        $hikeDraft
-            ->setStatus($status)
-            ->setNotes($this->nullIfBlank($request->request->getString('notes')));
+        $hikeDraft->setNotes($this->nullIfBlank($request->request->getString('notes')));
+        $locationIsValid = true;
 
-        if ($hasSelectedCommune) {
+        if ($communeSelection === 'complete') {
             $this->locationDraftHydrator->hydrateHikeDraft(
                 $hikeDraft,
                 $this->locationDraftHydrator->dataFromRequest($request),
@@ -594,13 +596,30 @@ final class HikeStudioController extends AbstractController
             if ($geographicDestination instanceof Destination) {
                 $hikeDraft->setDestination($geographicDestination);
             }
+        } elseif ($communeSelection === 'partial') {
+            $locationIsValid = false;
         } else {
             $hikeDraft->setDestination($destinationId !== null ? $this->destinationRepository->find($destinationId) : null);
         }
 
+        if ($this->isPublicStatus($status) && $communeSelection === 'partial') {
+            $status = $previousStatus;
+            $locationIsValid = false;
+            $this->addFlash('error', 'Sélectionnez une commune valide dans les propositions avant de publier.');
+        } elseif ($this->isPublicStatus($status) && !$this->hasValidatedGeographicLocation($hikeDraft)) {
+            $status = $previousStatus;
+            $locationIsValid = false;
+            $this->addFlash('error', 'Sélectionnez une commune valide dans les propositions avant de publier.');
+        } elseif ($communeSelection === 'partial') {
+            $this->addFlash('warning', 'Sélectionnez une commune complète dans les propositions avant d’enregistrer la localisation.');
+        }
+
+        $hikeDraft->setStatus($status);
         if ($this->isPublicStatus($status) && $hikeDraft->getFinishedAt() === null) {
             $hikeDraft->setFinishedAt(new DateTimeImmutable());
         }
+
+        return $locationIsValid;
     }
 
     private function isPublicStatus(HikeDraftStatus $status): bool
@@ -653,12 +672,37 @@ final class HikeStudioController extends AbstractController
         return $badges;
     }
 
-    private function requestHasSelectedCommune(Request $request): bool
+    private function communeSelectionState(Request $request): string
     {
         $commune = trim($request->request->getString('detectedCommuneName'));
         $insee = trim($request->request->getString('detectedCommuneCode'));
 
-        return $commune !== '' && $insee !== '';
+        if ($commune === '' && $insee === '') {
+            return 'absent';
+        }
+
+        return $commune !== '' && $insee !== '' ? 'complete' : 'partial';
+    }
+
+    private function hasValidatedGeographicLocation(HikeDraft $hikeDraft): bool
+    {
+        $destination = $hikeDraft->getGeographicDestination();
+        if (
+            !$destination instanceof Destination
+            || $destination->getType() !== DestinationType::City
+            || trim((string) $destination->getName()) === ''
+            || trim((string) $destination->getCode()) === ''
+        ) {
+            return false;
+        }
+
+        $communeName = trim((string) $hikeDraft->getDetectedCommuneName());
+        $communeCode = trim((string) $hikeDraft->getDetectedCommuneCode());
+
+        return $communeName !== ''
+            && $communeCode !== ''
+            && $communeName === trim((string) $destination->getName())
+            && $communeCode === trim((string) $destination->getCode());
     }
 
     /** @return array<string, string> */
