@@ -36,6 +36,26 @@ final class CommentMentionServiceTest extends TestCase
         self::assertSame([$handle], $service->extractHandles('@'.$handle));
     }
 
+    public function testExtractHandlesRejectsOverlongMentionsWithoutExtractingTheirPrefix(): void
+    {
+        $service = $this->service([]);
+
+        self::assertSame([], $service->extractHandles('@'.str_repeat('a', 81)));
+        self::assertSame([], $service->extractHandles('@'.str_repeat('a', 120)));
+    }
+
+    public function testFindMentionedUsersDoesNotQueryRepositoryForOverlongMention(): void
+    {
+        $repository = $this->createMock(UserRepository::class);
+        $repository
+            ->expects(self::never())
+            ->method('findMentionableUsersByHandles');
+
+        $service = new CommentMentionService($repository, $this->urlGenerator([]));
+
+        self::assertSame([], $service->findMentionedUsers('@'.str_repeat('a', 81)));
+    }
+
     public function testFindMentionedUsersDelegatesNormalizedHandlesToRepository(): void
     {
         $user = (new User())->setEmail('alice@example.test')->setDisplayName('Alice')->setPassword('x');
@@ -56,12 +76,44 @@ final class CommentMentionServiceTest extends TestCase
         $alice = (new User())->setEmail('alice@example.test')->setDisplayName('Alice')->setPassword('x');
         $this->setEntityId($alice, 42);
 
-        $html = $this->service([$alice])->renderHtml('<b>@Alice</b> @missing');
+        $html = $this->service([$alice])->renderHtml('<b>Bonjour</b> @Alice @missing');
 
         self::assertSame(
-            '&lt;b&gt;<a class="comment-mention" href="/profile/42">@Alice</a>&lt;/b&gt; @missing',
+            '&lt;b&gt;Bonjour&lt;/b&gt; <a class="comment-mention" href="/profile/42">@Alice</a> @missing',
             $html,
         );
+    }
+
+    public function testRenderHtmlKeepsOverlongAndHtmlAdjacentMentionsAsEscapedText(): void
+    {
+        $longHandleUser = (new User())
+            ->setEmail('long@example.test')
+            ->setDisplayName(str_repeat('a', 80))
+            ->setPassword('x');
+        $alice = (new User())->setEmail('alice@example.test')->setDisplayName('Alice')->setPassword('x');
+        $this->setEntityId($longHandleUser, 42);
+        $this->setEntityId($alice, 43);
+        $content = '@'.str_repeat('a', 81).' @Alice<script>alert(1)</script>';
+
+        self::assertSame(
+            '@'.str_repeat('a', 81).' @Alice&lt;script&gt;alert(1)&lt;/script&gt;',
+            $this->service([$longHandleUser, $alice])->renderHtml($content),
+        );
+    }
+
+    public function testPunctuationTerminatesValidMention(): void
+    {
+        $alice = (new User())->setEmail('alice@example.test')->setDisplayName('Alice')->setPassword('x');
+        $this->setEntityId($alice, 42);
+        $service = $this->service([$alice]);
+
+        foreach (['.', ',', '!'] as $punctuation) {
+            self::assertSame(['alice'], $service->extractHandles('@Alice'.$punctuation));
+            self::assertSame(
+                '<a class="comment-mention" href="/profile/42">@Alice</a>'.$punctuation,
+                $service->renderHtml('@Alice'.$punctuation),
+            );
+        }
     }
 
     /** @param list<User> $users */

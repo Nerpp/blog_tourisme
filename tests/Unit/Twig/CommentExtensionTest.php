@@ -33,8 +33,8 @@ final class CommentExtensionTest extends TestCase
         $this->setEntityId($alice, 42);
 
         self::assertSame(
-            '&lt;b&gt;<a class="comment-mention" href="/profile/42">@Alice</a>&lt;/b&gt;<br>'."\n".'ligne',
-            $this->extension(mentionService: $this->mentionService([$alice]))->contentHtml('<b>@Alice</b>'."\n".'ligne'),
+            '&lt;b&gt;Bonjour&lt;/b&gt; <a class="comment-mention" href="/profile/42">@Alice</a><br>'."\n".'ligne',
+            $this->extension(mentionService: $this->mentionService([$alice]))->contentHtml('<b>Bonjour</b> @Alice'."\n".'ligne'),
         );
     }
 

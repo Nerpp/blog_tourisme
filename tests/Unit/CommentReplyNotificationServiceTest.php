@@ -53,6 +53,32 @@ final class CommentReplyNotificationServiceTest extends TestCase
         self::assertSame(CommentReplyNotification::KIND_MENTION, $persisted[0]->getKind());
     }
 
+    public function testApprovedCommentDoesNotNotifyUserMatchingPrefixOfOverlongMention(): void
+    {
+        $author = $this->user('author@example.test', 'Author Name', 10);
+        $mentionedUser = $this->user('mentioned@example.test', str_repeat('a', 80), 20);
+        $comment = (new Comment())
+            ->setAuthor($author)
+            ->setStatus(CommentStatus::Approved)
+            ->setContent('@'.str_repeat('a', 81));
+
+        $repository = $this->createMock(CommentReplyNotificationRepository::class);
+        $repository
+            ->expects(self::never())
+            ->method('findOneByRecipientAndComment');
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::never())
+            ->method('persist');
+
+        (new CommentReplyNotificationService(
+            $this->mentionService([$mentionedUser]),
+            $repository,
+            $entityManager,
+        ))->createForApprovedComment($comment);
+    }
+
     /**
      * @param list<User> $users
      */

@@ -8,7 +8,7 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 final class CommentMentionService
 {
-    private const MENTION_PATTERN = '/(?<![\pL\pN_])@([A-Za-z0-9_.-]{2,80})/u';
+    private const MENTION_PATTERN = '/(?<![\pL\pN_])@([A-Za-z0-9][A-Za-z0-9_.-]{0,78}[A-Za-z0-9])(?=$|[\s.,!?;:)\]}])/u';
 
     public function __construct(
         private readonly UserRepository $userRepository,
@@ -32,7 +32,12 @@ final class CommentMentionService
     /** @return list<User> */
     public function findMentionedUsers(string $content): array
     {
-        return $this->userRepository->findMentionableUsersByHandles($this->extractHandles($content));
+        $handles = $this->extractHandles($content);
+        if ($handles === []) {
+            return [];
+        }
+
+        return $this->userRepository->findMentionableUsersByHandles($handles);
     }
 
     public function renderHtml(string $content): string
