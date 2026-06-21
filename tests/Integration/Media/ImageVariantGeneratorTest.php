@@ -12,11 +12,20 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
     /** @var list<string> */
     private array $files = [];
 
+    /** @var list<string> */
+    private array $directories = [];
+
     protected function tearDown(): void
     {
         foreach (array_reverse($this->files) as $file) {
-            if (is_file($file)) {
+            if (is_file($file) || is_link($file)) {
                 @unlink($file);
+            }
+        }
+
+        foreach (array_reverse($this->directories) as $directory) {
+            if (is_dir($directory)) {
+                @rmdir($directory);
             }
         }
 
@@ -94,6 +103,20 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         $this->assertPublicImage($variants['thumb']['fallback'], 'image/png', 64, 32);
     }
 
+    public function testGeneratesVariantsFromNestedMediaDirectory(): void
+    {
+        $directory = TestImageFactory::publicMediaDirectory().'/nested-source';
+        mkdir($directory, 0775, true);
+        $this->directories[] = $directory;
+        $source = TestImageFactory::createJpeg($directory, 72, 36);
+        $this->files[] = $source;
+
+        $variants = $this->generator()->generate('/uploads/media/nested-source/'.basename($source), 'nested-source');
+
+        self::assertSame('image/jpeg', $variants['source']['mimeType']);
+        $this->assertPublicImage($variants['thumb']['fallback'], 'image/jpeg', 72, 36);
+    }
+
     public function testGeneratesVariantsForValidWebp(): void
     {
         if (!function_exists('imagecreatefromwebp')) {
@@ -124,12 +147,61 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         $this->generator()->generate('/uploads/media/missing-variant-source.jpg');
     }
 
-    public function testRejectsExternalSource(): void
+    public function testRejectsExternalSources(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('médias externes');
+        foreach (['http://example.test/photo.jpg', 'https://example.test/photo.jpg'] as $url) {
+            $this->assertSourceRejected($url, 'médias externes');
+        }
+    }
 
-        $this->generator()->generate('https://example.test/photo.jpg');
+    public function testRejectsTraversalWindowsAndPathsOutsideMediaRoot(): void
+    {
+        $outsideSource = TestImageFactory::createJpeg(
+            TestImageFactory::projectDir().'/public/uploads',
+            64,
+            32,
+        );
+        $this->files[] = $outsideSource;
+
+        foreach ([
+            '/uploads/media/../'.basename($outsideSource),
+            '/uploads/media..\\secret.jpg',
+            '/uploads/avatars/photo.jpg',
+            '/etc/passwd',
+            '/var/www/html/.env',
+        ] as $path) {
+            $this->assertSourceRejected($path, 'chemin source média');
+        }
+    }
+
+    public function testRejectsNeighbouringDirectorySharingPublicPrefix(): void
+    {
+        $directory = TestImageFactory::projectDir().'/publicity';
+        if (!is_dir($directory)) {
+            mkdir($directory, 0775, true);
+            $this->directories[] = $directory;
+        }
+        $source = TestImageFactory::createJpeg($directory, 64, 32);
+        $this->files[] = $source;
+
+        $this->assertSourceRejected('/../publicity/'.basename($source), 'chemin source média');
+    }
+
+    public function testRejectsSymlinkToImageOutsideMediaRoot(): void
+    {
+        if (!function_exists('symlink')) {
+            self::markTestSkipped('Symbolic links are not supported.');
+        }
+
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 64, 32);
+        $link = TestImageFactory::publicMediaDirectory().'/outside-'.bin2hex(random_bytes(6)).'.jpg';
+        $this->files[] = $link;
+        $this->files[] = $source;
+        if (!@symlink($source, $link)) {
+            self::markTestSkipped('Symbolic links cannot be created in this environment.');
+        }
+
+        $this->assertSourceRejected('/uploads/media/'.basename($link), 'hors du dossier public');
     }
 
     public function testRejectsSvgAndPhpRenamedAsImage(): void
@@ -164,6 +236,16 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         self::assertSame($width, $imageSize[0]);
         self::assertSame($height, $imageSize[1]);
         self::assertGreaterThan(0, filesize($file));
+    }
+
+    private function assertSourceRejected(string $publicPath, string $message): void
+    {
+        try {
+            $this->generator()->generate($publicPath);
+            self::fail(sprintf('Source path "%s" should have been rejected.', $publicPath));
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString($message, $exception->getMessage());
+        }
     }
 
     private function generator(): ImageVariantGenerator

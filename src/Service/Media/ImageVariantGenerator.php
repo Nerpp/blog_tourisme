@@ -9,6 +9,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 final class ImageVariantGenerator
 {
+    private const PUBLIC_SOURCE_DIRECTORY = '/uploads/media';
     private const PUBLIC_VARIANT_DIRECTORY = '/uploads/media/variants';
     private const JPEG_QUALITY = 92;
     private const WEBP_QUALITY = 90;
@@ -264,17 +265,32 @@ final class ImageVariantGenerator
 
     private function resolvePublicFile(string $publicPath): string
     {
-        if (str_starts_with($publicPath, 'http://') || str_starts_with($publicPath, 'https://')) {
+        if (preg_match('#^https?://#i', $publicPath)) {
             throw new InvalidArgumentException('Les médias externes ne sont pas traités par le pipeline local.');
         }
 
-        $relativePath = ltrim($publicPath, '/');
-        $publicDirectory = $this->parameterBag->get('kernel.project_dir').'/public';
-        $sourceFile = $publicDirectory.'/'.$relativePath;
-        $realPublicDirectory = realpath($publicDirectory);
+        if (
+            !str_starts_with($publicPath, self::PUBLIC_SOURCE_DIRECTORY.'/')
+            || str_contains($publicPath, '..')
+            || str_contains($publicPath, '\\')
+            || str_contains($publicPath, '//')
+            || preg_match('#^[a-z][a-z0-9+.-]*:#i', $publicPath)
+        ) {
+            throw new InvalidArgumentException('Le chemin source média n’est pas autorisé.');
+        }
+
+        $publicDirectory = rtrim((string) $this->parameterBag->get('kernel.project_dir'), '/\\').'/public';
+        $allowedDirectory = $publicDirectory.self::PUBLIC_SOURCE_DIRECTORY;
+        $sourceFile = $publicDirectory.$publicPath;
+        $realAllowedDirectory = realpath($allowedDirectory);
         $realSourceFile = realpath($sourceFile);
 
-        if ($realPublicDirectory === false || $realSourceFile === false || !str_starts_with($realSourceFile, $realPublicDirectory)) {
+        if ($realAllowedDirectory === false || $realSourceFile === false || !is_file($realSourceFile)) {
+            throw new InvalidArgumentException('Le fichier source est introuvable ou hors du dossier public.');
+        }
+
+        $realAllowedDirectory = rtrim($realAllowedDirectory, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        if (!str_starts_with($realSourceFile, $realAllowedDirectory)) {
             throw new InvalidArgumentException('Le fichier source est introuvable ou hors du dossier public.');
         }
 
