@@ -97,6 +97,28 @@ final class CommentModerationServiceTest extends TestCase
         self::assertSame(100, $regularEdited->getSpamScore());
     }
 
+    public function testRegularEditCannotApproveAnyNonPublicStatus(): void
+    {
+        $editor = (new User())->setEmail('user@example.test');
+        $service = $this->service();
+
+        foreach (CommentStatus::cases() as $status) {
+            if ($status === CommentStatus::Approved) {
+                continue;
+            }
+
+            $comment = (new Comment())
+                ->setContent('Contenu sain qui ne doit pas réactiver le commentaire.')
+                ->setStatus($status);
+
+            $service->moderateEdited($comment, $editor, isAdmin: false, previousStatus: $status);
+
+            self::assertSame($status, $comment->getStatus());
+            self::assertNull($comment->getPublishedAt());
+            self::assertNull($comment->getApprovedAt());
+        }
+    }
+
     public function testEmptyAndShortContentReceiveExpectedModerationScores(): void
     {
         $empty = (new Comment())->setContent('   ');

@@ -564,15 +564,6 @@ final class CommentController extends AbstractController
             return 'comment-'.$comment->getId();
         }
 
-        $user = $this->getUser();
-        if (
-            $user instanceof User
-            && $comment->getAuthor()?->getId() === $user->getId()
-            && in_array($comment->getStatus(), [CommentStatus::Pending, CommentStatus::Rejected], true)
-        ) {
-            return 'comment-'.$comment->getId();
-        }
-
         $parent = $comment->getParent();
         if ($parent instanceof Comment && $parent->getId() !== null) {
             return 'comment-'.$parent->getId();

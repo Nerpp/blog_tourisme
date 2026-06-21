@@ -43,6 +43,12 @@ class CommentModerationService
 
     public function moderateEdited(Comment $comment, User $editor, bool $isAdmin, CommentStatus $previousStatus): void
     {
+        if (!$isAdmin && $previousStatus !== CommentStatus::Approved) {
+            $comment->setStatus($previousStatus);
+
+            return;
+        }
+
         [$score, $reasons] = $this->analyze($comment->getContent() ?? '');
         $status = $score >= self::HIGH_SPAM_SCORE && !$isAdmin ? CommentStatus::Spam : CommentStatus::Approved;
 

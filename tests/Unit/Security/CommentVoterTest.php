@@ -13,6 +13,24 @@ use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 
 final class CommentVoterTest extends TestCase
 {
+    public function testEditRequiresOwnerAndApprovedStatus(): void
+    {
+        $owner = $this->user(10);
+        $other = $this->user(20);
+        $comment = (new Comment())->setAuthor($owner);
+        $voter = new CommentVoter();
+
+        foreach (CommentStatus::cases() as $status) {
+            $comment->setStatus($status);
+            $expectedOwnerVote = $status === CommentStatus::Approved
+                ? VoterInterface::ACCESS_GRANTED
+                : VoterInterface::ACCESS_DENIED;
+
+            self::assertSame($expectedOwnerVote, $voter->vote($this->token($owner), $comment, [CommentVoter::EDIT]));
+            self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->token($other), $comment, [CommentVoter::EDIT]));
+        }
+    }
+
     public function testOnlyOwnerCanDeleteCommentThatIsNotAlreadyDeleted(): void
     {
         $owner = $this->user(10);
