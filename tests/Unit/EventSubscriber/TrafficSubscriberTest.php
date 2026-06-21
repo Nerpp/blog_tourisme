@@ -37,6 +37,8 @@ final class TrafficSubscriberTest extends TestCase
         );
         $request->attributes->set('_route', 'app_home');
         $request->attributes->set('page', 2);
+        $request->attributes->set('slug', 'private-route-slug');
+        $request->attributes->set('_route_params', ['page' => 2, 'slug' => 'private-route-slug']);
         $request->attributes->set('object', new \stdClass());
         $request->attributes->set('_traffic_started_at', microtime(true) - 0.01);
 
@@ -47,7 +49,7 @@ final class TrafficSubscriberTest extends TestCase
         self::assertSame('GET', $event->getMethod());
         self::assertSame('/', $event->getPath());
         self::assertSame('app_home', $event->getRouteName());
-        self::assertSame(['page' => 2], $event->getRouteParams());
+        self::assertNull($event->getRouteParams());
         self::assertSame('home', $event->getContentType());
         self::assertSame('Accueil', $event->getContentTitle());
         self::assertSame(200, $event->getStatusCode());
@@ -64,6 +66,35 @@ final class TrafficSubscriberTest extends TestCase
         self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/', (string) $this->property($event, 'userAgentHash'));
         self::assertStringNotContainsString('203.0.113.42', serialize($event));
         self::assertStringNotContainsString($userAgent, serialize($event));
+    }
+
+    public function testIdentifiedBotIsIgnored(): void
+    {
+        $events = [];
+        $subscriber = $this->subscriber($events, 0);
+        $request = Request::create('https://blog.example.test/', 'GET', server: [
+            'HTTP_USER_AGENT' => 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        ]);
+        $request->attributes->set('_route', 'app_home');
+
+        $subscriber->onTerminate($this->terminateEvent($request, $this->htmlResponse()));
+
+        self::assertSame([], $events);
+    }
+
+    public function testAjaxHtmlRequestIsIgnored(): void
+    {
+        $events = [];
+        $subscriber = $this->subscriber($events, 0);
+        $request = Request::create('https://blog.example.test/articles', 'GET', server: [
+            'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest',
+        ]);
+        $request->attributes->set('_route', 'app_article_index');
+
+        $subscriber->onTerminate($this->terminateEvent($request, $this->htmlResponse()));
+
+        self::assertTrue($request->isXmlHttpRequest());
+        self::assertSame([], $events);
     }
 
     public function testVisitorHashIsStableForSameCoarseNetworkAndChangesForAnotherNetwork(): void

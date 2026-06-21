@@ -112,7 +112,12 @@ final class TrafficSubscriber implements EventSubscriberInterface
 
     private function shouldTrack(Request $request, Response $response): bool
     {
-        if (!$request->isMethod('GET') || $this->isPrefetch($request)) {
+        if (
+            !$request->isMethod('GET')
+            || $request->isXmlHttpRequest()
+            || $this->isPrefetch($request)
+            || $this->isBot((string) $request->headers->get('user-agent', ''))
+        ) {
             return false;
         }
 
@@ -158,7 +163,7 @@ final class TrafficSubscriber implements EventSubscriberInterface
             ->setMethod($request->getMethod())
             ->setPath($request->getPathInfo())
             ->setRouteName(is_string($route) ? $route : null)
-            ->setRouteParams($this->routeParams($request))
+            ->setRouteParams(null)
             ->setContentType($content['contentType'])
             ->setContentId($content['contentId'])
             ->setContentTitle($content['contentTitle'])
@@ -177,21 +182,6 @@ final class TrafficSubscriber implements EventSubscriberInterface
 
         $this->entityManager->persist($event);
         $this->entityManager->flush();
-    }
-
-    /** @return array<string, scalar|null>|null */
-    private function routeParams(Request $request): ?array
-    {
-        $params = [];
-        foreach ($request->attributes->all() as $key => $value) {
-            if (str_starts_with($key, '_') || !is_scalar($value)) {
-                continue;
-            }
-
-            $params[$key] = $value;
-        }
-
-        return $params === [] ? null : $params;
     }
 
     private function visitorHash(Request $request, \DateTimeImmutable $date): ?string
