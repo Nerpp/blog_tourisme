@@ -84,7 +84,14 @@ final class PlaceStudioController extends AbstractController
                 return $this->redirectToStudio($place);
             }
 
-            $this->updatePlaceFromRequest($place, $request);
+            try {
+                $this->updatePlaceFromRequest($place, $request);
+            } catch (InvalidArgumentException $exception) {
+                $this->addFlash('error', $exception->getMessage());
+
+                return $this->redirectToStudio($place);
+            }
+
             $this->normalizePlaceCoverImages($place, $this->sortedMediaLinks($place));
             $this->entityManager->flush();
 
@@ -449,6 +456,19 @@ final class PlaceStudioController extends AbstractController
 
     private function updatePlaceFromRequest(Place $place, Request $request): void
     {
+        $latitude = $this->nullableCoordinate(
+            $request->request->get('latitude'),
+            -90,
+            90,
+            'La latitude',
+        );
+        $longitude = $this->nullableCoordinate(
+            $request->request->get('longitude'),
+            -180,
+            180,
+            'La longitude',
+        );
+
         $name = $this->truncate($request->request->getString('name'), 180);
         if ($name !== '') {
             $place->setName($name);
@@ -483,8 +503,8 @@ final class PlaceStudioController extends AbstractController
             ->setShortDescription($this->nullIfBlank($request->request->getString('shortDescription')))
             ->setDescription($this->nullIfBlank($request->request->getString('description')))
             ->setAddress($this->nullIfBlank($request->request->getString('address')))
-            ->setLatitude($this->nullableFloat($request->request->get('latitude')))
-            ->setLongitude($this->nullableFloat($request->request->get('longitude')))
+            ->setLatitude($latitude)
+            ->setLongitude($longitude)
             ->setVisitDurationMinutes($this->nullableInt($request->request->get('visitDurationMinutes')))
             ->setDifficulty(PlaceDifficulty::tryFrom($request->request->getString('difficulty')) ?? PlaceDifficulty::Unknown)
             ->setPriceType(PriceType::tryFrom($request->request->getString('priceType')) ?? PriceType::Unknown)
@@ -833,13 +853,33 @@ final class PlaceStudioController extends AbstractController
         return (int) $value;
     }
 
-    private function nullableFloat(mixed $value): ?float
+    private function nullableCoordinate(mixed $value, float $min, float $max, string $label): ?float
     {
         if ($value === null || trim((string) $value) === '') {
             return null;
         }
 
-        return (float) str_replace(',', '.', (string) $value);
+        $normalizedValue = str_replace(',', '.', trim((string) $value));
+        if (!is_numeric($normalizedValue)) {
+            throw new InvalidArgumentException(sprintf(
+                '%s doit être un nombre valide compris entre %s et %s.',
+                $label,
+                $min,
+                $max,
+            ));
+        }
+
+        $coordinate = (float) $normalizedValue;
+        if (!is_finite($coordinate) || $coordinate < $min || $coordinate > $max) {
+            throw new InvalidArgumentException(sprintf(
+                '%s doit être comprise entre %s et %s.',
+                $label,
+                $min,
+                $max,
+            ));
+        }
+
+        return $coordinate;
     }
 
     private function nullIfBlank(?string $value): ?string

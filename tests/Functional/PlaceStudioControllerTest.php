@@ -10,6 +10,7 @@ use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class PlaceStudioControllerTest extends FunctionalTestCase
 {
@@ -208,6 +209,150 @@ final class PlaceStudioControllerTest extends FunctionalTestCase
         self::assertSame(42.6986, $place->getLatitude());
         self::assertSame(2.8956, $place->getLongitude());
         self::assertSame(45, $place->getVisitDurationMinutes());
+    }
+
+    public function testZeroCoordinatesAreAcceptedAsValidValues(): void
+    {
+        $client = static::createClient();
+        $place = $this->createPlace();
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/places/%d/edit', $place->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => $place->getName(),
+            'slug' => $place->getSlug(),
+            'latitude' => '0',
+            'longitude' => '0',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        $place = $this->refresh($place);
+        self::assertSame(0.0, $place->getLatitude());
+        self::assertSame(0.0, $place->getLongitude());
+    }
+
+    /**
+     * @return iterable<string, array{
+     *     latitude: string,
+     *     longitude: string,
+     *     expectedMessage: string
+     * }>
+     */
+    public static function invalidCoordinateProvider(): iterable
+    {
+        yield 'non numeric latitude' => [
+            'latitude' => 'nord',
+            'longitude' => '2.8956',
+            'expectedMessage' => 'La latitude doit être un nombre valide compris entre -90 et 90.',
+        ];
+
+        yield 'non numeric longitude' => [
+            'latitude' => '42.6986',
+            'longitude' => 'est',
+            'expectedMessage' => 'La longitude doit être un nombre valide compris entre -180 et 180.',
+        ];
+
+        yield 'latitude above range' => [
+            'latitude' => '90.0001',
+            'longitude' => '2.8956',
+            'expectedMessage' => 'La latitude doit être comprise entre -90 et 90.',
+        ];
+
+        yield 'longitude below range' => [
+            'latitude' => '42.6986',
+            'longitude' => '-180.0001',
+            'expectedMessage' => 'La longitude doit être comprise entre -180 et 180.',
+        ];
+
+        yield 'NaN latitude' => [
+            'latitude' => 'NaN',
+            'longitude' => '2.8956',
+            'expectedMessage' => 'La latitude doit être un nombre valide compris entre -90 et 90.',
+        ];
+
+        yield 'infinite longitude' => [
+            'latitude' => '42.6986',
+            'longitude' => 'Infinity',
+            'expectedMessage' => 'La longitude doit être un nombre valide compris entre -180 et 180.',
+        ];
+
+        yield 'overflowing finite latitude' => [
+            'latitude' => '1e309',
+            'longitude' => '2.8956',
+            'expectedMessage' => 'La latitude doit être comprise entre -90 et 90.',
+        ];
+
+        yield 'malformed longitude' => [
+            'latitude' => '42.6986',
+            'longitude' => '2,8,9',
+            'expectedMessage' => 'La longitude doit être un nombre valide compris entre -180 et 180.',
+        ];
+    }
+
+    #[DataProvider('invalidCoordinateProvider')]
+    public function testInvalidCoordinatesAreRejectedWithoutPersistingZeroOrOtherChanges(
+        string $latitude,
+        string $longitude,
+        string $expectedMessage,
+    ): void {
+        $client = static::createClient();
+        $place = $this->createPlace();
+        $originalName = (string) $place->getName();
+        $place
+            ->setLatitude(12.3456)
+            ->setLongitude(67.8901);
+        $this->persistAndFlush($place);
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/places/%d/edit', $place->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => 'Nom qui ne doit pas être persisté',
+            'slug' => 'slug-qui-ne-doit-pas-etre-persiste',
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        $client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($expectedMessage, (string) $client->getResponse()->getContent());
+
+        $place = $this->refresh($place);
+        self::assertSame($originalName, $place->getName());
+        self::assertSame(12.3456, $place->getLatitude());
+        self::assertSame(67.8901, $place->getLongitude());
+        self::assertNotSame(0.0, $place->getLatitude());
+        self::assertNotSame(0.0, $place->getLongitude());
+    }
+
+    public function testBlankCoordinatesClearOptionalCoordinates(): void
+    {
+        $client = static::createClient();
+        $place = $this->createPlace();
+        $place
+            ->setLatitude(42.6986)
+            ->setLongitude(2.8956);
+        $this->persistAndFlush($place);
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/places/%d/edit', $place->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => $place->getName(),
+            'slug' => $place->getSlug(),
+            'latitude' => ' ',
+            'longitude' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        $place = $this->refresh($place);
+        self::assertNull($place->getLatitude());
+        self::assertNull($place->getLongitude());
     }
 
     public function testPublishAndDraftActionsNormalizeDuplicateCovers(): void
