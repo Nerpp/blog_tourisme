@@ -36,16 +36,22 @@ final class CommentRepositoryTest extends IntegrationTestCase
         );
     }
 
-    public function testViewerOnlyGetsOwnPendingAndRejectedRepliesInAdditionToApprovedReplies(): void
+    public function testAuthenticatedAuthorOnlyGetsApprovedRootsAndRepliesIncludingTheirOwn(): void
     {
-        $rootAuthor = $this->createUser();
         $viewer = $this->createUser();
         $otherAuthor = $this->createUser();
-        $article = $this->article($rootAuthor);
-        $root = $this->comment($rootAuthor, $article, CommentStatus::Approved, 'Racine publique avec réponses privées.');
+        $article = $this->article($viewer);
+        $root = $this->comment($viewer, $article, CommentStatus::Approved, 'Racine personnelle publique.');
+        $this->comment($viewer, $article, CommentStatus::Pending, 'Racine personnelle en attente.');
+        $this->comment($viewer, $article, CommentStatus::Rejected, 'Racine personnelle rejetée.');
+        $this->comment($viewer, $article, CommentStatus::Spam, 'Racine personnelle classée comme spam.');
+        $this->comment($viewer, $article, CommentStatus::HiddenPendingReport, 'Racine personnelle signalée et masquée.');
+        $this->comment($viewer, $article, CommentStatus::HiddenByAdmin, 'Racine personnelle masquée par administration.');
+        $this->comment($viewer, $article, CommentStatus::Deleted, 'Racine personnelle supprimée.');
         $approved = $this->reply($otherAuthor, $article, $root, CommentStatus::Approved, 'Réponse publique d’un autre auteur.');
-        $ownPending = $this->reply($viewer, $article, $root, CommentStatus::Pending, 'Réponse personnelle en attente.');
-        $ownRejected = $this->reply($viewer, $article, $root, CommentStatus::Rejected, 'Réponse personnelle rejetée.');
+        $this->reply($viewer, $article, $root, CommentStatus::Pending, 'Réponse personnelle en attente.');
+        $this->reply($viewer, $article, $root, CommentStatus::Rejected, 'Réponse personnelle rejetée.');
+        $this->reply($viewer, $article, $root, CommentStatus::Spam, 'Réponse personnelle classée comme spam.');
         $this->reply($otherAuthor, $article, $root, CommentStatus::Pending, 'Réponse privée d’un autre auteur.');
         $this->reply($viewer, $article, $root, CommentStatus::HiddenPendingReport, 'Réponse personnelle signalée et masquée.');
         $this->reply($viewer, $article, $root, CommentStatus::HiddenByAdmin, 'Réponse personnelle masquée par administration.');
@@ -56,21 +62,13 @@ final class CommentRepositoryTest extends IntegrationTestCase
         $this->entityManager->clear();
 
         $article = $this->findArticle($articleId);
-        $anonymousResults = $this->repository()->findApprovedForArticle($article);
-        self::assertCount(1, $anonymousResults);
-        self::assertSame(
-            [$approved->getId()],
-            array_map(static fn (Comment $comment): ?int => $comment->getId(), $anonymousResults[0]->getChildren()->toArray()),
-        );
-
-        $this->entityManager->clear();
-        $article = $this->findArticle($articleId);
         $viewer = $this->entityManager->find(User::class, $viewerId);
         self::assertInstanceOf(User::class, $viewer);
         $viewerResults = $this->repository()->findApprovedForArticle($article, $viewer);
         self::assertCount(1, $viewerResults);
-        self::assertEqualsCanonicalizing(
-            [$approved->getId(), $ownPending->getId(), $ownRejected->getId()],
+        self::assertSame($root->getId(), $viewerResults[0]->getId());
+        self::assertSame(
+            [$approved->getId()],
             array_map(static fn (Comment $comment): ?int => $comment->getId(), $viewerResults[0]->getChildren()->toArray()),
         );
     }

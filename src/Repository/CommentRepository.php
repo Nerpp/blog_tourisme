@@ -26,7 +26,7 @@ class CommentRepository extends ServiceEntityRepository
     {
         $commentIds = $this->findVisibleRootIds('article', $article, $sort);
 
-        return $this->findVisibleCommentsByRootIds($commentIds, $viewer);
+        return $this->findVisibleCommentsByRootIds($commentIds);
     }
 
     /** @return list<Comment> */
@@ -34,7 +34,7 @@ class CommentRepository extends ServiceEntityRepository
     {
         $commentIds = $this->findVisibleRootIds('place', $place, $sort);
 
-        return $this->findVisibleCommentsByRootIds($commentIds, $viewer);
+        return $this->findVisibleCommentsByRootIds($commentIds);
     }
 
     /** @return list<Comment> */
@@ -249,13 +249,13 @@ class CommentRepository extends ServiceEntityRepository
      * @param list<int> $commentIds
      * @return list<Comment>
      */
-    private function findVisibleCommentsByRootIds(array $commentIds, ?User $viewer): array
+    private function findVisibleCommentsByRootIds(array $commentIds): array
     {
         if ($commentIds === []) {
             return [];
         }
 
-        $comments = $this->createPublicCommentsQueryBuilder($viewer)
+        $comments = $this->createPublicCommentsQueryBuilder()
             ->andWhere('c.id IN (:comment_ids)')
             ->setParameter('comment_ids', $commentIds)
             ->getQuery()
@@ -270,39 +270,23 @@ class CommentRepository extends ServiceEntityRepository
         return $comments;
     }
 
-    private function createPublicCommentsQueryBuilder(?User $viewer): QueryBuilder
+    private function createPublicCommentsQueryBuilder(): QueryBuilder
     {
-        $childVisibility = 'child.status = :approved';
-        $rootVisibility = 'c.status = :approved';
-
-        if ($viewer instanceof User) {
-            $childVisibility = sprintf('(%s) OR (child.author = :viewer AND child.status IN (:owner_statuses))', $childVisibility);
-            $rootVisibility = sprintf('(%s) OR (c.author = :viewer AND c.status IN (:owner_statuses))', $rootVisibility);
-        }
-
-        $queryBuilder = $this->createQueryBuilder('c')
+        return $this->createQueryBuilder('c')
             ->select('DISTINCT c, author, child, child_author')
             ->leftJoin('c.author', 'author')
             ->leftJoin(
                 'c.children',
                 'child',
                 'WITH',
-                $childVisibility,
+                'child.status = :approved',
             )
             ->leftJoin('child.author', 'child_author')
             ->andWhere('c.parent IS NULL')
-            ->andWhere(sprintf('(%s)', $rootVisibility))
+            ->andWhere('c.status = :approved')
             ->setParameter('approved', CommentStatus::Approved)
             ->orderBy('child.publishedAt', 'ASC')
             ->addOrderBy('child.createdAt', 'ASC');
-
-        if ($viewer instanceof User) {
-            $queryBuilder
-                ->setParameter('viewer', $viewer)
-                ->setParameter('owner_statuses', [CommentStatus::Pending, CommentStatus::Rejected]);
-        }
-
-        return $queryBuilder;
     }
 
     private function createModerationQueryBuilder(): QueryBuilder
