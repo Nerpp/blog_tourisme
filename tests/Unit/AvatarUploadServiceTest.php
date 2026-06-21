@@ -115,6 +115,17 @@ final class AvatarUploadServiceTest extends TestCase
         $this->service()->upload(new UploadedFile($path, 'tiny.png', null, null, true));
     }
 
+    public function testAvatarExceedingMaximumDimensionsIsRejected(): void
+    {
+        $this->requireGd(['imagepng']);
+        $path = $this->createImage('too-wide.png', 'png', 6001, 64);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('ne doit pas dépasser 6000 x 6000 px');
+
+        $this->service()->upload(new UploadedFile($path, 'too-wide.png', null, null, true));
+    }
+
     public function testDeleteOnlyRemovesSafeAvatarPaths(): void
     {
         $avatar = $this->workspace.'/public/uploads/avatars/avatar_keep.webp';
