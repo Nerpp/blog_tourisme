@@ -125,9 +125,11 @@ final class PlaceStudioControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
         $place = $this->createPlace();
-        $cover = $this->linkPlaceMedia($place, $this->createImageMedia('Cover lieu supprimée'), MediaRole::Cover, 0);
+        $coverMedia = $this->createImageMedia('Cover lieu supprimée');
+        $cover = $this->linkPlaceMedia($place, $coverMedia, MediaRole::Cover, 0);
         $kept = $this->linkPlaceMedia($place, $this->createImageMedia('Galerie lieu conservée'), MediaRole::Gallery, 1);
         $coverId = $cover->getId();
+        $coverMediaId = $coverMedia->getId();
         $keptId = $kept->getId();
         $client->loginUser($admin);
 
@@ -143,6 +145,7 @@ final class PlaceStudioControllerTest extends FunctionalTestCase
 
         self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
         self::assertNull($this->entityManager()->find(PlaceMedia::class, $coverId));
+        self::assertNotNull($this->entityManager()->find(MediaAsset::class, $coverMediaId));
         self::assertNotNull($this->entityManager()->find(PlaceMedia::class, $keptId));
         $place = $this->refresh($place);
         self::assertNull($place->getFeaturedImage());
@@ -205,5 +208,53 @@ final class PlaceStudioControllerTest extends FunctionalTestCase
         self::assertSame(42.6986, $place->getLatitude());
         self::assertSame(2.8956, $place->getLongitude());
         self::assertSame(45, $place->getVisitDurationMinutes());
+    }
+
+    public function testPublishAndDraftActionsNormalizeDuplicateCovers(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $place = $this->createPlace();
+        $laterCover = $this->linkPlaceMedia($place, $this->createImageMedia('Cover tardive'), MediaRole::Cover, 5);
+        $firstCover = $this->linkPlaceMedia($place, $this->createImageMedia('Cover prioritaire'), MediaRole::Cover, 1);
+        $place->setFeaturedImage($laterCover->getMediaAsset());
+        $this->persistAndFlush($place);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/places/%d/edit', $place->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => $place->getName(),
+            'slug' => $place->getSlug(),
+            'status' => ContentStatus::Draft->value,
+            'action' => 'publish',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        $place = $this->refresh($place);
+        $firstCover = $this->refresh($firstCover);
+        $laterCover = $this->refresh($laterCover);
+        self::assertSame(ContentStatus::Published, $place->getStatus());
+        self::assertNotNull($place->getPublishedAt());
+        self::assertSame(MediaRole::Cover, $firstCover->getRole());
+        self::assertSame(MediaRole::Gallery, $laterCover->getRole());
+        self::assertSame($firstCover->getMediaAsset()?->getId(), $place->getFeaturedImage()?->getId());
+        $publishedAt = $place->getPublishedAt();
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/places/%d/edit', $place->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => $place->getName(),
+            'slug' => $place->getSlug(),
+            'status' => ContentStatus::Published->value,
+            'action' => 'draft',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/places/%d/edit', $place->getId()));
+        $place = $this->refresh($place);
+        self::assertSame(ContentStatus::Draft, $place->getStatus());
+        self::assertSame($publishedAt?->getTimestamp(), $place->getPublishedAt()?->getTimestamp());
     }
 }
