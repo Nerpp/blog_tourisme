@@ -11,6 +11,7 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 final class DronePanoramaUploadService
 {
     private const PUBLIC_DIRECTORY = '/uploads/media/360';
+    private const STAGING_DIRECTORY = '.staging';
     private const MAX_BYTES = BulkMediaUploadService::PANORAMA_MAX_BYTES;
     private const MAX_PIXELS = 80_000_000;
     private const MAX_VIEWER_WIDTH = 8192;
@@ -67,85 +68,138 @@ final class DronePanoramaUploadService
         $originalDirectory = $baseDirectory.'/originals';
         $mobileDirectory = $baseDirectory.'/mobile';
         $thumbnailDirectory = $baseDirectory.'/thumbs';
-        $this->ensureDirectory($baseDirectory);
-        $this->ensureDirectory($originalDirectory);
-        $this->ensureDirectory($mobileDirectory);
-        $this->ensureDirectory($thumbnailDirectory);
-
         $originalFilename = sprintf('%s-original.%s', $uniqueName, $extension);
         $viewerFilename = sprintf('%s.%s', $uniqueName, $extension);
         $mobileFilename = sprintf('%s-mobile.%s', $uniqueName, $extension);
         $thumbnailFilename = sprintf('%s-thumb.%s', $uniqueName, $extension);
 
-        $file->move($originalDirectory, $originalFilename);
-        $originalFile = $originalDirectory.'/'.$originalFilename;
-        $sanitizedOriginal = $this->imageMetadataSanitizer->sanitizePublicPath(
-            self::PUBLIC_DIRECTORY.'/originals/'.$originalFilename,
-            applyOrientation: false,
-        );
-        $sourceWidth = $sanitizedOriginal['width'];
-        $sourceHeight = $sanitizedOriginal['height'];
-        $sourceMimeType = $sanitizedOriginal['mimeType'];
-        $this->assertEquirectangularDimensions($sourceWidth, $sourceHeight);
+        $stagingDirectory = $baseDirectory.'/'.self::STAGING_DIRECTORY;
+        $attemptDirectory = null;
+        $promotedFiles = [];
 
-        $viewerFile = $baseDirectory.'/'.$viewerFilename;
-        $mobileFile = $mobileDirectory.'/'.$mobileFilename;
-        $thumbnailFile = $thumbnailDirectory.'/'.$thumbnailFilename;
+        try {
+            $this->ensureDirectory($baseDirectory);
+            $this->ensureDirectory($stagingDirectory);
+            $this->assertExistingPathInsideDirectory($stagingDirectory, $baseDirectory);
+            $attemptDirectory = $this->createAttemptDirectory($stagingDirectory, $uniqueName);
 
-        $viewerDimensions = $this->createViewerImage(
-            $originalFile,
-            $viewerFile,
-            $sourceMimeType,
-            $sourceWidth,
-            $sourceHeight,
-            self::MAX_VIEWER_WIDTH,
-        );
-        $mobileDimensions = null;
-        if ($sourceWidth > self::MOBILE_VIEWER_WIDTH) {
-            $mobileDimensions = $this->createViewerImage(
-                $originalFile,
-                $mobileFile,
+            $stagedOriginalFile = $attemptDirectory.'/'.$originalFilename;
+            $stagedViewerFile = $attemptDirectory.'/'.$viewerFilename;
+            $stagedMobileFile = $attemptDirectory.'/'.$mobileFilename;
+            $stagedThumbnailFile = $attemptDirectory.'/'.$thumbnailFilename;
+
+            if (!copy($file->getPathname(), $stagedOriginalFile)) {
+                throw new InvalidArgumentException('la copie temporaire de l’image 360° a échoué.');
+            }
+
+            $sanitizedOriginal = $this->imageMetadataSanitizer->sanitizePublicPath(
+                self::PUBLIC_DIRECTORY.'/'.self::STAGING_DIRECTORY.'/'.basename($attemptDirectory).'/'.$originalFilename,
+                applyOrientation: false,
+            );
+            $sourceWidth = $sanitizedOriginal['width'];
+            $sourceHeight = $sanitizedOriginal['height'];
+            $sourceMimeType = $sanitizedOriginal['mimeType'];
+            $this->assertEquirectangularDimensions($sourceWidth, $sourceHeight);
+
+            $viewerDimensions = $this->createViewerImage(
+                $stagedOriginalFile,
+                $stagedViewerFile,
                 $sourceMimeType,
                 $sourceWidth,
                 $sourceHeight,
-                self::MOBILE_VIEWER_WIDTH,
+                self::MAX_VIEWER_WIDTH,
             );
-        }
-        $thumbnailDimensions = $this->createThumbnail(
-            $originalFile,
-            $thumbnailFile,
-            $sourceMimeType,
-            $sourceWidth,
-            $sourceHeight,
-        );
+            $mobileDimensions = null;
+            if ($sourceWidth > self::MOBILE_VIEWER_WIDTH) {
+                $mobileDimensions = $this->createViewerImage(
+                    $stagedOriginalFile,
+                    $stagedMobileFile,
+                    $sourceMimeType,
+                    $sourceWidth,
+                    $sourceHeight,
+                    self::MOBILE_VIEWER_WIDTH,
+                );
+            }
+            $thumbnailDimensions = $this->createThumbnail(
+                $stagedOriginalFile,
+                $stagedThumbnailFile,
+                $sourceMimeType,
+                $sourceWidth,
+                $sourceHeight,
+            );
 
-        return [
-            'title' => $originalTitle,
-            'path' => self::PUBLIC_DIRECTORY.'/'.$viewerFilename,
-            'thumbnailPath' => self::PUBLIC_DIRECTORY.'/thumbs/'.$thumbnailFilename,
-            'mimeType' => $sourceMimeType,
-            'fileSize' => (int) (filesize($viewerFile) ?: $inspection['fileSize']),
-            'width' => $viewerDimensions['width'],
-            'height' => $viewerDimensions['height'],
-            'projection' => 'equirectangular',
-            'metadata' => [
-                'originalPath' => self::PUBLIC_DIRECTORY.'/originals/'.$originalFilename,
-                'originalWidth' => $sourceWidth,
-                'originalHeight' => $sourceHeight,
-                'originalFileSize' => (int) (filesize($originalFile) ?: $inspection['fileSize']),
-                'viewerWidth' => $viewerDimensions['width'],
-                'viewerHeight' => $viewerDimensions['height'],
-                'mobilePath' => $mobileDimensions !== null ? self::PUBLIC_DIRECTORY.'/mobile/'.$mobileFilename : null,
-                'mobileWidth' => $mobileDimensions['width'] ?? null,
-                'mobileHeight' => $mobileDimensions['height'] ?? null,
-                'thumbnailWidth' => $thumbnailDimensions['width'],
-                'thumbnailHeight' => $thumbnailDimensions['height'],
-                'ratio' => round($sourceWidth / $sourceHeight, 4),
-                'quality' => 'high',
-                'source' => 'drone_panorama_upload',
-                'metadataSanitized' => true,
-            ],
-        ];
+            $viewerFileSize = (int) (filesize($stagedViewerFile) ?: $inspection['fileSize']);
+            $originalFileSize = (int) (filesize($stagedOriginalFile) ?: $inspection['fileSize']);
+            $filesToPromote = [
+                $stagedOriginalFile => $originalDirectory.'/'.$originalFilename,
+                $stagedViewerFile => $baseDirectory.'/'.$viewerFilename,
+            ];
+            if ($mobileDimensions !== null) {
+                $filesToPromote[$stagedMobileFile] = $mobileDirectory.'/'.$mobileFilename;
+            }
+            $filesToPromote[$stagedThumbnailFile] = $thumbnailDirectory.'/'.$thumbnailFilename;
+
+            foreach ($filesToPromote as $stagedFile => $finalFile) {
+                $this->ensureDirectory(dirname($finalFile));
+                $this->promoteFile($stagedFile, $finalFile, $baseDirectory);
+                $promotedFiles[] = $finalFile;
+            }
+
+            $this->removeAttemptDirectory($attemptDirectory, $stagingDirectory);
+
+            return [
+                'title' => $originalTitle,
+                'path' => self::PUBLIC_DIRECTORY.'/'.$viewerFilename,
+                'thumbnailPath' => self::PUBLIC_DIRECTORY.'/thumbs/'.$thumbnailFilename,
+                'mimeType' => $sourceMimeType,
+                'fileSize' => $viewerFileSize,
+                'width' => $viewerDimensions['width'],
+                'height' => $viewerDimensions['height'],
+                'projection' => 'equirectangular',
+                'metadata' => [
+                    'originalPath' => self::PUBLIC_DIRECTORY.'/originals/'.$originalFilename,
+                    'originalWidth' => $sourceWidth,
+                    'originalHeight' => $sourceHeight,
+                    'originalFileSize' => $originalFileSize,
+                    'viewerWidth' => $viewerDimensions['width'],
+                    'viewerHeight' => $viewerDimensions['height'],
+                    'mobilePath' => $mobileDimensions !== null ? self::PUBLIC_DIRECTORY.'/mobile/'.$mobileFilename : null,
+                    'mobileWidth' => $mobileDimensions['width'] ?? null,
+                    'mobileHeight' => $mobileDimensions['height'] ?? null,
+                    'thumbnailWidth' => $thumbnailDimensions['width'],
+                    'thumbnailHeight' => $thumbnailDimensions['height'],
+                    'ratio' => round($sourceWidth / $sourceHeight, 4),
+                    'quality' => 'high',
+                    'source' => 'drone_panorama_upload',
+                    'metadataSanitized' => true,
+                ],
+            ];
+        } catch (\Throwable $exception) {
+            $cleanupFailed = false;
+            try {
+                $this->rollbackPromotedFiles($promotedFiles, $baseDirectory);
+            } catch (\Throwable) {
+                $cleanupFailed = true;
+            }
+
+            if ($attemptDirectory !== null) {
+                try {
+                    $this->removeAttemptDirectory($attemptDirectory, $stagingDirectory);
+                } catch (\Throwable) {
+                    $cleanupFailed = true;
+                }
+            }
+
+            if ($cleanupFailed) {
+                throw new InvalidArgumentException(
+                    'le nettoyage des fichiers incomplets de l’image 360° a échoué.',
+                    0,
+                    $exception,
+                );
+            }
+
+            throw $exception;
+        }
     }
 
     /**
@@ -351,9 +405,99 @@ final class DronePanoramaUploadService
         return $this->parameterBag->get('kernel.project_dir').'/public'.self::PUBLIC_DIRECTORY;
     }
 
+    private function createAttemptDirectory(string $stagingDirectory, string $uniqueName): string
+    {
+        $attemptDirectory = $stagingDirectory.'/'.$uniqueName.'-'.bin2hex(random_bytes(6));
+        if (file_exists($attemptDirectory) || is_link($attemptDirectory) || !mkdir($attemptDirectory, 0775)) {
+            throw new InvalidArgumentException('le dossier temporaire de l’image 360° ne peut pas être créé.');
+        }
+
+        $this->assertExistingPathInsideDirectory($attemptDirectory, $stagingDirectory);
+
+        return $attemptDirectory;
+    }
+
+    private function promoteFile(string $sourceFile, string $targetFile, string $baseDirectory): void
+    {
+        $this->assertExistingPathInsideDirectory($sourceFile, $baseDirectory);
+        $this->assertExistingPathInsideDirectory(dirname($targetFile), $baseDirectory);
+
+        if (file_exists($targetFile) || is_link($targetFile)) {
+            throw new InvalidArgumentException('un fichier panorama portant ce nom existe déjà.');
+        }
+
+        if (!link($sourceFile, $targetFile)) {
+            throw new InvalidArgumentException('la mise à disposition de l’image 360° a échoué.');
+        }
+    }
+
+    /** @param list<string> $promotedFiles */
+    private function rollbackPromotedFiles(array $promotedFiles, string $baseDirectory): void
+    {
+        foreach (array_reverse($promotedFiles) as $promotedFile) {
+            if (!file_exists($promotedFile) && !is_link($promotedFile)) {
+                continue;
+            }
+
+            $this->assertExistingPathInsideDirectory($promotedFile, $baseDirectory);
+            if (!unlink($promotedFile)) {
+                throw new InvalidArgumentException('le nettoyage d’un fichier panorama incomplet a échoué.');
+            }
+        }
+    }
+
+    private function removeAttemptDirectory(string $attemptDirectory, string $stagingDirectory): void
+    {
+        if (!file_exists($attemptDirectory) && !is_link($attemptDirectory)) {
+            return;
+        }
+
+        $this->assertExistingPathInsideDirectory($attemptDirectory, $stagingDirectory);
+        $entries = scandir($attemptDirectory);
+        if ($entries === false) {
+            throw new InvalidArgumentException('le dossier temporaire de l’image 360° ne peut pas être lu.');
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $attemptDirectory.'/'.$entry;
+            if (is_dir($path) && !is_link($path)) {
+                throw new InvalidArgumentException('le dossier temporaire de l’image 360° contient un élément inattendu.');
+            }
+
+            if (!unlink($path)) {
+                throw new InvalidArgumentException('le nettoyage d’un fichier temporaire de l’image 360° a échoué.');
+            }
+        }
+
+        if (!rmdir($attemptDirectory)) {
+            throw new InvalidArgumentException('le nettoyage du dossier temporaire de l’image 360° a échoué.');
+        }
+    }
+
+    private function assertExistingPathInsideDirectory(string $path, string $directory): void
+    {
+        $realDirectory = realpath($directory);
+        $realPath = realpath($path);
+        if (
+            $realDirectory === false
+            || $realPath === false
+            || ($realPath !== $realDirectory && !str_starts_with($realPath, $realDirectory.'/'))
+        ) {
+            throw new InvalidArgumentException('un chemin de stockage de l’image 360° est invalide.');
+        }
+    }
+
     private function ensureDirectory(string $directory): void
     {
-        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+        if (is_dir($directory)) {
+            return;
+        }
+
+        if (file_exists($directory) || is_link($directory) || (!mkdir($directory, 0775, true) && !is_dir($directory))) {
             throw new InvalidArgumentException('le dossier de stockage des images 360° ne peut pas être créé.');
         }
     }

@@ -4,22 +4,31 @@ namespace App\Tests\Integration\Media;
 
 use App\Service\Media\BulkMediaUploadService;
 use App\Service\Media\DronePanoramaUploadService;
+use App\Service\Media\ImageMetadataSanitizer;
 use App\Tests\Integration\IntegrationTestCase;
 use App\Tests\Support\TestImageFactory;
 use InvalidArgumentException;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\String\Slugger\AsciiSlugger;
 
 final class DronePanoramaUploadServiceTest extends IntegrationTestCase
 {
     /** @var list<string> */
     private array $files = [];
 
+    /** @var list<string> */
+    private array $directories = [];
+
     protected function tearDown(): void
     {
         foreach (array_reverse($this->files) as $file) {
             if (is_file($file)) {
-                @unlink($file);
+                unlink($file);
             }
         }
+
+        (new Filesystem())->remove(array_reverse($this->directories));
 
         parent::tearDown();
     }
@@ -43,6 +52,7 @@ final class DronePanoramaUploadServiceTest extends IntegrationTestCase
         $this->assertPublicImage($result['thumbnailPath'], 'image/jpeg', 400, 200);
         $this->assertPublicImage($result['metadata']['originalPath'], 'image/jpeg', 400, 200);
         self::assertNull($result['metadata']['mobilePath']);
+        $this->assertNoTemporaryPanoramaFiles(TestImageFactory::projectDir().'/public/uploads/media/360');
     }
 
     public function testValidEquirectangularPngKeepsTransparencyCapablePipeline(): void
@@ -179,6 +189,59 @@ final class DronePanoramaUploadServiceTest extends IntegrationTestCase
         }
     }
 
+    public function testFailureBeforeFirstPromotionRemovesIntermediateFilesAndPreservesSource(): void
+    {
+        $projectDirectory = $this->createIsolatedProjectDirectory();
+        $storageDirectory = $projectDirectory.'/public/uploads/media/360';
+        $source = TestImageFactory::createJpeg($projectDirectory.'/source', 400, 200, 'source-panorama.jpg');
+        $sourceHash = hash_file('sha256', $source);
+        file_put_contents($storageDirectory.'/originals', 'blocked original directory');
+
+        try {
+            $this->panoramaUploadServiceFor($projectDirectory)->upload(
+                TestImageFactory::createUploadedFile($source, 'Atomic panorama.jpg', 'image/jpeg'),
+                'atomic-before-promotion',
+            );
+            self::fail('The upload must fail when the final original directory cannot be created.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('le dossier de stockage des images 360° ne peut pas être créé.', $exception->getMessage());
+        }
+
+        self::assertFileExists($source);
+        self::assertSame($sourceHash, hash_file('sha256', $source));
+        $this->assertNoFinalFilesForSeed($storageDirectory, 'atomic-before-promotion');
+        $this->assertNoTemporaryPanoramaFiles($storageDirectory);
+    }
+
+    public function testFailureDuringFinalPromotionRollsBackOutputsAndPreservesPreexistingFile(): void
+    {
+        $projectDirectory = $this->createIsolatedProjectDirectory();
+        $storageDirectory = $projectDirectory.'/public/uploads/media/360';
+        $source = TestImageFactory::createJpeg($projectDirectory.'/source', 400, 200, 'source-panorama.jpg');
+        $sourceHash = hash_file('sha256', $source);
+        $preexistingFile = $storageDirectory.'/preexisting-final.jpg';
+        $preexistingContents = 'existing panorama must survive';
+        file_put_contents($preexistingFile, $preexistingContents);
+        file_put_contents($storageDirectory.'/thumbs', 'blocked thumbnail directory');
+
+        try {
+            $this->panoramaUploadServiceFor($projectDirectory)->upload(
+                TestImageFactory::createUploadedFile($source, 'Atomic rollback panorama.jpg', 'image/jpeg'),
+                'atomic-rollback',
+            );
+            self::fail('The upload must fail when the final thumbnail directory cannot be created.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('le dossier de stockage des images 360° ne peut pas être créé.', $exception->getMessage());
+        }
+
+        self::assertFileExists($source);
+        self::assertSame($sourceHash, hash_file('sha256', $source));
+        self::assertSame($preexistingContents, file_get_contents($preexistingFile));
+        self::assertSame('blocked thumbnail directory', file_get_contents($storageDirectory.'/thumbs'));
+        $this->assertNoFinalFilesForSeed($storageDirectory, 'atomic-rollback');
+        $this->assertNoTemporaryPanoramaFiles($storageDirectory);
+    }
+
     private function assertPublicImage(string $publicPath, string $expectedMime, int $width, int $height): void
     {
         $file = TestImageFactory::projectDir().'/public/'.ltrim($publicPath, '/');
@@ -197,5 +260,52 @@ final class DronePanoramaUploadServiceTest extends IntegrationTestCase
         self::assertInstanceOf(DronePanoramaUploadService::class, $service);
 
         return $service;
+    }
+
+    private function panoramaUploadServiceFor(string $projectDirectory): DronePanoramaUploadService
+    {
+        $parameterBag = new ParameterBag(['kernel.project_dir' => $projectDirectory]);
+
+        return new DronePanoramaUploadService(
+            $parameterBag,
+            new AsciiSlugger(),
+            new ImageMetadataSanitizer($parameterBag),
+        );
+    }
+
+    private function createIsolatedProjectDirectory(): string
+    {
+        $projectDirectory = TestImageFactory::testMediaDirectory().'/panorama-atomic-'.bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($projectDirectory.'/public/uploads/media/360', 0775, true));
+        self::assertTrue(mkdir($projectDirectory.'/source', 0775, true));
+        $this->directories[] = $projectDirectory;
+
+        return $projectDirectory;
+    }
+
+    private function assertNoFinalFilesForSeed(string $storageDirectory, string $seed): void
+    {
+        foreach ([
+            $storageDirectory,
+            $storageDirectory.'/originals',
+            $storageDirectory.'/mobile',
+            $storageDirectory.'/thumbs',
+        ] as $directory) {
+            self::assertSame([], glob($directory.'/'.$seed.'-*') ?: []);
+        }
+    }
+
+    private function assertNoTemporaryPanoramaFiles(string $storageDirectory): void
+    {
+        $stagingDirectory = $storageDirectory.'/.staging';
+        if (!is_dir($stagingDirectory)) {
+            self::assertDirectoryDoesNotExist($stagingDirectory);
+
+            return;
+        }
+
+        $entries = scandir($stagingDirectory);
+        self::assertIsArray($entries);
+        self::assertSame([], array_values(array_diff($entries, ['.', '..'])));
     }
 }
