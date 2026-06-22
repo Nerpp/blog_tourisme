@@ -195,9 +195,28 @@ final class CityVisitStudioController extends AbstractController
             return $this->redirectToStudio($cityVisitDraft);
         }
 
+        $resolvedAssociations = [];
         foreach ($files as $index => $file) {
             $association = (string) ($associations[$index] ?? self::MEDIA_ASSOCIATION_GALLERY);
             $targetPoint = $this->findPointFromAssociation($cityVisitDraft, $association);
+            if (!$this->isValidStudioMediaAssociation($association, $targetPoint, true)) {
+                $error = 'L’association média demandée ne fait pas partie de cette visite.';
+                if ($wantsJson) {
+                    return $this->uploadJsonResponse([
+                        $this->bulkMediaUploadService->errorPayload($file, $error),
+                    ], 422);
+                }
+
+                $this->addFlash('error', $error);
+
+                return $this->redirectToStudio($cityVisitDraft);
+            }
+
+            $resolvedAssociations[$index] = [$association, $targetPoint];
+        }
+
+        foreach ($files as $index => $file) {
+            [$association, $targetPoint] = $resolvedAssociations[$index];
             if ($targetPoint instanceof CityVisitPoint && !$pointMediaEnabled) {
                 $results[] = $this->bulkMediaUploadService->errorPayload($file, 'La liaison aux points GPS nécessite la migration des médias de points.');
                 $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
@@ -276,18 +295,24 @@ final class CityVisitStudioController extends AbstractController
             return $this->redirectToStudio($cityVisitDraft);
         }
 
-        $media = $this->createVideoAssetFromRequest($request, $cityVisitDraft);
-        if (!$media instanceof MediaAsset) {
-            $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
+        $pointMediaEnabled = $this->databaseTableExists('city_visit_point_media');
+        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
+        $targetPoint = $this->findPointFromAssociation($cityVisitDraft, $association);
+        if (!$this->isValidStudioMediaAssociation($association, $targetPoint, false)) {
+            $this->addFlash('error', 'L’association média demandée ne fait pas partie de cette visite.');
 
             return $this->redirectToStudio($cityVisitDraft);
         }
 
-        $pointMediaEnabled = $this->databaseTableExists('city_visit_point_media');
-        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
-        $targetPoint = $this->findPointFromAssociation($cityVisitDraft, $association);
         if ($targetPoint instanceof CityVisitPoint && !$pointMediaEnabled) {
             $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
+
+            return $this->redirectToStudio($cityVisitDraft);
+        }
+
+        $media = $this->createVideoAssetFromRequest($request, $cityVisitDraft);
+        if (!$media instanceof MediaAsset) {
+            $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
 
             return $this->redirectToStudio($cityVisitDraft);
         }
@@ -326,7 +351,10 @@ final class CityVisitStudioController extends AbstractController
             return $this->redirectToStudio($cityVisitDraft);
         }
 
-        $this->updateMediaFromRequest($mediaLink, $request);
+        if (!$this->updateMediaFromRequest($mediaLink, $request)) {
+            return $this->redirectToStudio($cityVisitDraft);
+        }
+
         $this->entityManager->flush();
         $this->addFlash('success', 'Le média a été mis à jour.');
 
@@ -659,11 +687,31 @@ final class CityVisitStudioController extends AbstractController
         return $points === [] ? null : $points[array_key_last($points)];
     }
 
-    private function updateMediaFromRequest(CityVisitDraftMedia $mediaLink, Request $request): void
+    private function updateMediaFromRequest(CityVisitDraftMedia $mediaLink, Request $request): bool
     {
         $media = $mediaLink->getMediaAsset();
         if (!$media instanceof MediaAsset) {
             throw $this->createNotFoundException('Média introuvable.');
+        }
+
+        $cityVisitDraft = $mediaLink->getCityVisitDraft();
+        if (!$cityVisitDraft instanceof CityVisitDraft) {
+            throw $this->createNotFoundException('Visite introuvable.');
+        }
+
+        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
+        $targetPoint = $this->findPointFromAssociation($cityVisitDraft, $association);
+        if (!$this->isValidStudioMediaAssociation($association, $targetPoint, $media->getMediaType() === MediaType::Image)) {
+            $this->addFlash('error', 'L’association média demandée ne fait pas partie de cette visite.');
+
+            return false;
+        }
+
+        $pointMediaEnabled = $this->databaseTableExists('city_visit_point_media');
+        if ($targetPoint instanceof CityVisitPoint && !$pointMediaEnabled) {
+            $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
+
+            return false;
         }
 
         $media
@@ -690,31 +738,24 @@ final class CityVisitStudioController extends AbstractController
             }
         }
 
-        $cityVisitDraft = $mediaLink->getCityVisitDraft();
-        if (!$cityVisitDraft instanceof CityVisitDraft) {
-            throw $this->createNotFoundException('Visite introuvable.');
-        }
-
-        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
-        if ($this->databaseTableExists('city_visit_point_media')) {
-            $targetPoint = $this->findPointFromAssociation($cityVisitDraft, $association);
+        if ($pointMediaEnabled) {
             $this->syncPointMedia($cityVisitDraft, $media, $targetPoint);
             if ($targetPoint instanceof CityVisitPoint) {
                 $this->entityManager->remove($mediaLink);
 
-                return;
+                return true;
             }
-        } elseif ($this->isPointAssociation($association)) {
-            $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
         }
 
         if ($media->getMediaType() === MediaType::Image && (string) $association === self::MEDIA_ASSOCIATION_MAIN) {
             $this->promoteClassicImageToCover($cityVisitDraft->getMediaLinks(), $mediaLink);
 
-            return;
+            return true;
         }
 
         $mediaLink->setRole(MediaRole::Gallery);
+
+        return true;
     }
 
     /** @return list<CityVisitDraftMedia> */
@@ -899,12 +940,14 @@ final class CityVisitStudioController extends AbstractController
             return null;
         }
 
-        return $this->nullableInt(substr($association, strlen(self::MEDIA_ASSOCIATION_POINT_PREFIX)));
-    }
+        $pointId = trim(substr($association, strlen(self::MEDIA_ASSOCIATION_POINT_PREFIX)));
+        if ($pointId === '' || !ctype_digit($pointId)) {
+            return null;
+        }
 
-    private function isPointAssociation(mixed $association): bool
-    {
-        return str_starts_with(trim((string) $association), self::MEDIA_ASSOCIATION_POINT_PREFIX);
+        $pointId = (int) $pointId;
+
+        return $pointId > 0 ? $pointId : null;
     }
 
     private function findPointById(CityVisitDraft $cityVisitDraft, mixed $pointId): ?CityVisitPoint

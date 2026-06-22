@@ -43,6 +43,19 @@ final class StudioMediaHelperTraitTest extends TestCase
         self::assertSame(MediaRole::Gallery, $gallery->getRole());
     }
 
+    public function testPromotingLinkOutsideCollectionDoesNotNormalizeAnyRole(): void
+    {
+        $localCover = $this->link(MediaType::Image, MediaRole::Cover);
+        $localGallery = $this->link(MediaType::Image, MediaRole::Gallery);
+        $foreignLink = $this->link(MediaType::Image, MediaRole::Gallery);
+
+        (new StudioMediaHelperTraitHarness())->promote([$localCover, $localGallery], $foreignLink);
+
+        self::assertSame(MediaRole::Cover, $localCover->getRole());
+        self::assertSame(MediaRole::Gallery, $localGallery->getRole());
+        self::assertSame(MediaRole::Gallery, $foreignLink->getRole());
+    }
+
     private function link(MediaType $mediaType, MediaRole $role): PlaceMedia
     {
         $media = (new MediaAsset())->setMediaType($mediaType);

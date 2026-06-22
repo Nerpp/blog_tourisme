@@ -92,6 +92,29 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertSame($before, $mediaRepository->count([]));
     }
 
+    public function testCityVisitVideoRejectsForeignPointBeforeCreatingMedia(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $foreignCityVisit = $this->createCityVisitDraft($admin);
+        $foreignPoint = $this->createCityVisitPoint($foreignCityVisit);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $mediaCount = $this->entityManager()->getRepository(MediaAsset::class)->count([]);
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId())),
+            'title' => 'Vidéo visite externe refusée',
+            'externalUrl' => 'https://example.test/foreign-city-video',
+            'association' => 'point:'.$foreignPoint->getId(),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+    }
+
     public function testCityVisitPhotoUploadCreatesCoverThroughRealForm(): void
     {
         $client = static::createClient();
@@ -138,6 +161,44 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testCityVisitPhotoUploadRejectsForeignPointBeforeCreatingAnything(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $foreignCityVisit = $this->createCityVisitDraft($admin);
+        $foreignPoint = $this->createCityVisitPoint($foreignCityVisit);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 96, 48);
+        $mediaCount = $this->entityManager()->getRepository(MediaAsset::class)->count([]);
+        $draftLinkCount = $this->entityManager()->getRepository(CityVisitDraftMedia::class)->count([]);
+        $pointLinkCount = $this->entityManager()->getRepository(CityVisitPointMedia::class)->count([]);
+
+        try {
+            $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/photos', $cityVisit->getId()), [
+                '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visits/%d/media/photos', $cityVisit->getId())),
+                'photoCaptions' => ['Tentative externe visite'],
+                'photoImageTypes' => [ImageType::Standard->value],
+                'photoAssociations' => ['point:'.$foreignPoint->getId()],
+                'ajax' => '1',
+            ], [
+                'photos' => [new UploadedFile($source, 'foreign-city-point.jpg', 'image/jpeg', null, true)],
+            ], ['HTTP_ACCEPT' => 'application/json']);
+
+            self::assertResponseStatusCodeSame(422);
+            self::assertStringContainsString('ne fait pas partie', (string) $client->getResponse()->getContent());
+            self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+            self::assertSame($draftLinkCount, $this->entityManager()->getRepository(CityVisitDraftMedia::class)->count([]));
+            self::assertSame($pointLinkCount, $this->entityManager()->getRepository(CityVisitPointMedia::class)->count([]));
+        } finally {
+            if (is_file($source)) {
+                unlink($source);
+            }
+        }
+    }
+
     public function testCityVisitMediaPromotionAndDeletionUseRealCsrfForms(): void
     {
         $client = static::createClient();
@@ -177,7 +238,7 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertNotNull($this->entityManager()->find(CityVisitDraftMedia::class, $keptId));
     }
 
-    public function testCityVisitMediaCanMoveToOwnPointButIgnoresForeignPointAssociation(): void
+    public function testCityVisitMediaCanMoveToOwnPointButRejectsForeignPointWithoutAnyMutation(): void
     {
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
@@ -187,6 +248,10 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         $foreignPoint = $this->createCityVisitPoint($foreignCityVisit, 44.61, 4.91);
         $movedMedia = $this->createImageMedia('Photo visite vers point');
         $foreignAttemptMedia = $this->createImageMedia('Photo visite reste generale');
+        $foreignAttemptMedia
+            ->setCaption('Légende initiale visite')
+            ->setImageType(ImageType::Panorama);
+        $this->persistAndFlush($foreignAttemptMedia);
         $movedLink = $this->linkCityVisitMedia($cityVisit, $movedMedia, MediaRole::Gallery, 0);
         $foreignAttemptLink = $this->linkCityVisitMedia($cityVisit, $foreignAttemptMedia, MediaRole::Cover, 1);
         $client->loginUser($admin);
@@ -216,23 +281,80 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
 
         $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
         self::assertResponseIsSuccessful();
+        $updateToken = $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visit-media/%d/update', $foreignAttemptLink->getId()));
+        $point = $this->refresh($point);
+        $foreignAttemptMedia = $this->refresh($foreignAttemptMedia);
+        $existingPointLink = (new CityVisitPointMedia())
+            ->setCityVisitPoint($point)
+            ->setMediaAsset($foreignAttemptMedia);
+        $point->addMediaLink($existingPointLink);
+        $this->persistAndFlush($existingPointLink);
+        $existingPointLinkId = $existingPointLink->getId();
         $client->request('POST', sprintf('/admin/studio/city-visit-media/%d/update', $foreignAttemptLink->getId()), [
-            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visit-media/%d/update', $foreignAttemptLink->getId())),
+            '_token' => $updateToken,
             'title' => 'Tentative point visite externe',
             'altText' => 'Alt point visite externe',
-            'caption' => '',
+            'caption' => 'Légende externe visite',
             'imageType' => ImageType::Standard->value,
             'association' => 'point:'.$foreignPoint->getId(),
         ]);
 
         self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
         $foreignAttemptLink = $this->refresh($foreignAttemptLink);
-        self::assertSame(MediaRole::Gallery, $foreignAttemptLink->getRole());
+        $foreignAttemptMedia = $this->refresh($foreignAttemptMedia);
+        self::assertSame(MediaRole::Cover, $foreignAttemptLink->getRole());
+        self::assertSame('Photo visite reste generale', $foreignAttemptMedia->getTitle());
+        self::assertStringStartsWith('Texte alternatif ', (string) $foreignAttemptMedia->getAltText());
+        self::assertSame('Légende initiale visite', $foreignAttemptMedia->getCaption());
+        self::assertSame(ImageType::Panorama, $foreignAttemptMedia->getImageType());
         self::assertNotNull($this->entityManager()->find(CityVisitDraftMedia::class, $foreignAttemptLink->getId()));
+        self::assertNotNull($this->entityManager()->find(CityVisitPointMedia::class, $existingPointLinkId));
+        self::assertNotNull($this->entityManager()->find(MediaAsset::class, $foreignAttemptMedia->getId()));
         self::assertNull($this->entityManager()->getRepository(CityVisitPointMedia::class)->findOneBy([
             'cityVisitPoint' => $foreignPoint,
             'mediaAsset' => $foreignAttemptMedia,
         ]));
+    }
+
+    public function testCityVisitPointMediaRejectsUpdateAndDeleteTokensFromAnotherDraft(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $point = $this->createCityVisitPoint($cityVisit);
+        $localMedia = $this->createImageMedia('Média point visite local');
+        $localLink = (new CityVisitPointMedia())->setCityVisitPoint($point)->setMediaAsset($localMedia);
+        $point->addMediaLink($localLink);
+        $foreignCityVisit = $this->createCityVisitDraft($admin);
+        $foreignPoint = $this->createCityVisitPoint($foreignCityVisit);
+        $foreignMedia = $this->createImageMedia('Média point visite externe');
+        $foreignLink = (new CityVisitPointMedia())->setCityVisitPoint($foreignPoint)->setMediaAsset($foreignMedia);
+        $foreignPoint->addMediaLink($foreignLink);
+        $this->persistAndFlush($localLink, $foreignLink);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/city-visit-point-media/%d/update', $foreignLink->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visit-point-media/%d/update', $localLink->getId())),
+            'title' => 'Mutation visite externe',
+            'altText' => 'Alt visite externe',
+            'caption' => 'Légende visite externe',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#city-visit-point-%d', $foreignCityVisit->getId(), $foreignPoint->getId()));
+        $foreignMedia = $this->refresh($foreignMedia);
+        self::assertSame('Média point visite externe', $foreignMedia->getTitle());
+        self::assertNotNull($this->entityManager()->find(CityVisitPointMedia::class, $foreignLink->getId()));
+
+        $client->request('POST', sprintf('/admin/studio/city-visit-point-media/%d/delete', $foreignLink->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visit-point-media/%d/delete', $localLink->getId())),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#city-visit-point-%d', $foreignCityVisit->getId(), $foreignPoint->getId()));
+        self::assertNotNull($this->entityManager()->find(CityVisitPointMedia::class, $foreignLink->getId()));
+        self::assertNotNull($this->entityManager()->find(MediaAsset::class, $foreignMedia->getId()));
+        self::assertNotNull($this->entityManager()->find(CityVisitPointMedia::class, $localLink->getId()));
     }
 
     public function testCityVisitPointMediaUpdateAndDeleteKeepOtherPointAndMediaAsset(): void

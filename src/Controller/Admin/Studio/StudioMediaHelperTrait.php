@@ -174,6 +174,11 @@ trait StudioMediaHelperTrait
     /** @param iterable<mixed> $mediaLinks */
     private function promoteClassicImageToCover(iterable $mediaLinks, object $selectedLink): void
     {
+        $mediaLinks = is_array($mediaLinks) ? $mediaLinks : iterator_to_array($mediaLinks, false);
+        if (!in_array($selectedLink, $mediaLinks, true)) {
+            return;
+        }
+
         if (!$this->isClassicImageMediaLink($selectedLink)) {
             if (method_exists($selectedLink, 'setRole')) {
                 $selectedLink->setRole(MediaRole::Gallery);
@@ -188,6 +193,11 @@ trait StudioMediaHelperTrait
     /** @param iterable<mixed> $mediaLinks */
     private function normalizeClassicCoverImages(iterable $mediaLinks, ?object $selectedCoverLink = null): void
     {
+        $mediaLinks = is_array($mediaLinks) ? $mediaLinks : iterator_to_array($mediaLinks, false);
+        if ($selectedCoverLink !== null && !in_array($selectedCoverLink, $mediaLinks, true)) {
+            return;
+        }
+
         $keptCoverLink = $selectedCoverLink;
 
         foreach ($mediaLinks as $mediaLink) {
@@ -216,6 +226,16 @@ trait StudioMediaHelperTrait
 
             $mediaLink->setRole(MediaRole::Gallery);
         }
+    }
+
+    private function isValidStudioMediaAssociation(mixed $association, ?object $targetPoint, bool $allowMain): bool
+    {
+        $association = trim((string) $association);
+        if ($association === 'gallery' || ($allowMain && $association === 'main')) {
+            return true;
+        }
+
+        return str_starts_with($association, 'point:') && $targetPoint !== null;
     }
 
     private function isClassicImageMediaLink(object $mediaLink): bool

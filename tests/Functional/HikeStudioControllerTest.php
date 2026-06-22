@@ -12,7 +12,9 @@ use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
+use App\Tests\Support\TestImageFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class HikeStudioControllerTest extends FunctionalTestCase
 {
@@ -116,6 +118,67 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testHikePhotoUploadRejectsForeignPointBeforeCreatingAnything(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $foreignHike = $this->createHikeDraft($admin);
+        $foreignPoint = $this->createHikePoint($foreignHike);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 96, 48);
+        $mediaCount = $this->entityManager()->getRepository(MediaAsset::class)->count([]);
+        $draftLinkCount = $this->entityManager()->getRepository(HikeDraftMedia::class)->count([]);
+        $pointLinkCount = $this->entityManager()->getRepository(HikePointMedia::class)->count([]);
+
+        try {
+            $client->request('POST', sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId()), [
+                '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId())),
+                'photoCaptions' => ['Tentative externe'],
+                'photoImageTypes' => [ImageType::Standard->value],
+                'photoAssociations' => ['point:'.$foreignPoint->getId()],
+                'ajax' => '1',
+            ], [
+                'photos' => [new UploadedFile($source, 'foreign-point.jpg', 'image/jpeg', null, true)],
+            ], ['HTTP_ACCEPT' => 'application/json']);
+
+            self::assertResponseStatusCodeSame(422);
+            self::assertStringContainsString('ne fait pas partie', (string) $client->getResponse()->getContent());
+            self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+            self::assertSame($draftLinkCount, $this->entityManager()->getRepository(HikeDraftMedia::class)->count([]));
+            self::assertSame($pointLinkCount, $this->entityManager()->getRepository(HikePointMedia::class)->count([]));
+        } finally {
+            if (is_file($source)) {
+                unlink($source);
+            }
+        }
+    }
+
+    public function testHikeVideoRejectsForeignPointBeforeCreatingMedia(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $foreignHike = $this->createHikeDraft($admin);
+        $foreignPoint = $this->createHikePoint($foreignHike);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $mediaCount = $this->entityManager()->getRepository(MediaAsset::class)->count([]);
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/media/video', $hike->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/media/video', $hike->getId())),
+            'title' => 'Vidéo externe refusée',
+            'externalUrl' => 'https://example.test/foreign-video',
+            'association' => 'point:'.$foreignPoint->getId(),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-videos', $hike->getId()));
+        self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+    }
+
     public function testHikeMediaUpdatePromotesCoverAndDemotesPreviousCover(): void
     {
         $client = static::createClient();
@@ -169,7 +232,7 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertNotNull($this->entityManager()->find(HikeDraftMedia::class, $keptId));
     }
 
-    public function testHikeMediaCanMoveToOwnPointButIgnoresForeignPointAssociation(): void
+    public function testHikeMediaCanMoveToOwnPointButRejectsForeignPointWithoutAnyMutation(): void
     {
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
@@ -179,6 +242,10 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         $foreignPoint = $this->createHikePoint($foreignHike, 43.61, 3.91);
         $movedMedia = $this->createImageMedia('Photo randonnée vers point');
         $foreignAttemptMedia = $this->createImageMedia('Photo randonnée reste generale');
+        $foreignAttemptMedia
+            ->setCaption('Légende initiale')
+            ->setImageType(ImageType::Panorama);
+        $this->persistAndFlush($foreignAttemptMedia);
         $movedLink = $this->linkHikeMedia($hike, $movedMedia, MediaRole::Gallery, 0);
         $foreignAttemptLink = $this->linkHikeMedia($hike, $foreignAttemptMedia, MediaRole::Cover, 1);
         $client->loginUser($admin);
@@ -208,23 +275,80 @@ final class HikeStudioControllerTest extends FunctionalTestCase
 
         $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
         self::assertResponseIsSuccessful();
+        $updateToken = $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-media/%d/update', $foreignAttemptLink->getId()));
+        $point = $this->refresh($point);
+        $foreignAttemptMedia = $this->refresh($foreignAttemptMedia);
+        $existingPointLink = (new HikePointMedia())
+            ->setHikePoint($point)
+            ->setMediaAsset($foreignAttemptMedia);
+        $point->addMediaLink($existingPointLink);
+        $this->persistAndFlush($existingPointLink);
+        $existingPointLinkId = $existingPointLink->getId();
         $client->request('POST', sprintf('/admin/studio/hike-media/%d/update', $foreignAttemptLink->getId()), [
-            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-media/%d/update', $foreignAttemptLink->getId())),
+            '_token' => $updateToken,
             'title' => 'Tentative point externe',
             'altText' => 'Alt point externe',
-            'caption' => '',
+            'caption' => 'Légende externe',
             'imageType' => ImageType::Standard->value,
             'association' => 'point:'.$foreignPoint->getId(),
         ]);
 
         self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
         $foreignAttemptLink = $this->refresh($foreignAttemptLink);
-        self::assertSame(MediaRole::Gallery, $foreignAttemptLink->getRole());
+        $foreignAttemptMedia = $this->refresh($foreignAttemptMedia);
+        self::assertSame(MediaRole::Cover, $foreignAttemptLink->getRole());
+        self::assertSame('Photo randonnée reste generale', $foreignAttemptMedia->getTitle());
+        self::assertStringStartsWith('Texte alternatif ', (string) $foreignAttemptMedia->getAltText());
+        self::assertSame('Légende initiale', $foreignAttemptMedia->getCaption());
+        self::assertSame(ImageType::Panorama, $foreignAttemptMedia->getImageType());
         self::assertNotNull($this->entityManager()->find(HikeDraftMedia::class, $foreignAttemptLink->getId()));
+        self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $existingPointLinkId));
+        self::assertNotNull($this->entityManager()->find(MediaAsset::class, $foreignAttemptMedia->getId()));
         self::assertNull($this->entityManager()->getRepository(HikePointMedia::class)->findOneBy([
             'hikePoint' => $foreignPoint,
             'mediaAsset' => $foreignAttemptMedia,
         ]));
+    }
+
+    public function testHikePointMediaRejectsUpdateAndDeleteTokensFromAnotherDraft(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike);
+        $localMedia = $this->createImageMedia('Média point local');
+        $localLink = (new HikePointMedia())->setHikePoint($point)->setMediaAsset($localMedia);
+        $point->addMediaLink($localLink);
+        $foreignHike = $this->createHikeDraft($admin);
+        $foreignPoint = $this->createHikePoint($foreignHike);
+        $foreignMedia = $this->createImageMedia('Média point externe');
+        $foreignLink = (new HikePointMedia())->setHikePoint($foreignPoint)->setMediaAsset($foreignMedia);
+        $foreignPoint->addMediaLink($foreignLink);
+        $this->persistAndFlush($localLink, $foreignLink);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hike-point-media/%d/update', $foreignLink->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-point-media/%d/update', $localLink->getId())),
+            'title' => 'Mutation externe',
+            'altText' => 'Alt externe',
+            'caption' => 'Légende externe',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $foreignHike->getId(), $foreignPoint->getId()));
+        $foreignMedia = $this->refresh($foreignMedia);
+        self::assertSame('Média point externe', $foreignMedia->getTitle());
+        self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $foreignLink->getId()));
+
+        $client->request('POST', sprintf('/admin/studio/hike-point-media/%d/delete', $foreignLink->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-point-media/%d/delete', $localLink->getId())),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $foreignHike->getId(), $foreignPoint->getId()));
+        self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $foreignLink->getId()));
+        self::assertNotNull($this->entityManager()->find(MediaAsset::class, $foreignMedia->getId()));
+        self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $localLink->getId()));
     }
 
     public function testDeletingHikePointMediaKeepsMediaAssetAndOtherPointLinks(): void

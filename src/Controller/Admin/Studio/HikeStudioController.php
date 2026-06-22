@@ -197,9 +197,28 @@ final class HikeStudioController extends AbstractController
             return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
         }
 
+        $resolvedAssociations = [];
         foreach ($files as $index => $file) {
             $association = (string) ($associations[$index] ?? self::MEDIA_ASSOCIATION_GALLERY);
             $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
+            if (!$this->isValidStudioMediaAssociation($association, $targetPoint, true)) {
+                $error = 'L’association média demandée ne fait pas partie de cette randonnée.';
+                if ($wantsJson) {
+                    return $this->uploadJsonResponse([
+                        $this->bulkMediaUploadService->errorPayload($file, $error),
+                    ], 422);
+                }
+
+                $this->addFlash('error', $error);
+
+                return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
+            }
+
+            $resolvedAssociations[$index] = [$association, $targetPoint];
+        }
+
+        foreach ($files as $index => $file) {
+            [$association, $targetPoint] = $resolvedAssociations[$index];
             if ($targetPoint instanceof HikePoint && !$pointMediaEnabled) {
                 $results[] = $this->bulkMediaUploadService->errorPayload($file, 'La liaison aux points GPS nécessite la migration des médias de points.');
                 $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
@@ -278,18 +297,24 @@ final class HikeStudioController extends AbstractController
             return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
         }
 
-        $media = $this->createVideoAssetFromRequest($request, $hikeDraft);
-        if (!$media instanceof MediaAsset) {
-            $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
+        $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
+        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
+        $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
+        if (!$this->isValidStudioMediaAssociation($association, $targetPoint, false)) {
+            $this->addFlash('error', 'L’association média demandée ne fait pas partie de cette randonnée.');
 
             return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
         }
 
-        $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
-        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
-        $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
         if ($targetPoint instanceof HikePoint && !$pointMediaEnabled) {
             $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
+
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
+        }
+
+        $media = $this->createVideoAssetFromRequest($request, $hikeDraft);
+        if (!$media instanceof MediaAsset) {
+            $this->addFlash('error', 'L’URL de la vidéo est obligatoire.');
 
             return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
         }
@@ -430,7 +455,10 @@ final class HikeStudioController extends AbstractController
             return $this->redirectToStudioAfterRequest($hikeDraft, $request);
         }
 
-        $this->updateMediaFromRequest($mediaLink, $request);
+        if (!$this->updateMediaFromRequest($mediaLink, $request)) {
+            return $this->redirectToStudioAfterRequest($hikeDraft, $request);
+        }
+
         $this->entityManager->flush();
         $this->addFlash('success', 'Le média a été mis à jour.');
 
@@ -1043,11 +1071,31 @@ final class HikeStudioController extends AbstractController
         return $points === [] ? null : $points[array_key_last($points)];
     }
 
-    private function updateMediaFromRequest(HikeDraftMedia $mediaLink, Request $request): void
+    private function updateMediaFromRequest(HikeDraftMedia $mediaLink, Request $request): bool
     {
         $media = $mediaLink->getMediaAsset();
         if (!$media instanceof MediaAsset) {
             throw $this->createNotFoundException('Média introuvable.');
+        }
+
+        $hikeDraft = $mediaLink->getHikeDraft();
+        if (!$hikeDraft instanceof HikeDraft) {
+            throw $this->createNotFoundException('Randonnée introuvable.');
+        }
+
+        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
+        $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
+        if (!$this->isValidStudioMediaAssociation($association, $targetPoint, $media->getMediaType() === MediaType::Image)) {
+            $this->addFlash('error', 'L’association média demandée ne fait pas partie de cette randonnée.');
+
+            return false;
+        }
+
+        $pointMediaEnabled = $this->databaseTableExists('hike_point_media');
+        if ($targetPoint instanceof HikePoint && !$pointMediaEnabled) {
+            $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
+
+            return false;
         }
 
         $media
@@ -1074,31 +1122,24 @@ final class HikeStudioController extends AbstractController
             }
         }
 
-        $hikeDraft = $mediaLink->getHikeDraft();
-        if (!$hikeDraft instanceof HikeDraft) {
-            throw $this->createNotFoundException('Randonnée introuvable.');
-        }
-
-        $association = $request->request->getString('association', self::MEDIA_ASSOCIATION_GALLERY);
-        if ($this->databaseTableExists('hike_point_media')) {
-            $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
+        if ($pointMediaEnabled) {
             $this->syncPointMedia($hikeDraft, $media, $targetPoint);
             if ($targetPoint instanceof HikePoint) {
                 $this->entityManager->remove($mediaLink);
 
-                return;
+                return true;
             }
-        } elseif ($this->isPointAssociation($association)) {
-            $this->addFlash('error', 'La liaison aux points GPS nécessite la migration des médias de points.');
         }
 
         if ($media->getMediaType() === MediaType::Image && (string) $association === self::MEDIA_ASSOCIATION_MAIN) {
             $this->promoteClassicImageToCover($hikeDraft->getMediaLinks(), $mediaLink);
 
-            return;
+            return true;
         }
 
         $mediaLink->setRole(MediaRole::Gallery);
+
+        return true;
     }
 
     /** @return list<HikeDraftMedia> */
@@ -1287,12 +1328,14 @@ final class HikeStudioController extends AbstractController
             return null;
         }
 
-        return $this->nullableInt(substr($association, strlen(self::MEDIA_ASSOCIATION_POINT_PREFIX)));
-    }
+        $pointId = trim(substr($association, strlen(self::MEDIA_ASSOCIATION_POINT_PREFIX)));
+        if ($pointId === '' || !ctype_digit($pointId)) {
+            return null;
+        }
 
-    private function isPointAssociation(mixed $association): bool
-    {
-        return str_starts_with(trim((string) $association), self::MEDIA_ASSOCIATION_POINT_PREFIX);
+        $pointId = (int) $pointId;
+
+        return $pointId > 0 ? $pointId : null;
     }
 
     private function findPointById(HikeDraft $hikeDraft, mixed $pointId): ?HikePoint
