@@ -5,9 +5,11 @@ namespace App\Tests\Functional;
 use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\HikeDraftMedia;
+use App\Entity\HikePointMedia;
 use App\Entity\MediaAsset;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
+use App\Enum\HikePointType;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -165,6 +167,99 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-photos', $hike->getId()));
         self::assertNull($this->entityManager()->find(HikeDraftMedia::class, $deletedId));
         self::assertNotNull($this->entityManager()->find(HikeDraftMedia::class, $keptId));
+    }
+
+    public function testHikeMediaCanMoveToOwnPointButIgnoresForeignPointAssociation(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike, 42.61, 2.91);
+        $foreignHike = $this->createHikeDraft($admin);
+        $foreignPoint = $this->createHikePoint($foreignHike, 43.61, 3.91);
+        $movedMedia = $this->createImageMedia('Photo randonnée vers point');
+        $foreignAttemptMedia = $this->createImageMedia('Photo randonnée reste generale');
+        $movedLink = $this->linkHikeMedia($hike, $movedMedia, MediaRole::Gallery, 0);
+        $foreignAttemptLink = $this->linkHikeMedia($hike, $foreignAttemptMedia, MediaRole::Cover, 1);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hike-media/%d/update', $movedLink->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-media/%d/update', $movedLink->getId())),
+            'title' => 'Photo rattachee au point',
+            'altText' => 'Vue depuis le point',
+            'caption' => 'Caption point',
+            'imageType' => ImageType::Standard->value,
+            'association' => 'point:'.$point->getId(),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertNull($this->entityManager()->find(HikeDraftMedia::class, $movedLink->getId()));
+        self::assertNotNull($this->entityManager()->find(MediaAsset::class, $movedMedia->getId()));
+        self::assertInstanceOf(HikePointMedia::class, $this->entityManager()->getRepository(HikePointMedia::class)->findOneBy([
+            'hikePoint' => $point,
+            'mediaAsset' => $movedMedia,
+        ]));
+        self::assertNull($this->entityManager()->getRepository(HikePointMedia::class)->findOneBy([
+            'hikePoint' => $foreignPoint,
+            'mediaAsset' => $movedMedia,
+        ]));
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hike-media/%d/update', $foreignAttemptLink->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-media/%d/update', $foreignAttemptLink->getId())),
+            'title' => 'Tentative point externe',
+            'altText' => 'Alt point externe',
+            'caption' => '',
+            'imageType' => ImageType::Standard->value,
+            'association' => 'point:'.$foreignPoint->getId(),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        $foreignAttemptLink = $this->refresh($foreignAttemptLink);
+        self::assertSame(MediaRole::Gallery, $foreignAttemptLink->getRole());
+        self::assertNotNull($this->entityManager()->find(HikeDraftMedia::class, $foreignAttemptLink->getId()));
+        self::assertNull($this->entityManager()->getRepository(HikePointMedia::class)->findOneBy([
+            'hikePoint' => $foreignPoint,
+            'mediaAsset' => $foreignAttemptMedia,
+        ]));
+    }
+
+    public function testDeletingHikePointMediaKeepsMediaAssetAndOtherPointLinks(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $deletedPoint = $this->createHikePoint($hike, 42.50, 2.70, 1);
+        $keptPoint = $this->createHikePoint($hike, 42.60, 2.80, 2);
+        $deletedMedia = $this->createImageMedia('Photo point randonnée retiree');
+        $keptMedia = $this->createImageMedia('Photo autre point randonnée');
+        $deletedLink = (new HikePointMedia())->setHikePoint($deletedPoint)->setMediaAsset($deletedMedia);
+        $keptLink = (new HikePointMedia())->setHikePoint($keptPoint)->setMediaAsset($keptMedia);
+        $deletedPoint->addMediaLink($deletedLink);
+        $keptPoint->addMediaLink($keptLink);
+        $this->persistAndFlush($deletedLink, $keptLink);
+        $deletedLinkId = $deletedLink->getId();
+        $keptLinkId = $keptLink->getId();
+        $deletedMediaId = $deletedMedia->getId();
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hike-point-media/%d/delete', $deletedLinkId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-point-media/%d/delete', $deletedLinkId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $deletedPoint->getId()));
+        self::assertNull($this->entityManager()->find(HikePointMedia::class, $deletedLinkId));
+        self::assertNotNull($this->entityManager()->find(MediaAsset::class, $deletedMediaId));
+        self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $keptLinkId));
+        self::assertInstanceOf(HikePointMedia::class, $this->entityManager()->getRepository(HikePointMedia::class)->findOneBy([
+            'hikePoint' => $keptPoint,
+            'mediaAsset' => $keptMedia,
+        ]));
     }
 
     public function testMissingHikeMediaReturnsNotFound(): void
@@ -397,8 +492,8 @@ final class HikeStudioControllerTest extends FunctionalTestCase
             '_token' => $this->inputValue($crawler, sprintf('#point-%d input[name="_token"]', $point->getId())),
             '_redirect_anchor' => 'point-'.$point->getId(),
             'title' => 'Belvedere precis',
-            'type' => $point->getType()->value,
-            'position' => (string) $point->getPosition(),
+            'type' => HikePointType::Viewpoint->value,
+            'position' => '3',
             'latitude' => '42.6986123',
             'longitude' => '2.8956456',
             'accuracy' => '4',
@@ -408,9 +503,88 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
         $point = $this->refresh($point);
         self::assertSame('Belvedere precis', $point->getTitle());
+        self::assertSame(HikePointType::Viewpoint, $point->getType());
+        self::assertSame(3, $point->getPosition());
         self::assertSame(42.6986123, $point->getLatitude());
         self::assertSame(2.8956456, $point->getLongitude());
         self::assertSame(4.0, $point->getAccuracy());
+        self::assertSame('Position relevee depuis le telephone.', $point->getNote());
+    }
+
+    public function testHikePointUpdateWithInvalidCsrfDoesNotMutatePoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike, 42.45, 2.65, 2);
+        $point
+            ->setType(HikePointType::Rest)
+            ->setTitle('Pause originale')
+            ->setNote('Note originale')
+            ->setAccuracy(5.0);
+        $this->persistAndFlush($point);
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/studio/hike-points/%d/update', $point->getId()), [
+            '_token' => 'invalid-token',
+            'title' => 'Pause modifiée',
+            'type' => HikePointType::Danger->value,
+            'position' => '5',
+            'latitude' => '43.0000',
+            'longitude' => '3.0000',
+            'accuracy' => '12',
+            'note' => 'Note modifiée',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
+        $point = $this->refresh($point);
+        self::assertSame('Pause originale', $point->getTitle());
+        self::assertSame(HikePointType::Rest, $point->getType());
+        self::assertSame(2, $point->getPosition());
+        self::assertSame(42.45, $point->getLatitude());
+        self::assertSame(2.65, $point->getLongitude());
+        self::assertSame(5.0, $point->getAccuracy());
+        self::assertSame('Note originale', $point->getNote());
+    }
+
+    public function testHikePointUpdateWithInvalidPositionDoesNotPersistPartialMutation(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike, 42.51, 2.71, 4);
+        $point
+            ->setType(HikePointType::Water)
+            ->setTitle('Source originale')
+            ->setNote('Eau potable')
+            ->setAccuracy(9.0);
+        $this->persistAndFlush($point);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hike-points/%d/update', $point->getId()), [
+            '_token' => $this->inputValue($crawler, sprintf('#point-%d input[name="_token"]', $point->getId())),
+            'title' => 'Source déplacée',
+            'type' => HikePointType::Start->value,
+            'position' => '0',
+            'latitude' => '43.1000',
+            'longitude' => '3.1000',
+            'accuracy' => '2',
+            'note' => 'Mutation partielle interdite',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
+        $client->followRedirect();
+        self::assertStringContainsString('La position du point doit être supérieure ou égale à 1.', (string) $client->getResponse()->getContent());
+        $point = $this->refresh($point);
+        self::assertSame('Source originale', $point->getTitle());
+        self::assertSame(HikePointType::Water, $point->getType());
+        self::assertSame(4, $point->getPosition());
+        self::assertSame(42.51, $point->getLatitude());
+        self::assertSame(2.71, $point->getLongitude());
+        self::assertSame(9.0, $point->getAccuracy());
+        self::assertSame('Eau potable', $point->getNote());
     }
 
     public function testStudioHikeLocationPickerCanUpdatePrimaryPointWithoutEditorialDestination(): void
