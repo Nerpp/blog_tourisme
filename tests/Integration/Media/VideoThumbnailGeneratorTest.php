@@ -8,7 +8,6 @@ use App\Enum\VideoType;
 use App\Service\Media\VideoThumbnailGenerator;
 use App\Tests\Integration\IntegrationTestCase;
 use App\Tests\Support\TestImageFactory;
-use Symfony\Component\Process\Process;
 
 final class VideoThumbnailGeneratorTest extends IntegrationTestCase
 {
@@ -18,7 +17,7 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
     protected function tearDown(): void
     {
         foreach (array_reverse($this->files) as $file) {
-            if (is_file($file)) {
+            if (is_file($file) || is_link($file)) {
                 @unlink($file);
             }
         }
@@ -49,6 +48,7 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
 
         self::assertSame('/uploads/media/existing-thumb.jpg', $this->generator()->generateForMedia($media));
         self::assertNull($this->generator()->generateForMedia($media, overwrite: true));
+        self::assertSame('/uploads/media/existing-thumb.jpg', $media->getThumbnailPath());
     }
 
     public function testUnsafeOrMissingPublicPathReturnsNull(): void
@@ -69,41 +69,44 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
         self::assertNull($this->generator()->generateForMedia($media));
     }
 
-    public function testLocalVideoGeneratesThumbnailAndStoresItOnMedia(): void
+    public function testUnsupportedExternalVideoDoesNotAttemptLocalGeneration(): void
     {
-        $video = $this->createTinyVideo();
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Video)
-            ->setVideoType(VideoType::Local)
-            ->setTitle('Vidéo locale test')
-            ->setFilePath(TestImageFactory::publicPathFor($video));
+            ->setVideoType(VideoType::External)
+            ->setExternalUrl('https://example.test/video')
+            ->setFilePath('https://example.test/video.mp4');
 
         $thumbnail = $this->generator()->generateForMedia($media);
 
-        self::assertIsString($thumbnail);
-        self::assertStringStartsWith('/uploads/media/video-thumbnails/video-locale-test-', $thumbnail);
-        self::assertSame($thumbnail, $media->getThumbnailPath());
-        $thumbnailFile = TestImageFactory::projectDir().'/public/'.ltrim($thumbnail, '/');
-        $this->files[] = $thumbnailFile;
-        self::assertFileExists($thumbnailFile);
-        $imageSize = getimagesize($thumbnailFile);
-        self::assertIsArray($imageSize);
-        self::assertSame('image/jpeg', $imageSize['mime']);
+        self::assertNull($thumbnail);
+        self::assertNull($media->getThumbnailPath());
     }
 
-    public function testLocalInvalidVideoReturnsNullAndDoesNotKeepFailedThumbnail(): void
+    public function testMissingLocalVideoReturnsNullWithoutChangingMedia(): void
     {
-        $invalidVideo = TestImageFactory::publicMediaDirectory().'/invalid-video-'.bin2hex(random_bytes(4)).'.mp4';
-        file_put_contents($invalidVideo, 'not a video');
-        $this->files[] = $invalidVideo;
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setVideoType(VideoType::Local)
+            ->setFilePath('/uploads/media/missing-video.mp4')
+            ->setThumbnailPath('');
 
-        $thumbnail = $this->generator()->generateFromPublicPath(TestImageFactory::publicPathFor($invalidVideo), 'Invalid Video.mp4');
+        $thumbnail = $this->generator()->generateForMedia($media);
 
         self::assertNull($thumbnail);
-        $expectedThumbnail = TestImageFactory::projectDir().'/public/uploads/media/video-thumbnails/invalid-video-'
-            .substr(sha1(TestImageFactory::publicPathFor($invalidVideo)), 0, 10)
-            .'-thumb.jpg';
-        self::assertFileDoesNotExist($expectedThumbnail);
+        self::assertSame('', $media->getThumbnailPath());
+    }
+
+    public function testSymlinkResolvingOutsideMediaDirectoryIsRejected(): void
+    {
+        $outsideFile = sys_get_temp_dir().'/video-thumbnail-outside-'.bin2hex(random_bytes(4)).'.mp4';
+        $symlink = TestImageFactory::publicMediaDirectory().'/video-thumbnail-link-'.bin2hex(random_bytes(4)).'.mp4';
+        file_put_contents($outsideFile, 'outside media root');
+        symlink($outsideFile, $symlink);
+        $this->files[] = $symlink;
+        $this->files[] = $outsideFile;
+
+        self::assertNull($this->generator()->generateFromPublicPath(TestImageFactory::publicPathFor($symlink)));
     }
 
     private function generator(): VideoThumbnailGenerator
@@ -112,35 +115,5 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
         self::assertInstanceOf(VideoThumbnailGenerator::class, $generator);
 
         return $generator;
-    }
-
-    private function createTinyVideo(): string
-    {
-        if (!is_executable('/usr/bin/ffmpeg')) {
-            self::markTestSkipped('ffmpeg is required for local video thumbnail integration tests.');
-        }
-
-        $file = TestImageFactory::publicMediaDirectory().'/video-thumb-source-'.bin2hex(random_bytes(4)).'.mp4';
-        $process = new Process([
-            'ffmpeg',
-            '-y',
-            '-f',
-            'lavfi',
-            '-i',
-            'color=c=blue:s=32x18:d=1',
-            '-pix_fmt',
-            'yuv420p',
-            $file,
-        ]);
-        $process->setTimeout(30);
-        $process->run();
-
-        if (!$process->isSuccessful() || !is_file($file)) {
-            self::markTestSkipped('ffmpeg could not create the local video fixture.');
-        }
-
-        $this->files[] = $file;
-
-        return $file;
     }
 }
