@@ -38,6 +38,18 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
         self::assertSame($thumbnail, $media->getThumbnailPath());
     }
 
+    public function testInvalidYoutubeUrlDoesNotFallBackToLocalGeneration(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setVideoType(VideoType::Youtube)
+            ->setExternalUrl('https://www.youtube.com/watch?v=bad')
+            ->setFilePath('https://example.test/video.mp4');
+
+        self::assertNull($this->generator()->generateForMedia($media));
+        self::assertNull($media->getThumbnailPath());
+    }
+
     public function testExistingThumbnailIsKeptUnlessOverwriteIsRequested(): void
     {
         $media = (new MediaAsset())

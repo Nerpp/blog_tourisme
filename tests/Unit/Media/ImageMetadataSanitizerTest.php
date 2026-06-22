@@ -42,31 +42,61 @@ final class ImageMetadataSanitizerTest extends TestCase
         $service = $this->service();
 
         $before = $service->inspectPublicPath('/uploads/plain.png');
-        $result = $service->sanitizePublicPath('/uploads/plain.png');
+        $firstResult = $service->sanitizePublicPath('/uploads/plain.png');
+        $secondResult = $service->sanitizePublicPath('/uploads/plain.png');
+        $image = imagecreatefrompng($this->workspace.'/public/uploads/plain.png');
 
         self::assertFalse($before['hasSensitiveMetadata']);
         self::assertSame([], $before['markers']);
-        self::assertSame(80, $result['width']);
-        self::assertSame(60, $result['height']);
-        self::assertSame([], $result['markersBefore']);
-        self::assertSame([], $result['markersAfter']);
+        self::assertSame(80, $firstResult['width']);
+        self::assertSame(60, $firstResult['height']);
+        self::assertSame([], $firstResult['markersBefore']);
+        self::assertSame([], $firstResult['markersAfter']);
+        self::assertSame('image/png', $secondResult['mimeType']);
+        self::assertSame(80, $secondResult['width']);
+        self::assertSame(60, $secondResult['height']);
+        self::assertSame([], $secondResult['markersBefore']);
+        self::assertSame([], $secondResult['markersAfter']);
+        self::assertNotFalse($image);
+
+        imagedestroy($image);
     }
 
     public function testPngTextMetadataIsRemovedWithoutChangingDimensions(): void
     {
+        if (!function_exists('gzcompress')) {
+            self::markTestSkipped('Zlib est requis pour construire un chunk PNG zTXt.');
+        }
+
         $path = $this->createPng('with-text.png', 96, 72);
         $this->insertPngChunk($path, 'tEXt', "Comment\0coordonnees privees");
+        $this->insertPngChunk($path, 'iTXt', "Author\0\0\0fr\0Auteur\0Photographe prive");
+        $compressedText = gzcompress('Position GPS privee');
+        self::assertIsString($compressedText);
+        $this->insertPngChunk($path, 'zTXt', "Location\0\0".$compressedText);
         $service = $this->service();
 
         $before = $service->inspectPublicPath('/uploads/with-text.png');
+        $chunkTypesBefore = $this->pngChunkTypes($path);
         $result = $service->sanitizePublicPath('/uploads/with-text.png');
+        $chunkTypesAfter = $this->pngChunkTypes($path);
+        $image = imagecreatefrompng($path);
 
         self::assertSame(['PNG_TEXT'], $before['markers']);
         self::assertTrue($before['hasSensitiveMetadata']);
+        self::assertContains('tEXt', $chunkTypesBefore);
+        self::assertContains('iTXt', $chunkTypesBefore);
+        self::assertContains('zTXt', $chunkTypesBefore);
         self::assertSame(['PNG_TEXT'], $result['markersBefore']);
         self::assertSame([], $result['markersAfter']);
         self::assertSame(96, $result['width']);
         self::assertSame(72, $result['height']);
+        self::assertNotContains('tEXt', $chunkTypesAfter);
+        self::assertNotContains('iTXt', $chunkTypesAfter);
+        self::assertNotContains('zTXt', $chunkTypesAfter);
+        self::assertNotFalse($image);
+
+        imagedestroy($image);
     }
 
     public function testJpegExifMetadataIsRemovedWithoutChangingDimensionsOrReadability(): void
@@ -164,5 +194,30 @@ final class ImageMetadataSanitizerTest extends TestCase
         $chunk = pack('N', strlen($data)).$type.$data.pack('N', crc32($type.$data));
 
         file_put_contents($path, substr($contents, 0, $chunkStart).$chunk.substr($contents, $chunkStart));
+    }
+
+    /** @return list<string> */
+    private function pngChunkTypes(string $path): array
+    {
+        $contents = (string) file_get_contents($path);
+        self::assertStringStartsWith("\x89PNG\r\n\x1A\n", $contents);
+
+        $types = [];
+        $offset = 8;
+        $length = strlen($contents);
+        while ($offset + 12 <= $length) {
+            $lengthData = unpack('N', substr($contents, $offset, 4));
+            self::assertIsArray($lengthData);
+            $dataLength = (int) $lengthData[1];
+            $type = substr($contents, $offset + 4, 4);
+            $types[] = $type;
+            $offset += 12 + $dataLength;
+
+            if ($type === 'IEND') {
+                break;
+            }
+        }
+
+        return $types;
     }
 }
