@@ -6,6 +6,10 @@ use App\Entity\User;
 use App\Service\AvatarUploadService;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\RawMessage;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class RegistrationControllerTest extends FunctionalTestCase
@@ -78,6 +82,79 @@ final class RegistrationControllerTest extends FunctionalTestCase
         $client->request('GET', '/register');
 
         self::assertResponseRedirects('/profile');
+    }
+
+    public function testMailerFailureKeepsSingleUnverifiedAccountAndRetryRequestsConfirmation(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $failingMailer = new FailingRegistrationMailer();
+        static::getContainer()->set('mailer.mailer', $failingMailer);
+        $email = sprintf('register-mailer-failure-%s@example.test', bin2hex(random_bytes(6)));
+        $password = 'Phrase robuste panne mailer 2026 9!';
+        $displayName = 'Panne Mailer '.$this->uniqueToken('register');
+        $crawler = $client->request('GET', '/register');
+
+        $client->submit($this->registrationForm($crawler, $email, $displayName, $password));
+
+        self::assertResponseRedirects('/login');
+        self::assertSame(1, $failingMailer->sendAttempts);
+        $user = $this->registeredUser($email);
+        self::assertFalse($user->isVerified());
+        self::assertSame(['ROLE_USER'], $user->getRoles());
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->disableReboot();
+        $recordingMailer = new RecordingRegistrationMailer();
+        static::getContainer()->set('mailer.mailer', $recordingMailer);
+        $client->request('POST', '/register', [
+            'registration_form' => [
+                'email' => $email,
+                '_token' => 'invalid-token',
+            ],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $recordingMailer->sentCount);
+
+        $crawler = $client->request('GET', '/register');
+        $client->submit($this->registrationForm(
+            $crawler,
+            $email,
+            'Tentative dupliquée '.$this->uniqueToken('register'),
+            'Autre phrase robuste 2026 8!',
+        ));
+
+        self::assertResponseRedirects('/login');
+        self::assertSame(1, $recordingMailer->sentCount);
+        self::assertSame(1, $this->entityManager()->getRepository(User::class)->count(['email' => $email]));
+        $storedUser = $this->registeredUser($email);
+        self::assertFalse($storedUser->isVerified());
+        self::assertSame(['ROLE_USER'], $storedUser->getRoles());
+        self::assertSame($displayName, $storedUser->getDisplayName());
+        self::assertTrue($this->passwordHasher()->isPasswordValid($storedUser, $password));
+    }
+
+    public function testVerifiedExistingAccountIsNotDuplicatedOrSentAnotherConfirmation(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $recordingMailer = new RecordingRegistrationMailer();
+        static::getContainer()->set('mailer.mailer', $recordingMailer);
+        $user = $this->createUser(verified: true);
+        $crawler = $client->request('GET', '/register');
+
+        $client->submit($this->registrationForm(
+            $crawler,
+            (string) $user->getEmail(),
+            'Doublon vérifié '.$this->uniqueToken('register'),
+            'Phrase robuste doublon 2026 7!',
+        ));
+
+        self::assertResponseRedirects('/login');
+        self::assertSame(0, $recordingMailer->sentCount);
+        self::assertSame(1, $this->entityManager()->getRepository(User::class)->count(['email' => $user->getEmail()]));
+        self::assertTrue($this->refresh($user)->isVerified());
     }
 
     public function testRegistrationWithAvatarPersistsAvatarPathAndLoginWorks(): void
@@ -224,5 +301,27 @@ final class RegistrationControllerTest extends FunctionalTestCase
         if (!function_exists('imagecreatetruecolor') || ($required !== null && !function_exists($required))) {
             self::markTestSkipped(sprintf('GD %s support is required for this registration test.', strtoupper($extension)));
         }
+    }
+}
+
+final class FailingRegistrationMailer implements MailerInterface
+{
+    public int $sendAttempts = 0;
+
+    public function send(RawMessage $message, ?Envelope $envelope = null): void
+    {
+        ++$this->sendAttempts;
+
+        throw new TransportException('Simulated registration mailer failure.');
+    }
+}
+
+final class RecordingRegistrationMailer implements MailerInterface
+{
+    public int $sentCount = 0;
+
+    public function send(RawMessage $message, ?Envelope $envelope = null): void
+    {
+        ++$this->sentCount;
     }
 }
