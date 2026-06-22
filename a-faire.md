@@ -5,3 +5,5 @@ Finir les tests a 100%
 Finir phpSTan
 Ajouter le provider de l'envoit des emails
 Ajouter une carte de france de séléction d'emplacement
+
+Ajouter les caches
