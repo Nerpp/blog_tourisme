@@ -2,7 +2,9 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\User;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+use SymfonyCasts\Bundle\VerifyEmail\VerifyEmailHelperInterface;
 
 final class EmailVerificationControllerTest extends FunctionalTestCase
 {
@@ -13,6 +15,49 @@ final class EmailVerificationControllerTest extends FunctionalTestCase
         $client->request('GET', '/verify/email?id=999999&hash=invalid');
 
         self::assertResponseRedirects('/login');
+    }
+
+    public function testValidVerificationLinkVerifiesOnlyItsUser(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser(verified: false);
+        $otherUser = $this->createUser(verified: false);
+
+        $client->request('GET', $this->verificationUrl($user));
+
+        self::assertResponseRedirects('/login');
+        $this->entityManager()->clear();
+        $storedUser = $this->entityManager()->find(User::class, $user->getId());
+        $storedOtherUser = $this->entityManager()->find(User::class, $otherUser->getId());
+        self::assertInstanceOf(User::class, $storedUser);
+        self::assertInstanceOf(User::class, $storedOtherUser);
+        self::assertTrue($storedUser->isVerified());
+        self::assertFalse($storedOtherUser->isVerified());
+    }
+
+    public function testVerificationLinkCannotBeReaddressedToAnotherUser(): void
+    {
+        $client = static::createClient();
+        $signedUser = $this->createUser(verified: false);
+        $targetUser = $this->createUser(verified: false);
+        $alteredUrl = preg_replace(
+            '/([?&]id=)\d+/',
+            '${1}'.(string) $targetUser->getId(),
+            $this->verificationUrl($signedUser),
+            1,
+        );
+        self::assertIsString($alteredUrl);
+
+        $client->request('GET', $alteredUrl);
+
+        self::assertResponseRedirects('/login');
+        $this->entityManager()->clear();
+        $storedSignedUser = $this->entityManager()->find(User::class, $signedUser->getId());
+        $storedTargetUser = $this->entityManager()->find(User::class, $targetUser->getId());
+        self::assertInstanceOf(User::class, $storedSignedUser);
+        self::assertInstanceOf(User::class, $storedTargetUser);
+        self::assertFalse($storedSignedUser->isVerified());
+        self::assertFalse($storedTargetUser->isVerified());
     }
 
     public function testAnonymousVisitorIsRedirectedFromResendPage(): void
@@ -61,5 +106,18 @@ final class EmailVerificationControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects('/profile');
+    }
+
+    private function verificationUrl(User $user): string
+    {
+        $helper = static::getContainer()->get(VerifyEmailHelperInterface::class);
+        self::assertInstanceOf(VerifyEmailHelperInterface::class, $helper);
+
+        return $helper->generateSignature(
+            'app_verify_email',
+            (string) $user->getId(),
+            (string) $user->getEmail(),
+            ['id' => $user->getId()],
+        )->getSignedUrl();
     }
 }

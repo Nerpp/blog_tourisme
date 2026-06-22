@@ -38,10 +38,46 @@ final class RegistrationControllerTest extends FunctionalTestCase
 
         $user = $this->registeredUser($email);
         self::assertNull($user->getAvatarPath());
+        self::assertSame(['ROLE_USER'], $user->getRoles());
+        self::assertFalse($user->isVerified());
         self::assertNotSame($password, $user->getPassword());
         self::assertTrue($this->passwordHasher()->isPasswordValid($user, $password));
 
         $this->loginWithPassword($client, $email, $password);
+    }
+
+    public function testRegistrationRejectsPrivilegedFieldsWithoutCreatingAccount(): void
+    {
+        $client = static::createClient();
+        $email = sprintf('register-privileged-%s@example.test', bin2hex(random_bytes(6)));
+        $crawler = $client->request('GET', '/register');
+
+        $client->request('POST', '/register', [
+            'registration_form' => [
+                'email' => $email,
+                'displayName' => 'Privilège refusé '.$this->uniqueToken('register'),
+                'plainPassword' => [
+                    'first' => 'Phrase robuste privilège 2026 9!',
+                    'second' => 'Phrase robuste privilège 2026 9!',
+                ],
+                'roles' => ['ROLE_ADMIN'],
+                'isVerified' => '1',
+                '_token' => $this->inputValue($crawler, 'input[name="registration_form[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertNull($this->entityManager()->getRepository(User::class)->findOneBy(['email' => $email]));
+    }
+
+    public function testAuthenticatedUserIsRedirectedAwayFromRegistration(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $client->request('GET', '/register');
+
+        self::assertResponseRedirects('/profile');
     }
 
     public function testRegistrationWithAvatarPersistsAvatarPathAndLoginWorks(): void

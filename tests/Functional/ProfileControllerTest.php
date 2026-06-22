@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\User;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 final class ProfileControllerTest extends FunctionalTestCase
@@ -114,6 +115,61 @@ final class ProfileControllerTest extends FunctionalTestCase
         self::assertResponseRedirects('/profile');
         $user = $this->refresh($user);
         self::assertSame($displayName, $user->getDisplayName());
+    }
+
+    public function testInvalidProfileDataDoesNotOverwritePersistedValues(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser();
+        $userId = $user->getId();
+        $originalDisplayName = $user->getDisplayName();
+        $user->setReceivePublicationEmails(true);
+        $this->persistAndFlush($user);
+        $client->loginUser($user);
+        $crawler = $client->request('GET', '/profile');
+
+        $client->request('POST', '/profile', [
+            'profile_form' => [
+                'displayName' => str_repeat('Nom invalide ', 20),
+                '_token' => $this->inputValue($crawler, 'input[name="profile_form[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $this->entityManager()->clear();
+        $storedUser = $this->entityManager()->find(User::class, $userId);
+        self::assertInstanceOf(User::class, $storedUser);
+        self::assertSame($originalDisplayName, $storedUser->getDisplayName());
+        self::assertTrue($storedUser->isReceivePublicationEmails());
+    }
+
+    public function testProfileRejectsPrivilegedFieldsWithoutChangingAccountState(): void
+    {
+        $client = static::createClient();
+        $user = $this->createUser();
+        $userId = $user->getId();
+        $originalDisplayName = $user->getDisplayName();
+        $client->loginUser($user);
+        $crawler = $client->request('GET', '/profile');
+
+        $client->request('POST', '/profile', [
+            'profile_form' => [
+                'displayName' => 'Nom injecté '.$this->uniqueToken('profile'),
+                'roles' => ['ROLE_ADMIN'],
+                'isVerified' => '1',
+                'isBanned' => '1',
+                '_token' => $this->inputValue($crawler, 'input[name="profile_form[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $this->entityManager()->clear();
+        $storedUser = $this->entityManager()->find(User::class, $userId);
+        self::assertInstanceOf(User::class, $storedUser);
+        self::assertSame($originalDisplayName, $storedUser->getDisplayName());
+        self::assertSame(['ROLE_USER'], $storedUser->getRoles());
+        self::assertTrue($storedUser->isVerified());
+        self::assertFalse($storedUser->isBanned());
     }
 
     public function testDeleteAvatarRequiresValidCsrf(): void
