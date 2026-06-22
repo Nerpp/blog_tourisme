@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\User;
+use Doctrine\ORM\Events;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use SymfonyCasts\Bundle\ResetPassword\ResetPasswordHelperInterface;
 
@@ -142,6 +143,52 @@ final class ResetPasswordControllerTest extends FunctionalTestCase
         self::assertResponseRedirects('/reset-password/reset');
         $client->followRedirect();
         self::assertResponseRedirects('/reset-password');
+    }
+
+    public function testPersistenceFailureKeepsOldPasswordAndResetTokenValid(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $user = $this->createUser();
+        $userId = $user->getId();
+        $originalPassword = $user->getPassword();
+        $token = $this->resetPasswordHelper()->generateResetToken($user)->getToken();
+        $crawler = $this->openResetForm($client, $token);
+        $listener = new class {
+            public function preFlush(): void
+            {
+                throw new \RuntimeException('Simulated password reset persistence failure.');
+            }
+        };
+        $eventManager = $this->entityManager()->getEventManager();
+        $eventManager->addEventListener([Events::preFlush], $listener);
+        $client->catchExceptions(false);
+
+        try {
+            $client->request('POST', '/reset-password/reset', [
+                'change_password_form' => [
+                    'plainPassword' => [
+                        'first' => 'Nouvelle phrase secrète 2026 !',
+                        'second' => 'Nouvelle phrase secrète 2026 !',
+                    ],
+                    '_token' => $this->inputValue($crawler, 'input[name="change_password_form[_token]"]'),
+                ],
+            ]);
+            self::fail('The simulated persistence failure should abort the reset.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Simulated password reset persistence failure.', $exception->getMessage());
+        } finally {
+            $eventManager->removeEventListener([Events::preFlush], $listener);
+        }
+
+        static::ensureKernelShutdown();
+        static::createClient();
+        $storedUser = $this->entityManager()->find(User::class, $userId);
+        self::assertInstanceOf(User::class, $storedUser);
+        self::assertSame($originalPassword, $storedUser->getPassword());
+        $tokenUser = $this->resetPasswordHelper()->validateTokenAndFetchUser($token);
+        self::assertInstanceOf(User::class, $tokenUser);
+        self::assertSame($userId, $tokenUser->getId());
     }
 
     private function openResetForm(\Symfony\Bundle\FrameworkBundle\KernelBrowser $client, string $token): \Symfony\Component\DomCrawler\Crawler

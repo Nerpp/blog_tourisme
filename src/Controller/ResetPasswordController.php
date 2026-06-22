@@ -117,9 +117,13 @@ final class ResetPasswordController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $resetPasswordHelper->removeResetRequest($token);
-            $user->setPassword($passwordHasher->hashPassword($user, (string) $form->get('plainPassword')->getData()));
-            $entityManager->flush();
+            $hashedPassword = $passwordHasher->hashPassword($user, (string) $form->get('plainPassword')->getData());
+
+            $entityManager->wrapInTransaction(function () use ($hashedPassword, $resetPasswordHelper, $token, $user): void {
+                $user->setPassword($hashedPassword);
+                $resetPasswordHelper->removeResetRequest($token);
+            });
+
             $this->cleanSessionAfterReset();
             $this->addFlash('success', 'Votre mot de passe a été réinitialisé. Vous pouvez vous connecter.');
 
