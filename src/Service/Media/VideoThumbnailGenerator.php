@@ -12,7 +12,7 @@ use Symfony\Component\Process\Exception\ExceptionInterface as ProcessExceptionIn
 use Symfony\Component\Process\Process;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
-final class VideoThumbnailGenerator
+class VideoThumbnailGenerator
 {
     private const PUBLIC_DIRECTORY = '/uploads/media/video-thumbnails';
 
@@ -65,19 +65,43 @@ final class VideoThumbnailGenerator
         $outputPath = $targetDirectory.'/'.$outputFilename;
 
         foreach (['00:00:02', '00:00:01', '00:00:00.500'] as $timeOffset) {
-            if ($this->extractFrame($inputPath, $outputPath, $timeOffset)) {
-                return self::PUBLIC_DIRECTORY.'/'.$outputFilename;
-            }
-        }
+            $temporaryPath = $targetDirectory.'/.video-thumbnail-'.bin2hex(random_bytes(16)).'.staging.jpg';
 
-        if (is_file($outputPath)) {
-            @unlink($outputPath);
+            try {
+                if (!$this->extractFrame($inputPath, $temporaryPath, $timeOffset)) {
+                    continue;
+                }
+
+                if (!$this->isUsableThumbnail($temporaryPath)) {
+                    $this->logger->warning('FFmpeg n’a pas produit de miniature vidéo temporaire exploitable.', [
+                        'inputPath' => $inputPath,
+                        'timeOffset' => $timeOffset,
+                    ]);
+
+                    continue;
+                }
+
+                if (!$this->promoteTemporaryThumbnail($temporaryPath, $outputPath)) {
+                    $this->logger->warning('La miniature vidéo temporaire n’a pas pu être promue.', [
+                        'inputPath' => $inputPath,
+                        'outputPath' => $outputPath,
+                    ]);
+
+                    return null;
+                }
+
+                return self::PUBLIC_DIRECTORY.'/'.$outputFilename;
+            } finally {
+                if (is_file($temporaryPath)) {
+                    @unlink($temporaryPath);
+                }
+            }
         }
 
         return null;
     }
 
-    private function extractFrame(string $inputPath, string $outputPath, string $timeOffset): bool
+    protected function extractFrame(string $inputPath, string $outputPath, string $timeOffset): bool
     {
         $process = new Process([
             'ffmpeg',
@@ -105,7 +129,7 @@ final class VideoThumbnailGenerator
             return false;
         }
 
-        if ($process->isSuccessful() && is_file($outputPath) && filesize($outputPath) !== false && filesize($outputPath) > 0) {
+        if ($process->isSuccessful()) {
             return true;
         }
 
@@ -118,6 +142,11 @@ final class VideoThumbnailGenerator
         return false;
     }
 
+    protected function promoteTemporaryThumbnail(string $temporaryPath, string $outputPath): bool
+    {
+        return @rename($temporaryPath, $outputPath);
+    }
+
     private function thumbnailForExternalVideo(MediaAsset $media): ?string
     {
         if ($media->getVideoType() !== VideoType::Youtube || !$media->getExternalUrl()) {
@@ -125,6 +154,13 @@ final class VideoThumbnailGenerator
         }
 
         return $this->videoThumbnailResolver->getThumbnailUrl($media->getExternalUrl());
+    }
+
+    private function isUsableThumbnail(string $path): bool
+    {
+        $size = is_file($path) ? filesize($path) : false;
+
+        return $size !== false && $size > 0;
     }
 
     private function resolveLocalPublicPath(?string $publicPath): ?string

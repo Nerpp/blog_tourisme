@@ -5,9 +5,14 @@ namespace App\Tests\Integration\Media;
 use App\Entity\MediaAsset;
 use App\Enum\MediaType;
 use App\Enum\VideoType;
+use App\Service\Media\PublicMediaPathValidator;
 use App\Service\Media\VideoThumbnailGenerator;
+use App\Service\VideoThumbnailResolver;
 use App\Tests\Integration\IntegrationTestCase;
 use App\Tests\Support\TestImageFactory;
+use Psr\Log\NullLogger;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\String\Slugger\AsciiSlugger;
 
 final class VideoThumbnailGeneratorTest extends IntegrationTestCase
 {
@@ -63,6 +68,74 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
         self::assertSame('/uploads/media/existing-thumb.jpg', $media->getThumbnailPath());
     }
 
+    public function testSuccessfulLocalGenerationPromotesTemporaryThumbnailAtomically(): void
+    {
+        $publicPath = $this->createLocalVideo();
+        $outputPath = $this->expectedOutputPath($publicPath, 'Vidéo atomique');
+        $this->files[] = $outputPath;
+        $generator = $this->simulatedGenerator(SimulatedVideoThumbnailGenerator::SUCCESS);
+
+        $thumbnail = $generator->generateFromPublicPath($publicPath, 'Vidéo atomique');
+
+        self::assertSame('/uploads/media/video-thumbnails/'.basename($outputPath), $thumbnail);
+        self::assertFileExists($outputPath);
+        self::assertSame('simulated thumbnail', file_get_contents($outputPath));
+        self::assertSame(1, $generator->extractionAttempts);
+        self::assertCount(1, $generator->extractionOutputPaths);
+        self::assertSame(dirname($outputPath), dirname($generator->extractionOutputPaths[0]));
+        self::assertMatchesRegularExpression(
+            '/^\.video-thumbnail-[a-f0-9]{32}\.staging\.jpg$/',
+            basename($generator->extractionOutputPaths[0]),
+        );
+        self::assertSame([], $this->temporaryThumbnails());
+    }
+
+    public function testFailedLocalGenerationRemovesPartialTemporaryFiles(): void
+    {
+        $publicPath = $this->createLocalVideo();
+        $outputPath = $this->expectedOutputPath($publicPath, 'Échec atomique');
+        $this->files[] = $outputPath;
+        $generator = $this->simulatedGenerator(SimulatedVideoThumbnailGenerator::FAIL_WITH_PARTIAL_FILE);
+
+        self::assertNull($generator->generateFromPublicPath($publicPath, 'Échec atomique'));
+        self::assertFileDoesNotExist($outputPath);
+        self::assertSame(3, $generator->extractionAttempts);
+        self::assertCount(3, array_unique($generator->extractionOutputPaths));
+        self::assertSame([], $this->temporaryThumbnails());
+    }
+
+    public function testPromotionFailurePreservesExistingFinalThumbnail(): void
+    {
+        $publicPath = $this->createLocalVideo();
+        $outputPath = $this->expectedOutputPath($publicPath, 'Miniature préservée');
+        $this->ensureThumbnailDirectory();
+        file_put_contents($outputPath, 'existing final thumbnail');
+        $this->files[] = $outputPath;
+        $generator = $this->simulatedGenerator(
+            SimulatedVideoThumbnailGenerator::SUCCESS,
+            promotionSucceeds: false,
+        );
+
+        self::assertNull($generator->generateFromPublicPath($publicPath, 'Miniature préservée'));
+        self::assertFileExists($outputPath);
+        self::assertSame('existing final thumbnail', file_get_contents($outputPath));
+        self::assertSame(1, $generator->extractionAttempts);
+        self::assertSame([], $this->temporaryThumbnails());
+    }
+
+    public function testSuccessfulProcessWithoutTemporaryFileDoesNotCreateFinalThumbnail(): void
+    {
+        $publicPath = $this->createLocalVideo();
+        $outputPath = $this->expectedOutputPath($publicPath, 'Sortie absente');
+        $this->files[] = $outputPath;
+        $generator = $this->simulatedGenerator(SimulatedVideoThumbnailGenerator::SUCCESS_WITHOUT_FILE);
+
+        self::assertNull($generator->generateFromPublicPath($publicPath, 'Sortie absente'));
+        self::assertFileDoesNotExist($outputPath);
+        self::assertSame(3, $generator->extractionAttempts);
+        self::assertSame([], $this->temporaryThumbnails());
+    }
+
     public function testUnsafeOrMissingPublicPathReturnsNull(): void
     {
         $generator = $this->generator();
@@ -83,16 +156,18 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
 
     public function testUnsupportedExternalVideoDoesNotAttemptLocalGeneration(): void
     {
+        $generator = $this->simulatedGenerator(SimulatedVideoThumbnailGenerator::SUCCESS);
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Video)
             ->setVideoType(VideoType::External)
             ->setExternalUrl('https://example.test/video')
             ->setFilePath('https://example.test/video.mp4');
 
-        $thumbnail = $this->generator()->generateForMedia($media);
+        $thumbnail = $generator->generateForMedia($media);
 
         self::assertNull($thumbnail);
         self::assertNull($media->getThumbnailPath());
+        self::assertSame(0, $generator->extractionAttempts);
     }
 
     public function testMissingLocalVideoReturnsNullWithoutChangingMedia(): void
@@ -127,5 +202,99 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
         self::assertInstanceOf(VideoThumbnailGenerator::class, $generator);
 
         return $generator;
+    }
+
+    private function simulatedGenerator(string $behavior, bool $promotionSucceeds = true): SimulatedVideoThumbnailGenerator
+    {
+        $parameterBag = $this->createStub(ParameterBagInterface::class);
+        $parameterBag->method('get')->willReturn(TestImageFactory::projectDir());
+
+        $generator = new SimulatedVideoThumbnailGenerator(
+            $parameterBag,
+            new AsciiSlugger(),
+            new PublicMediaPathValidator(),
+            new VideoThumbnailResolver(),
+            new NullLogger(),
+        );
+        $generator->behavior = $behavior;
+        $generator->promotionSucceeds = $promotionSucceeds;
+
+        return $generator;
+    }
+
+    private function createLocalVideo(): string
+    {
+        $file = TestImageFactory::publicMediaDirectory().'/atomic-video-'.bin2hex(random_bytes(6)).'.mp4';
+        file_put_contents($file, 'simulated local video');
+        $this->files[] = $file;
+
+        return TestImageFactory::publicPathFor($file);
+    }
+
+    private function expectedOutputPath(string $publicPath, string $basenameSeed): string
+    {
+        $safeName = strtolower((string) (new AsciiSlugger())->slug(pathinfo($basenameSeed, PATHINFO_FILENAME)));
+        $filename = sprintf('%s-%s-thumb.jpg', $safeName, substr(sha1($publicPath), 0, 10));
+
+        return $this->thumbnailDirectory().'/'.$filename;
+    }
+
+    /** @return list<string> */
+    private function temporaryThumbnails(): array
+    {
+        return glob($this->thumbnailDirectory().'/.video-thumbnail-*.staging.jpg') ?: [];
+    }
+
+    private function ensureThumbnailDirectory(): void
+    {
+        $directory = $this->thumbnailDirectory();
+        if (!is_dir($directory)) {
+            mkdir($directory, 0775, true);
+        }
+    }
+
+    private function thumbnailDirectory(): string
+    {
+        return TestImageFactory::projectDir().'/public/uploads/media/video-thumbnails';
+    }
+}
+
+final class SimulatedVideoThumbnailGenerator extends VideoThumbnailGenerator
+{
+    public const SUCCESS = 'success';
+    public const FAIL_WITH_PARTIAL_FILE = 'fail_with_partial_file';
+    public const SUCCESS_WITHOUT_FILE = 'success_without_file';
+
+    public string $behavior = self::SUCCESS;
+    public bool $promotionSucceeds = true;
+    public int $extractionAttempts = 0;
+    /** @var list<string> */
+    public array $extractionOutputPaths = [];
+
+    protected function extractFrame(string $inputPath, string $outputPath, string $timeOffset): bool
+    {
+        ++$this->extractionAttempts;
+        $this->extractionOutputPaths[] = $outputPath;
+
+        return match ($this->behavior) {
+            self::SUCCESS => file_put_contents($outputPath, 'simulated thumbnail') !== false,
+            self::FAIL_WITH_PARTIAL_FILE => $this->writePartialFileAndFail($outputPath),
+            self::SUCCESS_WITHOUT_FILE => true,
+            default => false,
+        };
+    }
+
+    protected function promoteTemporaryThumbnail(string $temporaryPath, string $outputPath): bool
+    {
+        return $this->promotionSucceeds
+            ? parent::promoteTemporaryThumbnail($temporaryPath, $outputPath)
+            : false;
+    }
+
+    private function writePartialFileAndFail(string $outputPath): bool
+    {
+        file_put_contents($outputPath, 'partial thumbnail');
+
+        return false;
     }
 }
