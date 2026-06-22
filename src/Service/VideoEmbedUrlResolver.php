@@ -42,7 +42,8 @@ final readonly class VideoEmbedUrlResolver
         if (str_contains($host, 'youtube.com') || str_contains($host, 'youtube-nocookie.com')) {
             if ($path === 'watch') {
                 parse_str($parts['query'] ?? '', $query);
-                $id = $query['v'] ?? null;
+                $candidate = $query['v'] ?? null;
+                $id = is_string($candidate) ? $candidate : null;
             } elseif (preg_match('#^(embed|shorts|live)/([^/?]+)#', $path, $matches)) {
                 $id = $matches[2];
             }

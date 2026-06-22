@@ -149,9 +149,19 @@ final class ImageVariantGenerator
         int $maxWidth,
     ): array {
         $targetWidth = min($sourceWidth, $maxWidth);
-        $targetHeight = (int) max(1, round($sourceHeight * ($targetWidth / $sourceWidth)));
+        $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+        if ($targetWidth < 1 || $targetHeight < 1) {
+            throw new InvalidArgumentException('Les dimensions calculées de la variante sont invalides.');
+        }
+
         $sourceImage = $this->createImage($sourceFile, $mimeType);
-        $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        try {
+            $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        } catch (\Throwable $exception) {
+            imagedestroy($sourceImage);
+
+            throw $exception;
+        }
 
         imagecopyresampled(
             $targetImage,
@@ -224,6 +234,10 @@ final class ImageVariantGenerator
 
     private function createCanvas(int $width, int $height, string $mimeType): GdImage
     {
+        if ($width < 1 || $height < 1) {
+            throw new InvalidArgumentException('Les dimensions calculées de la variante sont invalides.');
+        }
+
         $image = imagecreatetruecolor($width, $height);
         if (!$image instanceof GdImage) {
             throw new InvalidArgumentException('La création de la variante a échoué.');
@@ -233,9 +247,19 @@ final class ImageVariantGenerator
             imagealphablending($image, false);
             imagesavealpha($image, true);
             $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
+            if ($transparent === false) {
+                imagedestroy($image);
+
+                throw new InvalidArgumentException('La création de la variante a échoué.');
+            }
             imagefilledrectangle($image, 0, 0, $width, $height, $transparent);
         } else {
             $white = imagecolorallocate($image, 255, 255, 255);
+            if ($white === false) {
+                imagedestroy($image);
+
+                throw new InvalidArgumentException('La création de la variante a échoué.');
+            }
             imagefilledrectangle($image, 0, 0, $width, $height, $white);
         }
 

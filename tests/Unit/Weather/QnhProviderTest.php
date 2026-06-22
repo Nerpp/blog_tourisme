@@ -113,6 +113,47 @@ final class QnhProviderTest extends TestCase
         self::assertSame('Estimation météo, pas METAR station', $result['reliability']);
     }
 
+    public function testItKeepsMetarQnhButIgnoresAnInvalidObservationDate(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse(json_encode([
+                [
+                    'icaoId' => 'LFMP',
+                    'reportTime' => 'date-inanalysable',
+                    'rawOb' => 'METAR LFMP 051200Z AUTO 31010KT 9999 Q1024',
+                ],
+            ], \JSON_THROW_ON_ERROR)),
+        ]), new ArrayAdapter());
+
+        $result = $provider->provide(42.70, 2.80);
+
+        self::assertTrue($result['ok']);
+        self::assertSame(1024, $result['qnhHpa']);
+        self::assertNull($result['observedAt']);
+        self::assertStringEndsWith('heure inconnue', $result['summary']);
+        self::assertStringNotContainsString('1970', $result['summary']);
+    }
+
+    public function testItKeepsOpenMeteoPressureButIgnoresAnInvalidObservationDate(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse(json_encode([
+                'current' => [
+                    'time' => 'date-inanalysable',
+                    'pressure_msl' => 1016.2,
+                ],
+            ], \JSON_THROW_ON_ERROR)),
+        ]), new ArrayAdapter());
+
+        $result = $provider->provide(48.8566, 2.3522);
+
+        self::assertTrue($result['ok']);
+        self::assertSame(1016, $result['qnhHpa']);
+        self::assertNull($result['observedAt']);
+        self::assertStringEndsWith('heure inconnue', $result['summary']);
+        self::assertStringNotContainsString('1970', $result['summary']);
+    }
+
     public function testItReturnsUnavailableWhenMetarAndOpenMeteoDoNotProvidePressure(): void
     {
         $provider = new QnhProvider(new MockHttpClient([

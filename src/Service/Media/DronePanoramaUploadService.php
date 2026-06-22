@@ -292,8 +292,18 @@ final class DronePanoramaUploadService
 
         $targetWidth = $maxWidth;
         $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+        if ($targetWidth < 1 || $targetHeight < 1) {
+            throw new InvalidArgumentException('les dimensions générées de l’image 360° sont invalides.');
+        }
+
         $sourceImage = $this->createImage($sourceFile, $mimeType);
-        $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        try {
+            $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        } catch (\Throwable $exception) {
+            imagedestroy($sourceImage);
+
+            throw $exception;
+        }
 
         imagecopyresampled(
             $targetImage,
@@ -322,9 +332,18 @@ final class DronePanoramaUploadService
     {
         $targetWidth = min($sourceWidth, self::THUMBNAIL_WIDTH);
         $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+        if ($targetWidth < 1 || $targetHeight < 1) {
+            throw new InvalidArgumentException('les dimensions générées de la miniature 360° sont invalides.');
+        }
 
         $sourceImage = $this->createImage($sourceFile, $mimeType);
-        $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        try {
+            $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        } catch (\Throwable $exception) {
+            imagedestroy($sourceImage);
+
+            throw $exception;
+        }
 
         imagecopyresampled(
             $targetImage,
@@ -364,6 +383,10 @@ final class DronePanoramaUploadService
 
     private function createCanvas(int $width, int $height, string $mimeType): GdImage
     {
+        if ($width < 1 || $height < 1) {
+            throw new InvalidArgumentException('les dimensions générées de l’image 360° sont invalides.');
+        }
+
         $image = imagecreatetruecolor($width, $height);
         if (!$image instanceof GdImage) {
             throw new InvalidArgumentException('la génération de l’image 360° a échoué.');
@@ -373,6 +396,11 @@ final class DronePanoramaUploadService
             imagealphablending($image, false);
             imagesavealpha($image, true);
             $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
+            if ($transparent === false) {
+                imagedestroy($image);
+
+                throw new InvalidArgumentException('la génération de l’image 360° a échoué.');
+            }
             imagefilledrectangle($image, 0, 0, $width, $height, $transparent);
         }
 

@@ -12,6 +12,7 @@ use App\Enum\VideoType;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
+use GdImage;
 
 final class MediaAssetFixtures extends Fixture implements DependentFixtureInterface
 {
@@ -286,15 +287,23 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
      */
     private function drawImage(string $path, int $width, int $height, array $palette, bool $webp): void
     {
-        $image = imagecreatetruecolor($width, $height);
-        if ($image === false) {
+        if ($width < 1 || $height < 1) {
             return;
         }
 
-        $colors = array_map(fn(string $name): int => $this->allocateColor($image, $name), $palette);
-        $sky = $colors[0] ?? $this->allocateColor($image, 'sky');
-        $middle = $colors[1] ?? $this->allocateColor($image, 'sea');
-        $foreground = $colors[2] ?? $this->allocateColor($image, 'village');
+        $image = imagecreatetruecolor($width, $height);
+        if (!$image instanceof GdImage) {
+            return;
+        }
+
+        $sky = $this->allocateColor($image, $palette[0] ?? 'sky');
+        $middle = $this->allocateColor($image, $palette[1] ?? 'sea');
+        $foreground = $this->allocateColor($image, $palette[2] ?? 'village');
+        if ($sky === null || $middle === null || $foreground === null) {
+            imagedestroy($image);
+
+            return;
+        }
 
         imagefilledrectangle($image, 0, 0, $width, (int) ($height * 0.55), $sky);
         imagefilledrectangle($image, 0, (int) ($height * 0.55), $width, $height, $middle);
@@ -311,7 +320,7 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
         imagefilledpolygon($image, $points, $foreground);
 
         $accent = imagecolorallocate($image, 255, 237, 179);
-        if ($accent !== false) {
+        if (is_int($accent)) {
             imagefilledellipse($image, (int) ($width * 0.82), (int) ($height * 0.18), (int) ($width * 0.12), (int) ($width * 0.12), $accent);
         }
 
@@ -319,10 +328,7 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
         imagedestroy($image);
     }
 
-    /**
-     * @param resource|\GdImage $image
-     */
-    private function allocateColor($image, string $name): int
+    private function allocateColor(GdImage $image, string $name): ?int
     {
         $rgb = [
             'sky' => [143, 191, 214],
@@ -338,6 +344,8 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
             'lake' => [67, 142, 177],
         ][$name] ?? [120, 120, 120];
 
-        return imagecolorallocate($image, ...$rgb) ?: 0;
+        $color = imagecolorallocate($image, ...$rgb);
+
+        return is_int($color) ? $color : null;
     }
 }

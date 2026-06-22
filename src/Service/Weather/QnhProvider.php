@@ -172,7 +172,7 @@ final class QnhProvider
                 $qnh,
                 $station['icao'],
                 $station['name'],
-                $observedAt !== null ? gmdate('H:i \U\T\C', strtotime($observedAt)) : 'heure inconnue',
+                $this->observedTimeLabel($observedAt),
             );
 
             return [
@@ -245,7 +245,9 @@ final class QnhProvider
             }
 
             $qnh = (int) round((float) $current['pressure_msl']);
-            $observedAt = is_string($current['time'] ?? null) ? $current['time'].'Z' : null;
+            $observedAt = is_string($current['time'] ?? null)
+                ? $this->validObservedAt($current['time'].'Z')
+                : null;
 
             return [
                 'ok' => true,
@@ -260,7 +262,7 @@ final class QnhProvider
                 'summary' => sprintf(
                     'QNH estimé %d hPa - Open-Meteo pressure_msl - %s',
                     $qnh,
-                    $observedAt !== null ? gmdate('H:i \U\T\C', strtotime($observedAt)) : 'heure inconnue',
+                    $this->observedTimeLabel($observedAt),
                 ),
             ];
         });
@@ -301,7 +303,7 @@ final class QnhProvider
     private function observedAt(array $report): ?string
     {
         if (is_string($report['reportTime'] ?? null)) {
-            return $report['reportTime'];
+            return $this->validObservedAt($report['reportTime']);
         }
 
         if (is_int($report['obsTime'] ?? null)) {
@@ -309,6 +311,25 @@ final class QnhProvider
         }
 
         return null;
+    }
+
+    private function validObservedAt(string $observedAt): ?string
+    {
+        return strtotime($observedAt) === false ? null : $observedAt;
+    }
+
+    private function observedTimeLabel(?string $observedAt): string
+    {
+        if ($observedAt === null) {
+            return 'heure inconnue';
+        }
+
+        $timestamp = strtotime($observedAt);
+        if ($timestamp === false) {
+            return 'heure inconnue';
+        }
+
+        return gmdate('H:i \U\T\C', $timestamp);
     }
 
     private function distanceKm(float $latA, float $lonA, float $latB, float $lonB): float

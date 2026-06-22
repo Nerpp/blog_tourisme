@@ -68,7 +68,14 @@ final class AvatarUploadService
 
         imagealphablending($avatar, false);
         imagesavealpha($avatar, true);
-        imagefill($avatar, 0, 0, imagecolorallocatealpha($avatar, 0, 0, 0, 127));
+        $transparent = imagecolorallocatealpha($avatar, 0, 0, 0, 127);
+        if ($transparent === false) {
+            imagedestroy($source);
+            imagedestroy($avatar);
+
+            throw new RuntimeException('L’avatar n’a pas pu être préparé.');
+        }
+        imagefill($avatar, 0, 0, $transparent);
 
         $sourceWidth = $inspection['width'];
         $sourceHeight = $inspection['height'];

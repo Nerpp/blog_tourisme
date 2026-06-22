@@ -86,6 +86,7 @@ final class VideoEmbedUrlResolverTest extends TestCase
         yield 'not a url' => [VideoType::Youtube, 'not-a-url'];
         yield 'youtube missing id' => [VideoType::Youtube, 'https://www.youtube.com/watch?t=10'];
         yield 'youtube invalid id' => [VideoType::Youtube, 'https://www.youtube.com/watch?v=bad!'];
+        yield 'youtube array id' => [VideoType::Youtube, 'https://www.youtube.com/watch?v[]=abcDEF_1234'];
         yield 'vimeo invalid' => [VideoType::Vimeo, 'https://vimeo.com/not-numeric'];
         yield 'dailymotion invalid' => [VideoType::Dailymotion, 'https://www.dailymotion.com/embed/x8test'];
     }

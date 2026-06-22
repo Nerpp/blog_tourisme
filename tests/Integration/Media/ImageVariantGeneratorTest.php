@@ -225,6 +225,26 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         }
     }
 
+    public function testRejectsVariantDimensionsThatRoundToZeroWithoutWritingOutput(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 10_000, 1);
+        $this->files[] = $source;
+        $variantPattern = TestImageFactory::projectDir().'/public/uploads/media/variants/media_*';
+        $filesBefore = glob($variantPattern) ?: [];
+
+        try {
+            $this->generator()->generate(TestImageFactory::publicPathFor($source), 'invalid-rounded-height');
+            self::fail('A variant with a calculated zero height must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('Les dimensions calculées de la variante sont invalides.', $exception->getMessage());
+        }
+
+        self::assertSame(
+            $filesBefore,
+            glob($variantPattern) ?: [],
+        );
+    }
+
     private function assertPublicImage(string $publicPath, string $expectedMime, int $width, int $height): void
     {
         $file = TestImageFactory::projectDir().'/public/'.ltrim($publicPath, '/');
