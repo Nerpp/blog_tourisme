@@ -54,6 +54,7 @@ final class ArticleContentExtensionTest extends TestCase
             ]);
         $this->setEntityId($media, 77);
         $article = $this->article('<p>Avant [[media:77]] apres</p>');
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article));
         $link = (new ArticleMedia())->setArticle($article)->setMediaAsset($media);
         $article->getMediaLinks()->add($link);
 

@@ -148,7 +148,7 @@ final class DestinationController extends AbstractController
     {
         foreach ($article->getDestinationLinks() as $link) {
             $destination = $link->getDestination();
-            if (!$this->destinationMatches($destination, $destinationIds)) {
+            if (!$destination instanceof Destination || !$this->destinationMatches($destination, $destinationIds)) {
                 continue;
             }
 

@@ -31,7 +31,12 @@ final readonly class VideoEmbedUrlResolver
             return null;
         }
 
-        $host = strtolower(preg_replace('/^www\./', '', $parts['host']));
+        $host = preg_replace('/^www\./', '', $parts['host']);
+        if (!is_string($host)) {
+            return null;
+        }
+
+        $host = strtolower($host);
         $path = trim($parts['path'] ?? '', '/');
         $id = null;
 

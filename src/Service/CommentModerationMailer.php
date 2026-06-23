@@ -20,13 +20,14 @@ final class CommentModerationMailer
     public function sendCommentRejected(Comment $comment, string $reason, bool $autoBanned): void
     {
         $author = $comment->getAuthor();
-        if (!$author instanceof User || !filter_var($author->getEmail(), FILTER_VALIDATE_EMAIL)) {
+        $recipient = $author?->getEmail();
+        if (!$author instanceof User || !is_string($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
             return;
         }
 
         $email = (new TemplatedEmail())
             ->from($this->from)
-            ->to($author->getEmail())
+            ->to($recipient)
             ->subject('Votre commentaire n’a pas été accepté sur Estela Explorations')
             ->htmlTemplate('emails/comment_rejected.html.twig')
             ->context([

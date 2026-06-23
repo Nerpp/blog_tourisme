@@ -65,6 +65,10 @@ final class ArticleContentExtension extends AbstractExtension
         $mediaById = [];
         foreach ($article->getMediaLinks() as $link) {
             $media = $link->getMediaAsset();
+            if (!$media instanceof MediaAsset) {
+                continue;
+            }
+
             if ($media->getId() !== null) {
                 $mediaById[$media->getId()] = $media;
             }

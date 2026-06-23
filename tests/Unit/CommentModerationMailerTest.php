@@ -49,11 +49,16 @@ final class CommentModerationMailerTest extends TestCase
 
         $mailer->sendCommentRejected(new Comment(), 'Sans auteur.', false);
         $mailer->sendCommentRejected(
+            (new Comment())->setAuthor(new User()),
+            'Email absent.',
+            false,
+        );
+        $mailer->sendCommentRejected(
             (new Comment())->setAuthor((new User())->setEmail('adresse-invalide')),
             'Email invalide.',
             false,
         );
 
-        self::addToAssertionCount(2);
+        self::addToAssertionCount(3);
     }
 }

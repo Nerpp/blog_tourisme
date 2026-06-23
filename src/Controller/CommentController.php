@@ -259,7 +259,12 @@ final class CommentController extends AbstractController
 
         $violations = $validator->validate($reply);
         if (count($violations) > 0) {
-            $this->addFlash('error', $violations[0]->getMessage());
+            $message = 'Votre réponse n’a pas pu être envoyée.';
+            foreach ($violations as $violation) {
+                $message = (string) $violation->getMessage();
+                break;
+            }
+            $this->addFlash('error', $message);
 
             return $this->redirectToCommentTarget($parent);
         }
@@ -311,7 +316,12 @@ final class CommentController extends AbstractController
         $violations = $validator->validate($comment);
         if (count($violations) > 0) {
             $comment->setContent((string) $previousContent);
-            $this->addFlash('error', $violations[0]->getMessage());
+            $message = 'Votre commentaire n’a pas pu être modifié.';
+            foreach ($violations as $violation) {
+                $message = (string) $violation->getMessage();
+                break;
+            }
+            $this->addFlash('error', $message);
 
             return $this->redirectToCommentTarget($comment);
         }
