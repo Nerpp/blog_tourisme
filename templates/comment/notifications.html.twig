@@ -2,6 +2,16 @@
 
 {% block title %}Notifications commentaires - Blog Tourisme{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/comments.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/comments.js') }}
+{% endblock %}
+
 {% block body %}
     <main class="comment-notifications-page">
         <section class="comment-notifications">

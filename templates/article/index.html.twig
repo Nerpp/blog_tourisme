@@ -3,6 +3,16 @@
 {% block title %}Articles tourisme - Blog Tourisme{% endblock %}
 {% block meta_description %}Tous les articles publiés : itinéraires, conseils voyage et idées de découverte pour préparer vos visites.{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/article-index.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/article-index.js') }}
+{% endblock %}
+
 {% block body %}
     {% set role_labels = {
         related: 'Article lié',

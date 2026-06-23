@@ -6,6 +6,11 @@
 Découvrez des randonnées, villages, villes et paysages à travers un blog tourisme immersif.
 {% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/home.js') }}
+{% endblock %}
+
 {% block body %}
     <main class="travel-home">
         {% include 'home/partials/_hero.html.twig' with {

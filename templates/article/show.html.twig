@@ -67,6 +67,18 @@
 	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
 {% endblock %}
 
+{% block stylesheets %}
+	{{ parent() }}
+	{{ vite_entry_link_tags('assets/entries/article-show.js') }}
+	{{ vite_entry_link_tags('assets/entries/comments.js') }}
+{% endblock %}
+
+{% block javascripts %}
+	{{ parent() }}
+	{{ vite_entry_script_tags('assets/entries/article-show.js') }}
+	{{ vite_entry_script_tags('assets/entries/comments.js') }}
+{% endblock %}
+
 {% block preloads %}
 	{% if article_cover_image %}
 		<link rel="preload" as="image" href="{{ article_cover_image }}">

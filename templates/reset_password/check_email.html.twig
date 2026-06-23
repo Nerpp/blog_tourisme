@@ -2,6 +2,16 @@
 
 {% block title %}Email envoyé - Blog Tourisme{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/auth.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/auth.js') }}
+{% endblock %}
+
 {% block body %}
     <main class="login-page auth-reset-page auth-reset-page--check">
         <section class="login-shell auth-reset-shell" aria-labelledby="reset-check-title">

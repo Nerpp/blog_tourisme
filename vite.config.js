@@ -37,6 +37,15 @@ export default defineConfig(({ command }) => ({
     rollupOptions: {
       input: {
         app: fileURLToPath(new URL('./assets/app.js', import.meta.url)),
+        home: fileURLToPath(new URL('./assets/entries/home.js', import.meta.url)),
+        auth: fileURLToPath(new URL('./assets/entries/auth.js', import.meta.url)),
+        comments: fileURLToPath(new URL('./assets/entries/comments.js', import.meta.url)),
+        destination: fileURLToPath(new URL('./assets/entries/destination.js', import.meta.url)),
+        articleIndex: fileURLToPath(new URL('./assets/entries/article-index.js', import.meta.url)),
+        articleShow: fileURLToPath(new URL('./assets/entries/article-show.js', import.meta.url)),
+        publicDetail: fileURLToPath(new URL('./assets/entries/public-detail.js', import.meta.url)),
+        relatedArticles: fileURLToPath(new URL('./assets/entries/related-articles.js', import.meta.url)),
+        profile: fileURLToPath(new URL('./assets/entries/profile.js', import.meta.url)),
         admin: fileURLToPath(new URL('./assets/js/admin.js', import.meta.url)),
         adminHighPrecisionGps: fileURLToPath(new URL('./assets/js/admin-high-precision-gps.js', import.meta.url)),
         adminPlaceGps: fileURLToPath(new URL('./assets/js/admin-place-gps.js', import.meta.url)),

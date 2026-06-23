@@ -3,6 +3,16 @@
 {% block title %}Destinations - Blog Tourisme{% endblock %}
 {% block meta_description %}Explorez la hierarchie des destinations touristiques : pays, regions, departements et villes.{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/destination.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/destination.js') }}
+{% endblock %}
+
 {% block body %}
     <main class="destinations-page" data-destination-browser>
         <section class="destinations-hero">

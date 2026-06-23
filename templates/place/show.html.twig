@@ -5,6 +5,18 @@
 {% block open_graph_title %}{{ place.seoTitle ?: place.name }}{% endblock %}
 {% block open_graph_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
+    {{ vite_entry_link_tags('assets/entries/comments.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
+    {{ vite_entry_script_tags('assets/entries/comments.js') }}
+{% endblock %}
+
 {% block body %}
     <main class="page-shell article-layout">
         <article class="article-main">

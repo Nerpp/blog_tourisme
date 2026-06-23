@@ -3,6 +3,11 @@
 {% block title %}Inscription - Blog Tourisme
 {% endblock %}
 
+{% block stylesheets %}
+	{{ parent() }}
+	{{ vite_entry_link_tags('assets/entries/auth.js') }}
+{% endblock %}
+
 {% block body %}
 	<main class="register-page">
 		<section class="register-shell" aria-labelledby="register-title">
@@ -98,29 +103,5 @@
 
 {% block javascripts %}
 	{{ parent() }}
-	<script>
-		document.addEventListener('DOMContentLoaded', () => {
-const input = document.querySelector('[data-avatar-input]');
-const preview = document.querySelector('[data-avatar-preview]');
-const image = document.querySelector('[data-avatar-preview-image]');
-
-if (! input || ! preview || ! image) {
-return;
-}
-
-input.addEventListener('change', () => {
-const file = input.files && input.files[0] ? input.files[0] : null;
-if (! file || ! file.type.startsWith('image/')) {
-image.hidden = true;
-image.removeAttribute('src');
-preview.classList.remove('has-image');
-return;
-}
-
-image.src = URL.createObjectURL(file);
-image.hidden = false;
-preview.classList.add('has-image');
-});
-});
-	</script>
+	{{ vite_entry_script_tags('assets/entries/auth.js') }}
 {% endblock %}

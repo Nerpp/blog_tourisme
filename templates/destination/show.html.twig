@@ -53,6 +53,16 @@
 {% block open_graph_title %}{{ destination.seoTitle ?: destination.name }}{% endblock %}
 {% block open_graph_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique à découvrir sur Blog Tourisme.' }}{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/destination.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/destination.js') }}
+{% endblock %}
+
 {% block body %}
     <main class="destination-detail-page">
         <section class="destination-detail-hero">

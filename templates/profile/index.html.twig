@@ -8,6 +8,16 @@
 
 {% block title %}Profil - Blog Tourisme{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/profile.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/profile.js') }}
+{% endblock %}
+
 {% block body %}
     <main class="profile-page">
         <div class="profile-shell">
