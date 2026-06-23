@@ -110,7 +110,7 @@ final class CleanupPublicMediaMastersCommand extends Command
             return $media instanceof MediaAsset ? [$media] : [];
         }
 
-        return $this->mediaAssetRepository->findBy([], ['id' => 'ASC']);
+        return array_values($this->mediaAssetRepository->findBy([], ['id' => 'ASC']));
     }
 
     private function formatBytes(int $bytes): string

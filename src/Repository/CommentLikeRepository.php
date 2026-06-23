@@ -69,7 +69,7 @@ class CommentLikeRepository extends ServiceEntityRepository
             ->getQuery()
             ->getArrayResult();
 
-        return array_map(static fn (array $row): int => (int) $row['comment_id'], $rows);
+        return array_values(array_map(static fn (array $row): int => (int) $row['comment_id'], $rows));
     }
 
     /** @param list<Comment> $comments */

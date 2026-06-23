@@ -59,7 +59,14 @@ final class TrafficEventRepository extends ServiceEntityRepository
             $this->sqlTypes(true),
         )->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['views', 'visitors']);
+        return array_map(static fn (array $row): array => [
+            'path' => (string) $row['path'],
+            'routeName' => $row['routeName'] === null ? null : (string) $row['routeName'],
+            'contentType' => $row['contentType'] === null ? null : (string) $row['contentType'],
+            'contentTitle' => $row['contentTitle'] === null ? null : (string) $row['contentTitle'],
+            'views' => (int) $row['views'],
+            'visitors' => (int) $row['visitors'],
+        ], $rows);
     }
 
     /** @return list<array{contentId: ?int, contentTitle: ?string, path: string, views: int, visitors: int}> */
@@ -71,7 +78,13 @@ final class TrafficEventRepository extends ServiceEntityRepository
             $this->sqlTypes(true, ['contentType' => ParameterType::STRING]),
         )->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['contentId', 'views', 'visitors']);
+        return array_map(static fn (array $row): array => [
+            'contentId' => $row['contentId'] === null ? null : (int) $row['contentId'],
+            'contentTitle' => $row['contentTitle'] === null ? null : (string) $row['contentTitle'],
+            'path' => (string) $row['path'],
+            'views' => (int) $row['views'],
+            'visitors' => (int) $row['visitors'],
+        ], $rows);
     }
 
     /** @return list<array{source: string, views: int}> */
@@ -83,7 +96,10 @@ final class TrafficEventRepository extends ServiceEntityRepository
             $this->sqlTypes(true),
         )->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['views']);
+        return array_map(static fn (array $row): array => [
+            'source' => (string) $row['source'],
+            'views' => (int) $row['views'],
+        ], $rows);
     }
 
     /** @return list<array{deviceType: string, views: int}> */
@@ -95,7 +111,10 @@ final class TrafficEventRepository extends ServiceEntityRepository
             $this->sqlTypes(),
         )->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['views']);
+        return array_map(static fn (array $row): array => [
+            'deviceType' => (string) $row['deviceType'],
+            'views' => (int) $row['views'],
+        ], $rows);
     }
 
     /** @return list<array{browserFamily: string, views: int}> */
@@ -107,7 +126,10 @@ final class TrafficEventRepository extends ServiceEntityRepository
             $this->sqlTypes(),
         )->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['views']);
+        return array_map(static fn (array $row): array => [
+            'browserFamily' => (string) $row['browserFamily'],
+            'views' => (int) $row['views'],
+        ], $rows);
     }
 
     /** @return list<array{statusCode: int, views: int}> */
@@ -119,7 +141,10 @@ final class TrafficEventRepository extends ServiceEntityRepository
             $this->sqlTypes(),
         )->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['statusCode', 'views']);
+        return array_map(static fn (array $row): array => [
+            'statusCode' => (int) $row['statusCode'],
+            'views' => (int) $row['views'],
+        ], $rows);
     }
 
     /** @return list<array{path: string, hits: int, lastSeen: \DateTimeImmutable}> */
@@ -131,7 +156,11 @@ final class TrafficEventRepository extends ServiceEntityRepository
             $this->sqlTypes(true),
         )->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['hits']);
+        return array_map(static fn (array $row): array => [
+            'path' => (string) $row['path'],
+            'hits' => (int) $row['hits'],
+            'lastSeen' => new \DateTimeImmutable((string) $row['lastSeen']),
+        ], $rows);
     }
 
     /** @return list<array{period: string, views: int, visitors: int}> */
@@ -212,7 +241,11 @@ final class TrafficEventRepository extends ServiceEntityRepository
             'to' => ParameterType::STRING,
         ])->fetchAllAssociative();
 
-        return $this->normalizeIntegerColumns($rows, ['views', 'visitors']);
+        return array_map(static fn (array $row): array => [
+            'period' => (string) $row['period'],
+            'views' => (int) $row['views'],
+            'visitors' => (int) $row['visitors'],
+        ], $rows);
     }
 
     /** @return array{from: string, to: string, limit?: int} */
@@ -254,22 +287,4 @@ final class TrafficEventRepository extends ServiceEntityRepository
         return array_replace($types, $extraTypes);
     }
 
-    /**
-     * @param list<array<string, mixed>> $rows
-     * @param list<string> $columns
-     *
-     * @return list<array<string, mixed>>
-     */
-    private function normalizeIntegerColumns(array $rows, array $columns): array
-    {
-        foreach ($rows as &$row) {
-            foreach ($columns as $column) {
-                if (array_key_exists($column, $row) && $row[$column] !== null) {
-                    $row[$column] = (int) $row[$column];
-                }
-            }
-        }
-
-        return $rows;
-    }
 }

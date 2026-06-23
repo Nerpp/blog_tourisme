@@ -239,10 +239,10 @@ class CommentRepository extends ServiceEntityRepository
                 ->addOrderBy('c.createdAt', 'DESC');
         }
 
-        return array_map(
+        return array_values(array_map(
             static fn (array $row): int => (int) $row['id'],
             $queryBuilder->getQuery()->getArrayResult(),
-        );
+        ));
     }
 
     /**

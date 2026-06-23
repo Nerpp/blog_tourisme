@@ -385,6 +385,7 @@ class DestinationRepository extends ServiceEntityRepository
      */
     private function countPublishedPlacesByDestinationIds(array $destinationIds): array
     {
+        /** @var list<array{destination_id: int|string, content_count: int|string}> $rows */
         $rows = $this->getEntityManager()->getConnection()->executeQuery(
             <<<'SQL'
                 SELECT p.destination_id, COUNT(p.id) AS content_count
@@ -412,6 +413,7 @@ class DestinationRepository extends ServiceEntityRepository
      */
     private function countPublishedArticlesByDestinationIds(array $destinationIds): array
     {
+        /** @var list<array{destination_id: int|string, content_count: int|string}> $rows */
         $rows = $this->getEntityManager()->getConnection()->executeQuery(
             <<<'SQL'
                 SELECT ad.destination_id, COUNT(DISTINCT a.id) AS content_count
@@ -440,6 +442,7 @@ class DestinationRepository extends ServiceEntityRepository
      */
     private function countPublicHikesByDestinationIds(array $destinationIds): array
     {
+        /** @var list<array{destination_id: int|string, content_count: int|string}> $rows */
         $rows = $this->getEntityManager()->getConnection()->executeQuery(
             <<<'SQL'
                 SELECT COALESCE(h.geographic_destination_id, h.destination_id) AS destination_id, COUNT(h.id) AS content_count
@@ -471,6 +474,7 @@ class DestinationRepository extends ServiceEntityRepository
      */
     private function countPublicCityVisitsByDestinationIds(array $destinationIds): array
     {
+        /** @var list<array{destination_id: int|string, content_count: int|string}> $rows */
         $rows = $this->getEntityManager()->getConnection()->executeQuery(
             <<<'SQL'
                 SELECT COALESCE(c.geographic_destination_id, c.destination_id) AS destination_id, COUNT(c.id) AS content_count
@@ -496,7 +500,7 @@ class DestinationRepository extends ServiceEntityRepository
     }
 
     /**
-     * @param array<int, array{destination_id: int|string, content_count: int|string}> $rows
+     * @param list<array{destination_id: int|string, content_count: int|string}> $rows
      *
      * @return array<int, int>
      */
