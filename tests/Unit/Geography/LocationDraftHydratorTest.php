@@ -72,7 +72,7 @@ final class LocationDraftHydratorTest extends TestCase
     }
 
     /**
-     * @param array<string, string> $parameters
+     * @param array<string, mixed> $parameters
      */
     #[DataProvider('invalidRequestProvider')]
     public function testDataFromRequestRejectsInvalidCoordinates(array $parameters, string $expectedMessage): void
@@ -88,7 +88,7 @@ final class LocationDraftHydratorTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{parameters: array<string, string>, expectedMessage: string}>
+     * @return iterable<string, array{parameters: array<string, mixed>, expectedMessage: string}>
      */
     public static function invalidRequestProvider(): iterable
     {
@@ -116,6 +116,37 @@ final class LocationDraftHydratorTest extends TestCase
             'parameters' => ['accuracy' => '-1'],
             'expectedMessage' => 'La précision GPS doit être positive.',
         ];
+
+        yield 'array coordinate' => [
+            'parameters' => ['latitude' => ['42.5'], 'longitude' => '2.2'],
+            'expectedMessage' => 'La latitude GPS doit être un nombre valide.',
+        ];
+
+        yield 'boolean accuracy' => [
+            'parameters' => ['accuracy' => false],
+            'expectedMessage' => 'La précision GPS doit être un nombre valide.',
+        ];
+    }
+
+    public function testDataFromRequestIgnoresMalformedTextWithoutCastingIt(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $hydrator = $this->createHydrator($database, $scheduled);
+
+        $data = $hydrator->dataFromRequest(Request::create('/', 'POST', [
+            'locationCommune' => ['Nyer'],
+            'locationInseeCode' => true,
+            'locationDepartment' => ['Pyrénées-Orientales'],
+            'locationRegion' => false,
+            'locationCountry' => ['France'],
+        ]));
+
+        self::assertNull($data['communeName']);
+        self::assertNull($data['communeInseeCode']);
+        self::assertNull($data['departmentName']);
+        self::assertNull($data['regionName']);
+        self::assertSame('France', $data['country']);
     }
 
     public function testHydrateHikeDraftCreatesStartPointAndGeographicDestination(): void
@@ -192,9 +223,9 @@ final class LocationDraftHydratorTest extends TestCase
             'departmentName' => 'Pyrénées-Orientales',
             'departmentCode' => '66',
             'regionName' => 'Occitanie',
-            'latitude' => '42.698',
-            'longitude' => '2.895',
-            'gpsAccuracy' => '4',
+            'latitude' => 42.698,
+            'longitude' => 2.895,
+            'gpsAccuracy' => 4,
         ]);
 
         $destination = $draft->getGeographicDestination();
@@ -280,6 +311,55 @@ final class LocationDraftHydratorTest extends TestCase
             self::fail('Une longitude GPS manquante doit interrompre l’hydratation.');
         } catch (LocationDraftHydrationException $exception) {
             self::assertSame('Le point GPS doit contenir une latitude et une longitude valides.', $exception->getMessage());
+        }
+
+        self::assertSame('Commune existante', $draft->getDetectedCommuneName());
+        self::assertNull($draft->getGeographicDestination());
+        self::assertCount(0, $draft->getPoints());
+        self::assertSame([], $scheduled);
+    }
+
+    public function testHydrateHikeDraftDoesNotCreateDestinationFromMalformedText(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $hydrator = $this->createHydrator($database, $scheduled);
+        $draft = new HikeDraft();
+
+        $hydrator->hydrateHikeDraft($draft, [
+            'communeName' => ['Nyer'],
+            'communeInseeCode' => true,
+            'departmentName' => ['Pyrénées-Orientales'],
+            'regionName' => false,
+            'country' => ['France'],
+        ]);
+
+        self::assertNull($draft->getDetectedCommuneName());
+        self::assertNull($draft->getDetectedCommuneCode());
+        self::assertNull($draft->getDetectedDepartmentName());
+        self::assertNull($draft->getDetectedRegionName());
+        self::assertNull($draft->getGeographicDestination());
+        self::assertCount(0, $draft->getPoints());
+        self::assertSame([], $scheduled);
+    }
+
+    public function testHydrateHikeDraftRejectsMalformedCoordinateBeforeMutation(): void
+    {
+        $database = [];
+        $scheduled = [];
+        $hydrator = $this->createHydrator($database, $scheduled);
+        $draft = (new HikeDraft())->setDetectedCommuneName('Commune existante');
+
+        try {
+            $hydrator->hydrateHikeDraft($draft, [
+                'communeName' => 'Nyer',
+                'communeInseeCode' => '66124',
+                'latitude' => ['42.542'],
+                'longitude' => '2.278',
+            ]);
+            self::fail('Une coordonnée GPS non scalaire doit interrompre l’hydratation.');
+        } catch (LocationDraftHydrationException $exception) {
+            self::assertSame('La latitude GPS doit être un nombre valide.', $exception->getMessage());
         }
 
         self::assertSame('Commune existante', $draft->getDetectedCommuneName());

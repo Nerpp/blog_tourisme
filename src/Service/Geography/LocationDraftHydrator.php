@@ -12,6 +12,22 @@ use App\Enum\HikePointType;
 use App\Service\GeographicHierarchyResolver;
 use Symfony\Component\HttpFoundation\Request;
 
+/**
+ * @phpstan-type LocationData array{
+ *     communeName: string|null,
+ *     communeInseeCode: string|null,
+ *     postalCode: string|null,
+ *     departmentName: string|null,
+ *     departmentCode: string|null,
+ *     regionName: string|null,
+ *     country: string,
+ *     communeCenterLatitude: float|null,
+ *     communeCenterLongitude: float|null,
+ *     latitude: float|null,
+ *     longitude: float|null,
+ *     gpsAccuracy: float|null
+ * }
+ */
 final class LocationDraftHydrator
 {
     public function __construct(
@@ -40,25 +56,25 @@ final class LocationDraftHydrator
         $communeName = $this->firstRequestValue($request, ['locationCommune', 'detectedCommuneName', 'cityName', 'commune']);
         $country = $this->firstRequestValue($request, ['locationCountry', 'countryName', 'country']) ?? 'France';
         $centerLatitude = $this->coordinate(
-            $this->firstRequestValue($request, ['communeCenterLatitude', 'locationCommuneCenterLatitude']),
+            $this->firstRequestRawValue($request, ['communeCenterLatitude', 'locationCommuneCenterLatitude']),
             -90,
             90,
             'La latitude du centre de commune',
         );
         $centerLongitude = $this->coordinate(
-            $this->firstRequestValue($request, ['communeCenterLongitude', 'locationCommuneCenterLongitude']),
+            $this->firstRequestRawValue($request, ['communeCenterLongitude', 'locationCommuneCenterLongitude']),
             -180,
             180,
             'La longitude du centre de commune',
         );
         $latitude = $this->coordinate(
-            $this->firstRequestValue($request, ['locationLatitude', 'latitude']),
+            $this->firstRequestRawValue($request, ['locationLatitude', 'latitude']),
             -90,
             90,
             'La latitude GPS',
         );
         $longitude = $this->coordinate(
-            $this->firstRequestValue($request, ['locationLongitude', 'longitude']),
+            $this->firstRequestRawValue($request, ['locationLongitude', 'longitude']),
             -180,
             180,
             'La longitude GPS',
@@ -84,7 +100,10 @@ final class LocationDraftHydrator
             'communeCenterLongitude' => $centerLongitude,
             'latitude' => $latitude,
             'longitude' => $longitude,
-            'gpsAccuracy' => $this->positiveFloat($this->firstRequestValue($request, ['locationAccuracy', 'gpsAccuracy', 'accuracy']), 'La précision GPS'),
+            'gpsAccuracy' => $this->positiveFloat(
+                $this->firstRequestRawValue($request, ['locationAccuracy', 'gpsAccuracy', 'accuracy']),
+                'La précision GPS',
+            ),
         ];
 
         if ($requireCommune) {
@@ -114,7 +133,7 @@ final class LocationDraftHydrator
 
     /**
      * @param array<string, mixed> $data
-     * @return array<string, mixed>
+     * @return LocationData
      */
     private function normalizeData(array $data): array
     {
@@ -155,7 +174,7 @@ final class LocationDraftHydrator
         }
     }
 
-    /** @param array<string, mixed> $data */
+    /** @param LocationData $data */
     private function hydrateDetectedLocation(HikeDraft|CityVisitDraft $draft, array $data): void
     {
         $draft
@@ -165,7 +184,7 @@ final class LocationDraftHydrator
             ->setDetectedRegionName($data['regionName']);
     }
 
-    /** @param array<string, mixed> $data */
+    /** @param LocationData $data */
     private function resolveGeographicDestination(array $data): ?Destination
     {
         return $this->geographicHierarchyResolver->resolveCommune(
@@ -180,7 +199,7 @@ final class LocationDraftHydrator
         );
     }
 
-    /** @param array<string, mixed> $data */
+    /** @param LocationData $data */
     private function syncHikePoint(HikeDraft $draft, array $data): void
     {
         if ($data['latitude'] === null || $data['longitude'] === null) {
@@ -206,7 +225,7 @@ final class LocationDraftHydrator
             ->setDetectedRegionName($data['regionName']);
     }
 
-    /** @param array<string, mixed> $data */
+    /** @param LocationData $data */
     private function syncCityVisitPoint(CityVisitDraft $draft, array $data): void
     {
         if ($data['latitude'] === null || $data['longitude'] === null) {
@@ -283,10 +302,26 @@ final class LocationDraftHydrator
     /** @param list<string> $keys */
     private function firstRequestValue(Request $request, array $keys, int $maxLength = 150): ?string
     {
+        $parameters = $request->request->all();
+
         foreach ($keys as $key) {
-            $value = $this->stringValue($request->request->get($key), $maxLength);
+            $value = $this->stringValue($parameters[$key] ?? null, $maxLength);
             if ($value !== null) {
                 return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param list<string> $keys */
+    private function firstRequestRawValue(Request $request, array $keys): mixed
+    {
+        $parameters = $request->request->all();
+
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $parameters)) {
+                return $parameters[$key];
             }
         }
 
@@ -310,27 +345,22 @@ final class LocationDraftHydrator
 
     private function stringValue(mixed $value, int $maxLength = 150): ?string
     {
-        if ($value === null) {
+        if (!is_string($value)) {
             return null;
         }
 
-        $value = trim((string) $value);
+        $value = trim($value);
 
         return $value !== '' ? mb_substr($value, 0, $maxLength) : null;
     }
 
     private function coordinate(mixed $value, float $min, float $max, string $label): ?float
     {
-        if ($value === null || trim((string) $value) === '') {
+        $coordinate = $this->nullableFloat($value, $label);
+        if ($coordinate === null) {
             return null;
         }
 
-        $normalizedValue = str_replace(',', '.', trim((string) $value));
-        if (!is_numeric($normalizedValue)) {
-            throw new LocationDraftHydrationException(sprintf('%s doit être un nombre valide.', $label));
-        }
-
-        $coordinate = (float) $normalizedValue;
         if ($coordinate < $min || $coordinate > $max) {
             throw new LocationDraftHydrationException(sprintf('%s doit être comprise entre %s et %s.', $label, $min, $max));
         }
@@ -340,18 +370,43 @@ final class LocationDraftHydrator
 
     private function positiveFloat(mixed $value, string $label): ?float
     {
-        if ($value === null || trim((string) $value) === '') {
+        $float = $this->nullableFloat($value, $label);
+        if ($float === null) {
             return null;
         }
 
-        $normalizedValue = str_replace(',', '.', trim((string) $value));
-        if (!is_numeric($normalizedValue)) {
+        if ($float < 0) {
+            throw new LocationDraftHydrationException(sprintf('%s doit être positive.', $label));
+        }
+
+        return $float;
+    }
+
+    private function nullableFloat(mixed $value, string $label): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            $float = (float) $value;
+        } elseif (is_string($value)) {
+            $normalizedValue = str_replace(',', '.', trim($value));
+            if ($normalizedValue === '') {
+                return null;
+            }
+
+            if (!is_numeric($normalizedValue)) {
+                throw new LocationDraftHydrationException(sprintf('%s doit être un nombre valide.', $label));
+            }
+
+            $float = (float) $normalizedValue;
+        } else {
             throw new LocationDraftHydrationException(sprintf('%s doit être un nombre valide.', $label));
         }
 
-        $float = (float) $normalizedValue;
-        if ($float < 0) {
-            throw new LocationDraftHydrationException(sprintf('%s doit être positive.', $label));
+        if (!is_finite($float)) {
+            throw new LocationDraftHydrationException(sprintf('%s doit être un nombre valide.', $label));
         }
 
         return $float;
