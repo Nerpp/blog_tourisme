@@ -269,7 +269,7 @@ final class QnhProvider
     }
 
     /**
-     * @param array<string, mixed> $report
+     * @param array<array-key, mixed> $report
      */
     private function qnhFromReport(array $report, ?string $raw): ?int
     {
@@ -298,7 +298,7 @@ final class QnhProvider
     }
 
     /**
-     * @param array<string, mixed> $report
+     * @param array<array-key, mixed> $report
      */
     private function observedAt(array $report): ?string
     {

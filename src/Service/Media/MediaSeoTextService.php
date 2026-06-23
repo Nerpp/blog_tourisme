@@ -171,11 +171,11 @@ final class MediaSeoTextService
         }
 
         if ($context !== null && method_exists($context, 'getTitle')) {
-            return $this->cleanText($context->getTitle());
+            return $this->cleanText($this->nullableTextValue($context->getTitle()));
         }
 
         if ($context !== null && method_exists($context, 'getName')) {
-            return $this->cleanText($context->getName());
+            return $this->cleanText($this->nullableTextValue($context->getName()));
         }
 
         return null;
@@ -225,10 +225,15 @@ final class MediaSeoTextService
     private function detectedValue(object|null $context, string $method): ?string
     {
         if ($context !== null && method_exists($context, $method)) {
-            return $this->cleanText($context->{$method}());
+            return $this->cleanText($this->nullableTextValue($context->{$method}()));
         }
 
         return null;
+    }
+
+    private function nullableTextValue(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
     }
 
     private function destinationAncestorName(?Destination $destination, DestinationType $type): ?string

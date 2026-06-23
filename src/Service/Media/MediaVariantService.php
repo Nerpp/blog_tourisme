@@ -306,13 +306,11 @@ final class MediaVariantService
         }
 
         if (array_is_list($value)) {
-            foreach ($value as $listValue) {
-                if (!is_string($listValue)) {
-                    return ['valid' => false, 'value' => null];
-                }
-            }
+            $normalizedList = $this->normalizeStringList($value);
 
-            return ['valid' => true, 'value' => $value];
+            return $normalizedList === null
+                ? ['valid' => false, 'value' => null]
+                : ['valid' => true, 'value' => $normalizedList];
         }
 
         $normalized = [];
@@ -327,21 +325,33 @@ final class MediaVariantService
             }
 
             if (is_array($nestedValue) && array_is_list($nestedValue)) {
-                $validList = true;
-                foreach ($nestedValue as $listValue) {
-                    if (!is_string($listValue)) {
-                        $validList = false;
-                        break;
-                    }
-                }
-
-                if ($validList) {
-                    $normalized[$key] = $nestedValue;
+                $normalizedList = $this->normalizeStringList($nestedValue);
+                if ($normalizedList !== null) {
+                    $normalized[$key] = $normalizedList;
                 }
             }
         }
 
         return ['valid' => true, 'value' => $normalized];
+    }
+
+    /**
+     * @param list<mixed> $values
+     *
+     * @return list<string>|null
+     */
+    private function normalizeStringList(array $values): ?array
+    {
+        $normalized = [];
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                return null;
+            }
+
+            $normalized[] = $value;
+        }
+
+        return $normalized;
     }
 
     /**

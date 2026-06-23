@@ -155,6 +155,19 @@ final class ImageMetadataSanitizerTest extends TestCase
         ]));
     }
 
+    public function testJpegOrientationRejectsMalformedValues(): void
+    {
+        $service = $this->service();
+        $orientationMethod = new \ReflectionMethod($service, 'jpegOrientation');
+
+        self::assertSame(1, $orientationMethod->invoke($service, ['IFD0' => ['Orientation' => ['6']]]));
+        self::assertSame(1, $orientationMethod->invoke($service, ['IFD0' => ['Orientation' => true]]));
+        self::assertSame(1, $orientationMethod->invoke($service, ['IFD0' => ['Orientation' => 'invalid']]));
+        self::assertSame(1, $orientationMethod->invoke($service, ['IFD0' => ['Orientation' => 9]]));
+        self::assertSame(6, $orientationMethod->invoke($service, ['IFD0' => ['Orientation' => '6']]));
+        self::assertSame(8, $orientationMethod->invoke($service, ['Orientation' => 8]));
+    }
+
     private function service(): ImageMetadataSanitizer
     {
         $parameters = $this->createStub(ParameterBagInterface::class);

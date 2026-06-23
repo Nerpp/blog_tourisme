@@ -232,7 +232,7 @@ final class QuickCityVisitController extends AbstractController
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param array<mixed> $data
      */
     private function formStringValue(array $data, string $key, string $default = ''): string
     {

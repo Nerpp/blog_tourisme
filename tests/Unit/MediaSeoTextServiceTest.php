@@ -164,6 +164,36 @@ final class MediaSeoTextServiceTest extends TestCase
         self::assertFalse($service->isTechnicalText('Coucher de soleil', $media));
     }
 
+    public function testDynamicContextIgnoresNonStringTextMetadata(): void
+    {
+        $context = new class {
+            /** @return array<string, string> */
+            public function getTitle(): array
+            {
+                return ['title' => 'Titre structuré'];
+            }
+
+            public function getDetectedCommuneName(): object
+            {
+                return new \stdClass();
+            }
+
+            public function getDetectedDepartmentName(): bool
+            {
+                return true;
+            }
+        };
+
+        self::assertSame(
+            'Photo de Titre de repli',
+            $this->service()->titleForContext($context, fallbackTitle: ' Titre de repli '),
+        );
+        self::assertSame(
+            'Vue de Titre de repli',
+            $this->service()->altTextForContext($context, fallbackTitle: ' Titre de repli '),
+        );
+    }
+
     private function service(): MediaSeoTextService
     {
         return new MediaSeoTextService(new AsciiSlugger('fr'));

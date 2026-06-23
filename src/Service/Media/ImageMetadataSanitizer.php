@@ -210,7 +210,7 @@ final class ImageMetadataSanitizer
         return array_values(array_unique($markers));
     }
 
-    /** @param array<string, mixed> $exif */
+    /** @param array<array-key, mixed> $exif */
     private function exifHasCameraOrSoftwareData(array $exif): bool
     {
         foreach (['IFD0', 'EXIF'] as $section) {
@@ -252,7 +252,7 @@ final class ImageMetadataSanitizer
         }
 
         $exif = @exif_read_data($path, 'IFD0', true, false);
-        $orientation = is_array($exif) ? (int) ($exif['IFD0']['Orientation'] ?? $exif['Orientation'] ?? 1) : 1;
+        $orientation = $this->jpegOrientation($exif);
 
         return match ($orientation) {
             2 => $this->flip($image, IMG_FLIP_HORIZONTAL),
@@ -264,6 +264,27 @@ final class ImageMetadataSanitizer
             8 => $this->rotate($image, 90),
             default => $image,
         };
+    }
+
+    private function jpegOrientation(mixed $exif): int
+    {
+        if (!is_array($exif)) {
+            return 1;
+        }
+
+        $ifd0 = $exif['IFD0'] ?? null;
+        $orientation = is_array($ifd0) ? ($ifd0['Orientation'] ?? null) : null;
+        $orientation ??= $exif['Orientation'] ?? null;
+
+        if (is_int($orientation)) {
+            return $orientation >= 1 && $orientation <= 8 ? $orientation : 1;
+        }
+
+        if (!is_string($orientation) || preg_match('/^[1-8]$/D', $orientation) !== 1) {
+            return 1;
+        }
+
+        return (int) $orientation;
     }
 
     private function rotate(GdImage $image, int $angle): GdImage
