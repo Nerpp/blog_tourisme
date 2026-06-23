@@ -170,6 +170,25 @@ final class MediaImageExtensionTest extends TestCase
         self::assertSame('/uploads/media/poster-fallback.jpg', $extension->posterUrl($media));
     }
 
+    public function testMalformedVariantDataUsesExistingFallbacks(): void
+    {
+        $extension = $this->extension();
+        $image = (new MediaAsset())
+            ->setThumbnailPath('/uploads/media/thumb-fallback.jpg')
+            ->setVariants([
+                'thumb' => ['fallback' => ['unexpected']],
+                'large' => 'unexpected',
+            ]);
+        $video = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setThumbnailPath('/uploads/media/poster-fallback.jpg')
+            ->setVariants(['poster' => ['medium' => ['fallback' => '   ']]]);
+
+        self::assertSame('/uploads/media/thumb-fallback.jpg', $extension->imageUrl($image));
+        self::assertSame('/uploads/media/thumb-fallback.jpg', $extension->modalUrl($image));
+        self::assertSame('/uploads/media/poster-fallback.jpg', $extension->posterUrl($video));
+    }
+
     public function testCurrentBehaviorAllowsExternalUrlFallback(): void
     {
         $media = (new MediaAsset())
