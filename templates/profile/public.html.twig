@@ -1,16 +1,6 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/profile.html.twig' %}
 
 {% block title %}{{ profile_user.displayName ?: profile_user.userIdentifier }} - Profil{% endblock %}
-
-{% block stylesheets %}
-    {{ parent() }}
-    {{ vite_entry_link_tags('assets/entries/profile.js') }}
-{% endblock %}
-
-{% block javascripts %}
-    {{ parent() }}
-    {{ vite_entry_script_tags('assets/entries/profile.js') }}
-{% endblock %}
 
 {% block body %}
     <main class="profile-page">

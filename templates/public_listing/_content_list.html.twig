@@ -1,0 +1,83 @@
+{% set item_count = items|length %}
+
+<main class="article-index-page {{ page_modifier }}" data-public-listing="{{ content_type }}">
+    <section class="article-index-hero">
+        <div class="article-index-shell article-index-hero__inner">
+            <div class="article-index-hero__content">
+                <p class="article-index-kicker">{{ hero_kicker }}</p>
+                <h1>{{ hero_title }}</h1>
+                <p>{{ hero_intro }}</p>
+            </div>
+
+            <form
+                class="article-index-search"
+                method="get"
+                action="{{ search_action }}"
+                data-public-content-search
+                data-autocomplete-url="{{ suggestions_url }}"
+                data-min-chars="2"
+                aria-label="{{ search_label }}"
+            >
+                <label for="{{ search_id }}">{{ search_label }}</label>
+                <div class="article-index-search__field">
+                    <input
+                        id="{{ search_id }}"
+                        type="search"
+                        name="q"
+                        value="{{ search_query }}"
+                        autocomplete="off"
+                        placeholder="{{ search_placeholder }}"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-controls="{{ suggestions_id }}"
+                        aria-expanded="false"
+                        data-public-search-input
+                    >
+                    <button type="submit">Rechercher</button>
+                    {% if search_query %}
+                        <a class="article-index-search__reset" href="{{ search_action }}">Réinitialiser</a>
+                    {% endif %}
+                </div>
+
+                <div
+                    id="{{ suggestions_id }}"
+                    class="article-index-search__suggestions"
+                    role="listbox"
+                    hidden
+                    data-public-search-suggestions
+                ></div>
+                <p class="article-index-search__status" aria-live="polite" data-public-search-status></p>
+
+                {% if quick_filters|length > 0 %}
+                    <div class="article-index-search__filters" aria-label="Filtres rapides">
+                        {% for filter in quick_filters %}
+                            <button type="submit" name="q" value="{{ filter.query }}">{{ filter.label }}</button>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </form>
+        </div>
+    </section>
+
+    <section class="article-index-shell article-index-results" aria-live="polite">
+        <div class="article-index-section-heading">
+            <div>
+                <p class="article-index-kicker">{{ results_kicker }}</p>
+                <h2>{{ results_title }}</h2>
+            </div>
+            <span class="article-index-count" data-public-list-count>
+                {{ item_count }} {{ item_count > 1 ? count_plural : count_singular }}
+            </span>
+        </div>
+
+        <p class="article-index-empty" {% if item_count > 0 %}hidden{% endif %}>
+            {{ search_query ? empty_search_message : empty_initial_message }}
+        </p>
+
+        <div class="article-index-grid" data-public-list-grid>
+            {% for item in items %}
+                {% include card_template with { item: item } only %}
+            {% endfor %}
+        </div>
+    </section>
+</main>

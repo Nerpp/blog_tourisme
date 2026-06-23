@@ -1,0 +1,30 @@
+{% extends 'layouts/listing.html.twig' %}
+
+{% block title %}Randonnées - Blog Tourisme{% endblock %}
+{% block meta_description %}Toutes les randonnées publiées : itinéraires, points GPS, photos et conseils pour préparer vos sorties.{% endblock %}
+
+{% block body %}
+    {% include 'public_listing/_content_list.html.twig' with {
+        content_type: 'hikes',
+        page_modifier: 'article-index-page--hikes',
+        hero_kicker: 'Randonnées',
+        hero_title: 'Toutes les randonnées',
+        hero_intro: 'Explorez les balades publiées, leurs destinations, leurs points GPS et les photos utiles avant de partir.',
+        search_action: path('app_hike_index'),
+        suggestions_url: path('app_hike_suggestions'),
+        search_id: 'hike-search-input',
+        suggestions_id: 'hike-search-suggestions',
+        search_label: 'Rechercher dans les randonnées',
+        search_placeholder: 'Rechercher une randonnée, une commune, un massif…',
+        quick_filters: [],
+        results_kicker: 'Parcours publiés',
+        results_title: 'Balades et itinéraires terrain',
+        count_singular: 'randonnée',
+        count_plural: 'randonnées',
+        empty_search_message: 'Aucune randonnée ne correspond à cette recherche.',
+        empty_initial_message: 'Aucune randonnée publiée pour le moment.',
+        items: hikes,
+        search_query: search_query,
+        card_template: 'public_listing/_hike_card.html.twig'
+    } only %}
+{% endblock %}

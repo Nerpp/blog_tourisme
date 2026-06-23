@@ -1,0 +1,13 @@
+{% extends 'base.html.twig' %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    {{ vite_entry_link_tags('assets/entries/public-detail.js') }}
+    {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {{ vite_entry_script_tags('assets/entries/public-detail.js') }}
+    {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
+{% endblock %}

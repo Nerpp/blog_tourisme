@@ -1,17 +1,7 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/destination.html.twig' %}
 
 {% block title %}Destinations - Blog Tourisme{% endblock %}
 {% block meta_description %}Explorez la hierarchie des destinations touristiques : pays, regions, departements et villes.{% endblock %}
-
-{% block stylesheets %}
-    {{ parent() }}
-    {{ vite_entry_link_tags('assets/entries/destination.js') }}
-{% endblock %}
-
-{% block javascripts %}
-    {{ parent() }}
-    {{ vite_entry_script_tags('assets/entries/destination.js') }}
-{% endblock %}
 
 {% block body %}
     <main class="destinations-page" data-destination-browser>
@@ -51,18 +41,33 @@
                     </datalist>
 
                     <div class="destinations-summary-grid" aria-label="Resume des contenus publics">
-                        <div class="destination-summary-card">
+                        <a
+                            class="destination-summary-card"
+                            href="{{ path('app_article_index') }}"
+                            aria-label="Voir tous les articles publics"
+                            data-destination-summary-link="articles"
+                        >
                             <span>Articles</span>
                             <strong>{{ destination_summary.articles }}</strong>
-                        </div>
-                        <div class="destination-summary-card">
+                        </a>
+                        <a
+                            class="destination-summary-card"
+                            href="{{ path('app_hike_index') }}"
+                            aria-label="Voir toutes les randonnées publiques"
+                            data-destination-summary-link="hikes"
+                        >
                             <span>Randonnées</span>
                             <strong>{{ destination_summary.hikes }}</strong>
-                        </div>
-                        <div class="destination-summary-card">
+                        </a>
+                        <a
+                            class="destination-summary-card"
+                            href="{{ path('app_city_visit_index') }}"
+                            aria-label="Voir toutes les visites publiques"
+                            data-destination-summary-link="city-visits"
+                        >
                             <span>Visites</span>
                             <strong>{{ destination_summary.city_visits }}</strong>
-                        </div>
+                        </a>
                     </div>
 
                     {% include 'partials/_destination_tree.html.twig' with {

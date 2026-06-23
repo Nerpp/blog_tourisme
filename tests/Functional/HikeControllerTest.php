@@ -22,6 +22,84 @@ final class HikeControllerTest extends FunctionalTestCase
         self::assertSelectorTextContains('body', (string) $hike->getTitle());
     }
 
+    public function testHikeIndexListsOnlyPublicHikes(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $published = $this->createPublishedHike($admin);
+        $draft = $this->createHikeDraft($admin);
+        $draft->setTitle('Randonnée brouillon invisible '.$this->uniqueToken('hike'));
+        $this->persistAndFlush($draft);
+
+        $client->request('GET', '/randonnees');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', (string) $published->getTitle());
+        self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
+    }
+
+    public function testHikeIndexSearchFiltersByTitleAndKeepsQuery(): void
+    {
+        $client = static::createClient();
+        $token = $this->uniqueToken('canigou');
+        $admin = $this->createVerifiedAdmin();
+        $matching = $this->createPublishedHike($admin);
+        $matching->setTitle('Boucle Canigou publique '.$token);
+        $draft = $this->createHikeDraft($admin);
+        $draft->setTitle('Boucle Canigou brouillon '.$token);
+        $unrelated = $this->createPublishedHike($admin);
+        $unrelated->setTitle('Randonnée hors recherche '.$this->uniqueToken('other'));
+        $this->persistAndFlush($matching, $draft, $unrelated);
+
+        $client->request('GET', '/randonnees?q='.rawurlencode(strtoupper($token)));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', (string) $matching->getTitle());
+        self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString((string) $unrelated->getTitle(), (string) $client->getResponse()->getContent());
+        self::assertSelectorExists('input[name="q"][value="'.strtoupper($token).'"]');
+    }
+
+    public function testHikeIndexSearchDisplaysEmptyState(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/randonnees?q='.rawurlencode($this->uniqueToken('no-result')));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Aucune randonnée ne correspond à cette recherche.');
+    }
+
+    public function testHikeSuggestionsRequireTwoCharactersAndReturnLimitedPublicResults(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $token = $this->uniqueToken('suggest-hike');
+        for ($index = 0; $index < 10; ++$index) {
+            $hike = $this->createPublishedHike($admin);
+            $hike->setTitle(sprintf('Suggestion randonnée %s %02d', $token, $index));
+            $this->persistAndFlush($hike);
+        }
+        $draft = $this->createHikeDraft($admin);
+        $draft->setTitle('Suggestion randonnée brouillon '.$token);
+        $this->persistAndFlush($draft);
+
+        $client->request('GET', '/randonnees/suggestions?q=a');
+        self::assertResponseIsSuccessful();
+        self::assertSame(['suggestions' => []], json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+
+        $client->request('GET', '/randonnees/suggestions?q='.rawurlencode($token));
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($payload['suggestions'] ?? null);
+        self::assertLessThanOrEqual(8, count($payload['suggestions']));
+        self::assertNotSame([], $payload['suggestions']);
+        self::assertSame('Randonnée', $payload['suggestions'][0]['type']);
+        self::assertStringStartsWith('/randonnees/', (string) $payload['suggestions'][0]['url']);
+        self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
+    }
+
     public function testPublishedHikeWithSeveralGpsPointsShowsInternalRouteMap(): void
     {
         $client = static::createClient();

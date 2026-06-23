@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Article;
 use App\Entity\Comment;
 use App\Entity\User;
 use App\Form\CommentType;
@@ -9,18 +10,50 @@ use App\Repository\ArticleRepository;
 use App\Repository\CommentRepository;
 use App\Service\CommentReactionViewService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class ArticleController extends AbstractController
 {
+    private const int LIST_LIMIT = 24;
+    private const int SUGGESTION_LIMIT = 8;
+    private const int SUGGESTION_MIN_LENGTH = 2;
+    private const int QUERY_MAX_LENGTH = 80;
+
     #[Route('/articles', name: 'app_article_index', methods: ['GET'])]
-    public function index(ArticleRepository $articleRepository): Response
+    public function index(Request $request, ArticleRepository $articleRepository): Response
     {
+        $query = $this->searchQuery($request);
+
         return $this->render('article/index.html.twig', [
-            'articles' => $articleRepository->findPublished(),
+            'articles' => $articleRepository->findPublishedForListing($query, self::LIST_LIMIT),
+            'search_query' => $query,
         ]);
+    }
+
+    #[Route('/articles/suggestions', name: 'app_article_suggestions', methods: ['GET'])]
+    public function suggestions(Request $request, ArticleRepository $articleRepository): JsonResponse
+    {
+        $query = $this->searchQuery($request);
+
+        if (mb_strlen($query) < self::SUGGESTION_MIN_LENGTH) {
+            return new JsonResponse(['suggestions' => []]);
+        }
+
+        /** @var list<array{title: string, url: string, type: string, meta: string}> $suggestions */
+        $suggestions = array_map(
+            fn (Article $article): array => [
+                'title' => (string) $article->getTitle(),
+                'url' => $this->generateUrl('app_article_show', ['slug' => (string) $article->getSlug()]),
+                'type' => 'Article',
+                'meta' => $article->getCategory()?->getName() ?? 'Article',
+            ],
+            $articleRepository->findPublishedSuggestions($query, self::SUGGESTION_LIMIT),
+        );
+
+        return new JsonResponse(['suggestions' => $suggestions]);
     }
 
     #[Route('/articles/{slug}', name: 'app_article_show', methods: ['GET'])]
@@ -65,5 +98,12 @@ final class ArticleController extends AbstractController
         $sort = $request->query->getString('comments_sort', 'recent');
 
         return in_array($sort, ['recent', 'popular'], true) ? $sort : 'recent';
+    }
+
+    private function searchQuery(Request $request): string
+    {
+        $query = trim($request->query->getString('q'));
+
+        return mb_substr($query, 0, self::QUERY_MAX_LENGTH);
     }
 }

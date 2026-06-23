@@ -1,4 +1,4 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/profile.html.twig' %}
 
 {% set profile_user = app.user %}
 {% set profile_name = profile_user.displayName ?: profile_user.userIdentifier %}
@@ -7,16 +7,6 @@
 {% set avatar_src = profile_user.avatarPath ? asset(profile_user.avatarPath) ~ '?v=' ~ avatar_version : '' %}
 
 {% block title %}Profil - Blog Tourisme{% endblock %}
-
-{% block stylesheets %}
-    {{ parent() }}
-    {{ vite_entry_link_tags('assets/entries/profile.js') }}
-{% endblock %}
-
-{% block javascripts %}
-    {{ parent() }}
-    {{ vite_entry_script_tags('assets/entries/profile.js') }}
-{% endblock %}
 
 {% block body %}
     <main class="profile-page">

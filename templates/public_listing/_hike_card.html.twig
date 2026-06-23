@@ -1,0 +1,53 @@
+{% set hike = item %}
+{% set hike_url = path('app_hike_show', { slug: hike.slug }) %}
+{% set destination_label = hike.geographicDestination ? hike.geographicDestination.name : (hike.destination ? hike.destination.name : hike.detectedCommuneName) %}
+{% set cover_media = null %}
+{% set image_links = hike.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+{% set cover_image_links = image_links|filter(link => link.role.value == 'cover') %}
+{% if cover_image_links|length > 0 %}
+    {% set cover_media = (cover_image_links|first).mediaAsset %}
+{% elseif image_links|length > 0 %}
+    {% set cover_media = (image_links|first).mediaAsset %}
+{% endif %}
+
+<article class="article-list-card" data-public-list-card data-public-content-type="hike">
+    <a class="article-list-card__visual" href="{{ hike_url }}" aria-label="Voir la randonnée {{ hike.title }}">
+        {% if cover_media %}
+            {% include 'public_detail/_responsive_image.html.twig' with {
+                media: cover_media,
+                alt: media_public_alt(cover_media, hike, hike.title),
+                image_size: 'medium',
+                sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
+                img_class: 'article-list-card__image'
+            } only %}
+        {% else %}
+            <div class="article-list-card__placeholder" role="img" aria-label="Image de randonnée non disponible">
+                <span>Randonnée</span>
+            </div>
+        {% endif %}
+    </a>
+
+    <div class="article-list-card__body">
+        <div class="article-list-card__badges">
+            <span>Randonnée</span>
+            {% if destination_label %}<span>{{ destination_label }}</span>{% endif %}
+        </div>
+
+        {% if hike.finishedAt %}
+            <time datetime="{{ hike.finishedAt|date('Y-m-d') }}">
+                {{ hike.finishedAt|date('d/m/Y') }}
+            </time>
+        {% endif %}
+
+        <h3>
+            <a href="{{ hike_url }}">{{ hike.title }}</a>
+        </h3>
+
+        {% if hike.notes %}
+            {% set notes = hike.notes|striptags %}
+            <p>{{ notes|length > 150 ? notes|slice(0, 150) ~ '…' : notes }}</p>
+        {% endif %}
+
+        <a class="article-list-card__cta" href="{{ hike_url }}">Voir la randonnée</a>
+    </div>
+</article>

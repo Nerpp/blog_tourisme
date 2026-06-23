@@ -1,0 +1,97 @@
+{% set article = item %}
+{% set article_url = path('app_article_show', { slug: article.slug }) %}
+{% set category_label = article.category ? article.category.name : 'Article' %}
+{% set role_labels = {
+    related: 'Article lié',
+    history: 'Histoire',
+    legend: 'Légende',
+    practical: 'Infos pratiques',
+    context: 'Récit',
+    seo: 'Pour aller plus loin'
+} %}
+{% set public_hike_links = article.hikeLinks|filter(link => link.hikeDraft and link.hikeDraft.status.value in ['finished', 'converted']) %}
+{% set public_city_visit_links = article.cityVisitLinks|filter(link => link.cityVisitDraft and link.cityVisitDraft.status.value in ['finished', 'converted']) %}
+{% set primary_hike_link = public_hike_links|length > 0 ? public_hike_links|first : null %}
+{% set primary_city_visit_link = public_city_visit_links|length > 0 ? public_city_visit_links|first : null %}
+{% set role = primary_hike_link ? primary_hike_link.role : (primary_city_visit_link ? primary_city_visit_link.role : null) %}
+{% set role_label = role ? role_labels[role]|default(null) : null %}
+{% set related_title = null %}
+{% set related_kind = null %}
+{% set related_destination = null %}
+
+{% if primary_hike_link %}
+    {% set related_kind = 'Balade' %}
+    {% set related_title = primary_hike_link.hikeDraft.title %}
+    {% set related_destination = primary_hike_link.hikeDraft.destination ? primary_hike_link.hikeDraft.destination.name : primary_hike_link.hikeDraft.detectedCommuneName %}
+{% elseif primary_city_visit_link %}
+    {% set related_kind = 'Visite' %}
+    {% set related_title = primary_city_visit_link.cityVisitDraft.title %}
+    {% set related_destination = primary_city_visit_link.cityVisitDraft.destination ? primary_city_visit_link.cityVisitDraft.destination.name : primary_city_visit_link.cityVisitDraft.detectedCommuneName %}
+{% elseif article.destinationLinks|length > 0 %}
+    {% set related_kind = 'Destination' %}
+    {% set related_title = (article.destinationLinks|first).destination.name %}
+{% elseif article.placeLinks|length > 0 %}
+    {% set related_kind = 'Lieu' %}
+    {% set related_title = (article.placeLinks|first).place.name %}
+{% endif %}
+
+{% set cover_media = null %}
+{% set image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+{% set cover_image_links = image_links|filter(link => link.role.value == 'cover') %}
+{% if cover_image_links|length > 0 %}
+    {% set cover_media = (cover_image_links|first).mediaAsset %}
+{% elseif article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
+    {% set cover_media = article.featuredImage %}
+{% elseif image_links|length > 0 %}
+    {% set cover_media = (image_links|first).mediaAsset %}
+{% endif %}
+
+<article class="article-list-card" data-public-list-card data-public-content-type="article">
+    <a class="article-list-card__visual" href="{{ article_url }}" aria-label="Lire {{ article.title }}">
+        {% if cover_media %}
+            {% include 'public_detail/_responsive_image.html.twig' with {
+                media: cover_media,
+                alt: media_public_alt(cover_media, article, article.title),
+                image_size: 'medium',
+                sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
+                img_class: 'article-list-card__image'
+            } only %}
+        {% else %}
+            <div class="article-list-card__placeholder" role="img" aria-label="Image d'article non disponible">
+                <span>Article</span>
+            </div>
+        {% endif %}
+    </a>
+
+    <div class="article-list-card__body">
+        <div class="article-list-card__badges">
+            <span>{{ category_label }}</span>
+            {% if role_label and role != 'seo' %}
+                <span>{{ role_label }}</span>
+            {% endif %}
+        </div>
+
+        {% if article.publishedAt %}
+            <time datetime="{{ article.publishedAt|date('Y-m-d') }}">
+                {{ article.publishedAt|date('d/m/Y') }}
+            </time>
+        {% endif %}
+
+        <h3>
+            <a href="{{ article_url }}">{{ article.title }}</a>
+        </h3>
+
+        {% if article.excerpt %}
+            <p>{{ article.excerpt|length > 150 ? article.excerpt|slice(0, 150) ~ '…' : article.excerpt }}</p>
+        {% endif %}
+
+        {% if related_title %}
+            <p class="article-list-card__related">
+                Article lié à {{ related_kind|lower }} {{ related_title }}
+                {% if related_destination %} - {{ related_destination }}{% endif %}
+            </p>
+        {% endif %}
+
+        <a class="article-list-card__cta" href="{{ article_url }}">Lire l'article</a>
+    </div>
+</article>

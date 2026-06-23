@@ -10,6 +10,7 @@ use App\Enum\HikeDraftStatus;
 use App\Enum\MediaType;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<Article> */
@@ -23,8 +24,35 @@ class ArticleRepository extends ServiceEntityRepository
     /** @return list<Article> */
     public function findPublished(int $limit = 24): array
     {
+        return $this->findPublishedForListing(null, $limit);
+    }
+
+    /** @return list<Article> */
+    public function findPublishedForListing(?string $query = null, int $limit = 24): array
+    {
         /** @var list<Article> $articles */
-        $articles = $this->createPublishedQueryBuilder()
+        $articles = $this->applySearch($this->createPublishedQueryBuilder(), $query)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return $articles;
+    }
+
+    /** @return list<Article> */
+    public function findPublishedSuggestions(string $query, int $limit = 8): array
+    {
+        /** @var list<Article> $articles */
+        $articles = $this->applySearch(
+            $this->createQueryBuilder('a')
+                ->addSelect('category')
+                ->leftJoin('a.category', 'category')
+                ->andWhere('a.status = :status')
+                ->setParameter('status', ContentStatus::Published)
+                ->orderBy('a.publishedAt', 'DESC')
+                ->addOrderBy('a.id', 'DESC'),
+            $query,
+        )
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
@@ -116,7 +144,7 @@ class ArticleRepository extends ServiceEntityRepository
         return $articles;
     }
 
-    private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder
+    private function createPublishedQueryBuilder(): QueryBuilder
     {
         return $this->createQueryBuilder('a')
             ->addSelect(
@@ -158,6 +186,26 @@ class ArticleRepository extends ServiceEntityRepository
             ->orderBy('a.publishedAt', 'DESC')
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->addOrderBy('a.id', 'DESC');
+    }
+
+    private function applySearch(QueryBuilder $queryBuilder, ?string $query): QueryBuilder
+    {
+        $normalizedQuery = $this->normalizeSearchQuery($query);
+
+        if ($normalizedQuery === null) {
+            return $queryBuilder;
+        }
+
+        return $queryBuilder
+            ->andWhere('LOWER(a.title) LIKE :publicSearchQuery OR LOWER(a.excerpt) LIKE :publicSearchQuery')
+            ->setParameter('publicSearchQuery', '%'.$normalizedQuery.'%');
+    }
+
+    private function normalizeSearchQuery(?string $query): ?string
+    {
+        $normalizedQuery = trim(mb_strtolower((string) $query));
+
+        return $normalizedQuery === '' ? null : $normalizedQuery;
     }
 
     public function findLatestPublishedForHomepage(): ?Article

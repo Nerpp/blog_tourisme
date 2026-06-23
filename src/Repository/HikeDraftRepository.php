@@ -9,6 +9,7 @@ use App\Enum\HikeDraftStatus;
 use App\Enum\MediaType;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<HikeDraft> */
@@ -107,6 +108,43 @@ class HikeDraftRepository extends ServiceEntityRepository
         return $draft;
     }
 
+    /** @return list<HikeDraft> */
+    public function findPublicForListing(?string $query = null, int $limit = 24): array
+    {
+        /** @var list<HikeDraft> $drafts */
+        $drafts = $this->applyPublicSearch($this->createPublicListingQueryBuilder(), $query)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return $drafts;
+    }
+
+    /** @return list<HikeDraft> */
+    public function findPublicSuggestions(string $query, int $limit = 8): array
+    {
+        /** @var list<HikeDraft> $drafts */
+        $drafts = $this->applyPublicSearch(
+            $this->createQueryBuilder('h')
+                ->addSelect('destination', 'geographicDestination')
+                ->leftJoin('h.destination', 'destination')
+                ->leftJoin('h.geographicDestination', 'geographicDestination')
+                ->andWhere('h.status IN (:statuses)')
+                ->setParameter('statuses', [
+                    HikeDraftStatus::Finished->value,
+                    HikeDraftStatus::Converted->value,
+                ], ArrayParameterType::STRING)
+                ->orderBy('h.finishedAt', 'DESC')
+                ->addOrderBy('h.id', 'DESC'),
+            $query,
+        )
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return $drafts;
+    }
+
     public function findLatestPublicWithMediaByDestination(Destination $destination): ?HikeDraft
     {
         /** @var array{id: int}|null $latestHikeRow */
@@ -186,5 +224,49 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->getResult();
 
         return $drafts;
+    }
+
+    private function createPublicListingQueryBuilder(): QueryBuilder
+    {
+        return $this->createQueryBuilder('h')
+            ->addSelect('destination', 'geographicDestination', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
+            ->leftJoin('h.destination', 'destination')
+            ->leftJoin('h.geographicDestination', 'geographicDestination')
+            ->leftJoin('h.mediaLinks', 'mediaLinks')
+            ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
+            ->leftJoin('h.articleLinks', 'articleLinks')
+            ->leftJoin('articleLinks.article', 'articles')
+            ->leftJoin('articles.category', 'articleCategories')
+            ->leftJoin('articles.featuredImage', 'articleFeaturedImages')
+            ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
+            ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
+            ->andWhere('h.status IN (:statuses)')
+            ->setParameter('statuses', [
+                HikeDraftStatus::Finished->value,
+                HikeDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->orderBy('h.finishedAt', 'DESC')
+            ->addOrderBy('h.id', 'DESC')
+            ->addOrderBy('mediaLinks.position', 'ASC');
+    }
+
+    private function applyPublicSearch(QueryBuilder $queryBuilder, ?string $query): QueryBuilder
+    {
+        $normalizedQuery = $this->normalizeSearchQuery($query);
+
+        if ($normalizedQuery === null) {
+            return $queryBuilder;
+        }
+
+        return $queryBuilder
+            ->andWhere('LOWER(h.title) LIKE :publicSearchQuery OR LOWER(destination.name) LIKE :publicSearchQuery OR LOWER(geographicDestination.name) LIKE :publicSearchQuery OR LOWER(h.detectedCommuneName) LIKE :publicSearchQuery')
+            ->setParameter('publicSearchQuery', '%'.$normalizedQuery.'%');
+    }
+
+    private function normalizeSearchQuery(?string $query): ?string
+    {
+        $normalizedQuery = trim(mb_strtolower((string) $query));
+
+        return $normalizedQuery === '' ? null : $normalizedQuery;
     }
 }

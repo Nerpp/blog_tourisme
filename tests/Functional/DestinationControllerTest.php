@@ -21,6 +21,28 @@ final class DestinationControllerTest extends FunctionalTestCase
         self::assertSelectorTextContains('body', 'Destinations');
     }
 
+    public function testDestinationIndexDisplaysClickablePublicContentCounters(): void
+    {
+        $client = static::createClient();
+
+        $crawler = $client->request('GET', '/destinations');
+
+        self::assertResponseIsSuccessful();
+        $articleLink = $crawler->filter('[data-destination-summary-link="articles"]');
+        $hikeLink = $crawler->filter('[data-destination-summary-link="hikes"]');
+        $cityVisitLink = $crawler->filter('[data-destination-summary-link="city-visits"]');
+
+        self::assertCount(1, $articleLink);
+        self::assertCount(1, $hikeLink);
+        self::assertCount(1, $cityVisitLink);
+        self::assertSame('/articles', $articleLink->attr('href'));
+        self::assertSame('/randonnees', $hikeLink->attr('href'));
+        self::assertSame('/visites', $cityVisitLink->attr('href'));
+        self::assertMatchesRegularExpression('/\d+/', $articleLink->filter('strong')->text());
+        self::assertMatchesRegularExpression('/\d+/', $hikeLink->filter('strong')->text());
+        self::assertMatchesRegularExpression('/\d+/', $cityVisitLink->filter('strong')->text());
+    }
+
     public function testDestinationShowIsAccessible(): void
     {
         $client = static::createClient();

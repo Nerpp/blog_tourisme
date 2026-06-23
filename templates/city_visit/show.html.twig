@@ -1,4 +1,4 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/public-detail.html.twig' %}
 
 {% set cover_media = null %}
 {% set fallback_cover_media = null %}
@@ -26,18 +26,6 @@
 {% endif %}
 
 {% block title %}{{ city_visit.title }} - Visite de ville{% endblock %}
-
-{% block stylesheets %}
-    {{ parent() }}
-    {{ vite_entry_link_tags('assets/entries/public-detail.js') }}
-    {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
-{% endblock %}
-
-{% block javascripts %}
-    {{ parent() }}
-    {{ vite_entry_script_tags('assets/entries/public-detail.js') }}
-    {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
-{% endblock %}
 
 {% block preloads %}
     {% if cover_image %}

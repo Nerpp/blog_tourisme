@@ -41,7 +41,7 @@ export default defineConfig(({ command }) => ({
         auth: fileURLToPath(new URL('./assets/entries/auth.js', import.meta.url)),
         comments: fileURLToPath(new URL('./assets/entries/comments.js', import.meta.url)),
         destination: fileURLToPath(new URL('./assets/entries/destination.js', import.meta.url)),
-        articleIndex: fileURLToPath(new URL('./assets/entries/article-index.js', import.meta.url)),
+        publicListing: fileURLToPath(new URL('./assets/entries/public-listing.js', import.meta.url)),
         articleShow: fileURLToPath(new URL('./assets/entries/article-show.js', import.meta.url)),
         publicDetail: fileURLToPath(new URL('./assets/entries/public-detail.js', import.meta.url)),
         relatedArticles: fileURLToPath(new URL('./assets/entries/related-articles.js', import.meta.url)),
