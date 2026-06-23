@@ -1218,7 +1218,7 @@ final class HikeStudioController extends AbstractController
         return $url;
     }
 
-    /** @return array<string, string> */
+    /** @return array<int|string, string> */
     private function imageTypeOptions(): array
     {
         return $this->enumChoices(ImageType::cases(), [
@@ -1407,7 +1407,8 @@ final class HikeStudioController extends AbstractController
     /** @return array<string, string> */
     private function pointTypeOptions(): array
     {
-        return $this->enumChoices(HikePointType::cases(), [
+        /** @var array<string, string> $choices */
+        $choices = $this->enumChoices(HikePointType::cases(), [
             'start' => 'Départ',
             'interest' => 'Point d’intérêt',
             'viewpoint' => 'Point de vue',
@@ -1418,17 +1419,22 @@ final class HikeStudioController extends AbstractController
             'end' => 'Arrivée',
             'other' => 'Autre point',
         ]);
+
+        return $choices;
     }
 
     /** @return array<string, string> */
     private function videoTypeOptions(): array
     {
-        return $this->enumChoices([VideoType::Youtube, VideoType::Vimeo, VideoType::Dailymotion, VideoType::External], [
+        /** @var array<string, string> $choices */
+        $choices = $this->enumChoices([VideoType::Youtube, VideoType::Vimeo, VideoType::Dailymotion, VideoType::External], [
             'youtube' => 'YouTube',
             'vimeo' => 'Vimeo',
             'dailymotion' => 'Dailymotion',
             'external' => 'Externe',
         ]);
+
+        return $choices;
     }
 
     private function redirectToStudio(HikeDraft $hikeDraft, ?string $anchor = null): RedirectResponse

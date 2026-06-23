@@ -2,8 +2,14 @@
 
 namespace App\Controller\Admin\Studio;
 
+use App\Entity\CityVisitDraftMedia;
+use App\Entity\HikeDraftMedia;
 use App\Entity\MediaAsset;
+use App\Entity\PlaceMedia;
 use App\Entity\User;
+use App\Enum\CityVisitDraftStatus;
+use App\Enum\HikeDraftStatus;
+use App\Enum\HikePointType;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use App\Enum\MediaType;
@@ -171,8 +177,11 @@ trait StudioMediaHelperTrait
         }
     }
 
-    /** @param iterable<mixed> $mediaLinks */
-    private function promoteClassicImageToCover(iterable $mediaLinks, object $selectedLink): void
+    /** @param iterable<HikeDraftMedia|CityVisitDraftMedia|PlaceMedia> $mediaLinks */
+    private function promoteClassicImageToCover(
+        iterable $mediaLinks,
+        HikeDraftMedia|CityVisitDraftMedia|PlaceMedia $selectedLink,
+    ): void
     {
         $mediaLinks = is_array($mediaLinks) ? $mediaLinks : iterator_to_array($mediaLinks, false);
         if (!in_array($selectedLink, $mediaLinks, true)) {
@@ -180,9 +189,7 @@ trait StudioMediaHelperTrait
         }
 
         if (!$this->isClassicImageMediaLink($selectedLink)) {
-            if (method_exists($selectedLink, 'setRole')) {
-                $selectedLink->setRole(MediaRole::Gallery);
-            }
+            $selectedLink->setRole(MediaRole::Gallery);
 
             return;
         }
@@ -190,8 +197,11 @@ trait StudioMediaHelperTrait
         $this->normalizeClassicCoverImages($mediaLinks, $selectedLink);
     }
 
-    /** @param iterable<mixed> $mediaLinks */
-    private function normalizeClassicCoverImages(iterable $mediaLinks, ?object $selectedCoverLink = null): void
+    /** @param iterable<HikeDraftMedia|CityVisitDraftMedia|PlaceMedia> $mediaLinks */
+    private function normalizeClassicCoverImages(
+        iterable $mediaLinks,
+        HikeDraftMedia|CityVisitDraftMedia|PlaceMedia|null $selectedCoverLink = null,
+    ): void
     {
         $mediaLinks = is_array($mediaLinks) ? $mediaLinks : iterator_to_array($mediaLinks, false);
         if ($selectedCoverLink !== null && !in_array($selectedCoverLink, $mediaLinks, true)) {
@@ -201,7 +211,7 @@ trait StudioMediaHelperTrait
         $keptCoverLink = $selectedCoverLink;
 
         foreach ($mediaLinks as $mediaLink) {
-            if (!is_object($mediaLink) || !$this->isClassicImageMediaLink($mediaLink)) {
+            if (!$this->isClassicImageMediaLink($mediaLink)) {
                 continue;
             }
 
@@ -238,12 +248,8 @@ trait StudioMediaHelperTrait
         return str_starts_with($association, 'point:') && $targetPoint !== null;
     }
 
-    private function isClassicImageMediaLink(object $mediaLink): bool
+    private function isClassicImageMediaLink(HikeDraftMedia|CityVisitDraftMedia|PlaceMedia $mediaLink): bool
     {
-        if (!method_exists($mediaLink, 'getMediaAsset') || !method_exists($mediaLink, 'getRole') || !method_exists($mediaLink, 'setRole')) {
-            return false;
-        }
-
         $media = $mediaLink->getMediaAsset();
 
         return $media instanceof MediaAsset && $media->getMediaType() === MediaType::Image;
@@ -353,10 +359,10 @@ trait StudioMediaHelperTrait
     }
 
     /**
-     * @param array<int, \BackedEnum> $cases
-     * @param array<array-key, string> $labels
+     * @param list<CityVisitDraftStatus|HikeDraftStatus|HikePointType|ImageType|VideoType> $cases
+     * @param array<int|string, string> $labels
      *
-     * @return array<string, string>
+     * @return array<int|string, string>
      */
     private function enumChoices(array $cases, array $labels): array
     {

@@ -233,7 +233,7 @@ final class AdminArticleController extends AbstractController
         }
     }
 
-    /** @param class-string $entityClass */
+    /** @param class-string<Article> $entityClass */
     private function createUniqueSlug(string $name, string $entityClass, ?Article $currentArticle = null): string
     {
         $baseSlug = strtolower((string) $this->slugger->slug($name));
@@ -359,7 +359,7 @@ final class AdminArticleController extends AbstractController
     /**
      * @template T of HikeDraft|CityVisitDraft
      *
-     * @param list<T> $contents
+     * @param array<int, T> $contents
      *
      * @return list<T>
      */

@@ -830,7 +830,7 @@ final class CityVisitStudioController extends AbstractController
         return $url;
     }
 
-    /** @return array<string, string> */
+    /** @return array<int|string, string> */
     private function imageTypeOptions(): array
     {
         return $this->enumChoices(ImageType::cases(), [
@@ -1021,12 +1021,15 @@ final class CityVisitStudioController extends AbstractController
     /** @return array<string, string> */
     private function videoTypeOptions(): array
     {
-        return $this->enumChoices([VideoType::Youtube, VideoType::Vimeo, VideoType::Dailymotion, VideoType::External], [
+        /** @var array<string, string> $choices */
+        $choices = $this->enumChoices([VideoType::Youtube, VideoType::Vimeo, VideoType::Dailymotion, VideoType::External], [
             'youtube' => 'YouTube',
             'vimeo' => 'Vimeo',
             'dailymotion' => 'Dailymotion',
             'external' => 'Externe',
         ]);
+
+        return $choices;
     }
 
     private function redirectToStudio(CityVisitDraft $cityVisitDraft, ?string $anchor = null): RedirectResponse

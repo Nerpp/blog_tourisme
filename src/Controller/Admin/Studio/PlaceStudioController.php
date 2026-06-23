@@ -690,10 +690,10 @@ final class PlaceStudioController extends AbstractController
     }
 
     /**
-     * @param array<int, \BackedEnum> $cases
-     * @param array<array-key, string> $labels
+     * @param list<ContentStatus|ImageType|PlaceDifficulty|PriceType|VideoType> $cases
+     * @param array<int|string, string> $labels
      *
-     * @return array<string, string>
+     * @return array<int|string, string>
      */
     private function enumChoices(array $cases, array $labels): array
     {
