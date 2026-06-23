@@ -135,6 +135,35 @@ final class QuickHikeControllerTest extends FunctionalTestCase
         self::assertSame(0, $this->entityManager()->getRepository(HikePoint::class)->count(['hikeDraft' => $hike]));
     }
 
+    public function testQuickHikePointRejectsStructuredFieldsWithoutCreatingLocation(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/quick-hike/%d', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/quick-hike/%d/point', $hike->getId()), [
+            'quick_hike_point' => [
+                '_token' => $this->inputValue($crawler, 'input[name="quick_hike_point[_token]"]'),
+                'latitude' => ['42.70'],
+                'longitude' => ['2.90'],
+                'accuracy' => ['8'],
+                'type' => ['viewpoint'],
+                'titlePoint' => ['Titre structuré'],
+                'note' => ['Note structurée'],
+            ],
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(0, $this->entityManager()->getRepository(HikePoint::class)->count(['hikeDraft' => $hike]));
+        $stored = $this->refresh($hike);
+        self::assertInstanceOf(HikeDraft::class, $stored);
+        self::assertNull($stored->getGeographicDestination());
+        self::assertNull($stored->getDetectedCommuneName());
+    }
+
     public function testQuickHikePointCreatesStartPointWithCoordinates(): void
     {
         $client = static::createClient();

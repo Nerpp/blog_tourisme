@@ -40,43 +40,53 @@ class CommentRepository extends ServiceEntityRepository
     /** @return list<Comment> */
     public function findPendingForModeration(): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->andWhere('c.status = :status')
             ->setParameter('status', CommentStatus::Pending)
             ->orderBy('c.reportedCount', 'DESC')
             ->addOrderBy('c.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     /** @return list<Comment> */
     public function findSpam(): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->andWhere('c.status = :status')
             ->setParameter('status', CommentStatus::Spam)
             ->orderBy('c.spamScore', 'DESC')
             ->addOrderBy('c.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     /** @return list<Comment> */
     public function findHiddenForModeration(): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->andWhere('c.status IN (:statuses)')
             ->setParameter('statuses', [CommentStatus::HiddenByAdmin, CommentStatus::Spam])
             ->orderBy('c.moderatedAt', 'DESC')
             ->addOrderBy('c.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     /** @return list<Comment> */
     public function findReportedForModeration(): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->innerJoin('c.reports', 'pending_report', 'WITH', 'pending_report.status = :report_status')
             ->andWhere('c.status IN (:statuses)')
             ->setParameter('statuses', [
@@ -91,6 +101,8 @@ class CommentRepository extends ServiceEntityRepository
             ->setMaxResults(100)
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     public function countReportedForModeration(): int
@@ -113,7 +125,8 @@ class CommentRepository extends ServiceEntityRepository
     /** @return list<Comment> */
     public function findDismissedReportsForModeration(int $limit = 100): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->innerJoin('c.reports', 'dismissed_report', 'WITH', 'dismissed_report.status = :report_status')
             ->setParameter('report_status', CommentReportStatus::Dismissed)
             ->orderBy('dismissed_report.reviewedAt', 'DESC')
@@ -121,50 +134,64 @@ class CommentRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     /** @return list<Comment> */
     public function findRecentForModeration(int $limit = 100): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->orderBy('c.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     /** @return list<Comment> */
     public function findApprovedForModeration(int $limit = 100): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->andWhere('c.status = :status')
             ->setParameter('status', CommentStatus::Approved)
             ->orderBy('c.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     /** @return list<Comment> */
     public function findDeletedForModeration(int $limit = 100): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->andWhere('c.status = :status')
             ->setParameter('status', CommentStatus::Deleted)
             ->orderBy('c.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     /** @return list<Comment> */
     public function findAllForModeration(int $limit = 100): array
     {
-        return $this->createModerationQueryBuilder()
+        /** @var list<Comment> $comments */
+        $comments = $this->createModerationQueryBuilder()
             ->orderBy('c.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $comments;
     }
 
     public function countApprovedByUser(User $user): int
@@ -239,10 +266,20 @@ class CommentRepository extends ServiceEntityRepository
                 ->addOrderBy('c.createdAt', 'DESC');
         }
 
-        return array_values(array_map(
-            static fn (array $row): int => (int) $row['id'],
-            $queryBuilder->getQuery()->getArrayResult(),
-        ));
+        $rows = $queryBuilder->getQuery()->getArrayResult();
+        $commentIds = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $commentId = $this->positiveInt($row['id'] ?? null);
+            if ($commentId !== null) {
+                $commentIds[] = $commentId;
+            }
+        }
+
+        return $commentIds;
     }
 
     /**
@@ -255,6 +292,7 @@ class CommentRepository extends ServiceEntityRepository
             return [];
         }
 
+        /** @var list<Comment> $comments */
         $comments = $this->createPublicCommentsQueryBuilder()
             ->andWhere('c.id IN (:comment_ids)')
             ->setParameter('comment_ids', $commentIds)
@@ -268,6 +306,21 @@ class CommentRepository extends ServiceEntityRepository
         );
 
         return $comments;
+    }
+
+    private function positiveInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (!is_string($value) || preg_match('/^[1-9][0-9]*$/D', $value) !== 1) {
+            return null;
+        }
+
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($integer) && $integer > 0 ? $integer : null;
     }
 
     private function createPublicCommentsQueryBuilder(): QueryBuilder

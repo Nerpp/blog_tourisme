@@ -77,7 +77,8 @@ final class GoogleAuthenticator extends OAuth2Authenticator
 
     private function findOrCreateUser(GoogleUser $googleUser): User
     {
-        $googleId = (string) $googleUser->getId();
+        $rawGoogleId = $googleUser->getId();
+        $googleId = is_string($rawGoogleId) ? $rawGoogleId : '';
         $email = $googleUser->getEmail();
         if ($googleId === '' || $email === null || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new CustomUserMessageAuthenticationException('Le compte Google ne fournit pas une adresse email valide.');
@@ -126,7 +127,8 @@ final class GoogleAuthenticator extends OAuth2Authenticator
     private function displayNameFromGoogle(GoogleUser $googleUser, string $email): string
     {
         $data = $googleUser->toArray();
-        $name = trim((string) ($data['name'] ?? ''));
+        $nameValue = $data['name'] ?? null;
+        $name = is_string($nameValue) ? trim($nameValue) : '';
 
         return $name !== '' ? mb_substr($name, 0, 120) : mb_substr(strstr($email, '@', true) ?: $email, 0, 120);
     }

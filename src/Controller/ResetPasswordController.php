@@ -40,7 +40,7 @@ final class ResetPasswordController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $email = (string) $form->get('email')->getData();
+            $email = $this->stringOrEmpty($form->get('email')->getData());
             $limit = $passwordResetLimiter
                 ->create(hash('sha256', mb_strtolower(trim($email)).'|'.($request->getClientIp() ?? 'unknown-ip')))
                 ->consume();
@@ -117,7 +117,7 @@ final class ResetPasswordController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $hashedPassword = $passwordHasher->hashPassword($user, (string) $form->get('plainPassword')->getData());
+            $hashedPassword = $passwordHasher->hashPassword($user, $this->stringOrEmpty($form->get('plainPassword')->getData()));
 
             $entityManager->wrapInTransaction(function () use ($hashedPassword, $resetPasswordHelper, $token, $user): void {
                 $user->setPassword($hashedPassword);
@@ -133,6 +133,11 @@ final class ResetPasswordController extends AbstractController
         return $this->render('reset_password/reset.html.twig', [
             'reset_form' => $form->createView(),
         ]);
+    }
+
+    private function stringOrEmpty(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
     }
 
     private function sendPasswordResetEmail(

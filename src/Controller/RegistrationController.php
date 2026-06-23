@@ -45,11 +45,11 @@ final class RegistrationController extends AbstractController
         $submittedRegistration = $request->request->all($form->getName());
         $hasValidCsrfToken = $this->isCsrfTokenValid(
             $form->getName(),
-            (string) ($submittedRegistration['_token'] ?? ''),
+            $this->stringOrEmpty($submittedRegistration['_token'] ?? null),
         );
 
         if ($form->isSubmitted() && $hasValidCsrfToken) {
-            $existingUser = $userRepository->findOneByEmail((string) $form->get('email')->getData());
+            $existingUser = $userRepository->findOneByEmail($this->stringOrEmpty($form->get('email')->getData()));
             if ($existingUser instanceof User) {
                 if (!$existingUser->isVerified()) {
                     $limit = $emailVerificationResendLimiter
@@ -84,7 +84,7 @@ final class RegistrationController extends AbstractController
             $user
                 ->setRoles(['ROLE_USER'])
                 ->setIsVerified(false)
-                ->setPassword($passwordHasher->hashPassword($user, (string) $form->get('plainPassword')->getData()));
+                ->setPassword($passwordHasher->hashPassword($user, $this->stringOrEmpty($form->get('plainPassword')->getData())));
 
             $entityManager->persist($user);
             $entityManager->flush();
@@ -101,6 +101,11 @@ final class RegistrationController extends AbstractController
         return $this->render('registration/register.html.twig', [
             'registration_form' => $form->createView(),
         ]);
+    }
+
+    private function stringOrEmpty(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
     }
 
     private function tryToSendEmailConfirmation(EmailVerifier $emailVerifier, User $user): bool

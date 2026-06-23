@@ -208,6 +208,46 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->trackVariantFiles($media->getVariants());
     }
 
+    public function testPosterGenerationFiltersInvalidVariantEntriesAndPreservesValidOnes(): void
+    {
+        $poster = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 90, 45);
+        $this->files[] = $poster;
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setThumbnailPath(TestImageFactory::publicPathFor($poster));
+        $variantsProperty = new \ReflectionProperty($media, 'variants');
+        $variantsProperty->setValue($media, [
+            'legacy' => [
+                'fallback' => '/uploads/media/legacy.jpg',
+                'width' => 90,
+                'formats' => ['fallback', 'webp'],
+                'optimized' => false,
+                'invalidObject' => new \stdClass(),
+                'details' => [
+                    'quality' => 'high',
+                    'invalidNestedObject' => new \stdClass(),
+                ],
+            ],
+            'invalidTopLevelObject' => new \stdClass(),
+        ]);
+
+        $result = $this->mediaVariantService()->generateForMedia($media, force: true);
+        $variants = $media->getVariants();
+
+        self::assertSame('generated', $result['status']);
+        self::assertIsArray($variants);
+        self::assertArrayHasKey('poster', $variants);
+        self::assertSame([
+            'fallback' => '/uploads/media/legacy.jpg',
+            'width' => 90,
+            'formats' => ['fallback', 'webp'],
+            'optimized' => false,
+            'details' => ['quality' => 'high'],
+        ], $variants['legacy']);
+        self::assertArrayNotHasKey('invalidTopLevelObject', $variants);
+        $this->trackVariantFiles($variants);
+    }
+
     public function testMissingImageSourceReturnsErrorAndExternalVideoIsSkipped(): void
     {
         $missing = (new MediaAsset())

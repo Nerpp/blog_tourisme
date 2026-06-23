@@ -20,7 +20,8 @@ class CommentReportRepository extends ServiceEntityRepository
     /** @return list<CommentReport> */
     public function findPendingReports(): array
     {
-        return $this->createQueryBuilder('r')
+        /** @var list<CommentReport> $reports */
+        $reports = $this->createQueryBuilder('r')
             ->addSelect('c', 'a', 'reporter')
             ->leftJoin('r.comment', 'c')
             ->leftJoin('c.author', 'a')
@@ -30,6 +31,8 @@ class CommentReportRepository extends ServiceEntityRepository
             ->orderBy('r.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $reports;
     }
 
     public function findOneByCommentAndReporter(Comment $comment, User $reporter): ?CommentReport
@@ -43,7 +46,8 @@ class CommentReportRepository extends ServiceEntityRepository
     /** @return list<CommentReport> */
     public function findRecentForAdmin(int $limit = 50): array
     {
-        return $this->createQueryBuilder('r')
+        /** @var list<CommentReport> $reports */
+        $reports = $this->createQueryBuilder('r')
             ->addSelect('c', 'a', 'reporter')
             ->leftJoin('r.comment', 'c')
             ->leftJoin('c.author', 'a')
@@ -52,6 +56,8 @@ class CommentReportRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $reports;
     }
 
     /** @param list<Comment> $comments */

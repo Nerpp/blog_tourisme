@@ -6,6 +6,7 @@ use App\Entity\MediaAsset;
 use App\Repository\MediaAssetRepository;
 use App\Service\Media\PublicMediaMasterCleanupService;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -38,7 +39,15 @@ final class CleanupPublicMediaMastersCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $dryRun = (bool) $input->getOption('dry-run');
-        $mediaAssets = $this->resolveMediaAssets($input->getOption('id'));
+        try {
+            $mediaId = $this->positiveIntOption($input->getOption('id'), '--id');
+        } catch (InvalidArgumentException $exception) {
+            $io->error($exception->getMessage());
+
+            return Command::INVALID;
+        }
+
+        $mediaAssets = $this->resolveMediaAssets($mediaId);
 
         if ($mediaAssets === []) {
             $io->warning('Aucun média trouvé.');
@@ -102,15 +111,48 @@ final class CleanupPublicMediaMastersCommand extends Command
     }
 
     /** @return list<MediaAsset> */
-    private function resolveMediaAssets(mixed $id): array
+    private function resolveMediaAssets(?int $id): array
     {
-        if ($id !== null && trim((string) $id) !== '') {
-            $media = $this->mediaAssetRepository->find((int) $id);
+        if ($id !== null) {
+            $media = $this->mediaAssetRepository->find($id);
 
             return $media instanceof MediaAsset ? [$media] : [];
         }
 
         return array_values($this->mediaAssetRepository->findBy([], ['id' => 'ASC']));
+    }
+
+    private function positiveIntOption(mixed $value, string $option): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            if ($value > 0) {
+                return $value;
+            }
+
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        if (!is_string($value)) {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        $digits = ltrim($value, '0');
+        if (!ctype_digit($value) || $digits === '' || strlen($digits) > strlen((string) PHP_INT_MAX)
+            || (strlen($digits) === strlen((string) PHP_INT_MAX) && strcmp($digits, (string) PHP_INT_MAX) > 0)
+        ) {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        return (int) $value;
     }
 
     private function formatBytes(int $bytes): string

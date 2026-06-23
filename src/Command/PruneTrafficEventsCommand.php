@@ -3,6 +3,7 @@
 namespace App\Command;
 
 use App\Repository\TrafficEventRepository;
+use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -32,7 +33,14 @@ final class PruneTrafficEventsCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $days = max(1, (int) $input->getOption('days'));
+        try {
+            $days = $this->positiveIntOption($input->getOption('days'), '--days');
+        } catch (InvalidArgumentException $exception) {
+            $io->error($exception->getMessage());
+
+            return Command::INVALID;
+        }
+
         $dryRun = (bool) $input->getOption('dry-run');
         $threshold = (new \DateTimeImmutable('today'))->modify(sprintf('-%d days', $days));
         $count = $this->trafficEventRepository->pruneOlderThan($threshold, true);
@@ -54,5 +62,30 @@ final class PruneTrafficEventsCommand extends Command
         $io->success(sprintf('%d événement(s) supprimés avant le %s.', $count, $threshold->format('d/m/Y')));
 
         return Command::SUCCESS;
+    }
+
+    private function positiveIntOption(mixed $value, string $option): int
+    {
+        if (is_int($value)) {
+            if ($value > 0) {
+                return $value;
+            }
+
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        if (!is_string($value)) {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        $value = trim($value);
+        $digits = ltrim($value, '0');
+        if (!ctype_digit($value) || $digits === '' || strlen($digits) > strlen((string) PHP_INT_MAX)
+            || (strlen($digits) === strlen((string) PHP_INT_MAX) && strcmp($digits, (string) PHP_INT_MAX) > 0)
+        ) {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        return (int) $value;
     }
 }

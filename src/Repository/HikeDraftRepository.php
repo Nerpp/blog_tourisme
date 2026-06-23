@@ -21,7 +21,8 @@ class HikeDraftRepository extends ServiceEntityRepository
 
     public function findCurrentDraftForUser(User $user): ?HikeDraft
     {
-        return $this->createQueryBuilder('h')
+        /** @var HikeDraft|null $draft */
+        $draft = $this->createQueryBuilder('h')
             ->andWhere('h.createdBy = :user')
             ->andWhere('h.status = :status')
             ->andWhere('h.finishedAt IS NULL')
@@ -31,10 +32,13 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     public function findLatestFinishedForHomepage(): ?HikeDraft
     {
+        /** @var array{id: int}|null $latestHikeRow */
         $latestHikeRow = $this->createQueryBuilder('h')
             ->select('h.id')
             ->andWhere('h.status = :status')
@@ -50,7 +54,8 @@ class HikeDraftRepository extends ServiceEntityRepository
             return null;
         }
 
-        return $this->createQueryBuilder('h')
+        /** @var HikeDraft|null $draft */
+        $draft = $this->createQueryBuilder('h')
             ->addSelect('mediaLinks', 'mediaAssets')
             ->leftJoin('h.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
@@ -60,11 +65,14 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     public function findPublicBySlug(string $slug): ?HikeDraft
     {
-        return $this->createQueryBuilder('h')
+        /** @var HikeDraft|null $draft */
+        $draft = $this->createQueryBuilder('h')
             ->addSelect('destination', 'geographicDestination', 'geographicDestinationParent', 'geographicDestinationGrandParent', 'geographicDestinationGreatGrandParent', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('h.destination', 'destination')
             ->leftJoin('h.geographicDestination', 'geographicDestination')
@@ -95,10 +103,13 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->addOrderBy('articleLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     public function findLatestPublicWithMediaByDestination(Destination $destination): ?HikeDraft
     {
+        /** @var array{id: int}|null $latestHikeRow */
         $latestHikeRow = $this->createQueryBuilder('h')
             ->select('h.id')
             ->innerJoin('h.mediaLinks', 'mediaLinks')
@@ -122,7 +133,8 @@ class HikeDraftRepository extends ServiceEntityRepository
             return null;
         }
 
-        return $this->createQueryBuilder('h')
+        /** @var HikeDraft|null $draft */
+        $draft = $this->createQueryBuilder('h')
             ->addSelect('mediaLinks', 'mediaAssets')
             ->leftJoin('h.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
@@ -132,6 +144,8 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     /**
@@ -145,7 +159,8 @@ class HikeDraftRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('h')
+        /** @var list<HikeDraft> $drafts */
+        $drafts = $this->createQueryBuilder('h')
             ->addSelect('destination', 'geographicDestination', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('h.destination', 'destination')
             ->leftJoin('h.geographicDestination', 'geographicDestination')
@@ -169,5 +184,7 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $drafts;
     }
 }

@@ -84,7 +84,7 @@ trait StudioMediaHelperTrait
             ->setWidth($storedFile['width'])
             ->setHeight($storedFile['height'])
             ->setProjection($storedFile['projection'] ?? null)
-            ->setMetadata($storedFile['metadata'] ?? null);
+            ->setMetadata($this->normalizeMediaMetadata($storedFile['metadata'] ?? null));
 
         $variantResult = $this->mediaVariantService->generateForMedia($media);
         if ($variantResult['status'] === 'error') {
@@ -240,7 +240,11 @@ trait StudioMediaHelperTrait
 
     private function isValidStudioMediaAssociation(mixed $association, ?object $targetPoint, bool $allowMain): bool
     {
-        $association = trim((string) $association);
+        if (!is_string($association)) {
+            return false;
+        }
+
+        $association = trim($association);
         if ($association === 'gallery' || ($allowMain && $association === 'main')) {
             return true;
         }
@@ -330,11 +334,61 @@ trait StudioMediaHelperTrait
 
     private function nullableInt(mixed $value): ?int
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '' || preg_match('/^-?\d+$/D', $value) !== 1) {
+            return null;
+        }
+
+        $negative = str_starts_with($value, '-');
+        $digits = ltrim($negative ? substr($value, 1) : $value, '0');
+        $digits = $digits === '' ? '0' : $digits;
+        $limit = $negative ? ltrim((string) PHP_INT_MIN, '-') : (string) PHP_INT_MAX;
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
             return null;
         }
 
         return (int) $value;
+    }
+
+    /**
+     * @param array<int, mixed> $values
+     */
+    private function stringArrayValue(array $values, int $index, ?string $default = null): ?string
+    {
+        if (!array_key_exists($index, $values)) {
+            return $default;
+        }
+
+        return is_string($values[$index]) ? $values[$index] : null;
+    }
+
+    /** @return array<string, bool|float|int|string|null>|null */
+    private function normalizeMediaMetadata(mixed $metadata): ?array
+    {
+        if (!is_array($metadata)) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($metadata as $key => $value) {
+            if (is_string($key) && ($value === null || is_scalar($value))) {
+                $normalized[$key] = $value;
+            }
+        }
+
+        return $normalized;
     }
 
     /** @return array<int, mixed> */

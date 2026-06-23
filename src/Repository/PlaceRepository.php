@@ -43,15 +43,19 @@ class PlaceRepository extends ServiceEntityRepository
                 ->setParameter('tag', $tag);
         }
 
-        return $qb
+        /** @var list<Place> $places */
+        $places = $qb
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $places;
     }
 
     public function findPublishedBySlug(string $slug): ?Place
     {
-        return $this->createQueryBuilder('p')
+        /** @var Place|null $place */
+        $place = $this->createQueryBuilder('p')
             ->addSelect('destination', 'category', 'featuredImage', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('p.destination', 'destination')
             ->leftJoin('p.category', 'category')
@@ -75,6 +79,8 @@ class PlaceRepository extends ServiceEntityRepository
             ->addOrderBy('articleLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $place;
     }
 
     /** @return list<Place> */
@@ -85,6 +91,7 @@ class PlaceRepository extends ServiceEntityRepository
 
     public function findLatestPublishedWithMediaByDestination(Destination $destination): ?Place
     {
+        /** @var array{id: int}|null $latestPlaceRow */
         $latestPlaceRow = $this->createQueryBuilder('p')
             ->select('p.id')
             ->leftJoin('p.featuredImage', 'featuredImage')
@@ -106,7 +113,8 @@ class PlaceRepository extends ServiceEntityRepository
             return null;
         }
 
-        return $this->createQueryBuilder('p')
+        /** @var Place|null $place */
+        $place = $this->createQueryBuilder('p')
             ->addSelect('featuredImage', 'mediaLinks', 'mediaAssets')
             ->leftJoin('p.featuredImage', 'featuredImage')
             ->leftJoin('p.mediaLinks', 'mediaLinks')
@@ -117,6 +125,8 @@ class PlaceRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $place;
     }
 
     /**
@@ -130,20 +140,26 @@ class PlaceRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createPublishedQueryBuilder()
+        /** @var list<Place> $places */
+        $places = $this->createPublishedQueryBuilder()
             ->andWhere('destination.id IN (:destinationIds)')
             ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
             ->getQuery()
             ->getResult();
+
+        return $places;
     }
 
     /** @return list<Place> */
     public function findFeaturedPublished(int $limit): array
     {
-        return $this->createPublishedQueryBuilder()
+        /** @var list<Place> $places */
+        $places = $this->createPublishedQueryBuilder()
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $places;
     }
 
     private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder

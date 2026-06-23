@@ -221,14 +221,26 @@ final class QuickCityVisitController extends AbstractController
         $data = $request->request->all('quick_city_visit_point');
 
         return [
-            '_token' => trim((string) ($data['_token'] ?? '')),
-            'type' => trim((string) ($data['type'] ?? CityVisitPointType::Other->value)),
-            'titlePoint' => trim((string) ($data['titlePoint'] ?? '')),
-            'latitude' => $this->normalizeDecimal((string) ($data['latitude'] ?? '')),
-            'longitude' => $this->normalizeDecimal((string) ($data['longitude'] ?? '')),
-            'accuracy' => $this->normalizeDecimal((string) ($data['accuracy'] ?? '')),
-            'note' => trim((string) ($data['note'] ?? '')),
+            '_token' => trim($this->formStringValue($data, '_token')),
+            'type' => trim($this->formStringValue($data, 'type', CityVisitPointType::Other->value)),
+            'titlePoint' => trim($this->formStringValue($data, 'titlePoint')),
+            'latitude' => $this->normalizeDecimal($this->formStringValue($data, 'latitude')),
+            'longitude' => $this->normalizeDecimal($this->formStringValue($data, 'longitude')),
+            'accuracy' => $this->normalizeDecimal($this->formStringValue($data, 'accuracy')),
+            'note' => trim($this->formStringValue($data, 'note')),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function formStringValue(array $data, string $key, string $default = ''): string
+    {
+        if (!array_key_exists($key, $data)) {
+            return $default;
+        }
+
+        return is_string($data[$key]) ? $data[$key] : '';
     }
 
     /**

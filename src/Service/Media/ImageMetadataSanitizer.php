@@ -163,12 +163,13 @@ final class ImageMetadataSanitizer
                 $markers[] = 'EXIF';
             }
 
-            if (isset($imageSize['APP13']) && function_exists('iptcparse')) {
-                $iptc = @iptcparse((string) $imageSize['APP13']);
+            $app13 = $imageSize['APP13'] ?? null;
+            if (is_string($app13) && function_exists('iptcparse')) {
+                $iptc = @iptcparse($app13);
                 if (is_array($iptc) && $iptc !== []) {
                     $markers[] = 'IPTC';
                 }
-            } elseif (isset($imageSize['APP13'])) {
+            } elseif ($app13 !== null) {
                 $markers[] = 'IPTC';
             }
 
@@ -218,7 +219,8 @@ final class ImageMetadataSanitizer
             }
 
             foreach (['Make', 'Model', 'Software', 'DateTime', 'DateTimeOriginal', 'DateTimeDigitized', 'BodySerialNumber', 'CameraOwnerName'] as $key) {
-                if (isset($exif[$section][$key]) && trim((string) $exif[$section][$key]) !== '') {
+                $value = $exif[$section][$key] ?? null;
+                if (is_string($value) && trim($value) !== '') {
                     return true;
                 }
             }

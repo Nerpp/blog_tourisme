@@ -284,6 +284,48 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertNull($this->entityManager()->getRepository(MediaAsset::class)->find($coverMediaId));
     }
 
+    public function testStructuredMediaIdentifiersDoNotRemoveOrPromoteArticleMedia(): void
+    {
+        $client = static::createClient();
+        $article = $this->createDraftArticle();
+        $coverMedia = $this->createImageMedia('Couverture article conservée');
+        $galleryMedia = $this->createImageMedia('Galerie article conservée');
+        $coverLink = $this->linkArticleMedia($article, $coverMedia, MediaRole::Cover, 0);
+        $galleryLink = $this->linkArticleMedia($article, $galleryMedia, MediaRole::Gallery, 1);
+        $article->setFeaturedImage($coverMedia);
+        $this->persistAndFlush($article);
+        $articleId = $article->getId();
+        $coverLinkId = $coverLink->getId();
+        $galleryLinkId = $galleryLink->getId();
+        self::assertIsInt($articleId);
+        self::assertIsInt($coverLinkId);
+        self::assertIsInt($galleryLinkId);
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $articleId));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/articles/%d/edit', $articleId), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => (string) $article->getTitle(),
+            'content' => (string) $article->getContent(),
+            'status' => ContentStatus::Draft->value,
+            'linkedContentType' => 'none',
+            'articleRole' => 'related',
+            'promoteCoverMedia' => [$galleryLinkId],
+            'removeMediaLinks' => [[$coverLinkId]],
+        ]);
+
+        self::assertResponseStatusCodeSame(400);
+        $this->entityManager()->clear();
+        $storedArticle = $this->entityManager()->find(Article::class, $articleId);
+        self::assertInstanceOf(Article::class, $storedArticle);
+        self::assertSame($coverMedia->getId(), $storedArticle->getFeaturedImage()?->getId());
+        self::assertCount(2, $storedArticle->getMediaLinks());
+        self::assertNotNull($this->entityManager()->find(ArticleMedia::class, $coverLinkId));
+        self::assertNotNull($this->entityManager()->find(ArticleMedia::class, $galleryLinkId));
+    }
+
     public function testInvalidArticleImageUploadIsIgnored(): void
     {
         $client = static::createClient();

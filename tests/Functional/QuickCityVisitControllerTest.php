@@ -110,6 +110,36 @@ final class QuickCityVisitControllerTest extends FunctionalTestCase
         self::assertNull($stored->getGoogleMapsUrl());
     }
 
+    public function testQuickCityVisitPointRejectsStructuredFieldsWithoutCreatingLocation(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/quick-city-visit/%d', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/quick-city-visit/%d/point', $cityVisit->getId()), [
+            'quick_city_visit_point' => [
+                '_token' => $this->inputValue($crawler, 'input[name="quick_city_visit_point[_token]"]'),
+                'latitude' => ['43.60'],
+                'longitude' => ['3.88'],
+                'accuracy' => ['5'],
+                'type' => ['monument'],
+                'titlePoint' => ['Titre structuré'],
+                'note' => ['Note structurée'],
+            ],
+        ]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(0, $this->entityManager()->getRepository(CityVisitPoint::class)->count(['cityVisitDraft' => $cityVisit]));
+        $stored = $this->refresh($cityVisit);
+        self::assertInstanceOf(CityVisitDraft::class, $stored);
+        self::assertNull($stored->getGeographicDestination());
+        self::assertNull($stored->getDetectedCommuneName());
+        self::assertNull($stored->getGoogleMapsUrl());
+    }
+
     public function testQuickCityVisitFinishRequiresCsrf(): void
     {
         $client = static::createClient();

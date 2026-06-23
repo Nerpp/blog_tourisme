@@ -670,7 +670,15 @@ final class AdminArticleController extends AbstractController
             return [];
         }
 
-        return array_values(array_filter(array_map(static fn (mixed $value): int => (int) $value, $values)));
+        $ids = [];
+        foreach ($values as $value) {
+            $id = $this->positiveIntOrNull($value);
+            if ($id !== null) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
     }
 
     private function plainContent(string $html): string
@@ -727,7 +735,28 @@ final class AdminArticleController extends AbstractController
 
     private function nullableInt(mixed $value): ?int
     {
-        if ($value === null || trim((string) $value) === '') {
+        return $this->positiveIntOrNull($value);
+    }
+
+    private function positiveIntOrNull(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        $digits = ltrim($value, '0');
+        if (!ctype_digit($value) || $digits === '' || strlen($digits) > strlen((string) PHP_INT_MAX)
+            || (strlen($digits) === strlen((string) PHP_INT_MAX) && strcmp($digits, (string) PHP_INT_MAX) > 0)
+        ) {
             return null;
         }
 

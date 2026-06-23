@@ -162,7 +162,7 @@ final class AdminPlaceController extends AbstractController
     private function updatePlaceFromRequest(Place $place, Request $request): bool
     {
         $name = trim($request->request->getString('name'));
-        $destinationId = $this->nullableInt($request->request->get('destination'));
+        $destinationId = $this->positiveIntOrNull($request->request->get('destination'));
         $destination = $destinationId !== null ? $this->entityManager->find(Destination::class, $destinationId) : null;
         if ($name === '') {
             $this->addFlash('error', 'Le nom est obligatoire.');
@@ -175,13 +175,13 @@ final class AdminPlaceController extends AbstractController
         $place
             ->setName($name)
             ->setDestination($destination)
-            ->setCategory(($categoryId = $this->nullableInt($request->request->get('category'))) !== null ? $this->entityManager->find(Category::class, $categoryId) : null)
+            ->setCategory(($categoryId = $this->positiveIntOrNull($request->request->get('category'))) !== null ? $this->entityManager->find(Category::class, $categoryId) : null)
             ->setStatus($status)
             ->setShortDescription($this->nullIfBlank($request->request->getString('shortDescription')))
             ->setAddress($this->nullIfBlank($request->request->getString('address')))
             ->setLatitude($this->nullableFloat($request->request->get('latitude')))
             ->setLongitude($this->nullableFloat($request->request->get('longitude')))
-            ->setVisitDurationMinutes($this->nullableInt($request->request->get('visitDurationMinutes')))
+            ->setVisitDurationMinutes($this->nonNegativeIntOrNull($request->request->get('visitDurationMinutes')))
             ->setDifficulty(PlaceDifficulty::tryFrom($request->request->getString('difficulty')) ?? PlaceDifficulty::Unknown)
             ->setPriceType(PriceType::tryFrom($request->request->getString('priceType')) ?? PriceType::Unknown)
             ->setPublishedAt(null);
@@ -265,9 +265,44 @@ final class AdminPlaceController extends AbstractController
         return $slug;
     }
 
-    private function nullableInt(mixed $value): ?int
+    private function positiveIntOrNull(mixed $value): ?int
     {
-        if ($value === null || trim((string) $value) === '') {
+        $integer = $this->integerOrNull($value);
+
+        return $integer !== null && $integer > 0 ? $integer : null;
+    }
+
+    private function nonNegativeIntOrNull(mixed $value): ?int
+    {
+        $integer = $this->integerOrNull($value);
+
+        return $integer !== null && $integer >= 0 ? $integer : null;
+    }
+
+    private function integerOrNull(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '' || preg_match('/^-?\d+$/D', $value) !== 1) {
+            return null;
+        }
+
+        $negative = str_starts_with($value, '-');
+        $digits = ltrim($negative ? substr($value, 1) : $value, '0');
+        $digits = $digits === '' ? '0' : $digits;
+        $limit = $negative ? ltrim((string) PHP_INT_MIN, '-') : (string) PHP_INT_MAX;
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
             return null;
         }
 
@@ -276,11 +311,22 @@ final class AdminPlaceController extends AbstractController
 
     private function nullableFloat(mixed $value): ?float
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
             return null;
         }
 
-        return (float) str_replace(',', '.', (string) $value);
+        if (!is_string($value) && !is_int($value) && !is_float($value)) {
+            return null;
+        }
+
+        $normalized = str_replace(',', '.', trim((string) $value));
+        if ($normalized === '' || !is_numeric($normalized)) {
+            return null;
+        }
+
+        $float = (float) $normalized;
+
+        return is_finite($float) ? $float : null;
     }
 
     private function nullIfBlank(?string $value): ?string

@@ -84,6 +84,30 @@ final class AdminPlaceControllerTest extends FunctionalTestCase
         self::assertSame(PriceType::Free, $place->getPriceType());
     }
 
+    public function testStructuredIdentifiersAndNumbersDoNotCreateIncorrectPlaceLinks(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $destination = $this->createDestination();
+        $category = $this->createCategory();
+        $name = 'Repérage structuré '.$this->uniqueToken('place');
+        $crawler = $client->request('GET', '/admin/places/new');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', '/admin/places/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => $name,
+            'destination' => [$destination->getId()],
+            'category' => [$category->getId()],
+            'latitude' => ['42.71'],
+            'longitude' => ['2.91'],
+            'visitDurationMinutes' => ['45'],
+        ]);
+
+        self::assertResponseStatusCodeSame(400);
+        self::assertNull($this->entityManager()->getRepository(Place::class)->findOneBy(['name' => $name]));
+    }
+
     public function testEmptyPlaceNameIsRejected(): void
     {
         $client = static::createClient();

@@ -156,6 +156,42 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testHikePhotoUploadRejectsStructuredAssociationBeforeCreatingAnything(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 96, 48);
+        $mediaCount = $this->entityManager()->getRepository(MediaAsset::class)->count([]);
+        $draftLinkCount = $this->entityManager()->getRepository(HikeDraftMedia::class)->count([]);
+        $pointLinkCount = $this->entityManager()->getRepository(HikePointMedia::class)->count([]);
+
+        try {
+            $client->request('POST', sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId()), [
+                '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/media/photos', $hike->getId())),
+                'photoCaptions' => ['Association structurée'],
+                'photoImageTypes' => [ImageType::Standard->value],
+                'photoAssociations' => [['point:42']],
+                'ajax' => '1',
+            ], [
+                'photos' => [new UploadedFile($source, 'structured-association.jpg', 'image/jpeg', null, true)],
+            ], ['HTTP_ACCEPT' => 'application/json']);
+
+            self::assertResponseStatusCodeSame(422);
+            self::assertStringContainsString('ne fait pas partie', (string) $client->getResponse()->getContent());
+            self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+            self::assertSame($draftLinkCount, $this->entityManager()->getRepository(HikeDraftMedia::class)->count([]));
+            self::assertSame($pointLinkCount, $this->entityManager()->getRepository(HikePointMedia::class)->count([]));
+        } finally {
+            if (is_file($source)) {
+                unlink($source);
+            }
+        }
+    }
+
     public function testHikeVideoRejectsForeignPointBeforeCreatingMedia(): void
     {
         $client = static::createClient();

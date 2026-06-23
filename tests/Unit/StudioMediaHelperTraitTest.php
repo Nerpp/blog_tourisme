@@ -56,6 +56,44 @@ final class StudioMediaHelperTraitTest extends TestCase
         self::assertSame(MediaRole::Gallery, $foreignLink->getRole());
     }
 
+    public function testMetadataNormalizationKeepsFlatScalarsAndDropsStructuredValues(): void
+    {
+        $resource = fopen('php://memory', 'r');
+        self::assertIsResource($resource);
+
+        try {
+            self::assertSame([
+                'path' => '/uploads/original.jpg',
+                'width' => 4096,
+                'ratio' => 2.0,
+                'sanitized' => true,
+                'mobilePath' => null,
+            ], (new StudioMediaHelperTraitHarness())->normalizeMetadata([
+                'path' => '/uploads/original.jpg',
+                'width' => 4096,
+                'ratio' => 2.0,
+                'sanitized' => true,
+                'mobilePath' => null,
+                'nested' => ['unexpected' => true],
+                'object' => new \stdClass(),
+                'resource' => $resource,
+                12 => 'numeric key',
+            ]));
+        } finally {
+            fclose($resource);
+        }
+    }
+
+    public function testStructuredAndOverflowingValuesAreNotConvertedToUsableIdentifiers(): void
+    {
+        $helper = new StudioMediaHelperTraitHarness();
+
+        self::assertNull($helper->nullableIntValue(['12']));
+        self::assertNull($helper->nullableIntValue((string) PHP_INT_MAX.'0'));
+        self::assertSame(42, $helper->nullableIntValue('00042'));
+        self::assertFalse($helper->validAssociation(['point:42'], new \stdClass(), true));
+    }
+
     private function link(MediaType $mediaType, MediaRole $role): PlaceMedia
     {
         $media = (new MediaAsset())->setMediaType($mediaType);
@@ -80,5 +118,21 @@ final class StudioMediaHelperTraitHarness
     public function normalize(iterable $links): void
     {
         $this->normalizeClassicCoverImages($links);
+    }
+
+    /** @return array<string, bool|float|int|string|null>|null */
+    public function normalizeMetadata(mixed $metadata): ?array
+    {
+        return $this->normalizeMediaMetadata($metadata);
+    }
+
+    public function nullableIntValue(mixed $value): ?int
+    {
+        return $this->nullableInt($value);
+    }
+
+    public function validAssociation(mixed $association, ?object $targetPoint, bool $allowMain): bool
+    {
+        return $this->isValidStudioMediaAssociation($association, $targetPoint, $allowMain);
     }
 }

@@ -24,9 +24,12 @@ final class PrevisionDestinationRepository extends ServiceEntityRepository
 
         $this->applySearch($queryBuilder, $query);
 
-        return $queryBuilder
+        /** @var list<PrevisionDestination> $destinations */
+        $destinations = $queryBuilder
             ->getQuery()
             ->getResult();
+
+        return $destinations;
     }
 
     /** @return list<PrevisionDestination> */
@@ -39,9 +42,12 @@ final class PrevisionDestinationRepository extends ServiceEntityRepository
 
         $this->applySearch($queryBuilder, $query);
 
-        return $queryBuilder
+        /** @var list<PrevisionDestination> $destinations */
+        $destinations = $queryBuilder
             ->getQuery()
             ->getResult();
+
+        return $destinations;
     }
 
     private function applySearch(QueryBuilder $queryBuilder, ?string $query): void

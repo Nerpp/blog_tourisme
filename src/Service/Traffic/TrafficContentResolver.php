@@ -25,7 +25,8 @@ final class TrafficContentResolver
      */
     public function resolve(Request $request): array
     {
-        $route = (string) $request->attributes->get('_route', '');
+        $routeValue = $request->attributes->get('_route');
+        $route = is_string($routeValue) ? $routeValue : '';
         $slug = $request->attributes->get('slug');
         $slug = is_string($slug) ? $slug : null;
 
@@ -39,7 +40,7 @@ final class TrafficContentResolver
             'app_city_visit_show' => $this->resolveCityVisit($slug),
             'app_destination_show' => $this->resolveDestination($slug),
             'app_place_show' => $this->resolvePlace($slug),
-            default => ['contentType' => $request->attributes->get('_route') === null ? 'error' : 'other', 'contentId' => null, 'contentTitle' => null],
+            default => ['contentType' => $routeValue === null ? 'error' : 'other', 'contentId' => null, 'contentTitle' => null],
         };
     }
 

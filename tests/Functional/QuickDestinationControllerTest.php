@@ -183,6 +183,34 @@ final class QuickDestinationControllerTest extends FunctionalTestCase
         self::assertSame(2.34, $area->getLongitude());
     }
 
+    public function testInvalidCoordinatesDoNotOverwriteReusableDestinationWithZero(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $name = 'Destination coordonnées '.$this->uniqueToken('destination');
+        $destination = $this->createDestination($name);
+        $destination
+            ->setLatitude(43.1234)
+            ->setLongitude(2.5678);
+        $this->persistAndFlush($destination);
+
+        $client->request('POST', '/admin/studio/destinations/quick-create', [
+            '_token' => $this->quickDestinationToken($client),
+            'name' => $name,
+            'type' => DestinationType::Area->value,
+            'latitude' => 'coordonnée-invalide',
+            'longitude' => 'autre-valeur-invalide',
+            'returnUrl' => '/admin',
+        ]);
+
+        self::assertResponseRedirects('/admin');
+        $destination = $this->refresh($destination);
+        self::assertSame(43.1234, $destination->getLatitude());
+        self::assertSame(2.5678, $destination->getLongitude());
+        self::assertNotSame(0.0, $destination->getLatitude());
+        self::assertNotSame(0.0, $destination->getLongitude());
+    }
+
     public function testVerifiedAdminCanAssociateQuickDestinationToCityVisit(): void
     {
         $client = static::createClient();

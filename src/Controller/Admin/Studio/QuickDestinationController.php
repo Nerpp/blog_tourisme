@@ -668,7 +668,28 @@ final class QuickDestinationController extends AbstractController
 
     private function nullableInt(mixed $value): ?int
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '' || preg_match('/^-?\d+$/D', $value) !== 1) {
+            return null;
+        }
+
+        $negative = str_starts_with($value, '-');
+        $digits = ltrim($negative ? substr($value, 1) : $value, '0');
+        $digits = $digits === '' ? '0' : $digits;
+        $limit = $negative ? ltrim((string) PHP_INT_MIN, '-') : (string) PHP_INT_MAX;
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
             return null;
         }
 
@@ -677,11 +698,22 @@ final class QuickDestinationController extends AbstractController
 
     private function nullableFloat(mixed $value): ?float
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
             return null;
         }
 
-        return (float) str_replace(',', '.', (string) $value);
+        if (!is_string($value) && !is_int($value) && !is_float($value)) {
+            return null;
+        }
+
+        $normalizedValue = str_replace(',', '.', trim((string) $value));
+        if ($normalizedValue === '' || !is_numeric($normalizedValue)) {
+            return null;
+        }
+
+        $floatValue = (float) $normalizedValue;
+
+        return is_finite($floatValue) ? $floatValue : null;
     }
 
     private function nullIfBlank(?string $value): ?string

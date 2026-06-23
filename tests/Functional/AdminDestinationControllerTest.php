@@ -80,6 +80,29 @@ final class AdminDestinationControllerTest extends FunctionalTestCase
         self::assertSame(2.90, $destination->getLongitude());
     }
 
+    public function testStructuredParentAndCoordinatesDoNotCreateIncorrectDestinationLinks(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $parent = $this->createDestination();
+        $name = 'Destination structurée '.$this->uniqueToken('destination');
+        $crawler = $client->request('GET', '/admin/destinations/new');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', '/admin/destinations/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => $name,
+            'type' => DestinationType::Area->value,
+            'parent' => [$parent->getId()],
+            'latitude' => ['42.70'],
+            'longitude' => ['2.90'],
+        ]);
+
+        self::assertResponseStatusCodeSame(400);
+        self::assertNull($this->entityManager()->getRepository(Destination::class)->findOneBy(['name' => $name]));
+        self::assertNotNull($this->entityManager()->find(Destination::class, $parent->getId()));
+    }
+
     public function testEmptyDestinationNameIsRejected(): void
     {
         $client = static::createClient();

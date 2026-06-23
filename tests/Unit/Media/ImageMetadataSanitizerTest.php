@@ -131,6 +131,30 @@ final class ImageMetadataSanitizerTest extends TestCase
         imagedestroy($image);
     }
 
+    public function testStructuredNativeMetadataIsNotConvertedToText(): void
+    {
+        if (!function_exists('imagejpeg')) {
+            self::markTestSkipped('GD avec support JPEG est requis.');
+        }
+
+        $path = $this->createJpeg('structured-metadata.jpg', 40, 20);
+        $service = $this->service();
+        $detectMethod = new \ReflectionMethod($service, 'detectSensitiveMetadata');
+        $cameraMethod = new \ReflectionMethod($service, 'exifHasCameraOrSoftwareData');
+
+        self::assertSame(
+            ['IPTC'],
+            $detectMethod->invoke($service, $path, 'image/jpeg', ['APP13' => ['structured']]),
+        );
+        self::assertFalse($cameraMethod->invoke($service, [
+            'IFD0' => ['Make' => ['Structured Camera']],
+            'EXIF' => ['Software' => new \stdClass()],
+        ]));
+        self::assertTrue($cameraMethod->invoke($service, [
+            'IFD0' => ['Make' => 'Valid Camera'],
+        ]));
+    }
+
     private function service(): ImageMetadataSanitizer
     {
         $parameters = $this->createStub(ParameterBagInterface::class);

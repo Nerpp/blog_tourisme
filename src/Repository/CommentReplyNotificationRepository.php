@@ -19,7 +19,8 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
 
     public function countUnreadForRecipient(User $recipient): int
     {
-        return (int) $this->createQueryBuilder('n')
+        /** @var int|string $count */
+        $count = $this->createQueryBuilder('n')
             ->select('COUNT(n.id)')
             ->innerJoin('n.comment', 'c')
             ->andWhere('n.recipient = :recipient')
@@ -29,12 +30,15 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
             ->setParameter('approved', CommentStatus::Approved)
             ->getQuery()
             ->getSingleScalarResult();
+
+        return (int) $count;
     }
 
     /** @return list<CommentReplyNotification> */
     public function findRecentForRecipient(User $recipient, int $limit = 50): array
     {
-        return $this->createQueryBuilder('n')
+        /** @var list<CommentReplyNotification> $notifications */
+        $notifications = $this->createQueryBuilder('n')
             ->addSelect('c', 'a', 'triggered_by', 'article', 'place')
             ->innerJoin('n.comment', 'c')
             ->leftJoin('c.author', 'a')
@@ -49,6 +53,8 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $notifications;
     }
 
     public function findOneByRecipientAndComment(User $recipient, Comment $comment): ?CommentReplyNotification
@@ -61,12 +67,15 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
 
     public function deleteAllForRecipient(User $recipient): int
     {
-        return (int) $this->createQueryBuilder('n')
+        /** @var int|string $deleted */
+        $deleted = $this->createQueryBuilder('n')
             ->delete()
             ->andWhere('n.recipient = :recipient')
             ->setParameter('recipient', $recipient)
             ->getQuery()
             ->execute();
+
+        return (int) $deleted;
     }
 
     /** @param list<Comment> $comments */

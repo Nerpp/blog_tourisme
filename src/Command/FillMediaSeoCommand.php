@@ -9,6 +9,7 @@ use App\Entity\Place;
 use App\Repository\MediaAssetRepository;
 use App\Service\Media\MediaSeoTextService;
 use Doctrine\ORM\EntityManagerInterface;
+use InvalidArgumentException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -45,10 +46,16 @@ final class FillMediaSeoCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $dryRun = (bool) $input->getOption('dry-run') || !(bool) $input->getOption('force');
-        $mediaId = $this->nullableInt($input->getOption('id'));
-        $hikeId = $this->nullableInt($input->getOption('hike-id'));
-        $cityVisitId = $this->nullableInt($input->getOption('city-visit-id'));
-        $placeId = $this->nullableInt($input->getOption('place-id'));
+        try {
+            $mediaId = $this->positiveIntOption($input->getOption('id'), '--id');
+            $hikeId = $this->positiveIntOption($input->getOption('hike-id'), '--hike-id');
+            $cityVisitId = $this->positiveIntOption($input->getOption('city-visit-id'), '--city-visit-id');
+            $placeId = $this->positiveIntOption($input->getOption('place-id'), '--place-id');
+        } catch (InvalidArgumentException $exception) {
+            $io->error($exception->getMessage());
+
+            return Command::INVALID;
+        }
 
         $medias = $mediaId !== null
             ? array_filter([$this->mediaAssetRepository->find($mediaId)])
@@ -165,10 +172,34 @@ final class FillMediaSeoCommand extends Command
         return null;
     }
 
-    private function nullableInt(mixed $value): ?int
+    private function positiveIntOption(mixed $value, string $option): ?int
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null) {
             return null;
+        }
+
+        if (is_int($value)) {
+            if ($value > 0) {
+                return $value;
+            }
+
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        if (!is_string($value)) {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
+        }
+
+        $digits = ltrim($value, '0');
+        if (!ctype_digit($value) || $digits === '' || strlen($digits) > strlen((string) PHP_INT_MAX)
+            || (strlen($digits) === strlen((string) PHP_INT_MAX) && strcmp($digits, (string) PHP_INT_MAX) > 0)
+        ) {
+            throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
         }
 
         return (int) $value;

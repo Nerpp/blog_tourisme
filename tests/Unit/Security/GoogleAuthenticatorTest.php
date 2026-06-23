@@ -54,6 +54,50 @@ final class GoogleAuthenticatorTest extends TestCase
         ]));
     }
 
+    public function testRejectsStructuredGoogleIdentifier(): void
+    {
+        $this->expectException(CustomUserMessageAuthenticationException::class);
+        $this->expectExceptionMessage('Le compte Google ne fournit pas une adresse email valide.');
+
+        $this->invokeFindOrCreateUser($this->authenticator(), new GoogleUser([
+            'sub' => ['google-1'],
+            'email' => 'user@example.test',
+            'email_verified' => true,
+            'name' => 'Google User',
+        ]));
+    }
+
+    public function testStructuredGoogleNameFallsBackToEmailPrefix(): void
+    {
+        $repository = $this->createStub(UserRepository::class);
+        $repository->method('findOneByGoogleId')->willReturn(null);
+        $repository->method('findOneByEmail')->willReturn(null);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('persist')->with(self::isInstanceOf(User::class));
+        $entityManager->expects(self::once())->method('flush');
+
+        $passwordHasher = $this->createStub(UserPasswordHasherInterface::class);
+        $passwordHasher->method('hashPassword')->willReturn('hashed-password');
+
+        $user = $this->invokeFindOrCreateUser(
+            $this->authenticator(
+                userRepository: $repository,
+                entityManager: $entityManager,
+                passwordHasher: $passwordHasher,
+            ),
+            new GoogleUser([
+                'sub' => 'google-structured-name',
+                'email' => 'Fallback.Name@example.test',
+                'email_verified' => true,
+                'name' => ['Structured Name'],
+            ]),
+        );
+
+        self::assertSame('fallback.name', $user->getDisplayName());
+        self::assertSame('google-structured-name', $user->getGoogleId());
+    }
+
     public function testLinksExistingEmailAndMarksUserVerified(): void
     {
         $user = (new User())

@@ -180,6 +180,39 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         }
     }
 
+    public function testTargetedCommandsRejectInvalidNumericOptionsBeforeAnyMutation(): void
+    {
+        $media = (new MediaAsset())
+            ->setTitle('Média conservé avec option invalide')
+            ->setMediaType(MediaType::Image)
+            ->setFilePath('/uploads/media/option-invalide.jpg');
+        $trafficEvent = (new TrafficEvent())
+            ->setOccurredAt(new \DateTimeImmutable('-400 days'))
+            ->setPath('/trafic-option-invalide');
+        $this->persist($media, $trafficEvent);
+        $mediaId = $media->getId();
+        $trafficEventId = $trafficEvent->getId();
+        self::assertIsInt($mediaId);
+        self::assertIsInt($trafficEventId);
+
+        foreach ([
+            ['app:media:cleanup-orphans', ['--id' => 'not-an-id', '--force' => true]],
+            ['app:media:cleanup-public-masters', ['--id' => (string) PHP_INT_MAX.'0']],
+            ['app:media:seo-fill', ['--hike-id' => '12.5', '--force' => true]],
+            ['app:media:generate-variants', ['--id' => '-1', '--force' => true]],
+            ['app:traffic:prune', ['--days' => 'not-a-number']],
+        ] as [$commandName, $arguments]) {
+            $tester = $this->commandTester($commandName);
+            $status = $tester->execute($arguments, ['interactive' => false]);
+
+            self::assertSame(Command::INVALID, $status);
+            self::assertStringContainsString('doit être un entier strictement positif', $tester->getDisplay());
+        }
+
+        self::assertNotNull($this->entityManager->find(MediaAsset::class, $mediaId));
+        self::assertNotNull($this->entityManager->find(TrafficEvent::class, $trafficEventId));
+    }
+
     public function testCleanupPublicMastersDryRunReportsDeletableMasterWithoutDeletingIt(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);

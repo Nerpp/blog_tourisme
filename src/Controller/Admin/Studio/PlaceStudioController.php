@@ -170,7 +170,7 @@ final class PlaceStudioController extends AbstractController
             $associations = $this->requestArray($request, 'photoUsages');
         }
         foreach ($files as $index => $file) {
-            $imageType = ImageType::tryFrom((string) ($imageTypes[$index] ?? ''))
+            $imageType = ImageType::tryFrom($this->stringArrayValue($imageTypes, $index) ?? '')
                 ?? $this->imageTypeDetector->detectFromUpload($file);
             try {
                 $storedFile = $this->storeImageByType($file, $imageType, $place);
@@ -187,7 +187,7 @@ final class PlaceStudioController extends AbstractController
                 ->setUploadedBy($this->getUser() instanceof User ? $this->getUser() : null)
                 ->setTitle($this->truncate($storedFile['title'], 180))
                 ->setAltText($storedFile['altText'])
-                ->setCaption($this->nullIfBlank((string) ($captions[$index] ?? '')))
+                ->setCaption($this->nullIfBlank($this->stringArrayValue($captions, $index)))
                 ->setMediaType(MediaType::Image)
                 ->setImageType($imageType)
                 ->setFilePath($storedFile['path'])
@@ -197,7 +197,7 @@ final class PlaceStudioController extends AbstractController
                 ->setWidth($storedFile['width'])
                 ->setHeight($storedFile['height'])
                 ->setProjection($storedFile['projection'] ?? null)
-                ->setMetadata($storedFile['metadata'] ?? null);
+                ->setMetadata($this->normalizeMediaMetadata($storedFile['metadata'] ?? null));
 
             $variantResult = $this->mediaVariantService->generateForMedia($media);
             if ($variantResult['status'] === 'error') {
@@ -747,7 +747,7 @@ final class PlaceStudioController extends AbstractController
 
     private function resolvePhotoUsage(mixed $value): string
     {
-        return (string) $value === self::MEDIA_USAGE_MAIN
+        return is_string($value) && $value === self::MEDIA_USAGE_MAIN
             ? self::MEDIA_USAGE_MAIN
             : self::MEDIA_USAGE_GALLERY;
     }
@@ -846,7 +846,28 @@ final class PlaceStudioController extends AbstractController
 
     private function nullableInt(mixed $value): ?int
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        if ($value === '' || preg_match('/^-?\d+$/D', $value) !== 1) {
+            return null;
+        }
+
+        $negative = str_starts_with($value, '-');
+        $digits = ltrim($negative ? substr($value, 1) : $value, '0');
+        $digits = $digits === '' ? '0' : $digits;
+        $limit = $negative ? ltrim((string) PHP_INT_MIN, '-') : (string) PHP_INT_MAX;
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
             return null;
         }
 
@@ -855,11 +876,24 @@ final class PlaceStudioController extends AbstractController
 
     private function nullableCoordinate(mixed $value, float $min, float $max, string $label): ?float
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
             return null;
         }
 
+        if (!is_string($value) && !is_int($value) && !is_float($value)) {
+            throw new InvalidArgumentException(sprintf(
+                '%s doit être un nombre valide compris entre %s et %s.',
+                $label,
+                $min,
+                $max,
+            ));
+        }
+
         $normalizedValue = str_replace(',', '.', trim((string) $value));
+        if ($normalizedValue === '') {
+            return null;
+        }
+
         if (!is_numeric($normalizedValue)) {
             throw new InvalidArgumentException(sprintf(
                 '%s doit être un nombre valide compris entre %s et %s.',
@@ -880,6 +914,35 @@ final class PlaceStudioController extends AbstractController
         }
 
         return $coordinate;
+    }
+
+    /**
+     * @param array<int, mixed> $values
+     */
+    private function stringArrayValue(array $values, int $index, ?string $default = null): ?string
+    {
+        if (!array_key_exists($index, $values)) {
+            return $default;
+        }
+
+        return is_string($values[$index]) ? $values[$index] : null;
+    }
+
+    /** @return array<string, bool|float|int|string|null>|null */
+    private function normalizeMediaMetadata(mixed $metadata): ?array
+    {
+        if (!is_array($metadata)) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($metadata as $key => $value) {
+            if (is_string($key) && ($value === null || is_scalar($value))) {
+                $normalized[$key] = $value;
+            }
+        }
+
+        return $normalized;
     }
 
     private function nullIfBlank(?string $value): ?string

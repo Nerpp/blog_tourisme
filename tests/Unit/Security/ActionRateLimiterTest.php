@@ -68,6 +68,22 @@ final class ActionRateLimiterTest extends TestCase
         ], $factory->keys);
     }
 
+    public function testStructuredRouteFallsBackToRequestPathWithoutStringConversion(): void
+    {
+        $factory = new CollectingRateLimiterFactory($this->acceptedRateLimit());
+        $limiter = $this->limiter(adminUploadFactory: $factory);
+        $request = new Request(server: [
+            'REMOTE_ADDR' => '198.51.100.8',
+            'REQUEST_URI' => '/admin/media/structured-route',
+        ]);
+        $request->attributes->set('_route', ['admin_media_upload']);
+
+        self::assertSame($factory->rateLimit, $limiter->consumeAdminUpload($request, null));
+        self::assertSame([
+            hash('sha256', 'admin_upload|anonymous|198.51.100.8|/admin/media/structured-route'),
+        ], $factory->keys);
+    }
+
     private function limiter(
         ?CollectingRateLimiterFactory $commentCreateFactory = null,
         ?CollectingRateLimiterFactory $commentReportFactory = null,

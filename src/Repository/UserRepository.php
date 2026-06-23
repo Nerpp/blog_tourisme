@@ -27,7 +27,8 @@ class UserRepository extends ServiceEntityRepository
     /** @return list<User> */
     public function findUsersSubscribedToPublicationEmails(): array
     {
-        return $this->createQueryBuilder('u')
+        /** @var list<User> $users */
+        $users = $this->createQueryBuilder('u')
             ->andWhere('u.receivePublicationEmails = :enabled')
             ->andWhere('u.isVerified = :verified')
             ->andWhere('u.isBanned = :banned')
@@ -37,6 +38,8 @@ class UserRepository extends ServiceEntityRepository
             ->orderBy('u.id', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $users;
     }
 
     /**
@@ -55,6 +58,7 @@ class UserRepository extends ServiceEntityRepository
             return [];
         }
 
+        /** @var list<User> $users */
         $users = $this->createQueryBuilder('u')
             ->andWhere('u.isBanned = :banned')
             ->setParameter('banned', false)
@@ -66,10 +70,6 @@ class UserRepository extends ServiceEntityRepository
         $matchedUsers = [];
 
         foreach ($users as $user) {
-            if (!$user instanceof User) {
-                continue;
-            }
-
             $mentionHandle = $user->getMentionHandle();
             if (isset($handleLookup[$mentionHandle]) && !isset($matchedUsers[$mentionHandle])) {
                 $matchedUsers[$mentionHandle] = $user;

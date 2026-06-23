@@ -21,7 +21,8 @@ class CityVisitDraftRepository extends ServiceEntityRepository
 
     public function findCurrentDraftForUser(User $user): ?CityVisitDraft
     {
-        return $this->createQueryBuilder('c')
+        /** @var CityVisitDraft|null $draft */
+        $draft = $this->createQueryBuilder('c')
             ->andWhere('c.createdBy = :user')
             ->andWhere('c.status = :status')
             ->andWhere('c.finishedAt IS NULL')
@@ -31,10 +32,13 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     public function findLatestFinishedForHomepage(): ?CityVisitDraft
     {
+        /** @var array{id: int}|null $latestCityVisitRow */
         $latestCityVisitRow = $this->createQueryBuilder('c')
             ->select('c.id')
             ->andWhere('c.status = :status')
@@ -50,7 +54,8 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             return null;
         }
 
-        return $this->createQueryBuilder('c')
+        /** @var CityVisitDraft|null $draft */
+        $draft = $this->createQueryBuilder('c')
             ->addSelect('mediaLinks', 'mediaAssets')
             ->leftJoin('c.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
@@ -60,11 +65,14 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     public function findPublicBySlug(string $slug): ?CityVisitDraft
     {
-        return $this->createQueryBuilder('c')
+        /** @var CityVisitDraft|null $draft */
+        $draft = $this->createQueryBuilder('c')
             ->addSelect('destination', 'geographicDestination', 'geographicDestinationParent', 'geographicDestinationGrandParent', 'geographicDestinationGreatGrandParent', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('c.destination', 'destination')
             ->leftJoin('c.geographicDestination', 'geographicDestination')
@@ -95,10 +103,13 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->addOrderBy('articleLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     public function findLatestPublicWithMediaByDestination(Destination $destination): ?CityVisitDraft
     {
+        /** @var array{id: int}|null $latestCityVisitRow */
         $latestCityVisitRow = $this->createQueryBuilder('c')
             ->select('c.id')
             ->innerJoin('c.mediaLinks', 'mediaLinks')
@@ -122,7 +133,8 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             return null;
         }
 
-        return $this->createQueryBuilder('c')
+        /** @var CityVisitDraft|null $draft */
+        $draft = $this->createQueryBuilder('c')
             ->addSelect('mediaLinks', 'mediaAssets')
             ->leftJoin('c.mediaLinks', 'mediaLinks')
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
@@ -132,6 +144,8 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $draft;
     }
 
     /**
@@ -145,7 +159,8 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('c')
+        /** @var list<CityVisitDraft> $drafts */
+        $drafts = $this->createQueryBuilder('c')
             ->addSelect('destination', 'geographicDestination', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('c.destination', 'destination')
             ->leftJoin('c.geographicDestination', 'geographicDestination')
@@ -169,5 +184,7 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $drafts;
     }
 }

@@ -44,7 +44,17 @@ class CommentLikeRepository extends ServiceEntityRepository
 
         $counts = [];
         foreach ($rows as $row) {
-            $counts[(int) $row['comment_id']] = (int) $row['like_count'];
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $commentId = $this->positiveInt($row['comment_id'] ?? null);
+            $likeCount = $this->nonNegativeInt($row['like_count'] ?? null);
+            if ($commentId === null || $likeCount === null) {
+                continue;
+            }
+
+            $counts[$commentId] = $likeCount;
         }
 
         return $counts;
@@ -69,7 +79,19 @@ class CommentLikeRepository extends ServiceEntityRepository
             ->getQuery()
             ->getArrayResult();
 
-        return array_values(array_map(static fn (array $row): int => (int) $row['comment_id'], $rows));
+        $likedCommentIds = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $commentId = $this->positiveInt($row['comment_id'] ?? null);
+            if ($commentId !== null) {
+                $likedCommentIds[] = $commentId;
+            }
+        }
+
+        return $likedCommentIds;
     }
 
     /** @param list<Comment> $comments */
@@ -85,5 +107,35 @@ class CommentLikeRepository extends ServiceEntityRepository
             ->setParameter('comments', $comments)
             ->getQuery()
             ->execute();
+    }
+
+    private function positiveInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (!is_string($value) || preg_match('/^[1-9][0-9]*$/D', $value) !== 1) {
+            return null;
+        }
+
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($integer) && $integer > 0 ? $integer : null;
+    }
+
+    private function nonNegativeInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value >= 0 ? $value : null;
+        }
+
+        if (!is_string($value) || preg_match('/^(?:0|[1-9][0-9]*)$/D', $value) !== 1) {
+            return null;
+        }
+
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($integer) && $integer >= 0 ? $integer : null;
     }
 }

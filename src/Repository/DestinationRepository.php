@@ -22,7 +22,8 @@ class DestinationRepository extends ServiceEntityRepository
     /** @return list<Destination> */
     public function findRootDestinations(): array
     {
-        return $this->createQueryBuilder('d')
+        /** @var list<Destination> $destinations */
+        $destinations = $this->createQueryBuilder('d')
             ->addSelect('children', 'grandchildren', 'greatGrandchildren')
             ->leftJoin('d.children', 'children')
             ->leftJoin('children.children', 'grandchildren')
@@ -34,6 +35,8 @@ class DestinationRepository extends ServiceEntityRepository
             ->addOrderBy('greatGrandchildren.name', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $destinations;
     }
 
     /**
@@ -117,14 +120,19 @@ class DestinationRepository extends ServiceEntityRepository
         $connection = $this->getEntityManager()->getConnection();
 
         while (true) {
-            $childIds = array_map(
-                'intval',
-                $connection->executeQuery(
-                    'SELECT id FROM destination WHERE parent_id IN (:parentIds)',
-                    ['parentIds' => $parentIds],
-                    ['parentIds' => ArrayParameterType::INTEGER],
-                )->fetchFirstColumn(),
-            );
+            $values = $connection->executeQuery(
+                'SELECT id FROM destination WHERE parent_id IN (:parentIds)',
+                ['parentIds' => $parentIds],
+                ['parentIds' => ArrayParameterType::INTEGER],
+            )->fetchFirstColumn();
+
+            $childIds = [];
+            foreach ($values as $value) {
+                $childId = $this->positiveInt($value);
+                if ($childId !== null) {
+                    $childIds[] = $childId;
+                }
+            }
 
             $childIds = array_values(array_diff($childIds, $destinationIds));
             if ($childIds === []) {
@@ -149,7 +157,8 @@ class DestinationRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createQueryBuilder('d')
+        /** @var list<Destination> $destinations */
+        $destinations = $this->createQueryBuilder('d')
             ->addSelect('parent', 'grandParent', 'greatGrandParent')
             ->leftJoin('d.parent', 'parent')
             ->leftJoin('parent.parent', 'grandParent')
@@ -159,11 +168,14 @@ class DestinationRepository extends ServiceEntityRepository
             ->orderBy('d.name', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $destinations;
     }
 
     public function findBySlug(string $slug): ?Destination
     {
-        return $this->createQueryBuilder('d')
+        /** @var Destination|null $destination */
+        $destination = $this->createQueryBuilder('d')
             ->addSelect('parent', 'children', 'places', 'articleLinks', 'articles')
             ->leftJoin('d.parent', 'parent')
             ->leftJoin('d.children', 'children')
@@ -178,17 +190,22 @@ class DestinationRepository extends ServiceEntityRepository
             ->addOrderBy('articleLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $destination;
     }
 
     /** @return list<Destination> */
     public function findChildren(Destination $destination): array
     {
-        return $this->createQueryBuilder('d')
+        /** @var list<Destination> $destinations */
+        $destinations = $this->createQueryBuilder('d')
             ->andWhere('d.parent = :destination')
             ->setParameter('destination', $destination)
             ->orderBy('d.name', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $destinations;
     }
 
     /** @return list<Destination> */
@@ -274,11 +291,19 @@ class DestinationRepository extends ServiceEntityRepository
             ],
         )->fetchAllAssociative();
 
-        $ids = array_map(static fn (array $row): int => (int) $row['destination_id'], $rows);
+        $ids = [];
+        foreach ($rows as $row) {
+            $destinationId = $this->positiveInt($row['destination_id'] ?? null);
+            if ($destinationId !== null) {
+                $ids[] = $destinationId;
+            }
+        }
+
         if ($ids === []) {
             return [];
         }
 
+        /** @var list<Destination> $destinations */
         $destinations = $this->createQueryBuilder('d')
             ->addSelect('parent', 'places', 'placeFeaturedImages', 'placeMediaLinks', 'placeMediaAssets', 'articleLinks', 'articles', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('d.parent', 'parent')
@@ -307,6 +332,21 @@ class DestinationRepository extends ServiceEntityRepository
         usort($destinations, static fn (Destination $first, Destination $second): int => ($positionById[$first->getId()] ?? 0) <=> ($positionById[$second->getId()] ?? 0));
 
         return $destinations;
+    }
+
+    private function positiveInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (!is_string($value) || preg_match('/^[1-9][0-9]*$/D', $value) !== 1) {
+            return null;
+        }
+
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+
+        return is_int($integer) && $integer > 0 ? $integer : null;
     }
 
     /**

@@ -199,7 +199,20 @@ final class HikeStudioController extends AbstractController
 
         $resolvedAssociations = [];
         foreach ($files as $index => $file) {
-            $association = (string) ($associations[$index] ?? self::MEDIA_ASSOCIATION_GALLERY);
+            $association = $this->stringArrayValue($associations, $index, self::MEDIA_ASSOCIATION_GALLERY);
+            if ($association === null) {
+                $error = 'L’association média demandée ne fait pas partie de cette randonnée.';
+                if ($wantsJson) {
+                    return $this->uploadJsonResponse([
+                        $this->bulkMediaUploadService->errorPayload($file, $error),
+                    ], 422);
+                }
+
+                $this->addFlash('error', $error);
+
+                return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-photos');
+            }
+
             $targetPoint = $this->findPointFromAssociation($hikeDraft, $association);
             if (!$this->isValidStudioMediaAssociation($association, $targetPoint, true)) {
                 $error = 'L’association média demandée ne fait pas partie de cette randonnée.';
@@ -228,8 +241,8 @@ final class HikeStudioController extends AbstractController
             $error = null;
             $media = $this->createImageAssetFromUpload(
                 $file,
-                (string) ($captions[$index] ?? ''),
-                ImageType::tryFrom((string) ($imageTypes[$index] ?? '')),
+                $this->stringArrayValue($captions, $index),
+                ImageType::tryFrom($this->stringArrayValue($imageTypes, $index) ?? ''),
                 $hikeDraft,
                 $error,
             );
@@ -1323,19 +1336,19 @@ final class HikeStudioController extends AbstractController
 
     private function pointIdFromAssociation(mixed $association): ?int
     {
-        $association = trim((string) $association);
+        if (!is_string($association)) {
+            return null;
+        }
+
+        $association = trim($association);
         if (!str_starts_with($association, self::MEDIA_ASSOCIATION_POINT_PREFIX)) {
             return null;
         }
 
         $pointId = trim(substr($association, strlen(self::MEDIA_ASSOCIATION_POINT_PREFIX)));
-        if ($pointId === '' || !ctype_digit($pointId)) {
-            return null;
-        }
+        $pointId = ctype_digit($pointId) ? $this->nullableInt($pointId) : null;
 
-        $pointId = (int) $pointId;
-
-        return $pointId > 0 ? $pointId : null;
+        return $pointId !== null && $pointId > 0 ? $pointId : null;
     }
 
     private function findPointById(HikeDraft $hikeDraft, mixed $pointId): ?HikePoint

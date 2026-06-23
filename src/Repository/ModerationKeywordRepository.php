@@ -17,11 +17,14 @@ class ModerationKeywordRepository extends ServiceEntityRepository
     /** @return list<ModerationKeyword> */
     public function findEnabledKeywords(): array
     {
-        return $this->createQueryBuilder('k')
+        /** @var list<ModerationKeyword> $keywords */
+        $keywords = $this->createQueryBuilder('k')
             ->andWhere('k.enabled = true')
             ->orderBy('k.type', 'DESC')
             ->addOrderBy('k.keyword', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $keywords;
     }
 }

@@ -23,15 +23,19 @@ class ArticleRepository extends ServiceEntityRepository
     /** @return list<Article> */
     public function findPublished(int $limit = 24): array
     {
-        return $this->createPublishedQueryBuilder()
+        /** @var list<Article> $articles */
+        $articles = $this->createPublishedQueryBuilder()
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+
+        return $articles;
     }
 
     public function findPublishedBySlug(string $slug): ?Article
     {
-        return $this->createQueryBuilder('a')
+        /** @var Article|null $article */
+        $article = $this->createQueryBuilder('a')
             ->addSelect('category', 'featuredImage', 'destinationLinks', 'destinations', 'placeLinks', 'places', 'hikeLinks', 'hikes', 'cityVisitLinks', 'cityVisits', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags')
             ->leftJoin('a.category', 'category')
             ->leftJoin('a.featuredImage', 'featuredImage')
@@ -58,6 +62,8 @@ class ArticleRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $article;
     }
 
     /**
@@ -71,7 +77,8 @@ class ArticleRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createPublishedQueryBuilder()
+        /** @var list<Article> $articles */
+        $articles = $this->createPublishedQueryBuilder()
             ->andWhere('(destinations.id IN (:destinationIds) OR (hikeDestinations.id IN (:destinationIds) AND hikes.status IN (:hikeStatuses)) OR (cityVisitDestinations.id IN (:destinationIds) AND cityVisits.status IN (:cityVisitStatuses)))')
             ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
             ->setParameter('hikeStatuses', [
@@ -84,6 +91,8 @@ class ArticleRepository extends ServiceEntityRepository
             ], ArrayParameterType::STRING)
             ->getQuery()
             ->getResult();
+
+        return $articles;
     }
 
     /**
@@ -97,11 +106,14 @@ class ArticleRepository extends ServiceEntityRepository
             return [];
         }
 
-        return $this->createPublishedQueryBuilder()
+        /** @var list<Article> $articles */
+        $articles = $this->createPublishedQueryBuilder()
             ->andWhere('destinations.id IN (:destinationIds)')
             ->setParameter('destinationIds', $destinationIds, ArrayParameterType::INTEGER)
             ->getQuery()
             ->getResult();
+
+        return $articles;
     }
 
     private function createPublishedQueryBuilder(): \Doctrine\ORM\QueryBuilder
@@ -150,6 +162,7 @@ class ArticleRepository extends ServiceEntityRepository
 
     public function findLatestPublishedForHomepage(): ?Article
     {
+        /** @var array{id: int}|null $latestArticleRow */
         $latestArticleRow = $this->createQueryBuilder('a')
             ->select('a.id')
             ->andWhere('a.status = :status')
@@ -165,7 +178,8 @@ class ArticleRepository extends ServiceEntityRepository
             return null;
         }
 
-        return $this->createQueryBuilder('a')
+        /** @var Article|null $article */
+        $article = $this->createQueryBuilder('a')
             ->addSelect('featuredImage', 'mediaLinks', 'mediaAssets', 'hikeLinks', 'hikes', 'hikeMediaLinks', 'hikeMediaAssets', 'cityVisitLinks', 'cityVisits', 'cityVisitMediaLinks', 'cityVisitMediaAssets')
             ->leftJoin('a.featuredImage', 'featuredImage')
             ->leftJoin('a.mediaLinks', 'mediaLinks')
@@ -187,10 +201,13 @@ class ArticleRepository extends ServiceEntityRepository
             ->addOrderBy('cityVisitMediaLinks.position', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $article;
     }
 
     public function findLatestPublishedWithMediaByDestination(Destination $destination): ?Article
     {
+        /** @var array{id: int}|null $latestArticleRow */
         $latestArticleRow = $this->createQueryBuilder('a')
             ->select('a.id')
             ->leftJoin('a.featuredImage', 'featuredImage')
@@ -235,7 +252,8 @@ class ArticleRepository extends ServiceEntityRepository
             return null;
         }
 
-        return $this->createQueryBuilder('a')
+        /** @var Article|null $article */
+        $article = $this->createQueryBuilder('a')
             ->addSelect('featuredImage', 'destinationLinks', 'destinations', 'mediaLinks', 'mediaAssets', 'hikeLinks', 'hikes', 'hikeGeographicDestinations', 'hikeDestinations', 'cityVisitLinks', 'cityVisits', 'cityVisitGeographicDestinations', 'cityVisitDestinations')
             ->leftJoin('a.featuredImage', 'featuredImage')
             ->leftJoin('a.destinationLinks', 'destinationLinks')
@@ -256,5 +274,7 @@ class ArticleRepository extends ServiceEntityRepository
             ->addOrderBy('mediaLinks.id', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
+
+        return $article;
     }
 }

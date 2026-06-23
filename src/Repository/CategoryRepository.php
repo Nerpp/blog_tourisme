@@ -18,11 +18,14 @@ class CategoryRepository extends ServiceEntityRepository
     /** @return list<Category> */
     public function findArticleCategories(): array
     {
-        return $this->createQueryBuilder('c')
+        /** @var list<Category> $categories */
+        $categories = $this->createQueryBuilder('c')
             ->andWhere('c.type IN (:types)')
             ->setParameter('types', [CategoryType::Article, CategoryType::Both])
             ->orderBy('c.name', 'ASC')
             ->getQuery()
             ->getResult();
+
+        return $categories;
     }
 }

@@ -7,6 +7,11 @@ use App\Enum\MediaType;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
+/**
+ * @phpstan-import-type MediaVariantData from MediaAsset
+ * @phpstan-import-type MediaVariantValue from MediaAsset
+ * @phpstan-import-type MediaVariants from MediaAsset
+ */
 final class MediaVariantService
 {
     private const PUBLIC_POSTER_DIRECTORY = '/uploads/media/posters';
@@ -50,8 +55,8 @@ final class MediaVariantService
 
     public function hasUsableVariants(MediaAsset $media): bool
     {
-        $variants = $media->getVariants();
-        if (!is_array($variants)) {
+        $variants = $this->normalizeVariants($media->getVariants());
+        if ($variants === []) {
             return false;
         }
 
@@ -128,18 +133,20 @@ final class MediaVariantService
             ];
         }
 
-        $variants = $this->imageVariantGenerator->generate($filePath, $filePath);
+        $variants = $this->normalizeVariants($this->imageVariantGenerator->generate($filePath, $filePath));
         $media->setVariants($variants);
 
-        if (isset($variants['source']) && is_array($variants['source'])) {
+        $source = $variants['source'] ?? null;
+        if (is_array($source)) {
             $media
-                ->setMimeType(is_string($variants['source']['mimeType'] ?? null) ? $variants['source']['mimeType'] : $media->getMimeType())
-                ->setWidth(is_numeric($variants['source']['width'] ?? null) ? (int) $variants['source']['width'] : $media->getWidth())
-                ->setHeight(is_numeric($variants['source']['height'] ?? null) ? (int) $variants['source']['height'] : $media->getHeight());
+                ->setMimeType(is_string($source['mimeType'] ?? null) ? $source['mimeType'] : $media->getMimeType())
+                ->setWidth(is_numeric($source['width'] ?? null) ? (int) $source['width'] : $media->getWidth())
+                ->setHeight(is_numeric($source['height'] ?? null) ? (int) $source['height'] : $media->getHeight());
         }
 
-        if ($media->getThumbnailPath() === null && isset($variants['thumb']['fallback'])) {
-            $media->setThumbnailPath((string) $variants['thumb']['fallback']);
+        $thumbnailPath = $this->variantFallback($variants, 'thumb');
+        if ($media->getThumbnailPath() === null && $thumbnailPath !== null) {
+            $media->setThumbnailPath($thumbnailPath);
         }
 
         return [
@@ -171,12 +178,12 @@ final class MediaVariantService
             ];
         }
 
-        $existingVariants = $media->getVariants() ?? [];
-        $existingVariants['poster'] = $this->imageVariantGenerator->generate(
+        $existingVariants = $this->normalizeVariants($media->getVariants());
+        $existingVariants['poster'] = $this->normalizeVariantData($this->imageVariantGenerator->generate(
             $thumbnailPath,
             $thumbnailPath.'_poster',
             self::PUBLIC_POSTER_DIRECTORY,
-        );
+        ));
         $media->setVariants($existingVariants);
 
         return [
@@ -230,5 +237,125 @@ final class MediaVariantService
         }
 
         return rtrim($this->parameterBag->get('kernel.project_dir'), '/').'/public/'.ltrim($path, '/');
+    }
+
+    /**
+     * @return MediaVariants
+     */
+    private function normalizeVariants(mixed $variants): array
+    {
+        if (!is_array($variants)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($variants as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+
+            if ($value === null || is_scalar($value)) {
+                $normalized[$key] = $value;
+                continue;
+            }
+
+            if (is_array($value)) {
+                $normalized[$key] = $this->normalizeVariantData($value);
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<array-key, mixed> $data
+     *
+     * @return MediaVariantData
+     */
+    private function normalizeVariantData(array $data): array
+    {
+        $normalized = [];
+        foreach ($data as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+
+            $result = $this->normalizeVariantValue($value);
+            if ($result['valid']) {
+                $normalized[$key] = $result['value'];
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array{
+     *     valid: bool,
+     *     value: MediaVariantValue|array<string, MediaVariantValue>
+     * }
+     */
+    private function normalizeVariantValue(mixed $value): array
+    {
+        if ($value === null || is_scalar($value)) {
+            return ['valid' => true, 'value' => $value];
+        }
+
+        if (!is_array($value)) {
+            return ['valid' => false, 'value' => null];
+        }
+
+        if (array_is_list($value)) {
+            foreach ($value as $listValue) {
+                if (!is_string($listValue)) {
+                    return ['valid' => false, 'value' => null];
+                }
+            }
+
+            return ['valid' => true, 'value' => $value];
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $nestedValue) {
+            if (!is_string($key)) {
+                continue;
+            }
+
+            if ($nestedValue === null || is_scalar($nestedValue)) {
+                $normalized[$key] = $nestedValue;
+                continue;
+            }
+
+            if (is_array($nestedValue) && array_is_list($nestedValue)) {
+                $validList = true;
+                foreach ($nestedValue as $listValue) {
+                    if (!is_string($listValue)) {
+                        $validList = false;
+                        break;
+                    }
+                }
+
+                if ($validList) {
+                    $normalized[$key] = $nestedValue;
+                }
+            }
+        }
+
+        return ['valid' => true, 'value' => $normalized];
+    }
+
+    /**
+     * @param MediaVariants $variants
+     */
+    private function variantFallback(array $variants, string $group): ?string
+    {
+        $variant = $variants[$group] ?? null;
+        if (!is_array($variant)) {
+            return null;
+        }
+
+        $fallback = $variant['fallback'] ?? null;
+
+        return is_string($fallback) && $fallback !== '' ? $fallback : null;
     }
 }

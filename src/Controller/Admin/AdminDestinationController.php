@@ -195,7 +195,23 @@ final class AdminDestinationController extends AbstractController
 
     private function nullableInt(mixed $value): ?int
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+        $digits = ltrim($value, '0');
+        if (!ctype_digit($value) || $digits === '' || strlen($digits) > strlen((string) PHP_INT_MAX)
+            || (strlen($digits) === strlen((string) PHP_INT_MAX) && strcmp($digits, (string) PHP_INT_MAX) > 0)
+        ) {
             return null;
         }
 
@@ -204,11 +220,22 @@ final class AdminDestinationController extends AbstractController
 
     private function nullableFloat(mixed $value): ?float
     {
-        if ($value === null || trim((string) $value) === '') {
+        if ($value === null || $value === '') {
             return null;
         }
 
-        return (float) str_replace(',', '.', (string) $value);
+        if (!is_string($value) && !is_int($value) && !is_float($value)) {
+            return null;
+        }
+
+        $normalized = str_replace(',', '.', trim((string) $value));
+        if ($normalized === '' || !is_numeric($normalized)) {
+            return null;
+        }
+
+        $float = (float) $normalized;
+
+        return is_finite($float) ? $float : null;
     }
 
     private function nullIfBlank(?string $value): ?string

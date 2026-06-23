@@ -37,7 +37,8 @@ final class ActionRateLimiter
             ? sprintf('user:%s', $user->getId() ?? sha1($user->getUserIdentifier()))
             : 'anonymous';
         $ipKey = $request->getClientIp() ?? 'unknown-ip';
-        $routeKey = $request->attributes->get('_route') ?? $request->getPathInfo();
+        $route = $request->attributes->get('_route');
+        $routeKey = is_string($route) && $route !== '' ? $route : $request->getPathInfo();
 
         return $limiter
             ->create(hash('sha256', sprintf('%s|%s|%s|%s', $scope, $userKey, $ipKey, $routeKey)))
