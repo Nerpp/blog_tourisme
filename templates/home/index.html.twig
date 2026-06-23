@@ -1,14 +1,9 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/home.html.twig' %}
 
 {% block title %}Blog tourisme - randonnées, villes et destinations{% endblock %}
 
 {% block meta_description %}
 Découvrez des randonnées, villages, villes et paysages à travers un blog tourisme immersif.
-{% endblock %}
-
-{% block stylesheets %}
-    {{ parent() }}
-    {{ vite_entry_link_tags('assets/entries/home.js') }}
 {% endblock %}
 
 {% block body %}
