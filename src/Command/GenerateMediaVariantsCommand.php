@@ -66,7 +66,8 @@ final class GenerateMediaVariantsCommand extends Command
         $io->listing([
             'WebP: '.($this->mediaVariantService->supportsWebp() ? 'supporté' : 'non supporté'),
             'AVIF: '.($this->mediaVariantService->supportsAvif() ? 'supporté' : 'non supporté'),
-            'Formats générés: '.implode(', ', $this->mediaVariantService->supportedOutputFormats()),
+            'Photos standards: '.implode(', ', $this->mediaVariantService->standardOutputFormats()).' uniquement (600, 960, 1600, 1920 px)',
+            'Médias spécialisés et posters: '.implode(', ', $this->mediaVariantService->supportedOutputFormats()),
         ]);
 
         $generated = 0;

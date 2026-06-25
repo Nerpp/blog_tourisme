@@ -9,6 +9,8 @@ use App\Entity\User;
 use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Enum\VideoType;
+use App\Service\Media\MediaVariantService;
+use App\Service\Media\PublicMediaMasterCleanupService;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
@@ -33,6 +35,8 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
 
     public function __construct(
         private readonly string $projectDir,
+        private readonly MediaVariantService $mediaVariantService,
+        private readonly PublicMediaMasterCleanupService $publicMediaMasterCleanupService,
     ) {}
 
     public function load(ObjectManager $manager): void
@@ -208,7 +212,17 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
         ];
 
         foreach ($mediaAssets as $reference => $data) {
-            $paths = $this->generateImage($data['fixture'], $data['width'], $data['height'], $data['palette']);
+            $isStandardImage = false;
+            if ($data['mediaType'] === MediaType::Image) {
+                $isStandardImage = $data['imageType'] === ImageType::Standard;
+            }
+            $paths = $this->generateImage(
+                $data['fixture'],
+                $data['width'],
+                $data['height'],
+                $data['palette'],
+                generateStandaloneThumbnail: !$isStandardImage,
+            );
 
             $mediaAsset = (new MediaAsset())
                 ->setUploadedBy($admin)
@@ -228,6 +242,13 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
                 ->setDurationSeconds($data['durationSeconds'] ?? null)
                 ->setProjection($data['projection'] ?? null)
                 ->setMetadata($data['metadata'] ?? null);
+
+            if ($isStandardImage && $mediaAsset->getFilePath() !== null) {
+                $variantResult = $this->mediaVariantService->generateForMedia($mediaAsset, force: true);
+                if ($variantResult['generated']) {
+                    $this->publicMediaMasterCleanupService->cleanupIfSafe($mediaAsset);
+                }
+            }
 
             $manager->persist($mediaAsset);
             $this->addReference($reference, $mediaAsset);
@@ -252,7 +273,13 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
      * @param list<string> $palette
      * @return array{path: string|null, thumb: string|null, mime: string|null, size: int|null}
      */
-    private function generateImage(string $basename, int $width, int $height, array $palette): array
+    private function generateImage(
+        string $basename,
+        int $width,
+        int $height,
+        array $palette,
+        bool $generateStandaloneThumbnail = true,
+    ): array
     {
         if (!function_exists('imagecreatetruecolor')) {
             return ['path' => null, 'thumb' => null, 'mime' => null, 'size' => null];
@@ -272,11 +299,15 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
         $absoluteThumbPath = $this->projectDir.'/public'.$relativeThumbPath;
 
         $this->drawImage($absolutePath, $width, $height, $palette, $supportsWebp);
-        $this->drawImage($absoluteThumbPath, 480, 270, $palette, $supportsWebp);
+        if ($generateStandaloneThumbnail) {
+            $this->drawImage($absoluteThumbPath, 480, 270, $palette, $supportsWebp);
+        } elseif (is_file($absoluteThumbPath)) {
+            @unlink($absoluteThumbPath);
+        }
 
         return [
             'path' => $relativePath,
-            'thumb' => $relativeThumbPath,
+            'thumb' => $generateStandaloneThumbnail ? $relativeThumbPath : null,
             'mime' => $mime,
             'size' => is_file($absolutePath) ? filesize($absolutePath) ?: null : null,
         ];

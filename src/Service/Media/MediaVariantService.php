@@ -3,6 +3,7 @@
 namespace App\Service\Media;
 
 use App\Entity\MediaAsset;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -27,6 +28,12 @@ final class MediaVariantService
     public function supportedOutputFormats(): array
     {
         return $this->imageVariantGenerator->supportedOutputFormats();
+    }
+
+    /** @return list<string> */
+    public function standardOutputFormats(): array
+    {
+        return $this->imageVariantGenerator->standardOutputFormats();
     }
 
     public function supportsAvif(): bool
@@ -62,6 +69,17 @@ final class MediaVariantService
 
         if ($media->getMediaType() === MediaType::Video) {
             return isset($variants['poster']) && is_array($variants['poster']);
+        }
+
+        if ($media->getImageType() === ImageType::Standard) {
+            foreach (['thumb', 'mobile', 'medium', 'large'] as $size) {
+                $variant = $variants[$size] ?? null;
+                if (!is_array($variant) || !is_string($variant['webp'] ?? null) || $variant['webp'] === '') {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         return isset($variants['thumb'], $variants['medium'], $variants['large']);
@@ -133,7 +151,11 @@ final class MediaVariantService
             ];
         }
 
-        $variants = $this->normalizeVariants($this->imageVariantGenerator->generate($filePath, $filePath));
+        $variants = $this->normalizeVariants(
+            $media->getImageType() === ImageType::Standard
+                ? $this->imageVariantGenerator->generateStandard($filePath, $filePath)
+                : $this->imageVariantGenerator->generate($filePath, $filePath),
+        );
         $media->setVariants($variants);
 
         $source = $variants['source'] ?? null;
@@ -144,8 +166,10 @@ final class MediaVariantService
                 ->setHeight(is_numeric($source['height'] ?? null) ? (int) $source['height'] : $media->getHeight());
         }
 
-        $thumbnailPath = $this->variantFallback($variants, 'thumb');
-        if ($media->getThumbnailPath() === null && $thumbnailPath !== null) {
+        $thumbnailPath = $media->getImageType() === ImageType::Standard
+            ? $this->variantPath($variants, 'thumb', 'webp')
+            : $this->variantPath($variants, 'thumb', 'fallback');
+        if ($thumbnailPath !== null && ($media->getImageType() === ImageType::Standard || $media->getThumbnailPath() === null)) {
             $media->setThumbnailPath($thumbnailPath);
         }
 
@@ -357,15 +381,15 @@ final class MediaVariantService
     /**
      * @param MediaVariants $variants
      */
-    private function variantFallback(array $variants, string $group): ?string
+    private function variantPath(array $variants, string $group, string $format): ?string
     {
         $variant = $variants[$group] ?? null;
         if (!is_array($variant)) {
             return null;
         }
 
-        $fallback = $variant['fallback'] ?? null;
+        $path = $variant[$format] ?? null;
 
-        return is_string($fallback) && $fallback !== '' ? $fallback : null;
+        return is_string($path) && $path !== '' ? $path : null;
     }
 }

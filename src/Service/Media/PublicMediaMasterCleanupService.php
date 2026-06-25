@@ -11,10 +11,9 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 final class PublicMediaMasterCleanupService
 {
-    private const CRITICAL_SIZES = ['thumb', 'medium', 'large'];
+    private const CRITICAL_SIZES = ['thumb', 'mobile', 'medium', 'large'];
 
     public function __construct(
-        private readonly ImageVariantGenerator $imageVariantGenerator,
         private readonly ParameterBagInterface $parameterBag,
         private readonly LoggerInterface $logger,
     ) {
@@ -40,16 +39,8 @@ final class PublicMediaMasterCleanupService
             }
 
             $variant = $variants[$size];
-            if (!$this->publicUploadFileExists($variant['fallback'] ?? null)) {
-                return ['valid' => false, 'reason' => sprintf('fallback %s absent', $size)];
-            }
-
-            if ($this->imageVariantGenerator->supportsWebp() && !$this->publicUploadFileExists($variant['webp'] ?? null)) {
-                return ['valid' => false, 'reason' => sprintf('WebP %s absent', $size)];
-            }
-
-            if ($this->imageVariantGenerator->supportsAvif() && !$this->publicUploadFileExists($variant['avif'] ?? null)) {
-                return ['valid' => false, 'reason' => sprintf('AVIF %s absent', $size)];
+            if (!$this->publicWebpFileIsReadable($variant['webp'] ?? null)) {
+                return ['valid' => false, 'reason' => sprintf('WebP %s absent ou illisible', $size)];
             }
         }
 
@@ -126,15 +117,23 @@ final class PublicMediaMasterCleanupService
         ];
     }
 
-    private function publicUploadFileExists(mixed $path): bool
+    private function publicWebpFileIsReadable(mixed $path): bool
     {
         if (!is_string($path) || $path === '') {
             return false;
         }
 
         $absolutePath = $this->absolutePublicPath($path);
+        if ($absolutePath === null || !is_file($absolutePath) || !is_readable($absolutePath)) {
+            return false;
+        }
 
-        return $absolutePath !== null && is_file($absolutePath);
+        $imageSize = @getimagesize($absolutePath);
+
+        return is_array($imageSize)
+            && $imageSize['mime'] === 'image/webp'
+            && (int) $imageSize[0] > 0
+            && (int) $imageSize[1] > 0;
     }
 
     private function isDeletableMasterPath(?string $path): bool

@@ -108,17 +108,20 @@ final class MediaImageExtensionTest extends TestCase
     {
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
             ->setWidth(320)
             ->setHeight(160)
             ->setMetadata(['thumbnailWidth' => 120, 'thumbnailHeight' => 60])
             ->setVariants([
                 'thumb' => ['fallback' => '/uploads/media/thumb.jpg', 'webp' => '/uploads/media/thumb.webp', 'width' => 120, 'height' => 60],
+                'mobile' => ['webp' => '/uploads/media/mobile.webp', 'width' => 240, 'height' => 120],
                 'medium' => ['fallback' => '/uploads/media/medium.jpg', 'webp' => '/uploads/media/medium.webp', 'width' => 320, 'height' => 160],
                 'large' => ['fallback' => '/uploads/media/large.jpg', 'webp' => '/uploads/media/large.webp', 'width' => 320, 'height' => 160],
             ]);
         $extension = $this->extension();
 
-        self::assertSame('/uploads/media/thumb.webp 120w, /uploads/media/medium.webp 320w', $extension->imageSrcset($media, 'webp'));
+        self::assertSame('/uploads/media/thumb.webp 120w, /uploads/media/mobile.webp 240w, /uploads/media/medium.webp 320w', $extension->imageSrcset($media, 'webp'));
+        self::assertNull($extension->imageSrcset($media, 'fallback'));
         self::assertSame(['width' => 120, 'height' => 60], $extension->imageDimensions($media));
         self::assertSame(['width' => 320, 'height' => 160], $extension->imageDimensions($media, 'unknown'));
     }
@@ -168,6 +171,29 @@ final class MediaImageExtensionTest extends TestCase
 
         self::assertSame('/uploads/media/large.webp 640w', $extension->imageSrcset($media, 'webp'));
         self::assertSame('/uploads/media/poster-fallback.jpg', $extension->posterUrl($media));
+    }
+
+    public function testStandardImageUrlAndModalUseWebpWithoutFallback(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/original.jpg')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/thumb.webp', 'width' => 600, 'height' => 400],
+                'mobile' => ['webp' => '/uploads/media/mobile.webp', 'width' => 960, 'height' => 640],
+                'medium' => ['webp' => '/uploads/media/medium.webp', 'width' => 1600, 'height' => 1067],
+                'large' => ['webp' => '/uploads/media/large.webp', 'width' => 1920, 'height' => 1280],
+            ]);
+        $extension = $this->extension();
+
+        self::assertSame('/uploads/media/mobile.webp', $extension->imageUrl($media, 'mobile'));
+        self::assertSame('/uploads/media/large.webp', $extension->modalUrl($media));
+        self::assertSame(
+            '/uploads/media/thumb.webp 600w, /uploads/media/mobile.webp 960w, /uploads/media/medium.webp 1600w, /uploads/media/large.webp 1920w',
+            $extension->imageSrcset($media, 'webp'),
+        );
+        self::assertNull($extension->imageSrcset($media, 'avif'));
     }
 
     public function testMalformedVariantDataUsesExistingFallbacks(): void

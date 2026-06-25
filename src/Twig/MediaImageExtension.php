@@ -3,6 +3,7 @@
 namespace App\Twig;
 
 use App\Entity\MediaAsset;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Service\Media\MediaSeoTextService;
 use Symfony\Component\Asset\Packages;
@@ -11,7 +12,8 @@ use Twig\TwigFunction;
 
 final class MediaImageExtension extends AbstractExtension
 {
-    private const RESPONSIVE_SIZES = ['thumb', 'medium', 'large'];
+    private const STANDARD_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium', 'large'];
+    private const LEGACY_RESPONSIVE_SIZES = ['thumb', 'medium', 'large'];
     private const IMAGE_PLACEHOLDER = '/images/placeholders/destination-card-placeholder.webp';
 
     public function __construct(
@@ -57,12 +59,11 @@ final class MediaImageExtension extends AbstractExtension
             return null;
         }
 
-        if (in_array($size, ['medium', 'large'], true)) {
+        if ($this->isStandardImage($media)) {
             return $this->toPublicUrl(
-                $this->variantPath($media->getVariants(), $size, 'fallback')
+                $this->variantPath($media->getVariants(), $size, 'webp')
                     ?? $media->getThumbnailPath()
                     ?? $media->getExternalUrl()
-                    ?? $this->specialImageFilePath($media)
                     ?? self::IMAGE_PLACEHOLDER,
             );
         }
@@ -115,9 +116,15 @@ final class MediaImageExtension extends AbstractExtension
             return null;
         }
 
+        $isStandardImage = $this->isStandardImage($media);
+        if ($isStandardImage && $format !== 'webp') {
+            return null;
+        }
+
         $entries = [];
         $seenWidths = [];
-        foreach (self::RESPONSIVE_SIZES as $size) {
+        $sizes = $isStandardImage ? self::STANDARD_RESPONSIVE_SIZES : self::LEGACY_RESPONSIVE_SIZES;
+        foreach ($sizes as $size) {
             $variant = $this->variant($media->getVariants(), $size);
             $path = $variant[$format] ?? null;
             $width = $variant['width'] ?? null;
@@ -222,5 +229,11 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         return $media->getFilePath();
+    }
+
+    private function isStandardImage(MediaAsset $media): bool
+    {
+        return $media->getMediaType() === MediaType::Image
+            && $media->getImageType() === ImageType::Standard;
     }
 }

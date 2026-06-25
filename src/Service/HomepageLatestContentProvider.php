@@ -22,6 +22,7 @@ use App\Repository\HikeDraftRepository;
  *     title: string,
  *     url: string,
  *     image: string|null,
+ *     media: MediaAsset|null,
  *     date: \DateTimeImmutable,
  *     primary_cta: string,
  *     secondary_title?: string,
@@ -78,12 +79,15 @@ final readonly class HomepageLatestContentProvider
         if ($linkedHike instanceof HikeDraft) {
             $hikeUrl = $this->urlResolver->hikeUrl($linkedHike);
             if ($hikeUrl !== null) {
+                $media = $this->mainImageFromLinks($linkedHike->getMediaLinks());
+
                 return [
                     'type' => 'hike',
                     'label' => 'Nouvel article',
                     'title' => $linkedHike->getTitle() ?? 'Randonnée',
                     'url' => $hikeUrl,
-                    'image' => $this->resolveMediaPath($this->mainImageFromLinks($linkedHike->getMediaLinks())),
+                    'image' => $this->resolveMediaPath($media),
+                    'media' => $media,
                     'date' => $article->getPublishedAt(),
                     'primary_cta' => 'Découvrir la balade',
                     'secondary_title' => $article->getTitle() ?? 'Article associé',
@@ -97,12 +101,15 @@ final readonly class HomepageLatestContentProvider
         if ($linkedCityVisit instanceof CityVisitDraft) {
             $cityVisitUrl = $this->urlResolver->cityVisitUrl($linkedCityVisit);
             if ($cityVisitUrl !== null) {
+                $media = $this->mainImageFromLinks($linkedCityVisit->getMediaLinks());
+
                 return [
                     'type' => 'city_visit',
                     'label' => 'Nouvel article',
                     'title' => $linkedCityVisit->getTitle() ?? 'Visite de ville',
                     'url' => $cityVisitUrl,
-                    'image' => $this->resolveMediaPath($this->mainImageFromLinks($linkedCityVisit->getMediaLinks())),
+                    'image' => $this->resolveMediaPath($media),
+                    'media' => $media,
                     'date' => $article->getPublishedAt(),
                     'primary_cta' => 'Découvrir la visite',
                     'secondary_title' => $article->getTitle() ?? 'Article associé',
@@ -120,6 +127,7 @@ final readonly class HomepageLatestContentProvider
             'title' => $article->getTitle() ?? 'Article',
             'url' => $url,
             'image' => $this->resolveMediaPath($media),
+            'media' => $media,
             'date' => $article->getPublishedAt(),
             'primary_cta' => 'Lire l’article',
         ];
@@ -138,12 +146,15 @@ final readonly class HomepageLatestContentProvider
             return null;
         }
 
+        $media = $this->mainImageFromLinks($hike->getMediaLinks());
+
         return [
             'type' => 'hike',
             'label' => 'Dernière randonnée',
             'title' => $hike->getTitle() ?? 'Randonnée',
             'url' => $url,
-            'image' => $this->resolveMediaPath($this->mainImageFromLinks($hike->getMediaLinks())),
+            'image' => $this->resolveMediaPath($media),
+            'media' => $media,
             'date' => $hike->getFinishedAt(),
             'primary_cta' => 'Découvrir la balade',
         ];
@@ -162,12 +173,15 @@ final readonly class HomepageLatestContentProvider
             return null;
         }
 
+        $media = $this->mainImageFromLinks($cityVisit->getMediaLinks());
+
         return [
             'type' => 'city_visit',
             'label' => 'Dernière visite de ville',
             'title' => $cityVisit->getTitle() ?? 'Visite de ville',
             'url' => $url,
-            'image' => $this->resolveMediaPath($this->mainImageFromLinks($cityVisit->getMediaLinks())),
+            'image' => $this->resolveMediaPath($media),
+            'media' => $media,
             'date' => $cityVisit->getFinishedAt(),
             'primary_cta' => 'Découvrir la visite',
         ];
@@ -206,7 +220,9 @@ final readonly class HomepageLatestContentProvider
     /** @param iterable<object> $mediaLinks */
     private function mainImageFromLinks(iterable $mediaLinks, ?MediaAsset $featuredImage = null): ?MediaAsset
     {
-        $fallback = $featuredImage?->getMediaType() === MediaType::Image ? $featuredImage : null;
+        $fallback = $featuredImage instanceof MediaAsset && $this->isStandardImage($featuredImage)
+            ? $featuredImage
+            : null;
 
         foreach ($mediaLinks as $mediaLink) {
             if (!method_exists($mediaLink, 'getMediaAsset') || !method_exists($mediaLink, 'getRole')) {
@@ -214,7 +230,7 @@ final readonly class HomepageLatestContentProvider
             }
 
             $media = $mediaLink->getMediaAsset();
-            if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+            if (!$media instanceof MediaAsset || !$this->isStandardImage($media)) {
                 continue;
             }
 
@@ -239,19 +255,16 @@ final readonly class HomepageLatestContentProvider
             ? $variants['thumb']
             : [];
 
-        return (is_string($thumb['fallback'] ?? null) ? $thumb['fallback'] : null)
-            ?: $mediaAsset->getThumbnailPath()
-            ?: $mediaAsset->getExternalUrl()
-            ?: $this->specialImageFilePath($mediaAsset)
-            ?: self::IMAGE_PLACEHOLDER;
+        $variantPath = $thumb['webp'] ?? null;
+
+        return is_string($variantPath) && $variantPath !== ''
+            ? $variantPath
+            : self::IMAGE_PLACEHOLDER;
     }
 
-    private function specialImageFilePath(MediaAsset $mediaAsset): ?string
+    private function isStandardImage(MediaAsset $mediaAsset): bool
     {
         return $mediaAsset->getMediaType() === MediaType::Image
-            && $mediaAsset->getImageType() !== null
-            && $mediaAsset->getImageType() !== ImageType::Standard
-            ? $mediaAsset->getFilePath()
-            : null;
+            && $mediaAsset->getImageType() === ImageType::Standard;
     }
 }

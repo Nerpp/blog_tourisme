@@ -6,6 +6,7 @@ use App\Entity\Article;
 use App\Entity\ArticleMedia;
 use App\Entity\MediaAsset;
 use App\Enum\ContentStatus;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Service\Article\ArticleContentSanitizer;
 use App\Service\Media\MediaSeoTextService;
@@ -40,14 +41,13 @@ final class ArticleContentExtensionTest extends TestCase
     {
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
             ->setFilePath('/uploads/media/original.jpg')
             ->setTitle('Vue du sentier')
             ->setAltText('Vue detaillee du sentier')
             ->setVariants([
                 'large' => [
-                    'fallback' => '/uploads/media/large.jpg',
                     'webp' => '/uploads/media/large.webp',
-                    'avif' => '/uploads/media/large.avif',
                     'width' => 1200,
                     'height' => 800,
                 ],
@@ -61,8 +61,10 @@ final class ArticleContentExtensionTest extends TestCase
         $html = $this->extension()->contentHtml($article);
 
         self::assertStringContainsString('<figure class="article-content-media"><picture>', $html);
-        self::assertStringContainsString('<source type="image/avif" srcset="/uploads/media/large.avif 1200w"', $html);
-        self::assertStringContainsString('<img src="/uploads/media/large.jpg" alt="Vue detaillee du sentier"', $html);
+        self::assertStringNotContainsString('image/avif', $html);
+        self::assertStringNotContainsString('srcset="/uploads/media/large.jpg', $html);
+        self::assertStringContainsString('<img src="/uploads/media/large.webp" alt="Vue detaillee du sentier"', $html);
+        self::assertStringContainsString('srcset="/uploads/media/large.webp 1200w"', $html);
         self::assertStringContainsString('width="1200" height="800"', $html);
         self::assertStringContainsString('<figcaption>Vue du sentier</figcaption>', $html);
         self::assertStringNotContainsString('[[media:77]]', $html);

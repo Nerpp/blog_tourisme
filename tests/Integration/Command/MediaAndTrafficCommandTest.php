@@ -149,9 +149,10 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
     public function testGenerateMediaVariantsNormalExecutionSkipsUsableVariants(): void
     {
         $variants = [
-            'thumb' => ['fallback' => '/uploads/media/variants/thumb.jpg'],
-            'medium' => ['fallback' => '/uploads/media/variants/medium.jpg'],
-            'large' => ['fallback' => '/uploads/media/variants/large.jpg'],
+            'thumb' => ['webp' => '/uploads/media/variants/thumb.webp'],
+            'mobile' => ['webp' => '/uploads/media/variants/mobile.webp'],
+            'medium' => ['webp' => '/uploads/media/variants/medium.webp'],
+            'large' => ['webp' => '/uploads/media/variants/large.webp'],
         ];
         $media = (new MediaAsset())
             ->setTitle('Image avec variantes existantes')

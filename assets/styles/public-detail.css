@@ -190,7 +190,7 @@
   border-radius: 38px;
   background:
     linear-gradient(to top, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.05)),
-    var(--public-cover-image, url("/images/home/hero-sea-mountain.webp"));
+    var(--public-cover-image, url("/images/home/hero-sea-mountain-desktop.webp"));
   background-size: cover;
   background-position: center;
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.38);

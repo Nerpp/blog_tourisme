@@ -16,6 +16,7 @@ use App\Enum\CityVisitDraftStatus;
 use App\Enum\ContentStatus;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
@@ -72,6 +73,34 @@ final class HomepageDestinationMediaResolverTest extends TestCase
         );
 
         self::assertSame($linkedImage, $this->resolver(place: $place)->representativeMedia($this->destination()));
+    }
+
+    public function testSpecialCoverIsIgnoredInFavorOfStandardGalleryImage(): void
+    {
+        $specialCover = $this->image('/uploads/panorama.jpg')->setImageType(ImageType::Panorama);
+        $standardGallery = $this->image('/uploads/standard.webp');
+        $hike = $this->hike(new \DateTimeImmutable('-1 day'), $specialCover);
+        $coverLink = $hike->getMediaLinks()->first();
+        self::assertInstanceOf(HikeDraftMedia::class, $coverLink);
+        $coverLink->setRole(\App\Enum\MediaRole::Cover);
+        $hike->getMediaLinks()->add(
+            (new HikeDraftMedia())
+                ->setHikeDraft($hike)
+                ->setMediaAsset($standardGallery)
+                ->setRole(\App\Enum\MediaRole::Gallery),
+        );
+
+        self::assertSame($standardGallery, $this->resolver(hike: $hike)->representativeMedia($this->destination()));
+    }
+
+    public function testReturnsNullWhenOnlySpecialImagesExist(): void
+    {
+        $special = $this->image('/uploads/360.jpg')->setImageType(ImageType::Degree360);
+
+        self::assertNull(
+            $this->resolver(hike: $this->hike(new \DateTimeImmutable('-1 day'), $special))
+                ->representativeMedia($this->destination()),
+        );
     }
 
     private function resolver(
@@ -172,6 +201,9 @@ final class HomepageDestinationMediaResolverTest extends TestCase
 
     private function image(string $path): MediaAsset
     {
-        return (new MediaAsset())->setMediaType(MediaType::Image)->setFilePath($path);
+        return (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath($path);
     }
 }

@@ -6,14 +6,120 @@ use App\Entity\CityVisitDraft;
 use App\Entity\CityVisitDraftMedia;
 use App\Entity\MediaAsset;
 use App\Enum\MediaRole;
+use App\Enum\ImageType;
+use App\Enum\MediaType;
+use App\Service\Media\MediaVariantService;
 use Doctrine\ORM\EntityManagerInterface;
 use Facebook\WebDriver\Chrome\ChromeDevToolsDriver;
 use Facebook\WebDriver\WebDriverBy;
+use Facebook\WebDriver\WebDriverDimension;
 use Facebook\WebDriver\WebDriverKeys;
 use Facebook\WebDriver\WebDriverWait;
 
 final class PublicPhotoGalleryPantherTest extends PantherTestCase
 {
+    public function testHomepageStandardDestinationCardSelectsWebpAtMobileAndDesktopWidths(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+        $this->ensureFixtureStandardGalleryVariants();
+        $this->ensureHomepageUsesStandardFixturePhoto();
+
+        $mobileClient = self::createBrowser();
+        $mobileDriver = $mobileClient->getWebDriver();
+        $this->disableBrowserCache($mobileDriver);
+        (new ChromeDevToolsDriver($mobileDriver))->execute('Emulation.setDeviceMetricsOverride', [
+            'width' => 390,
+            'height' => 844,
+            'deviceScaleFactor' => 2,
+            'mobile' => true,
+        ]);
+        $mobileClient->request('GET', '/');
+        $mobileClient->waitFor('.home-destination-card img[srcset*="_mobile.webp"]');
+        $destinationMobile = $this->responsiveImageData(
+            $mobileDriver,
+            '.home-destination-card img[srcset*="_mobile.webp"]',
+        );
+        $latestMobile = $this->responsiveImageData(
+            $mobileDriver,
+            '.home-latest-card img[srcset*="_mobile.webp"]',
+        );
+
+        self::assertStringEndsWith('_mobile.webp', $destinationMobile['currentSrc']);
+        self::assertStringContainsString(' 600w', $destinationMobile['srcset']);
+        self::assertStringContainsString(' 960w', $destinationMobile['srcset']);
+        self::assertStringContainsString(' 1600w', $destinationMobile['srcset']);
+        self::assertStringNotContainsString('.jpg', $destinationMobile['srcset']);
+        self::assertSame('lazy', $destinationMobile['loading']);
+        self::assertStringContainsString('calc(100vw - 24px)', $destinationMobile['sizes']);
+
+        self::assertStringEndsWith('_mobile.webp', $latestMobile['currentSrc']);
+        self::assertStringNotContainsString('.jpg', $latestMobile['src']);
+        self::assertStringNotContainsString('.jpg', $latestMobile['srcset']);
+        self::assertSame('eager', $latestMobile['loading']);
+
+        $desktopClient = self::createBrowser();
+        $desktopDriver = $desktopClient->getWebDriver();
+        $this->disableBrowserCache($desktopDriver);
+        $desktopDriver->manage()->window()->setSize(new WebDriverDimension(1440, 1000));
+        $desktopClient->request('GET', '/');
+        $desktopClient->waitFor('.home-destination-card img[srcset*="_mobile.webp"]');
+        $destinationDesktop = $this->responsiveImageData(
+            $desktopDriver,
+            '.home-destination-card img[srcset*="_mobile.webp"]',
+        );
+        $latestDesktop = $this->responsiveImageData(
+            $desktopDriver,
+            '.home-latest-card img[srcset*="_mobile.webp"]',
+        );
+
+        self::assertStringEndsWith('.webp', $destinationDesktop['currentSrc']);
+        self::assertStringEndsWith('.webp', $latestDesktop['currentSrc']);
+        self::assertGreaterThan(0, $destinationDesktop['width']);
+        self::assertGreaterThan(0, $destinationDesktop['height']);
+        self::assertGreaterThan(0, $latestDesktop['width']);
+        self::assertGreaterThan(0, $latestDesktop['height']);
+    }
+
+    public function testMobileGallerySelectsACompactWebpVariantFromTheFourSizeSrcset(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+        $this->ensureFixtureStandardGalleryVariants();
+
+        $client = self::createBrowser();
+        $webDriver = $client->getWebDriver();
+        $webDriver->manage()->window()->setSize(new WebDriverDimension(390, 844));
+        $client->request('GET', '/visites-de-ville/visiter-collioure-a-pied');
+        $client->waitFor('.journey-gallery img[srcset]');
+
+        $image = $webDriver->findElement(WebDriverBy::cssSelector('.journey-gallery img[srcset]'));
+        $webDriver->executeScript('arguments[0].scrollIntoView({block: "center"});', [$image]);
+
+        /** @var string $currentSource */
+        $currentSource = (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $image): string|false {
+            $source = $webDriver->executeScript('return arguments[0].currentSrc || "";', [$image]);
+
+            return is_string($source) && $source !== '' ? $source : false;
+        });
+        $srcset = (string) $image->getAttribute('srcset');
+
+        self::assertStringContainsString(' 600w', $srcset);
+        self::assertStringContainsString(' 960w', $srcset);
+        self::assertStringContainsString(' 1600w', $srcset);
+        self::assertSame(1, substr_count($srcset, ' 1600w'));
+        self::assertStringEndsWith('.webp', $currentSource);
+        self::assertStringNotContainsString('_medium.webp', $currentSource);
+        self::assertStringNotContainsString('_large.webp', $currentSource);
+
+        $desktopClient = self::createBrowser();
+        $desktopDriver = $desktopClient->getWebDriver();
+        $desktopDriver->manage()->window()->setSize(new WebDriverDimension(1440, 1000));
+        $desktopClient->request('GET', '/visites-de-ville/visiter-collioure-a-pied');
+        $desktopClient->waitFor('.journey-gallery img[srcset]');
+        $desktopSource = $this->currentSourceForSelector($desktopDriver, '.journey-gallery img[srcset]');
+
+        self::assertStringEndsWith('.webp', $desktopSource);
+    }
+
     public function testPhotoGalleryOpensRequestedSlideNavigatesByKeyboardAndRestoresFocus(): void
     {
         $this->skipIfFrontendBuildIsMissing();
@@ -131,6 +237,70 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         JS, [$modalSelector, $expectedIndex]));
     }
 
+    private function currentSourceForSelector(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $selector,
+    ): string {
+        $image = $webDriver->findElement(WebDriverBy::cssSelector($selector));
+        $webDriver->executeScript('arguments[0].scrollIntoView({block: "center"});', [$image]);
+
+        /** @var string $currentSource */
+        $currentSource = (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $image): string|false {
+            $source = $webDriver->executeScript('return arguments[0].currentSrc || "";', [$image]);
+
+            return is_string($source) && $source !== '' ? $source : false;
+        });
+
+        return $currentSource;
+    }
+
+    /**
+     * @return array{
+     *     src: string,
+     *     srcset: string,
+     *     sizes: string,
+     *     loading: string,
+     *     currentSrc: string,
+     *     width: int,
+     *     height: int
+     * }
+     */
+    private function responsiveImageData(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $selector,
+    ): array {
+        $image = $webDriver->findElement(WebDriverBy::cssSelector($selector));
+        $webDriver->executeScript('arguments[0].scrollIntoView({block: "center"});', [$image]);
+
+        /** @var array{currentSrc: string, width: int, height: int} $rendered */
+        $rendered = (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $image): array|false {
+            $data = $webDriver->executeScript(
+                'return {currentSrc: arguments[0].currentSrc || "", width: arguments[0].naturalWidth || 0, height: arguments[0].naturalHeight || 0};',
+                [$image],
+            );
+
+            return is_array($data)
+                && is_string($data['currentSrc'] ?? null)
+                && $data['currentSrc'] !== ''
+                && is_int($data['width'] ?? null)
+                && $data['width'] > 0
+                && is_int($data['height'] ?? null)
+                && $data['height'] > 0
+                ? $data
+                : false;
+        });
+
+        return [
+            'src' => (string) $image->getAttribute('src'),
+            'srcset' => (string) $image->getAttribute('srcset'),
+            'sizes' => (string) $image->getAttribute('sizes'),
+            'loading' => (string) $image->getAttribute('loading'),
+            'currentSrc' => $rendered['currentSrc'],
+            'width' => $rendered['width'],
+            'height' => $rendered['height'],
+        ];
+    }
+
     private function ensureFixtureVideoIsLinkedToCityVisit(): string
     {
         self::bootKernel();
@@ -168,6 +338,78 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         return $slug;
     }
 
+    private function ensureFixtureStandardGalleryVariants(): void
+    {
+        self::bootKernel();
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+        $variantService = $container->get(MediaVariantService::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        self::assertInstanceOf(MediaVariantService::class, $variantService);
+
+        $generated = 0;
+        $standardMedia = $entityManager->getRepository(MediaAsset::class)->findBy([
+            'mediaType' => MediaType::Image,
+            'imageType' => ImageType::Standard,
+        ]);
+        foreach ($standardMedia as $media) {
+            if (!$media instanceof MediaAsset) {
+                continue;
+            }
+
+            if ($variantService->hasUsableVariants($media)) {
+                ++$generated;
+
+                continue;
+            }
+
+            if ($media->getFilePath() === null) {
+                continue;
+            }
+
+            $result = $variantService->generateForMedia($media, force: true);
+            if ($result['status'] === 'generated') {
+                ++$generated;
+            }
+        }
+
+        self::assertGreaterThan(0, $generated);
+        $entityManager->flush();
+        self::ensureKernelShutdown();
+    }
+
+    private function ensureHomepageUsesStandardFixturePhoto(): void
+    {
+        self::bootKernel();
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        $cityVisit = $entityManager->getRepository(CityVisitDraft::class)->findOneBy([
+            'slug' => 'visiter-collioure-a-pied',
+        ]);
+        self::assertInstanceOf(CityVisitDraft::class, $cityVisit);
+
+        $standardCover = null;
+        foreach ($cityVisit->getMediaLinks() as $link) {
+            $media = $link->getMediaAsset();
+            $link->setRole(MediaRole::Gallery);
+            if (
+                $standardCover === null
+                && $media instanceof MediaAsset
+                && $media->getMediaType() === MediaType::Image
+                && $media->getImageType() === ImageType::Standard
+            ) {
+                $standardCover = $link;
+            }
+        }
+
+        self::assertNotNull($standardCover);
+        $standardCover->setRole(MediaRole::Cover);
+        $cityVisit->setFinishedAt(new \DateTimeImmutable('+1 day'));
+        $entityManager->flush();
+        self::ensureKernelShutdown();
+    }
+
     private function blockExternalMediaRequests(
         \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
     ): void {
@@ -184,6 +426,14 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
                 '*://*.ytimg.com/*',
             ],
         ]);
+    }
+
+    private function disableBrowserCache(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+    ): void {
+        $devTools = new ChromeDevToolsDriver($webDriver);
+        $devTools->execute('Network.enable');
+        $devTools->execute('Network.setCacheDisabled', ['cacheDisabled' => true]);
     }
 
     private function skipIfFrontendBuildIsMissing(): void

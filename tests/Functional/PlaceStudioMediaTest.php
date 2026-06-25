@@ -60,6 +60,19 @@ final class PlaceStudioMediaTest extends FunctionalTestCase
         self::assertSame(MediaType::Image, $createdMedia->getMediaType());
         self::assertSame(ImageType::Standard, $createdMedia->getImageType());
         self::assertSame('Vue principale', $createdMedia->getCaption());
+        self::assertNull($createdMedia->getFilePath());
+        self::assertIsArray($createdMedia->getVariants());
+        foreach (['thumb', 'mobile', 'medium', 'large'] as $size) {
+            self::assertArrayHasKey($size, $createdMedia->getVariants());
+            self::assertSame(
+                ['webp', 'width', 'height'],
+                array_keys($createdMedia->getVariants()[$size]),
+            );
+        }
+        self::assertIsArray($createdMedia->getMetadata());
+        $deletedMasterPath = $createdMedia->getMetadata()['deletedPublicMasterPath'] ?? null;
+        self::assertIsString($deletedMasterPath);
+        self::assertFileDoesNotExist(TestImageFactory::projectDir().'/public'.$deletedMasterPath);
         self::assertSame($createdMedia->getId(), $this->refresh($place)->getFeaturedImage()?->getId());
     }
 

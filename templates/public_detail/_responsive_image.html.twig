@@ -1,8 +1,10 @@
 {% set image_size = image_size|default('thumb') %}
 {% set image_src = media_image_url(media, image_size) %}
-{% set avif_srcset = media_image_srcset(media, 'avif') %}
+{% set is_standard_image = media.mediaType.value == 'image' and media.imageType and media.imageType.value == 'standard' %}
+{% set avif_srcset = is_standard_image ? null : media_image_srcset(media, 'avif') %}
 {% set webp_srcset = media_image_srcset(media, 'webp') %}
-{% set fallback_srcset = media_image_srcset(media, 'fallback') %}
+{% set fallback_srcset = is_standard_image ? null : media_image_srcset(media, 'fallback') %}
+{% set img_srcset = is_standard_image ? webp_srcset : fallback_srcset %}
 {% set dimensions = media_image_dimensions(media, image_size) %}
 
 {% if image_src %}
@@ -15,7 +17,7 @@
             >
         {% endif %}
 
-        {% if webp_srcset %}
+        {% if webp_srcset and not is_standard_image %}
             <source
                 type="image/webp"
                 srcset="{{ webp_srcset }}"
@@ -34,8 +36,8 @@
             {% if fetchpriority|default(null) %}
                 fetchpriority="{{ fetchpriority }}"
             {% endif %}
-            {% if fallback_srcset %}
-                srcset="{{ fallback_srcset }}"
+            {% if img_srcset %}
+                srcset="{{ img_srcset }}"
                 sizes="{{ sizes|default('100vw') }}"
             {% endif %}
             {% if dimensions %}

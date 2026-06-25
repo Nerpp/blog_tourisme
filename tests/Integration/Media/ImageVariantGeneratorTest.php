@@ -32,6 +32,70 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    public function testGeneratesOnlyFourWebpVariantsForStandardImage(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 2000, 1000);
+        $this->files[] = $source;
+
+        $variants = $this->generator()->generateStandard(TestImageFactory::publicPathFor($source), 'standard-webp-only');
+
+        self::assertSame(['webp'], $variants['source']['formats']);
+        foreach ([
+            'thumb' => [600, 300],
+            'mobile' => [960, 480],
+            'medium' => [1600, 800],
+            'large' => [1920, 960],
+        ] as $size => [$width, $height]) {
+            self::assertSame(['webp', 'width', 'height'], array_keys($variants[$size]));
+            self::assertArrayNotHasKey('fallback', $variants[$size]);
+            self::assertArrayNotHasKey('fallbackFormat', $variants[$size]);
+            self::assertArrayNotHasKey('avif', $variants[$size]);
+            $this->assertPublicImage($variants[$size]['webp'], 'image/webp', $width, $height);
+        }
+    }
+
+    public function testStandardVariantsDoNotUpscaleAndReuseOnePhysicalFilePerDimension(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 1242, 621);
+        $this->files[] = $source;
+
+        $variants = $this->generator()->generateStandard(TestImageFactory::publicPathFor($source), 'standard-deduplicated');
+
+        self::assertSame(600, $variants['thumb']['width']);
+        self::assertSame(960, $variants['mobile']['width']);
+        self::assertSame(1242, $variants['medium']['width']);
+        self::assertSame(1242, $variants['large']['width']);
+        self::assertSame($variants['medium'], $variants['large']);
+
+        $paths = array_map(
+            static fn (string $size): string => $variants[$size]['webp'],
+            ['thumb', 'mobile', 'medium', 'large'],
+        );
+        self::assertCount(3, array_unique($paths));
+        foreach (array_unique($paths) as $path) {
+            $dimensions = getimagesize(TestImageFactory::projectDir().'/public'.(string) $path);
+            self::assertIsArray($dimensions);
+            $this->files[] = TestImageFactory::projectDir().'/public'.(string) $path;
+        }
+    }
+
+    public function testSmallStandardImageUsesSinglePhysicalWebpForAllSizes(): void
+    {
+        $source = TestImageFactory::createPng(TestImageFactory::publicMediaDirectory(), 320, 160);
+        $this->files[] = $source;
+
+        $variants = $this->generator()->generateStandard(TestImageFactory::publicPathFor($source), 'standard-small');
+        $paths = array_map(
+            static fn (string $size): string => $variants[$size]['webp'],
+            ['thumb', 'mobile', 'medium', 'large'],
+        );
+
+        self::assertCount(1, array_unique($paths));
+        self::assertSame(320, $variants['large']['width']);
+        self::assertSame(160, $variants['large']['height']);
+        $this->assertPublicImage($paths[0], 'image/webp', 320, 160);
+    }
+
     public function testGeneratesVariantsForValidJpegWithoutUpscalingSmallImage(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 80, 40);
@@ -85,6 +149,7 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         self::assertSame('fallback', $formats[0]);
         self::assertSame(in_array('webp', $formats, true), $generator->supportsWebp());
         self::assertSame(in_array('avif', $formats, true), $generator->supportsAvif());
+        self::assertSame(['webp'], $generator->standardOutputFormats());
         self::assertTrue($generator->supportsMimeType('image/jpeg'));
         self::assertTrue($generator->supportsMimeType('image/png'));
         self::assertTrue($generator->supportsMimeType('image/webp'));

@@ -32,6 +32,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->files[] = $source;
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
             ->setFilePath(TestImageFactory::publicPathFor($source));
 
         $result = $this->mediaVariantService()->generateForMedia($media);
@@ -41,16 +42,25 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertSame(120, $media->getWidth());
         self::assertSame(60, $media->getHeight());
         self::assertIsArray($media->getVariants());
+        self::assertSame(['webp'], $media->getVariants()['source']['formats']);
+        foreach (['thumb', 'mobile', 'medium', 'large'] as $size) {
+            self::assertArrayHasKey($size, $media->getVariants());
+            self::assertArrayHasKey('webp', $media->getVariants()[$size]);
+            self::assertArrayNotHasKey('fallback', $media->getVariants()[$size]);
+            self::assertArrayNotHasKey('avif', $media->getVariants()[$size]);
+        }
         self::assertStringStartsWith('/uploads/media/variants/', (string) $media->getThumbnailPath());
+        self::assertStringEndsWith('.webp', (string) $media->getThumbnailPath());
         $this->trackVariantFiles($media->getVariants());
     }
 
-    public function testGenerationPreservesExistingThumbnailPath(): void
+    public function testLegacySpecialImageGenerationPreservesExistingThumbnailPath(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
         $this->files[] = $source;
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Panorama)
             ->setFilePath(TestImageFactory::publicPathFor($source))
             ->setThumbnailPath('/uploads/media/manual-thumbnail.jpg');
 
@@ -69,6 +79,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertContains('fallback', $formats);
         self::assertSame(in_array('webp', $formats, true), $service->supportsWebp());
         self::assertSame(in_array('avif', $formats, true), $service->supportsAvif());
+        self::assertSame(['webp'], $service->standardOutputFormats());
         self::assertTrue($service->supports(
             (new MediaAsset())
                 ->setMediaType(MediaType::Image)
@@ -105,16 +116,29 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertTrue($service->hasUsableVariants(
             (new MediaAsset())
                 ->setMediaType(MediaType::Image)
+                ->setImageType(ImageType::Standard)
                 ->setVariants([
-                    'thumb' => ['fallback' => '/uploads/media/thumb.jpg'],
-                    'medium' => ['fallback' => '/uploads/media/medium.jpg'],
-                    'large' => ['fallback' => '/uploads/media/large.jpg'],
+                    'thumb' => ['webp' => '/uploads/media/thumb.webp'],
+                    'mobile' => ['webp' => '/uploads/media/mobile.webp'],
+                    'medium' => ['webp' => '/uploads/media/medium.webp'],
+                    'large' => ['webp' => '/uploads/media/large.webp'],
                 ]),
         ));
         self::assertFalse($service->hasUsableVariants(
             (new MediaAsset())
                 ->setMediaType(MediaType::Image)
-                ->setVariants(['thumb' => ['fallback' => '/uploads/media/thumb.jpg']]),
+                ->setImageType(ImageType::Standard)
+                ->setVariants(['thumb' => ['webp' => '/uploads/media/thumb.webp']]),
+        ));
+        self::assertTrue($service->hasUsableVariants(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setImageType(ImageType::Degree180)
+                ->setVariants([
+                    'thumb' => ['fallback' => '/uploads/media/thumb.jpg'],
+                    'medium' => ['fallback' => '/uploads/media/medium.jpg'],
+                    'large' => ['fallback' => '/uploads/media/large.jpg'],
+                ]),
         ));
         self::assertTrue($service->hasUsableVariants(
             (new MediaAsset())
@@ -134,11 +158,13 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->files[] = $source;
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
             ->setFilePath(TestImageFactory::publicPathFor($source))
             ->setVariants([
-                'thumb' => ['fallback' => '/uploads/media/existing-thumb.png', 'width' => 40, 'height' => 20],
-                'medium' => ['fallback' => '/uploads/media/existing-medium.png', 'width' => 40, 'height' => 20],
-                'large' => ['fallback' => '/uploads/media/existing-large.png', 'width' => 40, 'height' => 20],
+                'thumb' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'mobile' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'medium' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'large' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
             ]);
 
         $result = $this->mediaVariantService()->generateForMedia($media);
@@ -153,11 +179,13 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->files[] = $source;
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
             ->setFilePath(TestImageFactory::publicPathFor($source))
             ->setVariants([
-                'thumb' => ['fallback' => '/uploads/media/existing-thumb.png', 'width' => 40, 'height' => 20],
-                'medium' => ['fallback' => '/uploads/media/existing-medium.png', 'width' => 40, 'height' => 20],
-                'large' => ['fallback' => '/uploads/media/existing-large.png', 'width' => 40, 'height' => 20],
+                'thumb' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'mobile' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'medium' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'large' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
             ]);
 
         $result = $this->mediaVariantService()->generateForMedia($media, force: true);
@@ -271,6 +299,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->files[] = $source;
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
             ->setMimeType('image/jpeg')
             ->setFilePath(TestImageFactory::publicPathFor($source));
 
@@ -280,6 +309,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertFalse($result['generated']);
         self::assertStringContainsString('image source est illisible', (string) $result['message']);
         self::assertNull($media->getVariants());
+        self::assertFileExists($source);
     }
 
     public function testGeneratesPosterVariantsForVideoWithLocalThumbnail(): void
@@ -372,24 +402,30 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertNull($media->getMetadata());
     }
 
-    public function testCleanupSkipsSpecialImageTypes(): void
+    public function testCleanupSkipsEverySpecialImageTypeAndLeavesLegacyPipelineUntouched(): void
     {
-        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
-        $this->files[] = $source;
-        $media = (new MediaAsset())
-            ->setMediaType(MediaType::Image)
-            ->setImageType(ImageType::Panorama)
-            ->setFilePath(TestImageFactory::publicPathFor($source));
+        foreach ([ImageType::Degree360, ImageType::Degree180, ImageType::Panorama, ImageType::WideAngle] as $imageType) {
+            $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+            $this->files[] = $source;
+            $media = (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setImageType($imageType)
+                ->setFilePath(TestImageFactory::publicPathFor($source));
 
-        $this->mediaVariantService()->generateForMedia($media);
-        $this->trackVariantFiles($media->getVariants());
+            $this->mediaVariantService()->generateForMedia($media);
+            $this->trackVariantFiles($media->getVariants());
+            $variants = $media->getVariants();
+            self::assertIsArray($variants);
+            self::assertArrayHasKey('fallback', $variants['thumb']);
+            self::assertArrayNotHasKey('mobile', $variants);
 
-        $result = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
+            $result = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
 
-        self::assertTrue($result['skipped']);
-        self::assertSame('média non standard', $result['reason']);
-        self::assertFileExists($source);
-        self::assertSame(TestImageFactory::publicPathFor($source), $media->getFilePath());
+            self::assertTrue($result['skipped']);
+            self::assertSame('média non standard', $result['reason']);
+            self::assertFileExists($source);
+            self::assertSame(TestImageFactory::publicPathFor($source), $media->getFilePath());
+        }
     }
 
     public function testCleanupSkipsUnsafeMasterPathsAndMissingVariants(): void
@@ -411,13 +447,14 @@ final class MediaVariantServiceTest extends IntegrationTestCase
             ->setMediaType(MediaType::Image)
             ->setImageType(ImageType::Standard)
             ->setFilePath('/uploads/media/photo.jpg');
-        $missingFallback = (new MediaAsset())
+        $missingWebp = (new MediaAsset())
             ->setMediaType(MediaType::Image)
             ->setImageType(ImageType::Standard)
             ->setVariants([
-                'thumb' => ['fallback' => '/uploads/media/missing-thumb.jpg'],
-                'medium' => ['fallback' => '/uploads/media/missing-medium.jpg'],
-                'large' => ['fallback' => '/uploads/media/missing-large.jpg'],
+                'thumb' => ['webp' => '/uploads/media/missing-thumb.webp'],
+                'mobile' => ['webp' => '/uploads/media/missing-mobile.webp'],
+                'medium' => ['webp' => '/uploads/media/missing-medium.webp'],
+                'large' => ['webp' => '/uploads/media/missing-large.webp'],
             ]);
 
         self::assertTrue($cleanupService->isClassicImage($withoutPath));
@@ -426,7 +463,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertSame('chemin maître absent ou non supprimable', $cleanupService->cleanupIfSafe($externalPath)['reason']);
         self::assertSame('chemin maître absent ou non supprimable', $cleanupService->cleanupIfSafe($nestedPath)['reason']);
         self::assertSame('aucune variante enregistrée', $cleanupService->cleanupIfSafe($withoutVariants)['reason']);
-        self::assertSame('fallback thumb absent', $cleanupService->validateCriticalVariants($missingFallback)['reason']);
+        self::assertSame('WebP thumb absent ou illisible', $cleanupService->validateCriticalVariants($missingWebp)['reason']);
     }
 
     public function testCleanupReportsSpecificMissingCriticalVariantReasons(): void
@@ -448,15 +485,14 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertSame(['valid' => false, 'reason' => 'variante medium absente'], $missingSize);
 
         $media->setVariants([
-            'thumb' => ['fallback' => TestImageFactory::publicPathFor($source)],
-            'medium' => ['fallback' => TestImageFactory::publicPathFor($source)],
-            'large' => ['fallback' => TestImageFactory::publicPathFor($source)],
+            'thumb' => ['webp' => TestImageFactory::publicPathFor($source)],
+            'mobile' => ['webp' => TestImageFactory::publicPathFor($source)],
+            'medium' => ['webp' => TestImageFactory::publicPathFor($source)],
+            'large' => ['webp' => TestImageFactory::publicPathFor($source)],
         ]);
 
         $validation = $this->publicMediaMasterCleanupService()->validateCriticalVariants($media);
-        self::assertArrayHasKey('valid', $validation);
-        self::assertArrayHasKey('reason', $validation);
-        self::assertTrue($validation['valid'] || str_contains((string) $validation['reason'], 'WebP') || str_contains((string) $validation['reason'], 'AVIF'));
+        self::assertSame(['valid' => false, 'reason' => 'WebP thumb absent ou illisible'], $validation);
     }
 
     /** @param array<string, mixed>|null $variants */

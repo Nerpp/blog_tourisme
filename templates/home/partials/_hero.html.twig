@@ -1,4 +1,28 @@
 <section class="home-hero">
+	<picture class="home-hero__media">
+		<source
+			media="(max-width: 960px)"
+			srcset="{{ asset('images/home/hero-sea-mountain-mobile.webp') }}"
+			type="image/webp"
+			width="864"
+			height="1151"
+		>
+		<source
+			media="(min-width: 961px)"
+			srcset="{{ asset('images/home/hero-sea-mountain-desktop.webp') }}"
+			type="image/webp"
+			width="1920"
+			height="1080"
+		>
+		<img
+			class="home-hero__image"
+			src="{{ asset('images/home/hero-sea-mountain-desktop.webp') }}"
+			alt="Littoral turquoise au pied de montagnes ensoleillées"
+			width="1920"
+			height="1080"
+			fetchpriority="high"
+		>
+	</picture>
 	<div class="home-hero__overlay"></div>
 
 	<div class="home-container home-hero__container">
@@ -24,7 +48,26 @@
 		</div>
 
 		{% if latest_homepage_item %}
-			<article class="home-latest-card" {% if latest_homepage_item.image %} style="--latest-card-image: url('{{ asset(latest_homepage_item.image)|e('html_attr') }}');" {% endif %}>
+			<article class="home-latest-card">
+				{% if latest_homepage_item.media %}
+					{% include 'public_detail/_responsive_image.html.twig' with {
+						media: latest_homepage_item.media,
+						alt: media_public_alt(latest_homepage_item.media, null, latest_homepage_item.title),
+						image_size: 'mobile',
+						sizes: '(min-width: 1212px) 422px, (min-width: 961px) calc((100vw - 88px) * 0.375), calc(100vw - 24px)',
+						img_class: 'home-latest-card__image',
+						loading: 'eager'
+					} only %}
+				{% elseif latest_homepage_item.image %}
+					<img
+						class="home-latest-card__image"
+						src="{{ asset(latest_homepage_item.image) }}"
+						alt=""
+						loading="eager"
+						decoding="async"
+					>
+				{% endif %}
+
 				<div class="home-latest-card__overlay">
 					<p>{{ latest_homepage_item.label }}</p>
 

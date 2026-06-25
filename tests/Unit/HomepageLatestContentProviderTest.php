@@ -38,7 +38,8 @@ final class HomepageLatestContentProviderTest extends TestCase
     public function testReturnsNewestContentAcrossArticlesHikesAndCityVisits(): void
     {
         $article = $this->article('Article recent', 'article-recent', new \DateTimeImmutable('-3 days'));
-        $hike = $this->hike('Hike newest', 'hike-newest', new \DateTimeImmutable('-1 day'), $this->image('/uploads/hike-original.jpg', '/uploads/hike.jpg'));
+        $hikeMedia = $this->image('/uploads/hike-original.jpg', '/uploads/hike.webp');
+        $hike = $this->hike('Hike newest', 'hike-newest', new \DateTimeImmutable('-1 day'), $hikeMedia);
         $cityVisit = $this->cityVisit('City older', 'city-older', new \DateTimeImmutable('-2 days'));
 
         $latest = $this->provider($article, $hike, $cityVisit)->getLatest();
@@ -48,27 +49,29 @@ final class HomepageLatestContentProviderTest extends TestCase
         self::assertSame('Dernière randonnée', $latest['label']);
         self::assertSame('Hike newest', $latest['title']);
         self::assertSame('/hikes/hike-newest', $latest['url']);
-        self::assertSame('/uploads/hike.jpg', $latest['image']);
+        self::assertSame('/uploads/hike.webp', $latest['image']);
+        self::assertSame($hikeMedia, $latest['media']);
         self::assertSame('Découvrir la balade', $latest['primary_cta']);
     }
 
     public function testArticleUsesFeaturedThumbnailBeforeOriginalAndExternalUrl(): void
     {
-        $media = $this->image('/uploads/original.jpg', '/uploads/thumb.jpg', 'https://cdn.example.test/fallback.jpg');
+        $media = $this->image('/uploads/original.jpg', '/uploads/thumb.webp', 'https://cdn.example.test/fallback.jpg');
         $article = $this->article('Article newest', 'article-newest', new \DateTimeImmutable('-1 day'), $media);
 
         $latest = $this->provider($article)->getLatest();
 
         self::assertIsArray($latest);
         self::assertSame('article', $latest['type']);
-        self::assertSame('/uploads/thumb.jpg', $latest['image']);
+        self::assertSame('/uploads/thumb.webp', $latest['image']);
+        self::assertSame($media, $latest['media']);
         self::assertSame('/articles/article-newest', $latest['url']);
     }
 
     public function testArticleLinkedToPublicHikePromotesTheHikeCardWithArticleSecondaryLink(): void
     {
-        $galleryMedia = $this->image('/uploads/hike-gallery.jpg', '/uploads/hike-gallery-thumb.jpg');
-        $coverMedia = $this->image('/uploads/hike-cover.jpg', '/uploads/hike-cover-thumb.jpg');
+        $galleryMedia = $this->image('/uploads/hike-gallery.jpg', '/uploads/hike-gallery-thumb.webp');
+        $coverMedia = $this->image('/uploads/hike-cover.jpg', '/uploads/hike-cover-thumb.webp');
         $article = $this->article('Carnet de balade', 'carnet-balade', new \DateTimeImmutable('-1 day'));
         $hike = $this->hike('Sentier du lac', 'sentier-du-lac', new \DateTimeImmutable('-10 days'));
         $hike->getMediaLinks()->add((new HikeDraftMedia())->setHikeDraft($hike)->setMediaAsset($galleryMedia));
@@ -87,7 +90,8 @@ final class HomepageLatestContentProviderTest extends TestCase
         self::assertSame('Nouvel article', $latest['label']);
         self::assertSame('Sentier du lac', $latest['title']);
         self::assertSame('/hikes/sentier-du-lac', $latest['url']);
-        self::assertSame('/uploads/hike-cover-thumb.jpg', $latest['image']);
+        self::assertSame('/uploads/hike-cover-thumb.webp', $latest['image']);
+        self::assertSame($coverMedia, $latest['media']);
         self::assertSame('Découvrir la balade', $latest['primary_cta']);
         self::assertSame('Carnet de balade', $latest['secondary_title']);
         self::assertSame('/articles/carnet-balade', $latest['secondary_url']);
@@ -103,7 +107,7 @@ final class HomepageLatestContentProviderTest extends TestCase
             'Balade en ville',
             'balade-en-ville',
             new \DateTimeImmutable('-5 days'),
-            $this->image('/uploads/city.jpg', '/uploads/city-thumb.jpg'),
+            $this->image('/uploads/city.jpg', '/uploads/city-thumb.webp'),
         );
         $cityVisit->setStatus(CityVisitDraftStatus::Converted);
         $article->getHikeLinks()->add((new ArticleHike())->setArticle($article)->setHikeDraft($draftHike));
@@ -115,16 +119,16 @@ final class HomepageLatestContentProviderTest extends TestCase
         self::assertSame('city_visit', $latest['type']);
         self::assertSame('Balade en ville', $latest['title']);
         self::assertSame('/city-visits/balade-en-ville', $latest['url']);
-        self::assertSame('/uploads/city-thumb.jpg', $latest['image']);
+        self::assertSame('/uploads/city-thumb.webp', $latest['image']);
         self::assertSame('Découvrir la visite', $latest['primary_cta']);
         self::assertSame('/articles/carnet-urbain', $latest['secondary_url']);
     }
 
     public function testArticleCoverMediaBeatsFeaturedImageAndIgnoresVideoMedia(): void
     {
-        $featured = $this->image('/uploads/featured.jpg', '/uploads/featured-thumb.jpg');
-        $gallery = $this->image('/uploads/gallery.jpg', '/uploads/gallery-thumb.jpg');
-        $cover = $this->image('/uploads/cover.jpg', '/uploads/cover-thumb.jpg');
+        $featured = $this->image('/uploads/featured.jpg', '/uploads/featured-thumb.webp');
+        $gallery = $this->image('/uploads/gallery.jpg', '/uploads/gallery-thumb.webp');
+        $cover = $this->image('/uploads/cover.jpg', '/uploads/cover-thumb.webp');
         $video = (new MediaAsset())->setMediaType(MediaType::Video)->setThumbnailPath('/uploads/video-thumb.jpg');
         $article = $this->article('Article media', 'article-media', new \DateTimeImmutable('-1 day'), $featured);
         $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($video));
@@ -140,10 +144,11 @@ final class HomepageLatestContentProviderTest extends TestCase
 
         self::assertIsArray($latest);
         self::assertSame('article', $latest['type']);
-        self::assertSame('/uploads/cover-thumb.jpg', $latest['image']);
+        self::assertSame('/uploads/cover-thumb.webp', $latest['image']);
+        self::assertSame($cover, $latest['media']);
     }
 
-    public function testSpecialImagesCanUseOriginalPathButStandardImagesKeepPlaceholderFallback(): void
+    public function testSpecialImagesAreIgnoredAndStandardWithoutWebpUsesPlaceholder(): void
     {
         $specialImage = $this->image('/uploads/panorama.jpg')->setImageType(ImageType::Panorama);
         $standardImage = $this->image('/uploads/standard.jpg')->setImageType(ImageType::Standard);
@@ -155,8 +160,29 @@ final class HomepageLatestContentProviderTest extends TestCase
 
         self::assertIsArray($specialLatest);
         self::assertIsArray($standardLatest);
-        self::assertSame('/uploads/panorama.jpg', $specialLatest['image']);
+        self::assertNull($specialLatest['image']);
+        self::assertNull($specialLatest['media']);
         self::assertSame('/images/placeholders/destination-card-placeholder.webp', $standardLatest['image']);
+        self::assertSame($standardImage, $standardLatest['media']);
+    }
+
+    public function testSpecialCoverIsIgnoredInFavorOfStandardGalleryWebp(): void
+    {
+        $special = $this->image('/uploads/360.jpg')->setImageType(ImageType::Degree360);
+        $standard = $this->image('/uploads/standard.jpg', '/uploads/standard-thumb.webp');
+        $article = $this->article('Article', 'article', new \DateTimeImmutable('-1 day'), $special);
+        $article->getMediaLinks()->add(
+            (new ArticleMedia())
+                ->setArticle($article)
+                ->setMediaAsset($standard)
+                ->setRole(MediaRole::Gallery),
+        );
+
+        $latest = $this->provider($article)->getLatest();
+
+        self::assertIsArray($latest);
+        self::assertSame($standard, $latest['media']);
+        self::assertSame('/uploads/standard-thumb.webp', $latest['image']);
     }
 
     public function testIgnoresItemsWithoutDatesOrUrls(): void
@@ -234,8 +260,16 @@ final class HomepageLatestContentProviderTest extends TestCase
     {
         return (new MediaAsset())
             ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
             ->setFilePath($filePath)
             ->setThumbnailPath($thumbnailPath)
+            ->setVariants($thumbnailPath !== null ? [
+                'thumb' => [
+                    'webp' => $thumbnailPath,
+                    'width' => 600,
+                    'height' => 400,
+                ],
+            ] : null)
             ->setExternalUrl($externalUrl);
     }
 }

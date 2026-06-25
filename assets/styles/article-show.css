@@ -69,7 +69,7 @@
 
 .article-show-cover {
   background:
-    var(--public-cover-image, url("/images/home/hero-sea-mountain.webp")) center / contain no-repeat,
+    var(--public-cover-image, url("/images/home/hero-sea-mountain-desktop.webp")) center / contain no-repeat,
     rgba(245, 247, 243, 0.96);
 }
 

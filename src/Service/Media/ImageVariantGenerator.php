@@ -16,10 +16,18 @@ final class ImageVariantGenerator
     private const AVIF_QUALITY = 66;
 
     /** @var array<string, int> */
-    private const SIZES = [
+    private const LEGACY_SIZES = [
         'thumb' => 600,
         'medium' => 1920,
         'large' => 2560,
+    ];
+
+    /** @var array<string, int> */
+    private const STANDARD_SIZES = [
+        'thumb' => 600,
+        'mobile' => 960,
+        'medium' => 1600,
+        'large' => 1920,
     ];
 
     /** @var array<string, string> */
@@ -69,6 +77,12 @@ final class ImageVariantGenerator
         return $mimeType !== null && isset(self::FALLBACK_EXTENSIONS[$mimeType]);
     }
 
+    /** @return list<string> */
+    public function standardOutputFormats(): array
+    {
+        return ['webp'];
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -110,7 +124,7 @@ final class ImageVariantGenerator
             ],
         ];
 
-        foreach (self::SIZES as $sizeName => $maxWidth) {
+        foreach (self::LEGACY_SIZES as $sizeName => $maxWidth) {
             $variants[$sizeName] = $this->generateSize(
                 $sourceFile,
                 $mimeType,
@@ -125,6 +139,169 @@ final class ImageVariantGenerator
         }
 
         return $variants;
+    }
+
+    /**
+     * Generate the public variants used only by MediaType::Image + ImageType::Standard.
+     *
+     * @return array<string, mixed>
+     */
+    public function generateStandard(
+        string $publicSourcePath,
+        ?string $basenameSeed = null,
+        string $publicTargetDirectory = self::PUBLIC_VARIANT_DIRECTORY,
+    ): array {
+        if (!$this->supportsWebp()) {
+            throw new InvalidArgumentException('Le support WebP est requis pour générer les variantes standards.');
+        }
+
+        $sourceFile = $this->resolvePublicFile($publicSourcePath);
+        $imageSize = @getimagesize($sourceFile);
+        if (!is_array($imageSize)) {
+            throw new InvalidArgumentException('L’image source est illisible.');
+        }
+
+        $mimeType = (string) $imageSize['mime'];
+        if (!$this->supportsMimeType($mimeType)) {
+            throw new InvalidArgumentException(sprintf('Le type "%s" ne peut pas être traité par le pipeline média.', $mimeType ?: 'inconnu'));
+        }
+
+        $sourceWidth = (int) $imageSize[0];
+        $sourceHeight = (int) $imageSize[1];
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            throw new InvalidArgumentException('Les dimensions de l’image source sont invalides.');
+        }
+
+        $variantDirectory = $this->publicDirectory($publicTargetDirectory);
+        $this->ensureDirectory($variantDirectory);
+
+        $seed = $basenameSeed ?: $publicSourcePath;
+        $contentHash = hash_file('sha256', $sourceFile);
+        if (!is_string($contentHash)) {
+            throw new InvalidArgumentException('L’image source ne peut pas être identifiée.');
+        }
+        $baseName = 'media_'.substr(hash('sha256', $seed.'|'.filesize($sourceFile).'|'.$contentHash), 0, 20);
+        $variants = [
+            'source' => [
+                'path' => $publicSourcePath,
+                'mimeType' => $mimeType,
+                'width' => $sourceWidth,
+                'height' => $sourceHeight,
+                'generatedAt' => (new DateTimeImmutable())->format(DATE_ATOM),
+                'formats' => $this->standardOutputFormats(),
+            ],
+        ];
+
+        $sourceImage = $this->createImage($sourceFile, $mimeType);
+        /** @var array<string, array{webp: string, width: int, height: int}> $variantsByDimensions */
+        $variantsByDimensions = [];
+
+        try {
+            foreach (self::STANDARD_SIZES as $sizeName => $maxWidth) {
+                $targetWidth = min($sourceWidth, $maxWidth);
+                $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+                if ($targetHeight < 1) {
+                    throw new InvalidArgumentException('Les dimensions calculées de la variante sont invalides.');
+                }
+
+                $dimensionKey = $targetWidth.'x'.$targetHeight;
+                if (isset($variantsByDimensions[$dimensionKey])) {
+                    $variants[$sizeName] = $variantsByDimensions[$dimensionKey];
+
+                    continue;
+                }
+
+                $variant = $this->generateStandardSize(
+                    $sourceImage,
+                    $mimeType,
+                    $sourceWidth,
+                    $sourceHeight,
+                    $variantDirectory,
+                    $publicTargetDirectory,
+                    $baseName,
+                    $sizeName,
+                    $targetWidth,
+                    $targetHeight,
+                );
+                $variantsByDimensions[$dimensionKey] = $variant;
+                $variants[$sizeName] = $variant;
+            }
+        } finally {
+            imagedestroy($sourceImage);
+        }
+
+        return $variants;
+    }
+
+    /**
+     * @return array{webp: string, width: int, height: int}
+     */
+    private function generateStandardSize(
+        GdImage $sourceImage,
+        string $mimeType,
+        int $sourceWidth,
+        int $sourceHeight,
+        string $variantDirectory,
+        string $publicTargetDirectory,
+        string $baseName,
+        string $sizeName,
+        int $targetWidth,
+        int $targetHeight,
+    ): array {
+        $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+
+        try {
+            if (!imagecopyresampled(
+                $targetImage,
+                $sourceImage,
+                0,
+                0,
+                0,
+                0,
+                $targetWidth,
+                $targetHeight,
+                $sourceWidth,
+                $sourceHeight,
+            )) {
+                throw new InvalidArgumentException('La génération de la variante a échoué.');
+            }
+
+            $filename = sprintf('%s_%s.webp', $baseName, $sizeName);
+            $targetFile = $variantDirectory.'/'.$filename;
+            $temporaryFile = $targetFile.'.tmp-'.bin2hex(random_bytes(6));
+
+            try {
+                if (!imagewebp($targetImage, $temporaryFile, self::WEBP_QUALITY)) {
+                    throw new InvalidArgumentException('La génération WebP a échoué.');
+                }
+
+                $generatedImageSize = @getimagesize($temporaryFile);
+                if (
+                    !is_array($generatedImageSize)
+                    || $generatedImageSize['mime'] !== 'image/webp'
+                    || (int) $generatedImageSize[0] !== $targetWidth
+                    || (int) $generatedImageSize[1] !== $targetHeight
+                ) {
+                    throw new InvalidArgumentException('La variante WebP générée est illisible ou incomplète.');
+                }
+
+                if (!rename($temporaryFile, $targetFile)) {
+                    throw new InvalidArgumentException('L’enregistrement de la variante WebP a échoué.');
+                }
+            } finally {
+                if (is_file($temporaryFile)) {
+                    @unlink($temporaryFile);
+                }
+            }
+
+            return [
+                'webp' => $publicTargetDirectory.'/'.$filename,
+                'width' => $targetWidth,
+                'height' => $targetHeight,
+            ];
+        } finally {
+            imagedestroy($targetImage);
+        }
     }
 
     /**

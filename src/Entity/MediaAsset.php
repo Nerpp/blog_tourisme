@@ -15,6 +15,7 @@ use Doctrine\ORM\Mapping as ORM;
 /**
  * @phpstan-type MediaMetadata array<string, scalar|null>
  * @phpstan-type MediaVariantValue scalar|list<string>|null
+ * @phpstan-type StandardImageVariant array{webp: string, width: int, height: int}
  * @phpstan-type MediaVariantData array<string, MediaVariantValue|array<string, MediaVariantValue>>
  * @phpstan-type MediaVariants array<string, MediaVariantData|scalar|null>
  */

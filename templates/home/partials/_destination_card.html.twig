@@ -4,8 +4,8 @@
             {% include 'public_detail/_responsive_image.html.twig' with {
                 media: representative_media,
                 alt: media_public_alt(representative_media, destination, destination.name),
-                image_size: 'medium',
-                sizes: '(min-width: 900px) 33vw, 100vw',
+                image_size: 'mobile',
+                sizes: '(min-width: 1212px) 377px, (min-width: 961px) calc((100vw - 80px) / 3), (min-width: 701px) calc((100vw - 50px) / 2), calc(100vw - 24px)',
                 img_class: 'home-destination-card__img'
             } only %}
         {% else %}

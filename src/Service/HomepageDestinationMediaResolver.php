@@ -8,6 +8,7 @@ use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\MediaAsset;
 use App\Entity\Place;
+use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
@@ -105,7 +106,9 @@ final readonly class HomepageDestinationMediaResolver
     /** @param iterable<object> $mediaLinks */
     private function mainImageFromLinks(iterable $mediaLinks, ?MediaAsset $featuredImage = null): ?MediaAsset
     {
-        $fallback = $featuredImage?->getMediaType() === MediaType::Image ? $featuredImage : null;
+        $fallback = $featuredImage instanceof MediaAsset && $this->isStandardImage($featuredImage)
+            ? $featuredImage
+            : null;
 
         foreach ($mediaLinks as $mediaLink) {
             if (!method_exists($mediaLink, 'getMediaAsset') || !method_exists($mediaLink, 'getRole')) {
@@ -113,7 +116,7 @@ final readonly class HomepageDestinationMediaResolver
             }
 
             $media = $mediaLink->getMediaAsset();
-            if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+            if (!$media instanceof MediaAsset || !$this->isStandardImage($media)) {
                 continue;
             }
 
@@ -125,5 +128,11 @@ final readonly class HomepageDestinationMediaResolver
         }
 
         return $fallback;
+    }
+
+    private function isStandardImage(MediaAsset $media): bool
+    {
+        return $media->getMediaType() === MediaType::Image
+            && $media->getImageType() === ImageType::Standard;
     }
 }

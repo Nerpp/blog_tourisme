@@ -4,6 +4,7 @@ namespace App\Twig;
 
 use App\Entity\Article;
 use App\Entity\MediaAsset;
+use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Service\Article\ArticleContentSanitizer;
 use Twig\Extension\AbstractExtension;
@@ -87,9 +88,11 @@ final class ArticleContentExtension extends AbstractExtension
             return '';
         }
 
-        $avifSrcset = $this->mediaImageExtension->imageSrcset($media, 'avif');
+        $isStandardImage = $media->getImageType() === ImageType::Standard;
+        $avifSrcset = $isStandardImage ? null : $this->mediaImageExtension->imageSrcset($media, 'avif');
         $webpSrcset = $this->mediaImageExtension->imageSrcset($media, 'webp');
-        $fallbackSrcset = $this->mediaImageExtension->imageSrcset($media, 'fallback');
+        $fallbackSrcset = $isStandardImage ? null : $this->mediaImageExtension->imageSrcset($media, 'fallback');
+        $imgSrcset = $isStandardImage ? $webpSrcset : $fallbackSrcset;
         $dimensions = $this->mediaImageExtension->imageDimensions($media, 'large')
             ?? $this->mediaImageExtension->imageDimensions($media, 'medium')
             ?? $this->mediaImageExtension->imageDimensions($media, 'thumb');
@@ -104,7 +107,7 @@ final class ArticleContentExtension extends AbstractExtension
             );
         }
 
-        if ($webpSrcset !== null) {
+        if (!$isStandardImage && $webpSrcset !== null) {
             $html .= sprintf(
                 '<source type="image/webp" srcset="%s" sizes="(min-width: 900px) 760px, 100vw">',
                 $this->escape($webpSrcset),
@@ -115,7 +118,7 @@ final class ArticleContentExtension extends AbstractExtension
             '<img src="%s" alt="%s" loading="lazy" decoding="async"%s%s>',
             $this->escape($src),
             $this->escape($alt),
-            $fallbackSrcset !== null ? sprintf(' srcset="%s" sizes="(min-width: 900px) 760px, 100vw"', $this->escape($fallbackSrcset)) : '',
+            $imgSrcset !== null ? sprintf(' srcset="%s" sizes="(min-width: 900px) 760px, 100vw"', $this->escape($imgSrcset)) : '',
             $dimensions !== null ? sprintf(' width="%d" height="%d"', $dimensions['width'], $dimensions['height']) : '',
         );
         $html .= '</picture>';

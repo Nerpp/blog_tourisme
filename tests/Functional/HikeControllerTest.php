@@ -5,6 +5,7 @@ namespace App\Tests\Functional;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
+use App\Enum\MediaRole;
 use DOMDocument;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -20,6 +21,37 @@ final class HikeControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $hike->getTitle());
+    }
+
+    public function testStandardPhotoCardAndModalUseWebpOnlyResponsiveVariants(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin());
+        $media = $this->createImageMedia('Photo responsive WebP');
+        $media
+            ->setFilePath(null)
+            ->setThumbnailPath('/uploads/media/variants/photo-thumb.webp')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/variants/photo-thumb.webp', 'width' => 600, 'height' => 400],
+                'mobile' => ['webp' => '/uploads/media/variants/photo-mobile.webp', 'width' => 960, 'height' => 640],
+                'medium' => ['webp' => '/uploads/media/variants/photo-medium.webp', 'width' => 1600, 'height' => 1067],
+                'large' => ['webp' => '/uploads/media/variants/photo-large.webp', 'width' => 1920, 'height' => 1280],
+            ]);
+        $this->persistAndFlush($media);
+        $this->linkHikeMedia($hike, $media, MediaRole::Gallery);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $cardImage = $crawler->filter('.journey-gallery img')->first();
+        self::assertSame('/uploads/media/variants/photo-medium.webp', $cardImage->attr('src'));
+        self::assertSame(
+            '/uploads/media/variants/photo-thumb.webp 600w, /uploads/media/variants/photo-mobile.webp 960w, /uploads/media/variants/photo-medium.webp 1600w, /uploads/media/variants/photo-large.webp 1920w',
+            $cardImage->attr('srcset'),
+        );
+        self::assertSame('/uploads/media/variants/photo-large.webp', $crawler->filter('.gallery-modal__slide img')->first()->attr('data-gallery-src'));
+        self::assertStringNotContainsString('.jpg', $cardImage->outerHtml());
+        self::assertStringNotContainsString('image/avif', $crawler->filter('.journey-gallery picture')->first()->outerHtml());
     }
 
     public function testHikeIndexListsOnlyPublicHikes(): void
