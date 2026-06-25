@@ -15,6 +15,8 @@ final class CommentInteractionsPantherTest extends PantherTestCase
         $this->loginAsFixtureUser($client);
         $client->request('GET', '/articles/que-faire-a-collioure-en-une-journee');
         $client->waitFor('[data-comment-replies-toggle]');
+        $this->assertPageHasBuiltStyles($client, 'assets/app.js', 'assets/entries/comments.js', 'assets/entries/article-show.js');
+        $this->assertPageHasBuiltScripts($client, 'assets/app.js', 'assets/entries/comments.js', 'assets/entries/article-show.js');
 
         $webDriver = $client->getWebDriver();
 
@@ -87,13 +89,38 @@ final class CommentInteractionsPantherTest extends PantherTestCase
         self::assertTrue($otherState['sameParent']);
         self::assertTrue($otherState['outsideOpenedReplies']);
         self::assertSame($context['otherText'], $otherState['text']);
+        $this->assertNoBrowserSevereErrors($client);
+    }
+
+    public function testNotificationsPageKeepsCommentStylesWithoutCommentScript(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+
+        $client = self::createBrowser();
+        $this->loginAsFixtureUser($client);
+        $client->request('GET', '/notifications/commentaires');
+        $client->waitFor('.comment-notifications-page');
+
+        self::assertSelectorNotExists('[data-comment-replies]');
+        self::assertSelectorNotExists('[data-comment-replies-toggle]');
+        self::assertSelectorNotExists('[data-comment-reply-panel]');
+        self::assertSelectorNotExists('[data-comment-reply-form]');
+        $this->assertPageHasBuiltStyles($client, 'assets/app.js', 'assets/entries/comments.js');
+        $this->assertPageHasBuiltScripts($client, 'assets/app.js');
+        $this->assertPageDoesNotHaveBuiltScripts($client, 'assets/entries/comments.js');
+        $this->assertNoBrowserSevereErrors($client);
     }
 
     private function loginAsFixtureUser(\Symfony\Component\Panther\Client $client): void
     {
         $client->request('GET', '/login');
+        $client->waitFor('body');
 
         $webDriver = $client->getWebDriver();
+        if (count($webDriver->findElements(WebDriverBy::cssSelector('.logout-form'))) > 0) {
+            return;
+        }
+
         $webDriver->findElement(WebDriverBy::name('_username'))->sendKeys('user-test@example.test');
         $webDriver->findElement(WebDriverBy::name('_password'))->sendKeys('PasswordUser2026!');
         $webDriver->findElement(WebDriverBy::cssSelector('button[type="submit"]'))->click();

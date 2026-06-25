@@ -18,6 +18,13 @@ final class PublicHikeMapPantherTest extends PantherTestCase
 
         $client->request('GET', '/randonnees/petite-boucle-de-montner');
         $client->waitFor('[data-public-hike-map][data-public-hike-map-ready="true"]');
+        $this->assertPageHasBuiltAssets(
+            $client,
+            'assets/app.js',
+            'assets/entries/public-detail.js',
+            'assets/entries/related-articles.js',
+        );
+        $this->assertPageDoesNotHaveBuiltAssets($client, 'assets/entries/public-listing.js', 'assets/entries/comments.js');
 
         $trigger = $webDriver->findElement(WebDriverBy::cssSelector('[data-hike-map-focus][data-point-index="2"]'));
         $mapSelector = (string) $trigger->getAttribute('href');
@@ -68,6 +75,7 @@ final class PublicHikeMapPantherTest extends PantherTestCase
         );
         self::assertSame($initialUrl, $webDriver->getCurrentURL());
         self::assertSame($initialWindowHandles, $webDriver->getWindowHandles());
+        $this->assertNoBrowserSevereErrors($client);
     }
 
     private function blockOpenStreetMapRequests(

@@ -43,6 +43,13 @@ final class PublicListingsPantherTest extends PantherTestCase
         $client = self::createBrowser();
         $client->request('GET', '/articles');
         $client->waitFor('[data-public-listing="articles"] [data-public-search-input]');
+        $this->assertPageHasBuiltAssets($client, 'assets/app.js', 'assets/entries/public-listing.js');
+        $this->assertPageDoesNotHaveBuiltAssets(
+            $client,
+            'assets/entries/public-detail.js',
+            'assets/entries/article-show.js',
+            'assets/entries/comments.js',
+        );
 
         $webDriver = $client->getWebDriver();
         $input = $webDriver->findElement(WebDriverBy::cssSelector('[data-public-search-input]'));
@@ -63,6 +70,7 @@ final class PublicListingsPantherTest extends PantherTestCase
         $expectedPath = (string) parse_url($activeSuggestionHref, PHP_URL_PATH);
         (new WebDriverWait($webDriver, 8))->until(static fn () => parse_url($webDriver->getCurrentURL(), PHP_URL_PATH) === $expectedPath);
         self::assertSame($expectedPath, parse_url($webDriver->getCurrentURL(), PHP_URL_PATH));
+        $this->assertNoBrowserSevereErrors($client);
     }
 
     public function testSharedAutocompleteAppearsOnHikesAndVisitsWithoutDraftSuggestions(): void
@@ -74,6 +82,7 @@ final class PublicListingsPantherTest extends PantherTestCase
 
         $client->request('GET', '/randonnees');
         $client->waitFor('[data-public-listing="hikes"] [data-public-search-input]');
+        $this->assertPageHasBuiltAssets($client, 'assets/app.js', 'assets/entries/public-listing.js');
         $input = $webDriver->findElement(WebDriverBy::cssSelector('[data-public-search-input]'));
         $input->sendKeys('Canigou');
         $this->waitForSuggestionText($webDriver, 'Boucle du Canigou découverte');
@@ -85,10 +94,12 @@ final class PublicListingsPantherTest extends PantherTestCase
 
         $client->request('GET', '/visites');
         $client->waitFor('[data-public-listing="city-visits"] [data-public-search-input]');
+        $this->assertPageHasBuiltAssets($client, 'assets/app.js', 'assets/entries/public-listing.js');
         $input = $webDriver->findElement(WebDriverBy::cssSelector('[data-public-search-input]'));
         $input->sendKeys('Collioure');
         $this->waitForSuggestionText($webDriver, 'Visiter Collioure à pied');
         self::assertStringNotContainsString('Visite brouillon non publique', $this->visibleSuggestionsText($webDriver));
+        $this->assertNoBrowserSevereErrors($client);
     }
 
     public function testSearchFormSubmitsGetWhenNoSuggestionIsSelected(): void

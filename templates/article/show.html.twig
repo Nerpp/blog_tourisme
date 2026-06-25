@@ -1,4 +1,4 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/comments.html.twig' %}
 
 {% set article_cover_media = null %}
 {% set article_fallback_cover_media = null %}
@@ -67,16 +67,19 @@
 	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
 {% endblock %}
 
-{% block stylesheets %}
-	{{ parent() }}
+{% block page_stylesheets %}
 	{{ vite_entry_link_tags('assets/entries/article-show.js') }}
-	{{ vite_entry_link_tags('assets/entries/comments.js') }}
 {% endblock %}
 
-{% block javascripts %}
-	{{ parent() }}
+{% block page_javascripts %}
+	{% set comment_thread_items = comments|default([]) %}
+	{% set has_comment_reply_forms = app.user and app.user.verified is defined and app.user.verified and comment_thread_items|filter(comment => comment.parent is null and comment.status.value == 'approved')|length > 0 %}
+	{% set has_comment_replies = comment_thread_items|filter(comment => comment.parent is null and (comment.children|filter(child => child.status.value == 'approved' or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected']))|length) > 0)|length > 0 %}
+
 	{{ vite_entry_script_tags('assets/entries/article-show.js') }}
-	{{ vite_entry_script_tags('assets/entries/comments.js') }}
+	{% if has_comment_reply_forms or has_comment_replies %}
+		{{ vite_entry_script_tags('assets/entries/comments.js') }}
+	{% endif %}
 {% endblock %}
 
 {% block preloads %}

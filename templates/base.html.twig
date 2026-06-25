@@ -17,6 +17,8 @@
 		{% block preloads %}{% endblock %}
 		{% block stylesheets %}
 			{{ vite_entry_link_tags('app') }}
+			{% block layout_stylesheets %}{% endblock %}
+			{% block page_stylesheets %}{% endblock %}
 		{% endblock %}
 	</head>
 	<body>
@@ -45,6 +47,8 @@
 
 		{% block javascripts %}
 			{{ vite_entry_script_tags('app') }}
+			{% block layout_javascripts %}{% endblock %}
+			{% block page_javascripts %}{% endblock %}
 		{% endblock %}
 	</body>
 </html>

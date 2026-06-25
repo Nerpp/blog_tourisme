@@ -4,6 +4,8 @@ namespace App\Tests\E2E;
 
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Facebook\WebDriver\Remote\RemoteWebDriver;
+use Facebook\WebDriver\WebDriverBy;
 use Psr\Cache\CacheItemPoolInterface;
 use Symfony\Component\Panther\Client;
 use Symfony\Component\Panther\PantherTestCase as BasePantherTestCase;
@@ -87,5 +89,171 @@ abstract class PantherTestCase extends BasePantherTestCase
     protected function uniqueEmail(string $prefix): string
     {
         return sprintf('%s-%s@blog-tourisme.test', $prefix, bin2hex(random_bytes(6)));
+    }
+
+    protected function assertPageHasBuiltAssets(Client $client, string ...$entries): void
+    {
+        $renderedAssetUrls = $this->renderedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            foreach ($this->manifestStyleUrls($entry) as $assetUrl) {
+                self::assertContains($assetUrl, $renderedAssetUrls, sprintf('Expected asset "%s" for entry "%s".', $assetUrl, $entry));
+            }
+
+            $assetUrl = $this->manifestScriptUrl($entry);
+            if ($assetUrl !== null) {
+                self::assertContains($assetUrl, $renderedAssetUrls, sprintf('Expected asset "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+
+        self::assertSame(
+            $renderedAssetUrls,
+            array_values(array_unique($renderedAssetUrls)),
+            'Rendered Vite asset URLs must not be duplicated.',
+        );
+    }
+
+    protected function assertPageHasBuiltStyles(Client $client, string ...$entries): void
+    {
+        $renderedAssetUrls = $this->renderedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            foreach ($this->manifestStyleUrls($entry) as $assetUrl) {
+                self::assertContains($assetUrl, $renderedAssetUrls, sprintf('Expected asset "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+
+        self::assertSame(
+            $renderedAssetUrls,
+            array_values(array_unique($renderedAssetUrls)),
+            'Rendered Vite asset URLs must not be duplicated.',
+        );
+    }
+
+    protected function assertPageHasBuiltScripts(Client $client, string ...$entries): void
+    {
+        $renderedAssetUrls = $this->renderedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            $assetUrl = $this->manifestScriptUrl($entry);
+            if ($assetUrl !== null) {
+                self::assertContains($assetUrl, $renderedAssetUrls, sprintf('Expected asset "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+
+        self::assertSame(
+            $renderedAssetUrls,
+            array_values(array_unique($renderedAssetUrls)),
+            'Rendered Vite asset URLs must not be duplicated.',
+        );
+    }
+
+    protected function assertPageDoesNotHaveBuiltScripts(Client $client, string ...$entries): void
+    {
+        $renderedAssetUrls = $this->renderedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            $assetUrl = $this->manifestScriptUrl($entry);
+            if ($assetUrl !== null) {
+                self::assertNotContains($assetUrl, $renderedAssetUrls, sprintf('Unexpected asset "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+    }
+
+    protected function assertPageDoesNotHaveBuiltAssets(Client $client, string ...$entries): void
+    {
+        $renderedAssetUrls = $this->renderedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            foreach ($this->manifestStyleUrls($entry) as $assetUrl) {
+                self::assertNotContains($assetUrl, $renderedAssetUrls, sprintf('Unexpected asset "%s" for entry "%s".', $assetUrl, $entry));
+            }
+
+            $assetUrl = $this->manifestScriptUrl($entry);
+            if ($assetUrl !== null) {
+                self::assertNotContains($assetUrl, $renderedAssetUrls, sprintf('Unexpected asset "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+    }
+
+    protected function assertNoBrowserSevereErrors(Client $client): void
+    {
+        $errors = array_filter(
+            $client->getWebDriver()->manage()->getLog('browser'),
+            static fn (array $entry): bool => ($entry['level'] ?? '') === 'SEVERE',
+        );
+
+        self::assertSame([], $errors);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderedBuildAssetUrls(RemoteWebDriver $webDriver): array
+    {
+        $urls = [];
+
+        foreach ($webDriver->findElements(WebDriverBy::cssSelector('link[href], script[src]')) as $element) {
+            $url = $element->getAttribute('href') ?: $element->getAttribute('src');
+            $path = is_string($url) ? (string) parse_url($url, PHP_URL_PATH) : '';
+
+            if (str_starts_with($path, '/build/')) {
+                $urls[] = $path;
+            }
+        }
+
+        return $urls;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function manifestStyleUrls(string $entry): array
+    {
+        $chunk = $this->manifest()[$entry] ?? null;
+        self::assertIsArray($chunk, sprintf('Missing Vite manifest entry "%s".', $entry));
+
+        $urls = [];
+
+        foreach ($chunk['css'] ?? [] as $cssFile) {
+            self::assertIsString($cssFile);
+            $urls[] = '/build/'.$cssFile;
+        }
+
+        return $urls;
+    }
+
+    private function manifestScriptUrl(string $entry): ?string
+    {
+        $chunk = $this->manifest()[$entry] ?? null;
+        self::assertIsArray($chunk, sprintf('Missing Vite manifest entry "%s".', $entry));
+
+        if (!isset($chunk['file'])) {
+            return null;
+        }
+
+        self::assertIsString($chunk['file']);
+
+        return '/build/'.$chunk['file'];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function manifest(): array
+    {
+        static $manifest = null;
+
+        if (is_array($manifest)) {
+            return $manifest;
+        }
+
+        $manifestPath = dirname(__DIR__, 2).'/public/build/manifest.json';
+        self::assertFileExists($manifestPath, 'Run "docker compose run --rm node npm run build" before Panther tests.');
+
+        $decoded = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($decoded);
+
+        return $manifest = $decoded;
     }
 }

@@ -1,11 +1,9 @@
 {% extends 'base.html.twig' %}
 
-{% block stylesheets %}
-    {{ parent() }}
+{% block layout_stylesheets %}
     {{ vite_entry_link_tags('assets/entries/auth.js') }}
 {% endblock %}
 
-{% block javascripts %}
-    {{ parent() }}
+{% block layout_javascripts %}
     {{ vite_entry_script_tags('assets/entries/auth.js') }}
 {% endblock %}
