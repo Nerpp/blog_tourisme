@@ -18,7 +18,7 @@ use Facebook\WebDriver\WebDriverWait;
 
 final class PublicPhotoGalleryPantherTest extends PantherTestCase
 {
-    public function testHomepageStandardDestinationCardSelectsWebpAtMobileAndDesktopWidths(): void
+    public function testHomepageStandardCardsKeepThumbWebpAtMobileAndDesktopWidths(): void
     {
         $this->skipIfFrontendBuildIsMissing();
         $this->ensureFixtureStandardGalleryVariants();
@@ -34,27 +34,30 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
             'mobile' => true,
         ]);
         $mobileClient->request('GET', '/');
-        $mobileClient->waitFor('.home-destination-card img[srcset*="_mobile.webp"]');
+        $mobileClient->waitFor('.home-destination-card img.home-destination-card__img');
         $destinationMobile = $this->responsiveImageData(
             $mobileDriver,
-            '.home-destination-card img[srcset*="_mobile.webp"]',
+            '.home-destination-card img.home-destination-card__img',
         );
         $latestMobile = $this->responsiveImageData(
             $mobileDriver,
-            '.home-latest-card img[srcset*="_mobile.webp"]',
+            '.home-latest-card img.home-latest-card__image',
         );
 
-        self::assertStringEndsWith('_mobile.webp', $destinationMobile['currentSrc']);
-        self::assertStringContainsString(' 600w', $destinationMobile['srcset']);
-        self::assertStringContainsString(' 960w', $destinationMobile['srcset']);
-        self::assertStringContainsString(' 1600w', $destinationMobile['srcset']);
-        self::assertStringNotContainsString('.jpg', $destinationMobile['srcset']);
+        self::assertStringContainsString('_thumb.webp', $destinationMobile['currentSrc']);
+        self::assertStringNotContainsString('_mobile.webp', $destinationMobile['currentSrc']);
+        self::assertStringNotContainsString('_medium.webp', $destinationMobile['currentSrc']);
+        self::assertStringNotContainsString('_large.webp', $destinationMobile['currentSrc']);
+        self::assertSame('', $destinationMobile['srcset']);
+        self::assertSame('', $destinationMobile['sizes']);
         self::assertSame('lazy', $destinationMobile['loading']);
-        self::assertStringContainsString('calc(100vw - 24px)', $destinationMobile['sizes']);
 
-        self::assertStringEndsWith('_mobile.webp', $latestMobile['currentSrc']);
-        self::assertStringNotContainsString('.jpg', $latestMobile['src']);
-        self::assertStringNotContainsString('.jpg', $latestMobile['srcset']);
+        self::assertStringContainsString('_thumb.webp', $latestMobile['currentSrc']);
+        self::assertStringNotContainsString('_mobile.webp', $latestMobile['currentSrc']);
+        self::assertStringNotContainsString('_medium.webp', $latestMobile['currentSrc']);
+        self::assertStringNotContainsString('_large.webp', $latestMobile['currentSrc']);
+        self::assertSame('', $latestMobile['srcset']);
+        self::assertSame('', $latestMobile['sizes']);
         self::assertSame('eager', $latestMobile['loading']);
 
         $desktopClient = self::createBrowser();
@@ -62,18 +65,18 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         $this->disableBrowserCache($desktopDriver);
         $desktopDriver->manage()->window()->setSize(new WebDriverDimension(1440, 1000));
         $desktopClient->request('GET', '/');
-        $desktopClient->waitFor('.home-destination-card img[srcset*="_mobile.webp"]');
+        $desktopClient->waitFor('.home-destination-card img.home-destination-card__img');
         $destinationDesktop = $this->responsiveImageData(
             $desktopDriver,
-            '.home-destination-card img[srcset*="_mobile.webp"]',
+            '.home-destination-card img.home-destination-card__img',
         );
         $latestDesktop = $this->responsiveImageData(
             $desktopDriver,
-            '.home-latest-card img[srcset*="_mobile.webp"]',
+            '.home-latest-card img.home-latest-card__image',
         );
 
-        self::assertStringEndsWith('.webp', $destinationDesktop['currentSrc']);
-        self::assertStringEndsWith('.webp', $latestDesktop['currentSrc']);
+        self::assertStringContainsString('_thumb.webp', $destinationDesktop['currentSrc']);
+        self::assertStringContainsString('_thumb.webp', $latestDesktop['currentSrc']);
         self::assertGreaterThan(0, $destinationDesktop['width']);
         self::assertGreaterThan(0, $destinationDesktop['height']);
         self::assertGreaterThan(0, $latestDesktop['width']);

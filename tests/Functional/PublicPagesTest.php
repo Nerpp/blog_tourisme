@@ -17,7 +17,7 @@ final class PublicPagesTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
     }
 
-    public function testHomepageCardsRenderResponsiveWebpWithoutStandardJpegFallback(): void
+    public function testHomepageCardsRenderThumbOnlyWebpWithoutResponsiveCandidates(): void
     {
         $client = static::createClient();
         $hike = $this->createPublishedHike($this->createVerifiedAdmin());
@@ -32,21 +32,27 @@ final class PublicPagesTest extends FunctionalTestCase
         $crawler = $client->request('GET', '/');
 
         self::assertResponseIsSuccessful();
-        $destinationImage = $crawler->filter('img.home-destination-card__img[srcset]')->first();
+        $destinationImage = $crawler->filter('img.home-destination-card__img')->first();
         self::assertSame(1, $destinationImage->count());
-        self::assertStringEndsWith('_mobile.webp', (string) $destinationImage->attr('src'));
-        self::assertStringContainsString(' 600w', (string) $destinationImage->attr('srcset'));
-        self::assertStringContainsString(' 960w', (string) $destinationImage->attr('srcset'));
-        self::assertStringContainsString(' 1600w', (string) $destinationImage->attr('srcset'));
-        self::assertStringNotContainsString('.jpg', $destinationImage->outerHtml());
-        self::assertStringContainsString('calc(100vw - 24px)', (string) $destinationImage->attr('sizes'));
+        self::assertStringEndsWith('_thumb.webp', (string) $destinationImage->attr('src'));
+        self::assertNull($destinationImage->attr('srcset'));
+        self::assertNull($destinationImage->attr('sizes'));
+        self::assertStringNotContainsString('_mobile.webp', $destinationImage->outerHtml());
+        self::assertStringNotContainsString('_medium.webp', $destinationImage->outerHtml());
+        self::assertStringNotContainsString('_large.webp', $destinationImage->outerHtml());
+        self::assertSame(0, $crawler->filter('.home-destination-card picture')->count());
         self::assertSame('lazy', $destinationImage->attr('loading'));
+        self::assertSame('600', $destinationImage->attr('width'));
 
-        $latestImage = $crawler->filter('article.home-latest-card img.home-latest-card__image[srcset]')->first();
+        $latestImage = $crawler->filter('article.home-latest-card img.home-latest-card__image')->first();
         self::assertSame(1, $latestImage->count());
-        self::assertStringEndsWith('_mobile.webp', (string) $latestImage->attr('src'));
-        self::assertStringContainsString(' 960w', (string) $latestImage->attr('srcset'));
-        self::assertStringNotContainsString('.jpg', $latestImage->outerHtml());
+        self::assertStringEndsWith('_thumb.webp', (string) $latestImage->attr('src'));
+        self::assertNull($latestImage->attr('srcset'));
+        self::assertNull($latestImage->attr('sizes'));
+        self::assertStringNotContainsString('_mobile.webp', $latestImage->outerHtml());
+        self::assertStringNotContainsString('_medium.webp', $latestImage->outerHtml());
+        self::assertStringNotContainsString('_large.webp', $latestImage->outerHtml());
+        self::assertSame(0, $crawler->filter('article.home-latest-card picture')->count());
         self::assertSame('eager', $latestImage->attr('loading'));
     }
 

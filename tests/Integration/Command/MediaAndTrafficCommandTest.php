@@ -199,6 +199,7 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         foreach ([
             ['app:media:cleanup-orphans', ['--id' => 'not-an-id', '--force' => true]],
             ['app:media:cleanup-public-masters', ['--id' => (string) PHP_INT_MAX.'0']],
+            ['app:media:cleanup-standard-legacy-variants', ['--id' => 'not-an-id']],
             ['app:media:seo-fill', ['--hike-id' => '12.5', '--force' => true]],
             ['app:media:generate-variants', ['--id' => '-1', '--force' => true]],
             ['app:traffic:prune', ['--days' => 'not-a-number']],
@@ -281,6 +282,123 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
 
         self::assertSame(Command::SUCCESS, $skipStatus);
         self::assertStringContainsString(sprintf('#%d ignoré', $video->getId()), $skipTester->getDisplay());
+    }
+
+    public function testCleanupStandardLegacyVariantsDryRunThenDeletesOnlyStandardLegacyFiles(): void
+    {
+        $activeThumb = TestImageFactory::createWebp($this->publicVariantDirectory(), 120, 60, 'command-active-thumb.webp');
+        $activeMobile = TestImageFactory::createWebp($this->publicVariantDirectory(), 160, 80, 'command-active-mobile.webp');
+        $activeMedium = TestImageFactory::createWebp($this->publicVariantDirectory(), 200, 100, 'command-active-medium.webp');
+        $activeLarge = TestImageFactory::createWebp($this->publicVariantDirectory(), 240, 120, 'command-active-large.webp');
+        $legacyJpeg = TestImageFactory::createJpeg($this->publicVariantDirectory(), 40, 20, 'command-legacy-thumb.jpg');
+        $legacyPng = TestImageFactory::createPng($this->publicVariantDirectory(), 40, 20, 'command-legacy-medium.png');
+        $legacyAvif = TestImageFactory::createTextFile($this->publicVariantDirectory(), 'avif', 'legacy avif');
+        $specialLegacyJpeg = TestImageFactory::createJpeg($this->publicVariantDirectory(), 40, 20, 'command-special-legacy.jpg');
+        array_push(
+            $this->files,
+            $activeThumb,
+            $activeMobile,
+            $activeMedium,
+            $activeLarge,
+            $legacyJpeg,
+            $legacyPng,
+            $legacyAvif,
+            $specialLegacyJpeg,
+        );
+        $standard = (new MediaAsset())
+            ->setTitle('Commande anciennes variantes standard')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setThumbnailPath($this->publicVariantPath($activeThumb))
+            ->setVariants([
+                'source' => [
+                    'path' => '/uploads/media/source.jpg',
+                    'formats' => ['fallback', 'webp', 'avif'],
+                ],
+                'thumb' => [
+                    'fallback' => $this->publicVariantPath($legacyJpeg),
+                    'fallbackFormat' => 'image/jpeg',
+                    'webp' => $this->publicVariantPath($activeThumb),
+                    'width' => 120,
+                    'height' => 60,
+                ],
+                'mobile' => [
+                    'webp' => $this->publicVariantPath($activeMobile),
+                    'width' => 160,
+                    'height' => 80,
+                ],
+                'medium' => [
+                    'fallback' => $this->publicVariantPath($legacyPng),
+                    'webp' => $this->publicVariantPath($activeMedium),
+                    'width' => 200,
+                    'height' => 100,
+                ],
+                'large' => [
+                    'avif' => $this->publicVariantPath($legacyAvif),
+                    'webp' => $this->publicVariantPath($activeLarge),
+                    'width' => 240,
+                    'height' => 120,
+                ],
+            ]);
+        $special = (new MediaAsset())
+            ->setTitle('Commande anciennes variantes panorama')
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Panorama)
+            ->setVariants([
+                'thumb' => [
+                    'fallback' => $this->publicVariantPath($specialLegacyJpeg),
+                    'webp' => $this->publicVariantPath($activeThumb),
+                    'width' => 120,
+                    'height' => 60,
+                ],
+            ]);
+        $this->persist($standard, $special);
+
+        $dryRunTester = $this->commandTester('app:media:cleanup-standard-legacy-variants');
+        $dryRunStatus = $dryRunTester->execute([
+            '--id' => (string) $standard->getId(),
+            '--dry-run' => true,
+        ]);
+
+        self::assertSame(Command::SUCCESS, $dryRunStatus);
+        self::assertStringContainsString(sprintf('#%d supprimable', $standard->getId()), $dryRunTester->getDisplay());
+        self::assertStringContainsString(sprintf('#%d à nettoyer : métadonnées standard', $standard->getId()), $dryRunTester->getDisplay());
+        self::assertFileExists($legacyJpeg);
+        self::assertFileExists($legacyPng);
+        self::assertFileExists($legacyAvif);
+        self::assertArrayHasKey('fallback', $standard->getVariants()['thumb']);
+
+        $deleteTester = $this->commandTester('app:media:cleanup-standard-legacy-variants');
+        $deleteStatus = $deleteTester->execute(['--id' => (string) $standard->getId()]);
+
+        self::assertSame(Command::SUCCESS, $deleteStatus);
+        self::assertStringContainsString(sprintf('#%d supprimé', $standard->getId()), $deleteTester->getDisplay());
+        self::assertStringContainsString('3 fichier(s)', $deleteTester->getDisplay());
+        self::assertStringContainsString('supprimé(s)', $deleteTester->getDisplay());
+        self::assertFileDoesNotExist($legacyJpeg);
+        self::assertFileDoesNotExist($legacyPng);
+        self::assertFileDoesNotExist($legacyAvif);
+        foreach ([$activeThumb, $activeMobile, $activeMedium, $activeLarge, $specialLegacyJpeg] as $keptFile) {
+            self::assertFileExists($keptFile);
+        }
+        self::assertIsArray($standard->getVariants());
+        self::assertSame(['webp'], $standard->getVariants()['source']['formats']);
+        self::assertSame(['webp', 'width', 'height'], array_keys($standard->getVariants()['thumb']));
+        self::assertArrayNotHasKey('fallback', $standard->getVariants()['medium']);
+        self::assertArrayNotHasKey('avif', $standard->getVariants()['large']);
+
+        $secondTester = $this->commandTester('app:media:cleanup-standard-legacy-variants');
+        $secondStatus = $secondTester->execute(['--id' => (string) $standard->getId()]);
+
+        self::assertSame(Command::SUCCESS, $secondStatus);
+        self::assertStringContainsString(sprintf('#%d ignoré : aucune variante héritée non-WebP', $standard->getId()), $secondTester->getDisplay());
+
+        $specialTester = $this->commandTester('app:media:cleanup-standard-legacy-variants');
+        $specialStatus = $specialTester->execute(['--id' => (string) $special->getId()]);
+
+        self::assertSame(Command::SUCCESS, $specialStatus);
+        self::assertStringContainsString(sprintf('#%d ignoré : média non standard', $special->getId()), $specialTester->getDisplay());
+        self::assertFileExists($specialLegacyJpeg);
     }
 
     public function testGenerateVideoThumbnailsDryRunReportsYoutubeVideoWithoutWritingThumbnail(): void
@@ -540,5 +658,20 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
         self::assertInstanceOf(MediaVariantService::class, $service);
 
         return $service;
+    }
+
+    private function publicVariantDirectory(): string
+    {
+        $directory = TestImageFactory::projectDir().'/public/uploads/media/variants';
+        if (!is_dir($directory)) {
+            mkdir($directory, 0775, true);
+        }
+
+        return $directory;
+    }
+
+    private function publicVariantPath(string $absolutePath): string
+    {
+        return '/uploads/media/variants/'.basename($absolutePath);
     }
 }

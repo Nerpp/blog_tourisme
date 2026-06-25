@@ -19,6 +19,7 @@ final class MediaVariantService
 
     public function __construct(
         private readonly ImageVariantGenerator $imageVariantGenerator,
+        private readonly StandardLegacyVariantCleanupService $standardLegacyVariantCleanupService,
         private readonly LoggerInterface $logger,
         private readonly ParameterBagInterface $parameterBag,
     ) {
@@ -151,6 +152,7 @@ final class MediaVariantService
             ];
         }
 
+        $previousVariants = $media->getVariants();
         $variants = $this->normalizeVariants(
             $media->getImageType() === ImageType::Standard
                 ? $this->imageVariantGenerator->generateStandard($filePath, $filePath)
@@ -171,6 +173,10 @@ final class MediaVariantService
             : $this->variantPath($variants, 'thumb', 'fallback');
         if ($thumbnailPath !== null && ($media->getImageType() === ImageType::Standard || $media->getThumbnailPath() === null)) {
             $media->setThumbnailPath($thumbnailPath);
+        }
+
+        if ($media->getImageType() === ImageType::Standard) {
+            $this->standardLegacyVariantCleanupService->cleanup($media, legacyVariants: $previousVariants);
         }
 
         return [

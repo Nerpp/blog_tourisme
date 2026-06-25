@@ -103,6 +103,18 @@ final class HomepageDestinationMediaResolverTest extends TestCase
         );
     }
 
+    public function testVideoPosterMediaIsNotUsedAsHomepageDestinationCardImage(): void
+    {
+        $video = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setThumbnailPath('/uploads/media/posters/video-poster.jpg');
+
+        self::assertNull(
+            $this->resolver(hike: $this->hike(new \DateTimeImmutable('-1 day'), $video))
+                ->representativeMedia($this->destination()),
+        );
+    }
+
     private function resolver(
         ?Article $article = null,
         ?HikeDraft $hike = null,

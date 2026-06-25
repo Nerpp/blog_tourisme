@@ -53,8 +53,7 @@
 					{% include 'public_detail/_responsive_image.html.twig' with {
 						media: latest_homepage_item.media,
 						alt: media_public_alt(latest_homepage_item.media, null, latest_homepage_item.title),
-						image_size: 'mobile',
-						sizes: '(min-width: 1212px) 422px, (min-width: 961px) calc((100vw - 88px) * 0.375), calc(100vw - 24px)',
+						image_mode: 'card_thumbnail',
 						img_class: 'home-latest-card__image',
 						loading: 'eager'
 					} only %}

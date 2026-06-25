@@ -7,6 +7,7 @@ use App\Enum\ImageType;
 use App\Enum\MediaType;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\PublicMediaMasterCleanupService;
+use App\Service\Media\StandardLegacyVariantCleanupService;
 use App\Tests\Integration\IntegrationTestCase;
 use App\Tests\Support\TestImageFactory;
 
@@ -198,6 +199,98 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertIsArray($media->getVariants());
         self::assertStringStartsWith('/uploads/media/variants/', (string) $media->getThumbnailPath());
         $this->trackVariantFiles($media->getVariants());
+    }
+
+    public function testStandardRegenerationDeletesOnlyLegacyNonWebpVariantFiles(): void
+    {
+        $source = TestImageFactory::createPng(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $legacyJpeg = TestImageFactory::createJpeg($this->publicVariantDirectory(), 40, 20, 'legacy-standard-thumb.jpg');
+        $legacyPng = TestImageFactory::createPng($this->publicVariantDirectory(), 40, 20, 'legacy-standard-medium.png');
+        $legacyAvif = TestImageFactory::createTextFile($this->publicVariantDirectory(), 'avif', 'legacy avif');
+        $legacyWebp = TestImageFactory::createWebp($this->publicVariantDirectory(), 40, 20, 'legacy-standard-kept.webp');
+        array_push($this->files, $source, $legacyJpeg, $legacyPng, $legacyAvif, $legacyWebp);
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(TestImageFactory::publicPathFor($source))
+            ->setVariants([
+                'thumb' => [
+                    'fallback' => $this->publicVariantPath($legacyJpeg),
+                    'webp' => $this->publicVariantPath($legacyWebp),
+                    'width' => 40,
+                    'height' => 20,
+                ],
+                'mobile' => ['webp' => $this->publicVariantPath($legacyWebp), 'width' => 40, 'height' => 20],
+                'medium' => [
+                    'fallback' => $this->publicVariantPath($legacyPng),
+                    'webp' => $this->publicVariantPath($legacyWebp),
+                    'width' => 40,
+                    'height' => 20,
+                ],
+                'large' => [
+                    'avif' => $this->publicVariantPath($legacyAvif),
+                    'webp' => $this->publicVariantPath($legacyWebp),
+                    'width' => 40,
+                    'height' => 20,
+                ],
+            ]);
+
+        $result = $this->mediaVariantService()->generateForMedia($media, force: true);
+
+        self::assertSame('generated', $result['status']);
+        self::assertFileDoesNotExist($legacyJpeg);
+        self::assertFileDoesNotExist($legacyPng);
+        self::assertFileDoesNotExist($legacyAvif);
+        self::assertFileExists($legacyWebp);
+        self::assertIsArray($media->getVariants());
+        foreach (['thumb', 'mobile', 'medium', 'large'] as $size) {
+            self::assertSame(['webp', 'width', 'height'], array_keys($media->getVariants()[$size]));
+            self::assertStringEndsWith('.webp', $media->getVariants()[$size]['webp']);
+        }
+        $this->trackVariantFiles($media->getVariants());
+    }
+
+    public function testLegacyVariantCleanupDryRunKeepsFilesAndSkipsSpecialMedia(): void
+    {
+        $activeWebp = TestImageFactory::createWebp($this->publicVariantDirectory(), 120, 60, 'active-standard-thumb.webp');
+        $legacyJpeg = TestImageFactory::createJpeg($this->publicVariantDirectory(), 40, 20, 'dry-run-legacy-thumb.jpg');
+        array_push($this->files, $activeWebp, $legacyJpeg);
+        $variants = [
+            'source' => ['path' => '/uploads/media/source.jpg', 'formats' => ['fallback', 'webp']],
+            'thumb' => [
+                'fallback' => $this->publicVariantPath($legacyJpeg),
+                'webp' => $this->publicVariantPath($activeWebp),
+                'width' => 120,
+                'height' => 60,
+            ],
+            'mobile' => ['webp' => $this->publicVariantPath($activeWebp), 'width' => 120, 'height' => 60],
+            'medium' => ['webp' => $this->publicVariantPath($activeWebp), 'width' => 120, 'height' => 60],
+            'large' => ['webp' => $this->publicVariantPath($activeWebp), 'width' => 120, 'height' => 60],
+        ];
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setVariants($variants);
+
+        $result = $this->standardLegacyVariantCleanupService()->cleanup($media, dryRun: true, pruneMetadata: true);
+
+        self::assertFalse($result['skipped']);
+        self::assertTrue($result['dryRun']);
+        self::assertTrue($result['metadataChanged']);
+        self::assertSame($this->publicVariantPath($legacyJpeg), $result['files'][0]['path']);
+        self::assertGreaterThan(0, $result['bytes']);
+        self::assertFileExists($legacyJpeg);
+        self::assertSame($variants, $media->getVariants());
+
+        $special = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Panorama)
+            ->setVariants($variants);
+        $specialResult = $this->standardLegacyVariantCleanupService()->cleanup($special);
+
+        self::assertTrue($specialResult['skipped']);
+        self::assertSame('média non standard', $specialResult['reason']);
+        self::assertFileExists($legacyJpeg);
     }
 
     public function testMissingLocalVideoPosterIsSkippedWithDiagnostic(): void
@@ -528,5 +621,28 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertInstanceOf(PublicMediaMasterCleanupService::class, $service);
 
         return $service;
+    }
+
+    private function standardLegacyVariantCleanupService(): StandardLegacyVariantCleanupService
+    {
+        $service = $this->service(StandardLegacyVariantCleanupService::class);
+        self::assertInstanceOf(StandardLegacyVariantCleanupService::class, $service);
+
+        return $service;
+    }
+
+    private function publicVariantDirectory(): string
+    {
+        $directory = TestImageFactory::projectDir().'/public/uploads/media/variants';
+        if (!is_dir($directory)) {
+            mkdir($directory, 0775, true);
+        }
+
+        return $directory;
+    }
+
+    private function publicVariantPath(string $absolutePath): string
+    {
+        return '/uploads/media/variants/'.basename($absolutePath);
     }
 }

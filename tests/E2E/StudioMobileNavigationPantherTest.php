@@ -94,7 +94,7 @@ final class StudioMobileNavigationPantherTest extends PantherTestCase
 
         $webDriver = $client->getWebDriver();
         $webDriver->findElement(WebDriverBy::name('_username'))->sendKeys('admin-test@example.test');
-        $webDriver->findElement(WebDriverBy::name('_password'))->sendKeys('PasswordAdmin2026!');
+        $webDriver->findElement(WebDriverBy::name('_password'))->sendKeys('admin-test@example.test');
         $webDriver->findElement(WebDriverBy::cssSelector('button[type="submit"]'))->click();
 
         $client->waitFor('.logout-form');
