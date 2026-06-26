@@ -155,13 +155,25 @@
 
 .nav-auth-link--register {
   padding-inline: 22px;
-  background: #4f9f75;
+  background: #327a58;
   color: #fff;
-  box-shadow: 0 12px 28px rgba(79, 159, 117, 0.22);
+  box-shadow: 0 12px 28px rgba(50, 122, 88, 0.24);
 }
 
 .nav-auth-link--register:hover {
-  background: #458f68;
+  background: #2f7353;
+  color: #fff;
+}
+
+.nav-auth-link--register:focus-visible {
+  background: #327a58;
+  color: #fff;
+  outline: 3px solid rgba(50, 122, 88, 0.42);
+  outline-offset: 4px;
+}
+
+.nav-auth-link--register:active {
+  background: #275f45;
   color: #fff;
 }
 
@@ -482,9 +494,9 @@
 
   .nav-auth-link--register {
     padding-inline: 20px;
-    background: #6fa17a;
+    background: #327a58;
     color: #fff;
-    box-shadow: 0 10px 26px rgba(79, 159, 117, 0.18);
+    box-shadow: 0 10px 26px rgba(50, 122, 88, 0.2);
   }
 
   .user-chip {
