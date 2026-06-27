@@ -42,7 +42,15 @@ final class PublicPagesTest extends FunctionalTestCase
         self::assertStringNotContainsString('_large.webp', $destinationImage->outerHtml());
         self::assertSame(0, $crawler->filter('.home-destination-card picture')->count());
         self::assertSame('lazy', $destinationImage->attr('loading'));
+        self::assertSame('async', $destinationImage->attr('decoding'));
+        self::assertNull($destinationImage->attr('fetchpriority'));
         self::assertSame('600', $destinationImage->attr('width'));
+        self::assertSame('338', $destinationImage->attr('height'));
+
+        $heroImage = $crawler->filter('img.home-hero__image')->first();
+        self::assertSame(1, $heroImage->count());
+        self::assertNotSame('lazy', $heroImage->attr('loading'));
+        self::assertSame('high', $heroImage->attr('fetchpriority'));
 
         $latestImage = $crawler->filter('article.home-latest-card img.home-latest-card__image')->first();
         self::assertSame(1, $latestImage->count());
@@ -54,6 +62,7 @@ final class PublicPagesTest extends FunctionalTestCase
         self::assertStringNotContainsString('_large.webp', $latestImage->outerHtml());
         self::assertSame(0, $crawler->filter('article.home-latest-card picture')->count());
         self::assertSame('eager', $latestImage->attr('loading'));
+        self::assertNull($latestImage->attr('fetchpriority'));
     }
 
     public function testLoginPageIsReachable(): void

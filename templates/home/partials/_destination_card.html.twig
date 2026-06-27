@@ -5,7 +5,9 @@
                 media: representative_media,
                 alt: media_public_alt(representative_media, destination, destination.name),
                 image_mode: 'card_thumbnail',
-                img_class: 'home-destination-card__img'
+                img_class: 'home-destination-card__img',
+                loading: 'lazy',
+                decoding: 'async'
             } only %}
         {% else %}
             <div class="home-destination-card__placeholder" aria-hidden="true"></div>
