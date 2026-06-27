@@ -53,6 +53,119 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertSelectorTextContains('body', 'Nouvel article');
     }
 
+    public function testNewArticleFormHasStickySidebarDisabledPreviewAndNoLinkedSearch(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $crawler = $client->request('GET', '/admin/articles/new');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('.article-admin-sidebar--sticky[data-article-sticky-sidebar]')->count());
+        $previewButton = $crawler->filter('button[data-article-quick-preview]');
+        self::assertSame(1, $previewButton->count());
+        self::assertNotNull($previewButton->attr('disabled'));
+        self::assertSame('true', $previewButton->attr('aria-disabled'));
+        self::assertStringContainsString('Enregistrez d’abord l’article', $crawler->text());
+
+        self::assertSame(2, $crawler->filter('[data-article-link-panel][hidden]')->count());
+        self::assertSame(2, $crawler->filter('[data-article-link-panel] input[name^="linked"][disabled]')->count());
+        self::assertSame(1, $crawler->filter('[data-article-link-role][hidden] select[disabled]')->count());
+    }
+
+    public function testSavedArticleHasAdminQuickPreviewOfLastPersistedVersion(): void
+    {
+        $client = static::createClient();
+        $article = $this->createDraftArticle('Titre enregistré aperçu '.$this->uniqueToken('article'));
+        $article->setContent('<p>Version enregistrée uniquement.</p>');
+        $this->persistAndFlush($article);
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
+
+        self::assertResponseIsSuccessful();
+        $previewLink = $crawler->filter('a[data-article-quick-preview]');
+        self::assertSame(sprintf('/admin/articles/%d/preview', $article->getId()), $previewLink->attr('href'));
+        self::assertSame('_blank', $previewLink->attr('target'));
+        self::assertSame('noopener', $previewLink->attr('rel'));
+        self::assertStringContainsString('nouvel onglet', (string) $previewLink->attr('aria-label'));
+        self::assertStringContainsString('dernière version enregistrée', $crawler->text());
+
+        $previewCrawler = $client->request('GET', sprintf('/admin/articles/%d/preview?title=Version-locale-non-enregistree', $article->getId()));
+        self::assertResponseIsSuccessful();
+        self::assertSame((string) $article->getTitle(), trim($previewCrawler->filter('.article-show-title')->text()));
+        self::assertStringContainsString('Version enregistrée uniquement.', $previewCrawler->filter('.article-content')->text());
+        self::assertStringNotContainsString('Version-locale-non-enregistree', $previewCrawler->filter('.article-show-title, .article-content')->text());
+        self::assertSame('noindex, nofollow', $client->getResponse()->headers->get('X-Robots-Tag'));
+        self::assertStringContainsString('no-store', (string) $client->getResponse()->headers->get('Cache-Control'));
+    }
+
+    public function testAdminPreviewProtectsDraftAndArchivedArticlesWithoutChangingPublicAccess(): void
+    {
+        $client = static::createClient();
+        $draft = $this->createDraftArticle();
+        $draftPath = sprintf('/admin/articles/%d/preview', $draft->getId());
+        $client->request('GET', $draftPath);
+        self::assertResponseRedirects('/login');
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+        $client->request('GET', $draftPath);
+        self::assertResponseRedirects('/');
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $client->loginUser($admin);
+        $client->request('GET', $draftPath);
+        self::assertResponseIsSuccessful();
+
+        $client->request('GET', sprintf('/articles/%s', $draft->getSlug()));
+        self::assertResponseStatusCodeSame(404);
+
+        $draft = $this->entityManager()->find(Article::class, $draft->getId());
+        self::assertInstanceOf(Article::class, $draft);
+        $draft->setStatus(ContentStatus::Archived);
+        $this->entityManager()->flush();
+        $client->request('GET', $draftPath);
+        self::assertResponseIsSuccessful();
+
+        $published = $this->createArticle();
+        $client->request('GET', sprintf('/articles/%s', $published->getSlug()));
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testInvalidArticleSubmissionKeepsOnlySubmittedLinkedContentVisible(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createPublishedHike($admin);
+        $cityVisit = $this->createPublishedCityVisit($admin);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', '/admin/articles/new');
+
+        $crawler = $client->request('POST', '/admin/articles/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
+            'title' => 'Article invalide avec randonnée',
+            'content' => '',
+            'status' => ContentStatus::Draft->value,
+            'linkedContentType' => 'hike',
+            'linkedHike' => (string) $hike->getId(),
+            'linkedCityVisit' => (string) $cityVisit->getId(),
+            'articleRole' => 'history',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('hike', $crawler->filter('#article-linked-type option[selected]')->attr('value'));
+        self::assertSame(1, $crawler->filter('[data-article-link-panel="hike"]:not([hidden]) input[name="linkedHike"]:not([disabled])')->count());
+        self::assertSame((string) $hike->getId(), $crawler->filter('input[name="linkedHike"]')->attr('value'));
+        self::assertSame(1, $crawler->filter('[data-article-link-panel="city_visit"][hidden] input[name="linkedCityVisit"][disabled]')->count());
+        self::assertSame('', (string) $crawler->filter('input[name="linkedCityVisit"]')->attr('value'));
+        self::assertSame('history', $crawler->filter('#article-role option[selected]')->attr('value'));
+    }
+
     public function testArticleIndexHasNoStudioPlaceholderAndExposesArchiveAndDeleteActions(): void
     {
         $client = static::createClient();
@@ -304,11 +417,37 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $coverMedia = $article->getFeaturedImage();
         self::assertInstanceOf(MediaAsset::class, $coverMedia);
         self::assertSame($coverMedia->getId(), $coverLinks->first()->getMediaAsset()?->getId());
-        self::assertNull($coverMedia->getFilePath());
-        self::assertIsArray($coverMedia->getVariants());
-        self::assertSame(600, $coverMedia->getVariants()['thumb']['width'] ?? null);
-        self::assertSame(1600, $coverMedia->getVariants()['medium']['width'] ?? null);
-        self::assertSame($coverMedia->getVariants()['thumb']['webp'] ?? null, $coverMedia->getThumbnailPath());
+        self::assertIsString($coverMedia->getFilePath());
+        self::assertStringStartsWith('/uploads/media/article_', $coverMedia->getFilePath());
+        self::assertStringEndsWith('.webp', $coverMedia->getFilePath());
+        self::assertSame($coverMedia->getFilePath(), $coverMedia->getThumbnailPath());
+        self::assertSame('image/webp', $coverMedia->getMimeType());
+        self::assertSame(1600, $coverMedia->getWidth());
+        self::assertSame(902, $coverMedia->getHeight());
+        self::assertNull($coverMedia->getVariants());
+        self::assertSame(true, $coverMedia->getMetadata()['articleOptimizedSingleWebp'] ?? null);
+        self::assertSame(1600, $coverMedia->getMetadata()['articleMaxLongSide'] ?? null);
+        self::assertGreaterThan(0, $coverMedia->getFileSize());
+
+        $coverFiles = $this->mediaFiles($coverMedia);
+        self::assertCount(1, $coverFiles);
+        self::assertFileExists($coverFiles[0]);
+        $coverImageSize = getimagesize($coverFiles[0]);
+        self::assertIsArray($coverImageSize);
+        self::assertSame('image/webp', $coverImageSize['mime']);
+        self::assertSame(1600, $coverImageSize[0]);
+        self::assertSame(902, $coverImageSize[1]);
+        self::assertNotSame('jpg', pathinfo($coverFiles[0], PATHINFO_EXTENSION));
+
+        $galleryMedia = $galleryLinks->first()->getMediaAsset();
+        self::assertInstanceOf(MediaAsset::class, $galleryMedia);
+        self::assertIsString($galleryMedia->getFilePath());
+        self::assertSame($galleryMedia->getFilePath(), $galleryMedia->getThumbnailPath());
+        self::assertSame('image/webp', $galleryMedia->getMimeType());
+        self::assertSame(1600, $galleryMedia->getWidth());
+        self::assertSame(1067, $galleryMedia->getHeight());
+        self::assertNull($galleryMedia->getVariants());
+        self::assertGreaterThan(0, $galleryMedia->getFileSize());
     }
 
     public function testEmptyArticleContentIsRejected(): void
@@ -327,6 +466,74 @@ final class AdminArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertNull($this->entityManager()->getRepository(Article::class)->findOneBy(['title' => 'Article sans contenu']));
+    }
+
+    public function testDeletingNewArticleSingleWebpImageRemovesTheOnlyGeneratedFile(): void
+    {
+        if (!function_exists('imagewebp')) {
+            self::markTestSkipped('GD WebP support is required for article media optimization.');
+        }
+
+        $client = static::createClient();
+        $article = $this->createDraftArticle();
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
+        self::assertResponseIsSuccessful();
+        $imagePath = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 1800, 1200, 'article-delete-single.jpg');
+
+        $client->request(
+            'POST',
+            sprintf('/admin/articles/%d/edit', $article->getId()),
+            [
+                '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+                'title' => (string) $article->getTitle(),
+                'content' => (string) $article->getContent(),
+                'status' => ContentStatus::Draft->value,
+                'linkedContentType' => 'none',
+                'articleRole' => 'related',
+            ],
+            [
+                'galleryImages' => [
+                    TestImageFactory::createUploadedFile($imagePath, 'Image à supprimer.jpg', 'image/jpeg'),
+                ],
+            ],
+        );
+
+        self::assertResponseRedirects('/admin/articles');
+        $this->entityManager()->clear();
+        $storedArticle = $this->entityManager()->find(Article::class, $article->getId());
+        self::assertInstanceOf(Article::class, $storedArticle);
+        $link = $storedArticle->getMediaLinks()->first();
+        self::assertInstanceOf(ArticleMedia::class, $link);
+        $media = $link->getMediaAsset();
+        self::assertInstanceOf(MediaAsset::class, $media);
+        $storedArticleId = $storedArticle->getId();
+        $linkId = $link->getId();
+        $mediaId = $media->getId();
+        self::assertIsInt($storedArticleId);
+        self::assertIsInt($linkId);
+        self::assertIsInt($mediaId);
+        $files = $this->mediaFiles($media);
+        self::assertCount(1, $files);
+        self::assertFileExists($files[0]);
+
+        $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $storedArticleId));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/articles/%d/edit', $storedArticleId), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => (string) $storedArticle->getTitle(),
+            'content' => (string) $storedArticle->getContent(),
+            'status' => ContentStatus::Draft->value,
+            'linkedContentType' => 'none',
+            'articleRole' => 'related',
+            'removeMediaLinks' => [$linkId],
+        ]);
+
+        self::assertResponseRedirects('/admin/articles');
+        $this->entityManager()->clear();
+        self::assertNull($this->entityManager()->find(ArticleMedia::class, $linkId));
+        self::assertNull($this->entityManager()->find(MediaAsset::class, $mediaId));
+        self::assertFileDoesNotExist($files[0]);
     }
 
     public function testInvalidArticleCreateKeepsSelectedCategory(): void
@@ -466,6 +673,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             'status' => ContentStatus::Draft->value,
             'linkedContentType' => 'hike',
             'linkedHike' => $hike->getId(),
+            'linkedCityVisit' => $cityVisit->getId(),
             'articleRole' => 'history',
         ]);
 
@@ -482,6 +690,10 @@ final class AdminArticleControllerTest extends FunctionalTestCase
 
         $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
         self::assertResponseIsSuccessful();
+        self::assertSame('hike', $crawler->filter('#article-linked-type option[selected]')->attr('value'));
+        self::assertSame(1, $crawler->filter('[data-article-link-panel="hike"]:not([hidden])')->count());
+        self::assertSame(1, $crawler->filter('[data-article-link-panel="city_visit"][hidden]')->count());
+        self::assertSame(1, $crawler->filter('[data-article-link-role]:not([hidden])')->count());
 
         $client->request('POST', sprintf('/admin/articles/%d/edit', $article->getId()), [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
@@ -490,6 +702,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             'content' => '<p>Contenu édité vers une visite de ville.</p>',
             'status' => ContentStatus::Draft->value,
             'linkedContentType' => 'city_visit',
+            'linkedHike' => $hike->getId(),
             'linkedCityVisit' => $cityVisit->getId(),
             'articleRole' => 'practical',
         ]);
@@ -849,6 +1062,13 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertSame('600', $cardImage->attr('width'));
         self::assertSame('338', $cardImage->attr('height'));
         self::assertSame(0, $crawler->filter('.article-admin-media-item picture')->count());
+        $copyButton = $crawler->filter('button[data-article-copy-media-code]')->first();
+        self::assertSame(1, $copyButton->count());
+        self::assertSame('button', $copyButton->attr('type'));
+        self::assertSame(sprintf('[[media:%d]]', $media->getId()), $copyButton->attr('data-article-copy-media-code'));
+        self::assertSame('Copier le code', trim($copyButton->text()));
+        self::assertSame(0, $crawler->filter('[data-article-insert-media]')->count());
+        self::assertSame(1, $crawler->filter('[data-article-copy-status][aria-live="polite"]')->count());
 
         self::assertSame(0, $crawler->filter('.article-admin-cover-preview')->count());
     }

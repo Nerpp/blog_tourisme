@@ -157,6 +157,66 @@ final class ArticleControllerTest extends FunctionalTestCase
         );
     }
 
+    public function testPublishedArticleUsesSingleWebpForCoverContentGalleryAndSharedLightbox(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $coverPath = '/uploads/media/article-cover-single.webp';
+        $galleryPath = '/uploads/media/article-gallery-single.webp';
+        $cover = $this->createImageMedia('Couverture Article WebP unique')
+            ->setFilePath($coverPath)
+            ->setThumbnailPath($coverPath)
+            ->setMimeType('image/webp')
+            ->setWidth(1600)
+            ->setHeight(900)
+            ->setVariants(null)
+            ->setMetadata(['articleOptimizedSingleWebp' => true]);
+        $gallery = $this->createImageMedia('Galerie Article WebP unique')
+            ->setFilePath($galleryPath)
+            ->setThumbnailPath($galleryPath)
+            ->setMimeType('image/webp')
+            ->setWidth(1600)
+            ->setHeight(1067)
+            ->setCaption('Légende de galerie')
+            ->setVariants(null)
+            ->setMetadata(['articleOptimizedSingleWebp' => true]);
+        $coverLink = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($cover)
+            ->setRole(MediaRole::Cover)
+            ->setPosition(0);
+        $galleryLink = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($gallery)
+            ->setRole(MediaRole::Gallery)
+            ->setPosition(1);
+        $article->getMediaLinks()->add($coverLink);
+        $article->getMediaLinks()->add($galleryLink);
+        $cover->getArticleLinks()->add($coverLink);
+        $gallery->getArticleLinks()->add($galleryLink);
+        $article
+            ->setFeaturedImage($cover)
+            ->setContent(sprintf('<p>Introduction.</p><p>[[media:%d]]</p><p>Suite.</p>', $gallery->getId()));
+        $this->persistAndFlush($article, $cover, $gallery, $coverLink, $galleryLink);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($coverPath, (string) $crawler->filter('.article-show-cover')->attr('style'));
+        self::assertStringContainsString(
+            sprintf('<link rel="preload" as="image" href="%s">', $coverPath),
+            (string) $client->getResponse()->getContent(),
+        );
+        self::assertSame($galleryPath, $crawler->filter('.article-content-media img')->first()->attr('src'));
+        self::assertStringContainsString(sprintf('%s 1600w', $galleryPath), (string) $crawler->filter('.article-content-media img')->first()->attr('srcset'));
+
+        $galleryId = sprintf('article-gallery-%d', $article->getId());
+        self::assertSame(1, $crawler->filter(sprintf('.journey-gallery-card[data-gallery-target="#%s"][data-gallery-index="0"]', $galleryId))->count());
+        self::assertSame(1, $crawler->filter(sprintf('#%s.gallery-modal.js-gallery-modal', $galleryId))->count());
+        self::assertSame($galleryPath, $crawler->filter(sprintf('#%s .gallery-modal__slide img', $galleryId))->first()->attr('data-gallery-src'));
+        self::assertStringNotContainsString('/uploads/media/variants/', (string) $crawler->filter('.article-gallery-section')->html());
+    }
+
     public function testInvalidCommentSortFallsBackWithoutServerError(): void
     {
         $client = static::createClient();

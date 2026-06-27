@@ -37,7 +37,7 @@ final class ArticleContentExtensionTest extends TestCase
         self::assertSame('<p>Texte lien</p>', $this->extension()->editorContentHtml($article));
     }
 
-    public function testContentHtmlReplacesLinkedImagePlaceholderWithResponsiveFigure(): void
+    public function testContentHtmlRendersIsolatedLinkedImagePlaceholderAsResponsiveFigure(): void
     {
         $media = (new MediaAsset())
             ->setMediaType(MediaType::Image)
@@ -53,7 +53,7 @@ final class ArticleContentExtensionTest extends TestCase
                 ],
             ]);
         $this->setEntityId($media, 77);
-        $article = $this->article('<p>Avant [[media:77]] apres</p>');
+        $article = $this->article('<p>Avant</p><p>[[media:77]]</p><p>apres</p>');
         $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article));
         $link = (new ArticleMedia())->setArticle($article)->setMediaAsset($media);
         $article->getMediaLinks()->add($link);
@@ -67,6 +67,35 @@ final class ArticleContentExtensionTest extends TestCase
         self::assertStringContainsString('srcset="/uploads/media/large.webp 1200w"', $html);
         self::assertStringContainsString('width="1200" height="800"', $html);
         self::assertStringContainsString('<figcaption>Vue du sentier</figcaption>', $html);
+        self::assertStringNotContainsString('[[media:77]]', $html);
+        self::assertStringNotContainsString('<p><figure', $html);
+    }
+
+    public function testContentHtmlRendersInlineMediaInsideParagraphAsValidInlineImage(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setTitle('Vue du sentier')
+            ->setAltText('Vue detaillee du sentier')
+            ->setVariants([
+                'medium' => [
+                    'webp' => '/uploads/media/medium.webp',
+                    'width' => 1200,
+                    'height' => 800,
+                ],
+            ]);
+        $this->setEntityId($media, 77);
+        $article = $this->article('<p>Avant [[media:77]] apres</p>');
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($media));
+
+        $html = $this->extension()->contentHtml($article);
+
+        self::assertStringContainsString('<p>Avant <span class="article-content-media-inline"><img src="/uploads/media/medium.webp"', $html);
+        self::assertStringContainsString('sizes="(min-width: 900px) 320px, 100vw"', $html);
+        self::assertStringContainsString('width="1200" height="800"', $html);
+        self::assertStringContainsString(' apres</p>', $html);
+        self::assertStringNotContainsString('<figure', $html);
         self::assertStringNotContainsString('[[media:77]]', $html);
     }
 
@@ -92,8 +121,33 @@ final class ArticleContentExtensionTest extends TestCase
         self::assertStringContainsString('<img src="/uploads/media/medium.webp" alt="Illustration optimisée"', $html);
         self::assertStringContainsString('srcset="/uploads/media/thumb.webp 600w, /uploads/media/mobile.webp 960w, /uploads/media/medium.webp 1600w"', $html);
         self::assertStringNotContainsString('/uploads/media/large.webp 1920w', $html);
-        self::assertStringContainsString('sizes="(min-width: 900px) 820px, 100vw"', $html);
+        self::assertStringContainsString('sizes="(min-width: 900px) 320px, 100vw"', $html);
         self::assertStringContainsString('width="1600" height="900"', $html);
+    }
+
+    public function testContentHtmlUsesSingleWebpArticleImageWithoutResponsiveVariants(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/article-single.webp')
+            ->setThumbnailPath('/uploads/media/article-single.webp')
+            ->setMimeType('image/webp')
+            ->setWidth(1600)
+            ->setHeight(900)
+            ->setTitle('Illustration unique')
+            ->setAltText('Illustration unique optimisée')
+            ->setMetadata(['articleOptimizedSingleWebp' => true]);
+        $this->setEntityId($media, 79);
+        $article = $this->article('<p>[[media:79]]</p>');
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($media));
+
+        $html = $this->extension()->contentHtml($article);
+
+        self::assertStringContainsString('<img src="/uploads/media/article-single.webp" alt="Illustration unique optimisée"', $html);
+        self::assertStringContainsString('srcset="/uploads/media/article-single.webp 1600w"', $html);
+        self::assertStringContainsString('width="1600" height="900"', $html);
+        self::assertStringNotContainsString('/uploads/media/variants/', $html);
     }
 
     public function testContentHtmlDropsUnknownOrNonImageMediaPlaceholder(): void

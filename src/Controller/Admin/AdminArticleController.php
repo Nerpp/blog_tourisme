@@ -18,17 +18,18 @@ use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CategoryRepository;
 use App\Repository\CityVisitDraftRepository;
+use App\Repository\CommentRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\Article\ArticleContentSanitizer;
 use App\Service\CommentDeletionService;
+use App\Service\CommentReactionViewService;
 use App\Service\ImageUploadSecurity;
+use App\Service\Media\ImageVariantGenerator;
 use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
-use App\Service\Media\MediaVariantService;
-use App\Service\Media\PublicMediaMasterCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
@@ -47,6 +48,7 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 final class AdminArticleController extends AbstractController
 {
     private const UPLOAD_DIRECTORY = 'uploads/media';
+    private const ARTICLE_IMAGE_MAX_LONG_SIDE = 1600;
     private const ARTICLE_SUBMISSIONS_SESSION_KEY = 'admin_article_form_submissions';
     private const ARTICLE_SUBMISSION_PENDING = 'pending';
     private const ARTICLE_SUBMISSION_COMPLETED = 'completed';
@@ -58,10 +60,9 @@ final class AdminArticleController extends AbstractController
         private readonly ArticleContentSanitizer $articleContentSanitizer,
         private readonly CommentDeletionService $commentDeletionService,
         private readonly ImageUploadSecurity $imageUploadSecurity,
+        private readonly ImageVariantGenerator $imageVariantGenerator,
         private readonly ImageMetadataSanitizer $imageMetadataSanitizer,
         private readonly MediaDeletionService $mediaDeletionService,
-        private readonly MediaVariantService $mediaVariantService,
-        private readonly PublicMediaMasterCleanupService $publicMediaMasterCleanupService,
         private readonly MediaSeoTextService $mediaSeoTextService,
         private readonly ParameterBagInterface $parameterBag,
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
@@ -122,7 +123,7 @@ final class AdminArticleController extends AbstractController
         return $this->render('admin/articles/form.html.twig', [
             'article' => $article,
             'categories' => $this->categoryRepository->findArticleCategories(),
-            ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository),
+            ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository, $request),
             'status_options' => $this->statusLabels(),
             'role_options' => $this->roleLabels(),
             'title' => 'Nouvel article',
@@ -163,12 +164,37 @@ final class AdminArticleController extends AbstractController
         return $this->render('admin/articles/form.html.twig', [
             'article' => $article,
             'categories' => $this->categoryRepository->findArticleCategories(),
-            ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository),
+            ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository, $request),
             'status_options' => $this->statusLabels(),
             'role_options' => $this->roleLabels(),
             'title' => 'Modifier l’article',
             'submit_label' => 'Enregistrer',
         ]);
+    }
+
+    #[Route('/admin/articles/{id}/preview', name: 'admin_articles_preview', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function preview(
+        Article $article,
+        CommentRepository $commentRepository,
+        CommentReactionViewService $reactionViewService,
+    ): Response {
+        $viewer = $this->getUser();
+        $comments = $commentRepository->findApprovedForArticle($article, $viewer instanceof User ? $viewer : null, 'recent');
+        $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
+
+        $response = $this->render('article/show.html.twig', [
+            'article' => $article,
+            'comments' => $comments,
+            'comment_form' => null,
+            'comments_sort' => 'recent',
+            'comments_count' => $reactionContext['comment_count'],
+            'comment_like_counts' => $reactionContext['like_counts'],
+            'liked_comment_ids' => $reactionContext['liked_comment_ids'],
+        ]);
+        $response->headers->set('Cache-Control', 'private, no-store');
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+
+        return $response;
     }
 
     #[Route('/admin/articles/{id}/archive', name: 'admin_articles_archive', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -411,6 +437,7 @@ final class AdminArticleController extends AbstractController
         Article $article,
         HikeDraftRepository $hikeDraftRepository,
         CityVisitDraftRepository $cityVisitDraftRepository,
+        Request $request,
     ): array {
         $hikeLinks = $article->getHikeLinks()->toArray();
         $cityVisitLinks = $article->getCityVisitLinks()->toArray();
@@ -419,14 +446,25 @@ final class AdminArticleController extends AbstractController
         $selectedHike = $firstHikeLink?->getHikeDraft();
         $selectedCityVisit = $firstCityVisitLink?->getCityVisitDraft();
         $selectedLinkType = $selectedHike instanceof HikeDraft ? 'hike' : ($selectedCityVisit instanceof CityVisitDraft ? 'city_visit' : 'none');
+        $selectedHikeId = $selectedHike?->getId();
+        $selectedCityVisitId = $selectedCityVisit?->getId();
+        $selectedArticleRole = $firstHikeLink?->getRole() ?? $firstCityVisitLink?->getRole() ?? 'related';
+
+        if ($request->isMethod('POST')) {
+            $submittedLinkType = $request->request->getString('linkedContentType', 'none');
+            $selectedLinkType = in_array($submittedLinkType, ['hike', 'city_visit'], true) ? $submittedLinkType : 'none';
+            $selectedHikeId = $selectedLinkType === 'hike' ? $this->nullableInt($request->request->get('linkedHike')) : null;
+            $selectedCityVisitId = $selectedLinkType === 'city_visit' ? $this->nullableInt($request->request->get('linkedCityVisit')) : null;
+            $selectedArticleRole = $this->normalizeRole($request->request->getString('articleRole', 'related'));
+        }
 
         return [
             'hike_options' => $this->sortTourismContentOptions($hikeDraftRepository->findBy([], ['updatedAt' => 'DESC', 'id' => 'DESC'], 200)),
             'city_visit_options' => $this->sortTourismContentOptions($cityVisitDraftRepository->findBy([], ['updatedAt' => 'DESC', 'id' => 'DESC'], 200)),
             'selected_link_type' => $selectedLinkType,
-            'selected_hike_id' => $selectedHike?->getId(),
-            'selected_city_visit_id' => $selectedCityVisit?->getId(),
-            'selected_article_role' => $firstHikeLink?->getRole() ?? $firstCityVisitLink?->getRole() ?? 'related',
+            'selected_hike_id' => $selectedHikeId,
+            'selected_city_visit_id' => $selectedCityVisitId,
+            'selected_article_role' => $selectedArticleRole,
         ];
     }
 
@@ -869,30 +907,42 @@ final class AdminArticleController extends AbstractController
             ->setMediaType(MediaType::Image)
             ->setImageType(ImageType::Standard)
             ->setFilePath($storedFile['path'])
+            ->setThumbnailPath($storedFile['path'])
             ->setMimeType($storedFile['mimeType'])
             ->setFileSize($storedFile['fileSize'])
             ->setWidth($storedFile['width'])
-            ->setHeight($storedFile['height']);
-
-        $variantResult = $this->mediaVariantService->generateForMedia($media);
-        if ($variantResult['status'] === 'error') {
-            $this->addFlash('warning', 'L’image a été ajoutée, mais ses variantes responsive n’ont pas pu être générées.');
-        } else {
-            $this->publicMediaMasterCleanupService->cleanupIfSafe($media);
-        }
+            ->setHeight($storedFile['height'])
+            ->setVariants(null)
+            ->setMetadata([
+                'articleOptimizedSingleWebp' => true,
+                'articleMaxLongSide' => self::ARTICLE_IMAGE_MAX_LONG_SIDE,
+                'originalMimeType' => $storedFile['originalMimeType'],
+                'originalFileSize' => $storedFile['originalFileSize'],
+                'sanitizedOriginalWidth' => $storedFile['sanitizedOriginalWidth'],
+                'sanitizedOriginalHeight' => $storedFile['sanitizedOriginalHeight'],
+            ]);
 
         return $media;
     }
 
     /**
-     * @return array{title: string, altText: string, path: string, mimeType: string, fileSize: int, width: int, height: int}
+     * @return array{
+     *     title: string,
+     *     altText: string,
+     *     path: string,
+     *     mimeType: string,
+     *     fileSize: int,
+     *     width: int,
+     *     height: int,
+     *     originalMimeType: string,
+     *     originalFileSize: int,
+     *     sanitizedOriginalWidth: int,
+     *     sanitizedOriginalHeight: int
+     * }
      */
     private function storeArticleImage(UploadedFile $file, Article $article): array
     {
         $inspection = $this->imageUploadSecurity->inspect($file);
-        if ($inspection['mimeType'] === 'image/gif') {
-            throw new InvalidArgumentException('les GIF ne sont pas pris en charge dans les articles pour garantir le nettoyage des métadonnées.');
-        }
 
         $filename = sprintf(
             '%s-%s.%s',
@@ -907,16 +957,49 @@ final class AdminArticleController extends AbstractController
 
         $file->move($targetDirectory, $filename);
         $publicPath = '/'.self::UPLOAD_DIRECTORY.'/'.$filename;
-        $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath($publicPath);
+        $sourceAbsolutePath = $targetDirectory.'/'.$filename;
+        $optimized = null;
+        $sanitized = null;
+
+        try {
+            $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath($publicPath);
+            $optimized = $this->imageVariantGenerator->generateArticleSingleWebp(
+                $publicPath,
+                $publicPath,
+                self::ARTICLE_IMAGE_MAX_LONG_SIDE,
+                '/'.self::UPLOAD_DIRECTORY,
+            );
+
+            if (is_file($sourceAbsolutePath) && !@unlink($sourceAbsolutePath)) {
+                $optimizedAbsolutePath = $targetDirectory.'/'.basename($optimized['path']);
+                if (is_file($optimizedAbsolutePath)) {
+                    @unlink($optimizedAbsolutePath);
+                }
+
+                throw new InvalidArgumentException('le fichier original Article n’a pas pu être supprimé après optimisation.');
+            }
+        } catch (\Throwable $exception) {
+            if (is_file($sourceAbsolutePath)) {
+                @unlink($sourceAbsolutePath);
+            }
+
+            throw $exception instanceof InvalidArgumentException
+                ? $exception
+                : new InvalidArgumentException($exception->getMessage(), previous: $exception);
+        }
 
         return [
             'title' => $this->mediaSeoTextService->titleForContext($article, MediaType::Image, ImageType::Standard),
             'altText' => $this->mediaSeoTextService->altTextForContext($article, MediaType::Image, ImageType::Standard),
-            'path' => $publicPath,
-            'mimeType' => $sanitized['mimeType'],
-            'fileSize' => (int) (filesize($targetDirectory.'/'.$filename) ?: $inspection['fileSize']),
-            'width' => $sanitized['width'],
-            'height' => $sanitized['height'],
+            'path' => $optimized['path'],
+            'mimeType' => $optimized['mimeType'],
+            'fileSize' => $optimized['fileSize'],
+            'width' => $optimized['width'],
+            'height' => $optimized['height'],
+            'originalMimeType' => $inspection['mimeType'],
+            'originalFileSize' => $inspection['fileSize'],
+            'sanitizedOriginalWidth' => $sanitized['width'],
+            'sanitizedOriginalHeight' => $sanitized['height'],
         ];
     }
 

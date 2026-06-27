@@ -39,23 +39,12 @@ final class ArticleContentExtension extends AbstractExtension
         }
 
         $linkedMedia = $this->linkedMediaById($article);
-
-        $rendered = preg_replace_callback(
-            '/\[\[media:(\d+)\]\]/',
-            function (array $matches) use ($linkedMedia, $article): string {
-                $media = $linkedMedia[(int) $matches[1]] ?? null;
-                if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
-                    return '';
-                }
-
-                return $this->mediaFigureHtml($media, $article);
-            },
-            $content,
-        ) ?? $content;
+        $rendered = $this->replaceBlockMediaParagraphs($content, $linkedMedia, $article);
+        $rendered = $this->replaceRemainingMediaTokens($rendered, $linkedMedia, $article);
 
         return preg_replace(
-            '/<p>\s*(<figure class="article-content-media">.*?<\/figure>)\s*<\/p>/s',
-            '$1',
+            '#<p>(?:\s|&nbsp;|<br\s*/?>)*</p>#iu',
+            '',
             $rendered,
         ) ?? $rendered;
     }
@@ -75,7 +64,45 @@ final class ArticleContentExtension extends AbstractExtension
             }
         }
 
+        $featuredImage = $article->getFeaturedImage();
+        if ($featuredImage instanceof MediaAsset && $featuredImage->getId() !== null) {
+            $mediaById[$featuredImage->getId()] = $featuredImage;
+        }
+
         return $mediaById;
+    }
+
+    /** @param array<int, MediaAsset> $linkedMedia */
+    private function replaceBlockMediaParagraphs(string $content, array $linkedMedia, Article $article): string
+    {
+        return preg_replace_callback(
+            '#<p>(?:\s|&nbsp;|<br\s*/?>)*\[\[media:(\d+)\]\](?:\s|&nbsp;|<br\s*/?>)*</p>#iu',
+            function (array $matches) use ($linkedMedia, $article): string {
+                return $this->mediaHtml($linkedMedia[(int) $matches[1]] ?? null, $article, inline: false);
+            },
+            $content,
+        ) ?? $content;
+    }
+
+    /** @param array<int, MediaAsset> $linkedMedia */
+    private function replaceRemainingMediaTokens(string $content, array $linkedMedia, Article $article): string
+    {
+        return preg_replace_callback(
+            '/\[\[media:(\d+)\]\]/',
+            function (array $matches) use ($linkedMedia, $article): string {
+                return $this->mediaHtml($linkedMedia[(int) $matches[1]] ?? null, $article, inline: true);
+            },
+            $content,
+        ) ?? $content;
+    }
+
+    private function mediaHtml(?MediaAsset $media, Article $article, bool $inline): string
+    {
+        if (!$media instanceof MediaAsset || $media->getMediaType() !== MediaType::Image) {
+            return '';
+        }
+
+        return $inline ? $this->mediaInlineHtml($media, $article) : $this->mediaFigureHtml($media, $article);
     }
 
     private function mediaFigureHtml(MediaAsset $media, Article $article): string
@@ -126,6 +153,33 @@ final class ArticleContentExtension extends AbstractExtension
         }
 
         return $html.'</figure>';
+    }
+
+    private function mediaInlineHtml(MediaAsset $media, Article $article): string
+    {
+        $src = $this->articleImageUrl($media);
+
+        if ($src === null) {
+            return '';
+        }
+
+        $isStandardImage = $media->getImageType() === ImageType::Standard;
+        $srcset = $isStandardImage
+            ? $this->articleStandardImageSrcset($media)
+            : ($this->mediaImageExtension->imageSrcset($media, 'fallback') ?? $this->mediaImageExtension->imageSrcset($media, 'webp'));
+        $dimensions = $this->mediaImageExtension->imageDimensions($media, 'medium')
+            ?? $this->mediaImageExtension->imageDimensions($media, 'large')
+            ?? $this->mediaImageExtension->imageDimensions($media, 'thumb');
+        $title = $this->mediaImageExtension->publicTitle($media, $article, $article->getTitle());
+        $alt = $this->mediaImageExtension->publicAlt($media, $article, $title ?? $article->getTitle());
+
+        return sprintf(
+            '<span class="article-content-media-inline"><img src="%s" alt="%s" loading="lazy" decoding="async"%s%s></span>',
+            $this->escape($src),
+            $this->escape($alt),
+            $srcset !== null ? sprintf(' srcset="%s" sizes="(min-width: 900px) 320px, 100vw"', $this->escape($srcset)) : '',
+            $dimensions !== null ? sprintf(' width="%d" height="%d"', $dimensions['width'], $dimensions['height']) : '',
+        );
     }
 
     private function articleImageUrl(MediaAsset $media): ?string

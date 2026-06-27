@@ -165,8 +165,34 @@
 						{% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
 						{% if gallery_media_links|length > 0 %}
 							<section class="section-block article-gallery-section">
-								<h2>Galerie</h2>
-								{% include 'partials/_media_gallery.html.twig' with { media_links: gallery_media_links } only %}
+								{% set article_gallery_id = 'article-gallery-' ~ article.id %}
+								<div class="media-header article-gallery-header">
+									<div>
+										<p class="media-kicker">Article</p>
+										<h2 class="article-gallery-title">Galerie</h2>
+									</div>
+
+									<div class="media-actions">
+										<span class="media-count">{{ gallery_media_links|length }}</span>
+
+										<button
+											type="button"
+											class="media-visualize-btn"
+											data-gallery-target="#{{ article_gallery_id }}"
+											data-gallery-index="0"
+										>
+											Visualiser
+										</button>
+									</div>
+								</div>
+
+								{% include 'public_detail/_image_gallery.html.twig' with {
+									media_links: gallery_media_links,
+									gallery_id: article_gallery_id,
+									modal_title: 'Galerie',
+									gallery_context: article,
+									gallery_context_title: article.title
+								} only %}
 							</section>
 						{% endif %}
 					</article>

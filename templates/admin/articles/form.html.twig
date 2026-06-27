@@ -8,12 +8,6 @@
             <h1 class="admin-title">{{ title }}</h1>
             <p class="admin-subtitle">Rédigez une page SEO complète et reliez-la aux contenus touristiques du site.</p>
         </div>
-        <div class="admin-row-actions">
-            {% if article.id and article.slug is not empty and article.status.value == 'published' %}
-                <a class="admin-button admin-button--secondary" href="{{ path('app_article_show', { slug: article.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
-            {% endif %}
-            <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Retour</a>
-        </div>
     </header>
 
     <form
@@ -94,6 +88,7 @@
                         <span id="article-gallery-images-help" class="admin-muted">Formats acceptés : JPG, PNG, WebP. Taille maximum : 30 Mo par photo. Les images sont renommées, nettoyées et optimisées automatiquement.</span>
                         <div class="article-upload-preview" data-article-file-preview="gallery" aria-live="polite"></div>
                         <input type="hidden" name="newCoverImageIndex" value="" data-article-new-cover-index>
+                        <span class="article-admin-copy-status" data-article-copy-status aria-live="polite" aria-atomic="true"></span>
                     </div>
 
                     {% set article_image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
@@ -118,7 +113,7 @@
                                         <span class="studio-media-role-badge" data-main-media-badge>Image principale</span>
                                         <code>[[media:{{ media.id }}]]</code>
                                         <div class="article-admin-media-actions">
-                                            <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">Insérer</button>
+                                            <button type="button" class="admin-button admin-button--secondary" data-article-copy-media-code="[[media:{{ media.id }}]]">Copier le code</button>
                                             <label class="article-admin-cover-choice">
                                                 <input type="radio" name="promoteCoverMedia" value="" checked data-article-cover-choice>
                                                 Image principale
@@ -163,8 +158,8 @@
                                         </span>
                                         <code>[[media:{{ media.id }}]]</code>
                                         <div class="article-admin-media-actions">
-                                            <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">
-                                                Insérer
+                                            <button type="button" class="admin-button admin-button--secondary" data-article-copy-media-code="[[media:{{ media.id }}]]">
+                                                Copier le code
                                             </button>
                                             <label class="article-admin-cover-choice">
                                                 <input
@@ -198,7 +193,7 @@
                 </section>
             </div>
 
-            <aside class="article-admin-sidebar">
+            <aside class="article-admin-sidebar article-admin-sidebar--sticky" data-article-sticky-sidebar>
                 <section class="admin-card article-admin-section">
                     <h2>Publication</h2>
 
@@ -231,27 +226,39 @@
 
                     <div class="admin-field">
                         <label for="article-linked-type">Type de contenu lié</label>
-                        <select id="article-linked-type" name="linkedContentType" data-article-link-type>
+                        <select
+                            id="article-linked-type"
+                            name="linkedContentType"
+                            aria-controls="article-link-panel-hike article-link-panel-city-visit"
+                            data-article-link-type
+                        >
                             <option value="none" {% if selected_link_type == 'none' %}selected{% endif %}>Aucun lien pour le moment</option>
                             <option value="hike" {% if selected_link_type == 'hike' %}selected{% endif %}>Randonnée</option>
                             <option value="city_visit" {% if selected_link_type == 'city_visit' %}selected{% endif %}>Visite de ville</option>
                         </select>
                     </div>
 
-                    <div class="admin-field" data-article-link-panel="hike">
+                    <div
+                        id="article-link-panel-hike"
+                        class="admin-field"
+                        data-article-link-panel="hike"
+                        aria-hidden="{{ selected_link_type == 'hike' ? 'false' : 'true' }}"
+                        {% if selected_link_type != 'hike' %}hidden{% endif %}
+                    >
                         <label for="article-hike-search">Randonnée</label>
                         <div
                             class="admin-autocomplete"
                             data-admin-autocomplete
                             data-empty-label="Aucune randonnée trouvée"
                         >
-                            <input type="hidden" name="linkedHike" value="{{ selected_hike_id }}" data-admin-autocomplete-value>
+                            <input type="hidden" name="linkedHike" value="{{ selected_hike_id }}" data-admin-autocomplete-value {% if selected_link_type != 'hike' %}disabled{% endif %}>
                             <input
                                 id="article-hike-search"
                                 type="search"
                                 placeholder="Rechercher une randonnée…"
                                 autocomplete="off"
                                 data-admin-autocomplete-input
+                                {% if selected_link_type != 'hike' %}disabled{% endif %}
                             >
                             <div class="admin-autocomplete__selection" data-admin-autocomplete-selection hidden></div>
                             <div class="admin-autocomplete__results" data-admin-autocomplete-results hidden></div>
@@ -271,20 +278,27 @@
                         </div>
                     </div>
 
-                    <div class="admin-field" data-article-link-panel="city_visit">
+                    <div
+                        id="article-link-panel-city-visit"
+                        class="admin-field"
+                        data-article-link-panel="city_visit"
+                        aria-hidden="{{ selected_link_type == 'city_visit' ? 'false' : 'true' }}"
+                        {% if selected_link_type != 'city_visit' %}hidden{% endif %}
+                    >
                         <label for="article-city-visit-search">Visite de ville</label>
                         <div
                             class="admin-autocomplete"
                             data-admin-autocomplete
                             data-empty-label="Aucune visite trouvée"
                         >
-                            <input type="hidden" name="linkedCityVisit" value="{{ selected_city_visit_id }}" data-admin-autocomplete-value>
+                            <input type="hidden" name="linkedCityVisit" value="{{ selected_city_visit_id }}" data-admin-autocomplete-value {% if selected_link_type != 'city_visit' %}disabled{% endif %}>
                             <input
                                 id="article-city-visit-search"
                                 type="search"
                                 placeholder="Rechercher une visite de ville…"
                                 autocomplete="off"
                                 data-admin-autocomplete-input
+                                {% if selected_link_type != 'city_visit' %}disabled{% endif %}
                             >
                             <div class="admin-autocomplete__selection" data-admin-autocomplete-selection hidden></div>
                             <div class="admin-autocomplete__results" data-admin-autocomplete-results hidden></div>
@@ -304,14 +318,23 @@
                         </div>
                     </div>
 
-                    <div class="admin-field">
+                    <div
+                        class="admin-field"
+                        data-article-link-role
+                        aria-hidden="{{ selected_link_type == 'none' ? 'true' : 'false' }}"
+                        {% if selected_link_type == 'none' %}hidden{% endif %}
+                    >
                         <label for="article-role">Type d’article</label>
-                        <select id="article-role" name="articleRole">
+                        <select id="article-role" name="articleRole" {% if selected_link_type == 'none' %}disabled{% endif %}>
                             {% for value, label in role_options %}
                                 <option value="{{ value }}" {% if selected_article_role == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
+
+                    <noscript>
+                        <p class="admin-muted">JavaScript est nécessaire pour changer le type de contenu lié. La sélection enregistrée reste affichée et utilisable.</p>
+                    </noscript>
                 </section>
 
                 <div class="admin-actions">
@@ -319,7 +342,28 @@
                         <span data-article-submit-label>{{ submit_label }}</span>
                         <span class="admin-button__spinner" aria-hidden="true"></span>
                     </button>
-                    <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Annuler</a>
+                    {% if article.id %}
+                        <a
+                            class="admin-button admin-button--secondary"
+                            href="{{ path('admin_articles_preview', { id: article.id }) }}"
+                            target="_blank"
+                            rel="noopener"
+                            aria-label="Aperçu rapide de l’article dans un nouvel onglet"
+                            data-article-quick-preview
+                        >Aperçu rapide</a>
+                        <span class="admin-muted article-admin-preview-help">L’aperçu affiche la dernière version enregistrée.</span>
+                    {% else %}
+                        <button
+                            class="admin-button admin-button--secondary article-admin-preview--disabled"
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            aria-describedby="article-preview-help"
+                            data-article-quick-preview
+                        >Aperçu rapide</button>
+                        <span id="article-preview-help" class="admin-muted article-admin-preview-help">Enregistrez d’abord l’article pour ouvrir un aperçu.</span>
+                    {% endif %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Retour à la liste</a>
                     <span class="article-admin-submit-status" data-article-submit-status aria-live="polite"></span>
                 </div>
             </aside>
@@ -330,112 +374,6 @@
 {% block javascripts %}
     {{ parent() }}
     <script>
-        (() => {
-            const typeSelect = document.querySelector('[data-article-link-type]');
-            const panels = document.querySelectorAll('[data-article-link-panel]');
-            const autocompletes = document.querySelectorAll('[data-admin-autocomplete]');
-
-            if (!typeSelect || panels.length === 0) {
-                return;
-            }
-
-            const clearAutocomplete = (autocomplete) => {
-                const hiddenInput = autocomplete.querySelector('[data-admin-autocomplete-value]');
-                const searchInput = autocomplete.querySelector('[data-admin-autocomplete-input]');
-                const selection = autocomplete.querySelector('[data-admin-autocomplete-selection]');
-                const results = autocomplete.querySelector('[data-admin-autocomplete-results]');
-
-                hiddenInput.value = '';
-                searchInput.value = '';
-                selection.hidden = true;
-                selection.textContent = '';
-                results.hidden = true;
-                results.replaceChildren();
-            };
-
-            const refreshPanels = () => {
-                panels.forEach((panel) => {
-                    const isActive = panel.dataset.articleLinkPanel === typeSelect.value;
-                    panel.hidden = !isActive;
-                    panel.querySelectorAll('input').forEach((input) => {
-                        input.disabled = !isActive;
-                    });
-                    if (!isActive) {
-                        panel.querySelectorAll('[data-admin-autocomplete]').forEach(clearAutocomplete);
-                    }
-                });
-            };
-
-            autocompletes.forEach((autocomplete) => {
-                const hiddenInput = autocomplete.querySelector('[data-admin-autocomplete-value]');
-                const searchInput = autocomplete.querySelector('[data-admin-autocomplete-input]');
-                const results = autocomplete.querySelector('[data-admin-autocomplete-results]');
-                const selection = autocomplete.querySelector('[data-admin-autocomplete-selection]');
-                const options = Array.from(autocomplete.querySelectorAll('[data-admin-autocomplete-option]'));
-                const emptyLabel = autocomplete.dataset.emptyLabel || 'Aucun résultat';
-
-                const selectOption = (option) => {
-                    hiddenInput.value = option.dataset.id;
-                    searchInput.value = '';
-                    selection.hidden = false;
-                    selection.textContent = option.dataset.label;
-                    results.hidden = true;
-                    results.replaceChildren();
-                };
-
-                const renderResults = () => {
-                    const query = searchInput.value.trim().toLowerCase();
-                    results.replaceChildren();
-
-                    if (query === '') {
-                        results.hidden = true;
-                        return;
-                    }
-
-                    const matches = options
-                        .filter((option) => option.dataset.search.includes(query))
-                        .slice(0, 10);
-
-                    if (matches.length === 0) {
-                        const empty = document.createElement('p');
-                        empty.className = 'admin-autocomplete__empty';
-                        empty.textContent = emptyLabel;
-                        results.append(empty);
-                        results.hidden = false;
-                        return;
-                    }
-
-                    matches.forEach((option) => {
-                        const button = document.createElement('button');
-                        button.type = 'button';
-                        button.className = 'admin-autocomplete__result';
-                        button.textContent = option.dataset.label;
-                        button.addEventListener('click', () => selectOption(option));
-                        results.append(button);
-                    });
-
-                    results.hidden = false;
-                };
-
-                const preselected = options.find((option) => option.dataset.id === hiddenInput.value);
-                if (preselected) {
-                    selectOption(preselected);
-                }
-
-                searchInput.addEventListener('input', () => {
-                    hiddenInput.value = '';
-                    selection.hidden = true;
-                    selection.textContent = '';
-                    renderResults();
-                });
-
-                searchInput.addEventListener('focus', renderResults);
-            });
-
-            typeSelect.addEventListener('change', refreshPanels);
-            refreshPanels();
-        })();
-
         (() => {
             const editor = document.querySelector('[data-article-editor]');
             const source = document.querySelector('[data-article-editor-source]');
@@ -478,14 +416,6 @@
 
                     focusEditor();
                     document.execCommand('createLink', false, href);
-                    syncSource();
-                });
-            });
-
-            document.querySelectorAll('[data-article-insert-media]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    focusEditor();
-                    document.execCommand('insertText', false, ` ${button.dataset.articleInsertMedia} `);
                     syncSource();
                 });
             });

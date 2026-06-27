@@ -72,6 +72,33 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->trackVariantFiles($media->getVariants());
     }
 
+    public function testArticleSingleWebpIsTreatedAsAlreadyOptimizedEvenWhenForced(): void
+    {
+        $source = TestImageFactory::createWebp(TestImageFactory::publicMediaDirectory(), 1600, 900, 'article-single-service.webp');
+        $this->files[] = $source;
+        $publicPath = TestImageFactory::publicPathFor($source);
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath($publicPath)
+            ->setThumbnailPath($publicPath)
+            ->setMimeType('image/webp')
+            ->setWidth(1600)
+            ->setHeight(900)
+            ->setMetadata(['articleOptimizedSingleWebp' => true]);
+
+        $service = $this->mediaVariantService();
+
+        self::assertTrue($service->hasUsableVariants($media));
+        self::assertSame([
+            'status' => 'skipped',
+            'generated' => false,
+            'message' => 'Média Article déjà optimisé en WebP unique.',
+        ], $service->generateForMedia($media, force: true));
+        self::assertNull($media->getVariants());
+        self::assertSame($publicPath, $media->getFilePath());
+    }
+
     public function testReportsSupportedOutputFormatsAndMediaSupportRules(): void
     {
         $service = $this->mediaVariantService();

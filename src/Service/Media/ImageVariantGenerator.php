@@ -84,6 +84,121 @@ final class ImageVariantGenerator
     }
 
     /**
+     * Generate the single optimized WebP file used by newly uploaded Article images.
+     *
+     * @return array{path: string, mimeType: 'image/webp', width: int, height: int, fileSize: int}
+     */
+    public function generateArticleSingleWebp(
+        string $publicSourcePath,
+        string $basenameSeed,
+        int $maxLongSide,
+        string $publicTargetDirectory = self::PUBLIC_SOURCE_DIRECTORY,
+    ): array {
+        if (!$this->supportsWebp()) {
+            throw new InvalidArgumentException('Le support WebP est requis pour optimiser les images d’article.');
+        }
+
+        if ($maxLongSide < 1) {
+            throw new InvalidArgumentException('La taille maximale Article est invalide.');
+        }
+
+        $sourceFile = $this->resolvePublicFile($publicSourcePath);
+        $imageSize = @getimagesize($sourceFile);
+        if (!is_array($imageSize)) {
+            throw new InvalidArgumentException('L’image source est illisible.');
+        }
+
+        $mimeType = (string) $imageSize['mime'];
+        if (!$this->supportsMimeType($mimeType)) {
+            throw new InvalidArgumentException(sprintf('Le type "%s" ne peut pas être traité par le pipeline média.', $mimeType ?: 'inconnu'));
+        }
+
+        $sourceWidth = (int) $imageSize[0];
+        $sourceHeight = (int) $imageSize[1];
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            throw new InvalidArgumentException('Les dimensions de l’image source sont invalides.');
+        }
+
+        $longSide = max($sourceWidth, $sourceHeight);
+        $scale = min(1.0, $maxLongSide / $longSide);
+        $targetWidth = max(1, (int) round($sourceWidth * $scale));
+        $targetHeight = max(1, (int) round($sourceHeight * $scale));
+
+        $targetDirectory = $this->publicDirectory($publicTargetDirectory);
+        $this->ensureDirectory($targetDirectory);
+
+        $contentHash = hash_file('sha256', $sourceFile);
+        if (!is_string($contentHash)) {
+            throw new InvalidArgumentException('L’image source ne peut pas être identifiée.');
+        }
+
+        $filename = 'article_'.substr(hash('sha256', $basenameSeed.'|'.filesize($sourceFile).'|'.$contentHash.'|'.$maxLongSide), 0, 24).'.webp';
+        $targetFile = $targetDirectory.'/'.$filename;
+        $temporaryFile = $targetFile.'.tmp-'.bin2hex(random_bytes(6));
+
+        $sourceImage = $this->createImage($sourceFile, $mimeType);
+        try {
+            $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        } catch (\Throwable $exception) {
+            imagedestroy($sourceImage);
+
+            throw $exception;
+        }
+
+        try {
+            if (!imagecopyresampled(
+                $targetImage,
+                $sourceImage,
+                0,
+                0,
+                0,
+                0,
+                $targetWidth,
+                $targetHeight,
+                $sourceWidth,
+                $sourceHeight,
+            )) {
+                throw new InvalidArgumentException('La génération WebP Article a échoué.');
+            }
+
+            try {
+                if (!imagewebp($targetImage, $temporaryFile, self::WEBP_QUALITY)) {
+                    throw new InvalidArgumentException('La génération WebP Article a échoué.');
+                }
+
+                $generatedImageSize = @getimagesize($temporaryFile);
+                if (
+                    !is_array($generatedImageSize)
+                    || $generatedImageSize['mime'] !== 'image/webp'
+                    || (int) $generatedImageSize[0] !== $targetWidth
+                    || (int) $generatedImageSize[1] !== $targetHeight
+                ) {
+                    throw new InvalidArgumentException('Le WebP Article généré est illisible ou incomplet.');
+                }
+
+                if (!rename($temporaryFile, $targetFile)) {
+                    throw new InvalidArgumentException('L’enregistrement du WebP Article a échoué.');
+                }
+            } finally {
+                if (is_file($temporaryFile)) {
+                    @unlink($temporaryFile);
+                }
+            }
+        } finally {
+            imagedestroy($sourceImage);
+            imagedestroy($targetImage);
+        }
+
+        return [
+            'path' => $publicTargetDirectory.'/'.$filename,
+            'mimeType' => 'image/webp',
+            'width' => $targetWidth,
+            'height' => $targetHeight,
+            'fileSize' => (int) (filesize($targetFile) ?: 0),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function generate(

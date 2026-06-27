@@ -148,14 +148,41 @@
   text-align: center;
 }
 
+.article-show-main .article-content-media-inline {
+  display: block;
+  float: right;
+  width: min(42%, 320px);
+  max-width: 320px;
+  margin: 0.35rem 0 1rem 1.15rem;
+  padding: 8px;
+  border-radius: 20px;
+  background: #eef4ef;
+}
+
+.article-show-main .article-content-media-inline img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  object-fit: contain;
+}
+
 /* Galerie article */
 
 .article-show-main .article-gallery-section {
   margin-top: 42px;
 }
 
-.article-show-main .article-gallery-section h2 {
+.article-gallery-header {
   margin-bottom: 18px;
+}
+
+.article-gallery-title {
+  margin: 0;
+  color: #18322a;
+  font-size: clamp(1.65rem, 3vw, 2.25rem);
+  line-height: 1.12;
+  font-weight: 950;
 }
 
 /* Sidebar */
@@ -308,5 +335,12 @@
 
   .article-show-side-card {
     border-radius: 22px;
+  }
+
+  .article-show-main .article-content-media-inline {
+    float: none;
+    width: 100%;
+    max-width: 100%;
+    margin: 1rem 0;
   }
 }

@@ -63,6 +63,10 @@ final class MediaVariantService
 
     public function hasUsableVariants(MediaAsset $media): bool
     {
+        if ($this->isArticleSingleWebp($media)) {
+            return $this->localPublicFileExists((string) $media->getFilePath());
+        }
+
         $variants = $this->normalizeVariants($media->getVariants());
         if ($variants === []) {
             return false;
@@ -91,6 +95,14 @@ final class MediaVariantService
      */
     public function generateForMedia(MediaAsset $media, bool $force = false): array
     {
+        if ($this->isArticleSingleWebp($media)) {
+            return [
+                'status' => 'skipped',
+                'generated' => false,
+                'message' => 'Média Article déjà optimisé en WebP unique.',
+            ];
+        }
+
         if (!$this->supports($media)) {
             return [
                 'status' => 'skipped',
@@ -226,6 +238,19 @@ final class MediaVariantService
     private function isLocalPublicPath(string $path): bool
     {
         return !str_starts_with($path, 'http://') && !str_starts_with($path, 'https://');
+    }
+
+    private function isArticleSingleWebp(MediaAsset $media): bool
+    {
+        $metadata = $media->getMetadata();
+
+        return $media->getMediaType() === MediaType::Image
+            && $media->getImageType() === ImageType::Standard
+            && $media->getMimeType() === 'image/webp'
+            && $media->getFilePath() !== null
+            && $media->getThumbnailPath() === $media->getFilePath()
+            && is_array($metadata)
+            && ($metadata['articleOptimizedSingleWebp'] ?? false) === true;
     }
 
     private function localPublicFileExists(string $path): bool

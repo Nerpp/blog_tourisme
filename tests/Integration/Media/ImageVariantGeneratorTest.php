@@ -54,6 +54,26 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         }
     }
 
+    public function testGeneratesSingleOptimizedWebpForArticleImage(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 2400, 1200);
+        $this->files[] = $source;
+
+        $result = $this->generator()->generateArticleSingleWebp(
+            TestImageFactory::publicPathFor($source),
+            'article-single-webp',
+            1600,
+        );
+
+        self::assertStringStartsWith('/uploads/media/article_', $result['path']);
+        self::assertStringEndsWith('.webp', $result['path']);
+        self::assertSame('image/webp', $result['mimeType']);
+        self::assertSame(1600, $result['width']);
+        self::assertSame(800, $result['height']);
+        self::assertGreaterThan(0, $result['fileSize']);
+        $this->assertPublicImage($result['path'], 'image/webp', 1600, 800);
+    }
+
     public function testStandardVariantsDoNotUpscaleAndReuseOnePhysicalFilePerDimension(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 1242, 621);
