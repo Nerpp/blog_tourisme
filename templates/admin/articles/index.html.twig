@@ -6,9 +6,12 @@
     <header class="admin-header">
         <div>
             <h1 class="admin-title">Articles</h1>
-            <p class="admin-subtitle">Retrouvez, organisez et archivez les articles. Le Studio reste réservé aux interfaces métier dédiées.</p>
+            <p class="admin-subtitle">Retrouvez, organisez, archivez ou supprimez les articles.</p>
         </div>
-        <a class="admin-button" href="{{ path('admin_articles_new') }}">Nouvel article</a>
+        <div class="admin-row-actions">
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_article_categories_index') }}">Catégories</a>
+            <a class="admin-button" href="{{ path('admin_articles_new') }}">Nouvel article</a>
+        </div>
     </header>
 
     <section class="admin-card admin-table-wrap">
@@ -36,13 +39,17 @@
                         <td>
                             <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_articles_edit', { id: article.id }) }}">Modifier</a>
-                                <span class="admin-button admin-button--small admin-button--secondary" aria-disabled="true">Studio non disponible</span>
                                 {% if article.slug is not empty and article.status.value == 'published' %}
                                     <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('app_article_show', { slug: article.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
                                 {% endif %}
-                                <form method="post" action="{{ path('admin_articles_delete', { id: article.id }) }}" onsubmit="return confirm('Archiver cet article ?');">
+                                <form method="post" action="{{ path('admin_articles_archive', { id: article.id }) }}" onsubmit="return confirm('Archiver cet article ?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('admin_article_archive_' ~ article.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--secondary" type="submit">Archiver</button>
+                                </form>
+                                {% set delete_confirmation = 'Supprimer définitivement l’article « ' ~ article.title ~ ' » ? Cette action est irréversible. Le contenu de l’article sera supprimé. Ses illustrations propres seront supprimées du serveur si elles ne sont utilisées nulle part ailleurs. Les médias partagés avec un autre contenu seront conservés.' %}
+                                <form method="post" action="{{ path('admin_articles_delete', { id: article.id }) }}" onsubmit="return confirm('{{ delete_confirmation|e('js') }}');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('admin_article_delete_' ~ article.id) }}">
-                                    <button class="admin-button admin-button--small admin-button--danger" type="submit">Archiver</button>
+                                    <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer</button>
                                 </form>
                             </div>
                         </td>

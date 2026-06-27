@@ -2,6 +2,7 @@
 
 namespace App\Tests\E2E;
 
+use App\DataFixtures\UserFixtures;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverDimension;
 use Facebook\WebDriver\WebDriverKeys;
@@ -55,8 +56,8 @@ final class AdminMobileMenuPantherTest extends PantherTestCase
         $client->request('GET', '/login');
 
         $webDriver = $client->getWebDriver();
-        $webDriver->findElement(WebDriverBy::name('_username'))->sendKeys('admin-test@example.test');
-        $webDriver->findElement(WebDriverBy::name('_password'))->sendKeys('admin-test@example.test');
+        $webDriver->findElement(WebDriverBy::name('_username'))->sendKeys(UserFixtures::ADMIN_EMAIL);
+        $webDriver->findElement(WebDriverBy::name('_password'))->sendKeys(UserFixtures::ADMIN_PASSWORD);
         $webDriver->findElement(WebDriverBy::cssSelector('button[type="submit"]'))->click();
 
         $client->waitFor('.logout-form');

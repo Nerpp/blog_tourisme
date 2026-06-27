@@ -16,8 +16,17 @@
         </div>
     </header>
 
-    <form class="admin-form article-admin-form" method="post" enctype="multipart/form-data">
+    <form
+        class="admin-form article-admin-form"
+        method="post"
+        enctype="multipart/form-data"
+        data-article-admin-form
+        data-article-saving-label="Enregistrement en cours…"
+    >
         <input type="hidden" name="_token" value="{{ csrf_token(article.id ? 'admin_article_' ~ article.id : 'admin_article_form') }}">
+        {% if article_submission_token is defined %}
+            <input type="hidden" name="_submission_token" value="{{ article_submission_token }}">
+        {% endif %}
 
         <div class="article-admin-layout">
             <div class="article-admin-main">
@@ -69,18 +78,66 @@
                 </section>
 
                 <section class="admin-card article-admin-section">
-                    <h2>Galerie d’article</h2>
+                    <h2>Images de l’article</h2>
 
                     <div class="admin-field">
                         <label for="article-gallery-images">Ajouter des images</label>
-                        <input id="article-gallery-images" type="file" name="galleryImages[]" accept="image/jpeg,image/png,image/webp" multiple>
-                        <span class="admin-muted">Formats acceptés : JPG, PNG, WebP. Taille maximum : 30 Mo par photo. Les images sont renommées, nettoyées et optimisées automatiquement.</span>
+                        <input
+                            id="article-gallery-images"
+                            type="file"
+                            name="galleryImages[]"
+                            accept="image/jpeg,image/png,image/webp"
+                            multiple
+                            aria-describedby="article-gallery-images-help"
+                            data-article-file-input="gallery"
+                        >
+                        <span id="article-gallery-images-help" class="admin-muted">Formats acceptés : JPG, PNG, WebP. Taille maximum : 30 Mo par photo. Les images sont renommées, nettoyées et optimisées automatiquement.</span>
+                        <div class="article-upload-preview" data-article-file-preview="gallery" aria-live="polite"></div>
+                        <input type="hidden" name="newCoverImageIndex" value="" data-article-new-cover-index>
                     </div>
 
                     {% set article_image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+                    {% set featured_image_is_linked = article.featuredImage and (article_image_links|filter(link => link.mediaAsset.id == article.featuredImage.id)|length > 0) %}
 
-                    {% if article_image_links|length > 0 %}
+                    {% if article_image_links|length > 0 or (article.featuredImage and not featured_image_is_linked) %}
                         <div class="article-admin-media-list">
+                            {% if article.featuredImage and not featured_image_is_linked %}
+                                {% set media = article.featuredImage %}
+                                {% set media_title = media_public_title(media, article, 'Image d’article') %}
+                                <article class="article-admin-media-item is-main-media" data-main-media-card data-main-media-state="main">
+                                    {% include 'public_detail/_responsive_image.html.twig' with {
+                                        media: media,
+                                        alt: media_public_alt(media, article, media_title),
+                                        image_mode: 'card_thumbnail',
+                                        img_class: 'article-admin-media-item__image',
+                                        loading: 'lazy',
+                                        decoding: 'async'
+                                    } only %}
+                                    <div>
+                                        <strong>{{ media_title }}</strong>
+                                        <span class="studio-media-role-badge" data-main-media-badge>Image principale</span>
+                                        <code>[[media:{{ media.id }}]]</code>
+                                        <div class="article-admin-media-actions">
+                                            <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">Insérer</button>
+                                            <label class="article-admin-cover-choice">
+                                                <input type="radio" name="promoteCoverMedia" value="" checked data-article-cover-choice>
+                                                Image principale
+                                            </label>
+                                            <label class="article-admin-check">
+                                                <input
+                                                    type="checkbox"
+                                                    name="removeFeaturedImage"
+                                                    value="{{ media.id }}"
+                                                    data-article-delete-media
+                                                    data-article-delete-message="Supprimer définitivement cette image de l’article ?&#10;Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs."
+                                                >
+                                                Supprimer l’image
+                                            </label>
+                                            <span class="article-admin-delete-note">Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs.</span>
+                                        </div>
+                                    </div>
+                                </article>
+                            {% endif %}
                             {% for media_link in article_image_links %}
                                 {% set media = media_link.mediaAsset %}
                                 {% set media_title = media_public_title(media, article, 'Image d’article') %}
@@ -93,9 +150,10 @@
                                     {% include 'public_detail/_responsive_image.html.twig' with {
                                         media: media,
                                         alt: media_public_alt(media, article, media_title),
-                                        image_size: 'thumb',
-                                        sizes: '160px',
-                                        img_class: 'article-admin-media-item__image'
+                                        image_mode: 'card_thumbnail',
+                                        img_class: 'article-admin-media-item__image',
+                                        loading: 'lazy',
+                                        decoding: 'async'
                                     } only %}
 
                                     <div>
@@ -108,15 +166,29 @@
                                             <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">
                                                 Insérer
                                             </button>
-                                            {% if not is_cover_image %}
-                                                <button type="submit" class="admin-button admin-button--secondary" name="promoteCoverMedia" value="{{ media_link.id }}">
-                                                    Définir comme image principale
-                                                </button>
-                                            {% endif %}
-                                            <label class="article-admin-check">
-                                                <input type="checkbox" name="removeMediaLinks[]" value="{{ media_link.id }}">
-                                                Retirer
+                                            <label class="article-admin-cover-choice">
+                                                <input
+                                                    type="radio"
+                                                    name="promoteCoverMedia"
+                                                    value="{{ is_cover_image ? '' : media_link.id }}"
+                                                    {% if is_cover_image %}checked{% endif %}
+                                                    data-article-cover-choice
+                                                >
+                                                {{ is_cover_image ? 'Image principale' : 'Définir comme image principale' }}
                                             </label>
+                                            <label class="article-admin-check">
+                                                <input
+                                                    type="checkbox"
+                                                    name="removeMediaLinks[]"
+                                                    value="{{ media_link.id }}"
+                                                    data-article-delete-media
+                                                    data-article-delete-message="Supprimer définitivement cette image de l’article ?&#10;Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs."
+                                                >
+                                                Supprimer l’image
+                                            </label>
+                                            <span class="article-admin-delete-note">
+                                                Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs.
+                                            </span>
                                         </div>
                                     </div>
                                 </article>
@@ -152,32 +224,6 @@
                     {% if article.slug %}
                         <p class="admin-muted">URL : /articles/{{ article.slug }}</p>
                     {% endif %}
-                </section>
-
-                <section class="admin-card article-admin-section">
-                    <h2>Image de couverture</h2>
-
-                    {% if article.featuredImage %}
-                        {% set cover_title = media_public_title(article.featuredImage, article, 'Image de couverture') %}
-                        <div class="article-admin-cover-preview">
-                            {% include 'public_detail/_responsive_image.html.twig' with {
-                                media: article.featuredImage,
-                                alt: media_public_alt(article.featuredImage, article, cover_title),
-                                image_size: 'thumb',
-                                sizes: '320px'
-                            } only %}
-                            <label class="article-admin-check">
-                                <input type="checkbox" name="removeCover" value="1">
-                                Retirer comme image principale
-                            </label>
-                        </div>
-                    {% endif %}
-
-                    <div class="admin-field">
-                        <label for="article-cover-image">Importer / remplacer</label>
-                        <input id="article-cover-image" type="file" name="coverImage" accept="image/jpeg,image/png,image/webp">
-                        <span class="admin-muted">JPG, PNG ou WebP, 30 Mo maximum. Utilisée sur la page article, dans le modal et les cartes liées.</span>
-                    </div>
                 </section>
 
                 <section class="admin-card article-admin-section">
@@ -269,8 +315,12 @@
                 </section>
 
                 <div class="admin-actions">
-                    <button class="admin-button" type="submit">{{ submit_label }}</button>
+                    <button class="admin-button" type="submit" data-article-submit-button>
+                        <span data-article-submit-label>{{ submit_label }}</span>
+                        <span class="admin-button__spinner" aria-hidden="true"></span>
+                    </button>
                     <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Annuler</a>
+                    <span class="article-admin-submit-status" data-article-submit-status aria-live="polite"></span>
                 </div>
             </aside>
         </div>

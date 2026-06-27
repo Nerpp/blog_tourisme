@@ -80,9 +80,7 @@ final class ArticleContentExtension extends AbstractExtension
 
     private function mediaFigureHtml(MediaAsset $media, Article $article): string
     {
-        $src = $this->mediaImageExtension->imageUrl($media, 'large')
-            ?? $this->mediaImageExtension->imageUrl($media, 'medium')
-            ?? $this->mediaImageExtension->imageUrl($media, 'thumb');
+        $src = $this->articleImageUrl($media);
 
         if ($src === null) {
             return '';
@@ -92,9 +90,9 @@ final class ArticleContentExtension extends AbstractExtension
         $avifSrcset = $isStandardImage ? null : $this->mediaImageExtension->imageSrcset($media, 'avif');
         $webpSrcset = $this->mediaImageExtension->imageSrcset($media, 'webp');
         $fallbackSrcset = $isStandardImage ? null : $this->mediaImageExtension->imageSrcset($media, 'fallback');
-        $imgSrcset = $isStandardImage ? $webpSrcset : $fallbackSrcset;
-        $dimensions = $this->mediaImageExtension->imageDimensions($media, 'large')
-            ?? $this->mediaImageExtension->imageDimensions($media, 'medium')
+        $imgSrcset = $isStandardImage ? $this->articleStandardImageSrcset($media) : $fallbackSrcset;
+        $dimensions = $this->mediaImageExtension->imageDimensions($media, 'medium')
+            ?? $this->mediaImageExtension->imageDimensions($media, 'large')
             ?? $this->mediaImageExtension->imageDimensions($media, 'thumb');
         $title = $this->mediaImageExtension->publicTitle($media, $article, $article->getTitle());
         $alt = $this->mediaImageExtension->publicAlt($media, $article, $title ?? $article->getTitle());
@@ -102,14 +100,14 @@ final class ArticleContentExtension extends AbstractExtension
         $html = '<figure class="article-content-media"><picture>';
         if ($avifSrcset !== null) {
             $html .= sprintf(
-                '<source type="image/avif" srcset="%s" sizes="(min-width: 900px) 760px, 100vw">',
+                '<source type="image/avif" srcset="%s" sizes="(min-width: 900px) 820px, 100vw">',
                 $this->escape($avifSrcset),
             );
         }
 
         if (!$isStandardImage && $webpSrcset !== null) {
             $html .= sprintf(
-                '<source type="image/webp" srcset="%s" sizes="(min-width: 900px) 760px, 100vw">',
+                '<source type="image/webp" srcset="%s" sizes="(min-width: 900px) 820px, 100vw">',
                 $this->escape($webpSrcset),
             );
         }
@@ -118,7 +116,7 @@ final class ArticleContentExtension extends AbstractExtension
             '<img src="%s" alt="%s" loading="lazy" decoding="async"%s%s>',
             $this->escape($src),
             $this->escape($alt),
-            $imgSrcset !== null ? sprintf(' srcset="%s" sizes="(min-width: 900px) 760px, 100vw"', $this->escape($imgSrcset)) : '',
+            $imgSrcset !== null ? sprintf(' srcset="%s" sizes="(min-width: 900px) 820px, 100vw"', $this->escape($imgSrcset)) : '',
             $dimensions !== null ? sprintf(' width="%d" height="%d"', $dimensions['width'], $dimensions['height']) : '',
         );
         $html .= '</picture>';
@@ -128,6 +126,51 @@ final class ArticleContentExtension extends AbstractExtension
         }
 
         return $html.'</figure>';
+    }
+
+    private function articleImageUrl(MediaAsset $media): ?string
+    {
+        foreach (['medium', 'large', 'thumb'] as $size) {
+            if ($this->mediaImageExtension->imageDimensions($media, $size) === null) {
+                continue;
+            }
+
+            return $this->mediaImageExtension->imageUrl($media, $size);
+        }
+
+        return $this->mediaImageExtension->imageUrl($media, 'thumb');
+    }
+
+    private function articleStandardImageSrcset(MediaAsset $media): ?string
+    {
+        $entries = [];
+        $seenWidths = [];
+
+        foreach (['thumb', 'mobile', 'medium'] as $size) {
+            $src = $this->mediaImageExtension->imageUrl($media, $size);
+            $dimensions = $this->mediaImageExtension->imageDimensions($media, $size);
+            if ($src === null || $dimensions === null) {
+                continue;
+            }
+
+            $width = $dimensions['width'];
+            if (isset($seenWidths[$width])) {
+                continue;
+            }
+
+            $seenWidths[$width] = true;
+            $entries[] = sprintf('%s %dw', $src, $width);
+        }
+
+        if ($entries === []) {
+            $src = $this->mediaImageExtension->imageUrl($media, 'large');
+            $dimensions = $this->mediaImageExtension->imageDimensions($media, 'large');
+            if ($src !== null && $dimensions !== null) {
+                $entries[] = sprintf('%s %dw', $src, $dimensions['width']);
+            }
+        }
+
+        return $entries === [] ? null : implode(', ', $entries);
     }
 
     private function escape(string $value): string

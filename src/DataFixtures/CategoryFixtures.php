@@ -27,6 +27,22 @@ final class CategoryFixtures extends Fixture
     public const ITINERAIRE_REFERENCE = 'category.itineraire';
     public const CONSEIL_VOYAGE_REFERENCE = 'category.conseil-voyage';
 
+    /**
+     * Canonical article categories used by development and test database resets.
+     *
+     * @var array<string, array{string, string, CategoryType, string}>
+     */
+    public const ARTICLE_CATEGORIES = [
+        self::PATRIMOINE_REFERENCE => ['Patrimoine', 'patrimoine', CategoryType::Both, 'Sites et articles consacres a l histoire, aux traditions et a la culture locale.'],
+        self::HISTOIRE_LOCALE_REFERENCE => ['Histoire locale', 'histoire-locale', CategoryType::Article, 'Articles consacres aux origines, personnages et evenements locaux.'],
+        self::LEGENDES_TRADITIONS_REFERENCE => ['Légendes et traditions', 'legendes-et-traditions', CategoryType::Article, 'Recits, legendes, memoires orales et traditions locales.'],
+        self::NATURE_REFERENCE => ['Nature', 'nature', CategoryType::Both, 'Espaces naturels, lacs, reliefs et paysages remarquables.'],
+        self::CULTURE_REFERENCE => ['Culture', 'culture', CategoryType::Article, 'Arts, patrimoines vivants, pratiques culturelles et decouvertes locales.'],
+        self::INFOS_PRATIQUES_REFERENCE => ['Infos pratiques', 'infos-pratiques', CategoryType::Article, 'Informations utiles pour preparer une visite, une balade ou une sortie.'],
+        self::ITINERAIRE_REFERENCE => ['Itinéraire', 'itineraire', CategoryType::Article, 'Parcours organises pour visiter une destination en quelques heures ou plusieurs jours.'],
+        self::CONSEIL_VOYAGE_REFERENCE => ['Conseil voyage', 'conseil-voyage', CategoryType::Article, 'Conseils pratiques pour preparer un sejour, choisir une periode ou organiser ses visites.'],
+    ];
+
     public function load(ObjectManager $manager): void
     {
         $categories = [
@@ -35,17 +51,10 @@ final class CategoryFixtures extends Fixture
             self::RANDONNEE_REFERENCE => ['Randonnée', 'randonnee', CategoryType::Place, 'Sentiers, balades et itineraires de marche.'],
             self::VILLAGE_REFERENCE => ['Village', 'village', CategoryType::Place, 'Villages de caractere, ruelles et lieux de vie locaux.'],
             self::POINT_DE_VUE_REFERENCE => ['Point de vue', 'point-de-vue', CategoryType::Place, 'Belvederes et panoramas pour admirer les paysages.'],
-            self::PATRIMOINE_REFERENCE => ['Patrimoine', 'patrimoine', CategoryType::Both, 'Sites et articles consacres a l histoire, aux traditions et a la culture locale.'],
-            self::HISTOIRE_LOCALE_REFERENCE => ['Histoire locale', 'histoire-locale', CategoryType::Article, 'Articles consacres aux origines, personnages et evenements locaux.'],
-            self::LEGENDES_TRADITIONS_REFERENCE => ['Légendes et traditions', 'legendes-et-traditions', CategoryType::Article, 'Recits, legendes, memoires orales et traditions locales.'],
-            self::NATURE_REFERENCE => ['Nature', 'nature', CategoryType::Both, 'Espaces naturels, lacs, reliefs et paysages remarquables.'],
-            self::CULTURE_REFERENCE => ['Culture', 'culture', CategoryType::Article, 'Arts, patrimoines vivants, pratiques culturelles et decouvertes locales.'],
-            self::INFOS_PRATIQUES_REFERENCE => ['Infos pratiques', 'infos-pratiques', CategoryType::Article, 'Informations utiles pour preparer une visite, une balade ou une sortie.'],
             self::MUSEE_REFERENCE => ['Musée', 'musee', CategoryType::Place, 'Musees et espaces d interpretation.'],
             self::RESTAURANT_REFERENCE => ['Restaurant', 'restaurant', CategoryType::Place, 'Tables, pauses gourmandes et adresses locales.'],
-            self::ITINERAIRE_REFERENCE => ['Itinéraire', 'itineraire', CategoryType::Article, 'Parcours organises pour visiter une destination en quelques heures ou plusieurs jours.'],
-            self::CONSEIL_VOYAGE_REFERENCE => ['Conseil voyage', 'conseil-voyage', CategoryType::Article, 'Conseils pratiques pour preparer un sejour, choisir une periode ou organiser ses visites.'],
         ];
+        $categories += self::ARTICLE_CATEGORIES;
 
         foreach ($categories as $reference => [$name, $slug, $type, $description]) {
             $category = (new Category())

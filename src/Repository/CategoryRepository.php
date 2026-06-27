@@ -28,4 +28,18 @@ class CategoryRepository extends ServiceEntityRepository
 
         return $categories;
     }
+
+    public function findOneArticleCategoryById(int $id): ?Category
+    {
+        /** @var Category|null $category */
+        $category = $this->createQueryBuilder('c')
+            ->andWhere('c.id = :id')
+            ->andWhere('c.type IN (:types)')
+            ->setParameter('id', $id)
+            ->setParameter('types', [CategoryType::Article, CategoryType::Both])
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $category;
+    }
 }

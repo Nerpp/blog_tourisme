@@ -17,10 +17,13 @@ final class HikeControllerTest extends FunctionalTestCase
         $destination = $this->createDestination('Massif rando public', DestinationType::Area);
         $hike = $this->createPublishedHike($this->createVerifiedAdmin(), $destination);
 
-        $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $hike->getTitle());
+        $cover = $crawler->filter('.public-detail-cover')->first();
+        self::assertSame('', $cover->attr('aria-label') ?? '');
+        self::assertSame('', $cover->attr('role') ?? '');
     }
 
     public function testStandardPhotoCardAndModalUseWebpOnlyResponsiveVariants(): void

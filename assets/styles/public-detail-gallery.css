@@ -486,16 +486,26 @@ html.has-gallery-modal {
   padding: 0 18px;
   border: 0;
   border-radius: 999px;
-  background: #4f9f75;
+  background: #2f7652;
   color: #fff;
   font: inherit;
   font-weight: 950;
   cursor: pointer;
-  box-shadow: 0 14px 34px rgba(79, 159, 117, 0.24);
+  box-shadow: 0 14px 34px rgba(47, 118, 82, 0.26);
 }
 
 .media-visualize-btn:hover {
-  background: #458f68;
+  background: #2a6a49;
+}
+
+.media-visualize-btn:focus-visible {
+  background: #2f7652;
+  outline: 3px solid rgba(47, 118, 82, 0.34);
+  outline-offset: 3px;
+}
+
+.media-visualize-btn:active {
+  background: #245d40;
 }
 
 .journey-gallery-card__more {

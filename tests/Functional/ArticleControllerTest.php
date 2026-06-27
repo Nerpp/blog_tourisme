@@ -2,7 +2,9 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\ArticleMedia;
 use App\Enum\ContentStatus;
+use App\Enum\MediaRole;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class ArticleControllerTest extends FunctionalTestCase
@@ -111,11 +113,48 @@ final class ArticleControllerTest extends FunctionalTestCase
         $article = $this->createArticle($this->createUser());
         $comment = $this->createComment($this->createUser(), $article);
 
-        $client->request('GET', sprintf('/articles/%s?comments_sort=popular', $article->getSlug()));
+        $crawler = $client->request('GET', sprintf('/articles/%s?comments_sort=popular', $article->getSlug()));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $article->getTitle());
         self::assertSelectorTextContains('body', (string) $comment->getContent());
+        $cover = $crawler->filter('.public-detail-cover')->first();
+        self::assertSame('', $cover->attr('aria-label') ?? '');
+        self::assertSame('', $cover->attr('role') ?? '');
+    }
+
+    public function testPublishedArticleCoverUsesMediumVariant(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $media = $this->createImageMedia('Couverture article medium');
+        $media
+            ->setThumbnailPath('/uploads/media/variants/article-cover-thumb.webp')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/variants/article-cover-thumb.webp', 'width' => 600, 'height' => 338],
+                'mobile' => ['webp' => '/uploads/media/variants/article-cover-mobile.webp', 'width' => 960, 'height' => 540],
+                'medium' => ['webp' => '/uploads/media/variants/article-cover-medium.webp', 'width' => 1600, 'height' => 900],
+                'large' => ['webp' => '/uploads/media/variants/article-cover-large.webp', 'width' => 1920, 'height' => 1080],
+            ]);
+        $link = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($media)
+            ->setRole(MediaRole::Cover)
+            ->setPosition(0);
+        $article->getMediaLinks()->add($link);
+        $media->getArticleLinks()->add($link);
+        $article->setFeaturedImage($media);
+        $this->persistAndFlush($article, $media, $link);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('/uploads/media/variants/article-cover-medium.webp', (string) $crawler->filter('.article-show-cover')->attr('style'));
+        self::assertStringNotContainsString('/uploads/media/variants/article-cover-large.webp', (string) $crawler->filter('.article-show-cover')->attr('style'));
+        self::assertStringContainsString(
+            '<link rel="preload" as="image" href="/uploads/media/variants/article-cover-medium.webp">',
+            (string) $client->getResponse()->getContent(),
+        );
     }
 
     public function testInvalidCommentSortFallsBackWithoutServerError(): void

@@ -2,6 +2,7 @@
 
 namespace App\Tests\E2E;
 
+use App\DataFixtures\UserFixtures;
 use Facebook\WebDriver\WebDriverBy;
 use Facebook\WebDriver\WebDriverWait;
 
@@ -121,8 +122,8 @@ final class CommentInteractionsPantherTest extends PantherTestCase
             return;
         }
 
-        $webDriver->findElement(WebDriverBy::name('_username'))->sendKeys('user-test@example.test');
-        $webDriver->findElement(WebDriverBy::name('_password'))->sendKeys('PasswordUser2026!');
+        $webDriver->findElement(WebDriverBy::name('_username'))->sendKeys(UserFixtures::USER_EMAIL);
+        $webDriver->findElement(WebDriverBy::name('_password'))->sendKeys(UserFixtures::USER_PASSWORD);
         $webDriver->findElement(WebDriverBy::cssSelector('button[type="submit"]'))->click();
 
         $client->waitFor('.logout-form');

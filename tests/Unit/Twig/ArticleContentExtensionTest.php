@@ -70,6 +70,32 @@ final class ArticleContentExtensionTest extends TestCase
         self::assertStringNotContainsString('[[media:77]]', $html);
     }
 
+    public function testContentHtmlUsesMediumVariantForStandardArticleImages(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setTitle('Illustration article')
+            ->setAltText('Illustration optimisée')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/thumb.webp', 'width' => 600, 'height' => 338],
+                'mobile' => ['webp' => '/uploads/media/mobile.webp', 'width' => 960, 'height' => 540],
+                'medium' => ['webp' => '/uploads/media/medium.webp', 'width' => 1600, 'height' => 900],
+                'large' => ['webp' => '/uploads/media/large.webp', 'width' => 1920, 'height' => 1080],
+            ]);
+        $this->setEntityId($media, 78);
+        $article = $this->article('<p>Avant [[media:78]] apres</p>');
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($media));
+
+        $html = $this->extension()->contentHtml($article);
+
+        self::assertStringContainsString('<img src="/uploads/media/medium.webp" alt="Illustration optimisée"', $html);
+        self::assertStringContainsString('srcset="/uploads/media/thumb.webp 600w, /uploads/media/mobile.webp 960w, /uploads/media/medium.webp 1600w"', $html);
+        self::assertStringNotContainsString('/uploads/media/large.webp 1920w', $html);
+        self::assertStringContainsString('sizes="(min-width: 900px) 820px, 100vw"', $html);
+        self::assertStringContainsString('width="1600" height="900"', $html);
+    }
+
     public function testContentHtmlDropsUnknownOrNonImageMediaPlaceholder(): void
     {
         $video = (new MediaAsset())->setMediaType(MediaType::Video)->setExternalUrl('https://youtu.be/abcDEF_1234');

@@ -110,7 +110,6 @@
   text-align: center;
 }
 
-.home-primary-btn,
 .home-newsletter-form button {
   border: 1px solid #4f9f75;
   background: #4f9f75;
@@ -118,11 +117,36 @@
   box-shadow: 0 14px 35px rgba(79, 159, 117, 0.22);
 }
 
-.home-primary-btn:hover,
+.home-primary-btn {
+  border: 1px solid #327a58;
+  background: #327a58;
+  color: #fff;
+  box-shadow: 0 14px 35px rgba(50, 122, 88, 0.24);
+}
+
 .home-newsletter-form button:hover {
   background: #458f68;
   color: #fff;
   text-decoration: none;
+}
+
+.home-primary-btn:hover {
+  border-color: #2f7353;
+  background: #2f7353;
+  color: #fff;
+  text-decoration: none;
+}
+
+.home-primary-btn:focus-visible {
+  border-color: #327a58;
+  background: #327a58;
+  color: #fff;
+}
+
+.home-primary-btn:active {
+  border-color: #286749;
+  background: #286749;
+  color: #fff;
 }
 
 .home-secondary-btn,
@@ -145,6 +169,11 @@
 .home-outline-btn:focus-visible,
 .home-newsletter-form button:focus-visible {
   outline: 4px solid rgba(126, 214, 167, 0.5);
+  outline-offset: 4px;
+}
+
+.home-primary-btn:focus-visible {
+  outline: 4px solid rgba(50, 122, 88, 0.46);
   outline-offset: 4px;
 }
 

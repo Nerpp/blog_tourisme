@@ -26,6 +26,7 @@ final class AdminDashboardRoutesTest extends FunctionalTestCase
         yield 'prevision destinations' => ['/admin/previsions/destinations'];
         yield 'prevision destination new' => ['/admin/previsions/destinations/new'];
         yield 'prevision destination autocomplete' => ['/admin/previsions/destinations/autocomplete?q=Ola'];
+        yield 'article categories' => ['/admin/article-categories'];
     }
 
     #[DataProvider('adminDashboardRoutes')]

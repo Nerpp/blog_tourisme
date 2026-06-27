@@ -17,6 +17,10 @@ final class UserFixtures extends Fixture implements FixtureGroupInterface
     public const TRUSTED_REFERENCE = 'user.trusted';
     public const UNVERIFIED_REFERENCE = 'user.unverified';
     public const NO_AVATAR_REFERENCE = 'user.no-avatar';
+    public const ADMIN_EMAIL = 'admin-test@example.test';
+    public const ADMIN_PASSWORD = 'admin-test@example.test';
+    public const USER_EMAIL = 'user-test@example.test';
+    public const USER_PASSWORD = 'user-test@example.test';
 
     public function __construct(
         private readonly UserPasswordHasherInterface $passwordHasher,
@@ -32,8 +36,8 @@ final class UserFixtures extends Fixture implements FixtureGroupInterface
     {
         $users = [
             self::ADMIN_REFERENCE => [
-                'email' => 'admin-test@example.test',
-                'password' => 'admin-test@example.test',
+                'email' => self::ADMIN_EMAIL,
+                'password' => self::ADMIN_PASSWORD,
                 'roles' => ['ROLE_ADMIN', 'ROLE_USER'],
                 'displayName' => 'Admin Blog Tourisme',
                 'trustedCommenter' => true,
@@ -42,8 +46,8 @@ final class UserFixtures extends Fixture implements FixtureGroupInterface
                 'avatar' => 'fixture_avatar_admin',
             ],
             self::USER_REFERENCE => [
-                'email' => 'user-test@example.test',
-                'password' => 'user-test@example.test',
+                'email' => self::USER_EMAIL,
+                'password' => self::USER_PASSWORD,
                 'roles' => ['ROLE_USER'],
                 'displayName' => 'Aurélien Test',
                 'trustedCommenter' => false,

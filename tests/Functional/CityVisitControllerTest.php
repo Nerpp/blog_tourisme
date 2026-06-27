@@ -14,10 +14,13 @@ final class CityVisitControllerTest extends FunctionalTestCase
         $destination = $this->createDestination('Ville visite publique', DestinationType::City);
         $cityVisit = $this->createPublishedCityVisit($this->createVerifiedAdmin(), $destination);
 
-        $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
+        $crawler = $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $cityVisit->getTitle());
+        $cover = $crawler->filter('.public-detail-cover')->first();
+        self::assertSame('', $cover->attr('aria-label') ?? '');
+        self::assertSame('', $cover->attr('role') ?? '');
     }
 
     public function testCityVisitIndexListsOnlyPublicVisits(): void

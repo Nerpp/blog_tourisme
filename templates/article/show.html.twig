@@ -22,7 +22,11 @@
 
 {% set article_cover_media = article_cover_media ?: article_fallback_cover_media %}
 
-{% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, 'large') : null %}
+{% set article_cover_image_size = null %}
+{% if article_cover_media %}
+	{% set article_cover_image_size = media_image_dimensions(article_cover_media, 'medium') ? 'medium' : (media_image_dimensions(article_cover_media, 'large') ? 'large' : 'thumb') %}
+{% endif %}
+{% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, article_cover_image_size) : null %}
 
 {% set related_article_links = [] %}
 {% set related_article_ids = [article.id] %}
@@ -146,7 +150,7 @@
 					{% endif %}
 				</div>
 
-				<div class="public-detail-cover article-show-cover" {% if article_cover_image %} style="--public-cover-image: url('{{ article_cover_image|e('html_attr') }}');" {% endif %} aria-label="Image principale de l’article"></div>
+				<div class="public-detail-cover article-show-cover" {% if article_cover_image %} style="--public-cover-image: url('{{ article_cover_image|e('html_attr') }}');" {% endif %}></div>
 			</div>
 		</section>
 
