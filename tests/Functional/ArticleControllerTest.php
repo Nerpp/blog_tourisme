@@ -123,7 +123,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertSame('', $cover->attr('role') ?? '');
     }
 
-    public function testPublishedArticleCoverUsesMediumVariant(): void
+    public function testPublishedArticleCoverIsAHighPriorityResponsiveImage(): void
     {
         $client = static::createClient();
         $article = $this->createArticle($this->createUser());
@@ -149,15 +149,26 @@ final class ArticleControllerTest extends FunctionalTestCase
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('/uploads/media/variants/article-cover-medium.webp', (string) $crawler->filter('.article-show-cover')->attr('style'));
-        self::assertStringNotContainsString('/uploads/media/variants/article-cover-large.webp', (string) $crawler->filter('.article-show-cover')->attr('style'));
-        self::assertStringContainsString(
-            '<link rel="preload" as="image" href="/uploads/media/variants/article-cover-medium.webp">',
-            (string) $client->getResponse()->getContent(),
+        $coverImage = $crawler->filter('.article-show-cover picture img')->first();
+        self::assertSame('/uploads/media/variants/article-cover-medium.webp', $coverImage->attr('src'));
+        self::assertSame('eager', $coverImage->attr('loading'));
+        self::assertSame('high', $coverImage->attr('fetchpriority'));
+        self::assertSame('async', $coverImage->attr('decoding'));
+        self::assertSame('1600', $coverImage->attr('width'));
+        self::assertSame('900', $coverImage->attr('height'));
+        self::assertSame('(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)', $coverImage->attr('sizes'));
+        self::assertSame(
+            '/uploads/media/variants/article-cover-thumb.webp 600w, /uploads/media/variants/article-cover-mobile.webp 960w, /uploads/media/variants/article-cover-medium.webp 1600w, /uploads/media/variants/article-cover-large.webp 1920w',
+            $coverImage->attr('srcset'),
         );
+        self::assertNull($crawler->filter('.article-show-cover')->attr('style'));
+        self::assertStringNotContainsString('hero-sea-mountain-desktop.webp', (string) $client->getResponse()->getContent());
+        $preload = $crawler->filter('link[rel="preload"][as="image"]')->first();
+        self::assertSame('/uploads/media/variants/article-cover-medium.webp', $preload->attr('href'));
+        self::assertSame('high', $preload->attr('fetchpriority'));
     }
 
-    public function testPublishedArticleUsesSingleWebpForCoverContentGalleryAndSharedLightbox(): void
+    public function testExistingSingleWebpArticleMediaRemainReadableWithoutAutomaticConversion(): void
     {
         $client = static::createClient();
         $article = $this->createArticle($this->createUser());
@@ -202,11 +213,8 @@ final class ArticleControllerTest extends FunctionalTestCase
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString($coverPath, (string) $crawler->filter('.article-show-cover')->attr('style'));
-        self::assertStringContainsString(
-            sprintf('<link rel="preload" as="image" href="%s">', $coverPath),
-            (string) $client->getResponse()->getContent(),
-        );
+        self::assertSame($coverPath, $crawler->filter('.article-show-cover img')->first()->attr('src'));
+        self::assertSame($coverPath, $crawler->filter('link[rel="preload"][as="image"]')->first()->attr('href'));
         self::assertSame($galleryPath, $crawler->filter('.article-content-media img')->first()->attr('src'));
         self::assertStringContainsString(sprintf('%s 1600w', $galleryPath), (string) $crawler->filter('.article-content-media img')->first()->attr('srcset'));
 
@@ -215,6 +223,62 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertSame(1, $crawler->filter(sprintf('#%s.gallery-modal.js-gallery-modal', $galleryId))->count());
         self::assertSame($galleryPath, $crawler->filter(sprintf('#%s .gallery-modal__slide img', $galleryId))->first()->attr('data-gallery-src'));
         self::assertStringNotContainsString('/uploads/media/variants/', (string) $crawler->filter('.article-gallery-section')->html());
+    }
+
+    public function testResponsiveArticleMediaUseLightCandidatesAndLoadSourceOnlyFromLightbox(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $cover = $this->responsiveArticleMedia('Couverture responsive', 'cover', 900);
+        $gallery = $this->responsiveArticleMedia('Galerie responsive', 'gallery', 1067)->setCaption('Légende responsive');
+        $coverLink = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($cover)
+            ->setRole(MediaRole::Cover)
+            ->setPosition(0);
+        $galleryLink = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($gallery)
+            ->setRole(MediaRole::Gallery)
+            ->setPosition(1);
+        $article->getMediaLinks()->add($coverLink);
+        $article->getMediaLinks()->add($galleryLink);
+        $cover->getArticleLinks()->add($coverLink);
+        $gallery->getArticleLinks()->add($galleryLink);
+        $article
+            ->setFeaturedImage($cover)
+            ->setContent(sprintf('<p>Introduction.</p><p>[[media:%d]]</p>', $gallery->getId()));
+        $this->persistAndFlush($article, $cover, $gallery, $coverLink, $galleryLink);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $coverImage = $crawler->filter('.article-show-cover img')->first();
+        self::assertSame('/uploads/media/article-cover-cover.webp', $coverImage->attr('src'));
+        self::assertSame('/uploads/media/article-cover-inline.webp 640w, /uploads/media/article-cover-display.webp 960w, /uploads/media/article-cover-cover.webp 1280w', $coverImage->attr('srcset'));
+        self::assertStringNotContainsString('article-cover-source.webp', (string) $coverImage->attr('srcset'));
+
+        $contentImage = $crawler->filter('.article-content-media img')->first();
+        self::assertSame('/uploads/media/article-gallery-inline.webp', $contentImage->attr('src'));
+        self::assertSame('/uploads/media/article-gallery-inline.webp 640w, /uploads/media/article-gallery-display.webp 960w, /uploads/media/article-gallery-cover.webp 1280w', $contentImage->attr('srcset'));
+        self::assertStringNotContainsString('article-gallery-source.webp', (string) $contentImage->attr('srcset'));
+
+        $galleryCardImage = $crawler->filter('.article-gallery-section .journey-gallery-card img')->first();
+        self::assertSame('lazy', $galleryCardImage->attr('loading'));
+        self::assertSame('async', $galleryCardImage->attr('decoding'));
+        self::assertNull($galleryCardImage->attr('fetchpriority'));
+        self::assertNotNull($galleryCardImage->attr('width'));
+        self::assertNotNull($galleryCardImage->attr('height'));
+        self::assertStringNotContainsString('article-gallery-source.webp', (string) $galleryCardImage->attr('srcset'));
+        self::assertSame(
+            'false',
+            $crawler->filter('.article-gallery-section .gallery-modal')->first()->attr('data-gallery-preload-neighbors'),
+        );
+        self::assertSame(
+            '/uploads/media/article-gallery-source.webp',
+            $crawler->filter('.article-gallery-section .gallery-modal__slide img')->first()->attr('data-gallery-src'),
+        );
+        self::assertNull($crawler->filter('.article-gallery-section .gallery-modal__slide img')->first()->attr('src'));
     }
 
     public function testInvalidCommentSortFallsBackWithoutServerError(): void
@@ -236,5 +300,25 @@ final class ArticleControllerTest extends FunctionalTestCase
         $this->expectException(NotFoundHttpException::class);
 
         $client->request('GET', '/articles/article-fonctionnel-inconnu');
+    }
+
+    private function responsiveArticleMedia(string $title, string $slug, int $sourceHeight): \App\Entity\MediaAsset
+    {
+        $media = $this->createImageMedia($title)
+            ->setFilePath(sprintf('/uploads/media/article-%s-source.webp', $slug))
+            ->setThumbnailPath(sprintf('/uploads/media/article-%s-inline.webp', $slug))
+            ->setMimeType('image/webp')
+            ->setWidth(1600)
+            ->setHeight($sourceHeight)
+            ->setVariants([
+                'thumb' => ['webp' => sprintf('/uploads/media/article-%s-inline.webp', $slug), 'width' => 640, 'height' => (int) round($sourceHeight * 0.4)],
+                'mobile' => ['webp' => sprintf('/uploads/media/article-%s-display.webp', $slug), 'width' => 960, 'height' => (int) round($sourceHeight * 0.6)],
+                'medium' => ['webp' => sprintf('/uploads/media/article-%s-cover.webp', $slug), 'width' => 1280, 'height' => (int) round($sourceHeight * 0.8)],
+                'large' => ['webp' => sprintf('/uploads/media/article-%s-source.webp', $slug), 'width' => 1600, 'height' => $sourceHeight],
+            ])
+            ->setMetadata(['articleResponsiveWebp' => true]);
+        $this->persistAndFlush($media);
+
+        return $media;
     }
 }

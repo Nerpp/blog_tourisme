@@ -37,6 +37,7 @@ final class ViteAssetExtension extends AbstractExtension
         return [
             new TwigFunction('vite_entry_script_tags', [$this, 'entryScriptTags'], ['is_safe' => ['html']]),
             new TwigFunction('vite_entry_link_tags', [$this, 'entryLinkTags'], ['is_safe' => ['html']]),
+            new TwigFunction('vite_entry_deferred_style_tags', [$this, 'entryDeferredStyleTags'], ['is_safe' => ['html']]),
         ];
     }
 
@@ -90,6 +91,28 @@ final class ViteAssetExtension extends AbstractExtension
 
         foreach ($this->collectCssFiles($manifest, $chunk) as $file) {
             $tags[] = sprintf('<link rel="stylesheet" href="/build/%s">', $this->escapeAttribute($file));
+        }
+
+        return implode("\n", $tags);
+    }
+
+    public function entryDeferredStyleTags(string $entryName): string
+    {
+        if ($this->useDevServer()) {
+            $stylesheet = $this->resolveDevStylesheetPath($entryName);
+
+            return $stylesheet === null
+                ? ''
+                : $this->deferredStylesheetTags($this->getDevServerUrl().'/'.$stylesheet.'?direct');
+        }
+
+        $entry = $this->normalizeEntryName($entryName);
+        $manifest = $this->getManifest();
+        $chunk = $this->getManifestEntry($entry);
+        $tags = [];
+
+        foreach ($this->collectCssFiles($manifest, $chunk) as $file) {
+            $tags[] = $this->deferredStylesheetTags('/build/'.$file);
         }
 
         return implode("\n", $tags);
@@ -220,5 +243,17 @@ final class ViteAssetExtension extends AbstractExtension
     private function escapeAttribute(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private function deferredStylesheetTags(string $url): string
+    {
+        $url = $this->escapeAttribute($url);
+
+        return sprintf(
+            '<link rel="stylesheet" href="%s" media="print" onload="this.onload=null;this.media=\'all\'">' .
+            '<noscript><link rel="stylesheet" href="%s"></noscript>',
+            $url,
+            $url,
+        );
     }
 }

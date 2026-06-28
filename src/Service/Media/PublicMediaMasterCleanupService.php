@@ -60,6 +60,10 @@ final class PublicMediaMasterCleanupService
     public function cleanupIfSafe(MediaAsset $media, bool $dryRun = false): array
     {
         $path = $media->getFilePath();
+        if ($this->isManagedArticleImage($media)) {
+            return $this->skipped($path, 'source WebP Article conservée pour le lightbox', $dryRun);
+        }
+
         if (!$this->isClassicImage($media)) {
             return $this->skipped($path, 'média non standard', $dryRun);
         }
@@ -134,6 +138,17 @@ final class PublicMediaMasterCleanupService
             && $imageSize['mime'] === 'image/webp'
             && (int) $imageSize[0] > 0
             && (int) $imageSize[1] > 0;
+    }
+
+    private function isManagedArticleImage(MediaAsset $media): bool
+    {
+        $metadata = $media->getMetadata();
+
+        return is_array($metadata)
+            && (
+                ($metadata['articleResponsiveWebp'] ?? false) === true
+                || ($metadata['articleOptimizedSingleWebp'] ?? false) === true
+            );
     }
 
     private function isDeletableMasterPath(?string $path): bool

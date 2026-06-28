@@ -54,24 +54,32 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         }
     }
 
-    public function testGeneratesSingleOptimizedWebpForArticleImage(): void
+    public function testGeneratesResponsiveWebpsForArticleImage(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 2400, 1200);
         $this->files[] = $source;
 
-        $result = $this->generator()->generateArticleSingleWebp(
+        $result = $this->generator()->generateArticleResponsiveWebps(
             TestImageFactory::publicPathFor($source),
-            'article-single-webp',
-            1600,
+            'article-responsive-webp',
         );
 
-        self::assertStringStartsWith('/uploads/media/article_', $result['path']);
-        self::assertStringEndsWith('.webp', $result['path']);
-        self::assertSame('image/webp', $result['mimeType']);
-        self::assertSame(1600, $result['width']);
-        self::assertSame(800, $result['height']);
-        self::assertGreaterThan(0, $result['fileSize']);
-        $this->assertPublicImage($result['path'], 'image/webp', 1600, 800);
+        self::assertSame(['webp'], $result['source']['formats']);
+        self::assertSame('image/webp', $result['source']['mimeType']);
+        foreach ([
+            'thumb' => [640, 320, '_inline.webp'],
+            'mobile' => [960, 480, '_display.webp'],
+            'medium' => [1280, 640, '_cover.webp'],
+            'large' => [1600, 800, '_source.webp'],
+        ] as $size => [$width, $height, $suffix]) {
+            self::assertStringStartsWith('/uploads/media/article_', $result[$size]['webp']);
+            self::assertStringEndsWith($suffix, $result[$size]['webp']);
+            self::assertGreaterThan(0, $result[$size]['fileSize']);
+            $this->assertPublicImage($result[$size]['webp'], 'image/webp', $width, $height);
+        }
+        self::assertSame($result['large']['webp'], $result['source']['path']);
+        self::assertSame(1600, $result['source']['width']);
+        self::assertSame(800, $result['source']['height']);
     }
 
     public function testStandardVariantsDoNotUpscaleAndReuseOnePhysicalFilePerDimension(): void

@@ -29,7 +29,7 @@ final class ViteAssetExtensionTest extends TestCase
             (new ViteAssetExtension($this->workspace, 'test'))->getFunctions(),
         );
 
-        self::assertSame(['vite_entry_script_tags', 'vite_entry_link_tags'], $names);
+        self::assertSame(['vite_entry_script_tags', 'vite_entry_link_tags', 'vite_entry_deferred_style_tags'], $names);
     }
 
     public function testProductionScriptAndLinkTagsUseManifestEntryCssAndImports(): void
@@ -64,6 +64,14 @@ final class ViteAssetExtensionTest extends TestCase
             ]),
             $extension->entryLinkTags('app'),
         );
+        self::assertSame(
+            implode("\n", [
+                '<link rel="stylesheet" href="/build/assets/app.css" media="print" onload="this.onload=null;this.media=\'all\'"><noscript><link rel="stylesheet" href="/build/assets/app.css"></noscript>',
+                '<link rel="stylesheet" href="/build/assets/vendor.css" media="print" onload="this.onload=null;this.media=\'all\'"><noscript><link rel="stylesheet" href="/build/assets/vendor.css"></noscript>',
+                '<link rel="stylesheet" href="/build/assets/shared.css" media="print" onload="this.onload=null;this.media=\'all\'"><noscript><link rel="stylesheet" href="/build/assets/shared.css"></noscript>',
+            ]),
+            $extension->entryDeferredStyleTags('app'),
+        );
     }
 
     public function testDevServerScriptAndStylesheetTagsAreEscaped(): void
@@ -80,7 +88,12 @@ final class ViteAssetExtensionTest extends TestCase
             '<link rel="stylesheet" href="http://localhost:5173/assets/styles/app.css?direct">',
             $extension->entryLinkTags('app'),
         );
+        self::assertSame(
+            '<link rel="stylesheet" href="http://localhost:5173/assets/styles/app.css?direct" media="print" onload="this.onload=null;this.media=\'all\'"><noscript><link rel="stylesheet" href="http://localhost:5173/assets/styles/app.css?direct"></noscript>',
+            $extension->entryDeferredStyleTags('app'),
+        );
         self::assertSame('', $extension->entryLinkTags('missing-style'));
+        self::assertSame('', $extension->entryDeferredStyleTags('missing-style'));
     }
 
     public function testThrowsWhenManifestIsMissingInvalidOrEntryIsAbsent(): void

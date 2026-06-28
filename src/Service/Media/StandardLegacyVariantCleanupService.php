@@ -50,6 +50,10 @@ final class StandardLegacyVariantCleanupService
         ?array $legacyVariants = null,
         bool $pruneMetadata = false,
     ): array {
+        if ($this->isManagedArticleImage($media)) {
+            return $this->skipped($dryRun, 'variantes Article gérées par leur pipeline dédié');
+        }
+
         if (!$this->isStandardImage($media)) {
             return $this->skipped($dryRun, 'média non standard');
         }
@@ -133,6 +137,17 @@ final class StandardLegacyVariantCleanupService
     {
         return $media->getMediaType() === MediaType::Image
             && $media->getImageType() === ImageType::Standard;
+    }
+
+    private function isManagedArticleImage(MediaAsset $media): bool
+    {
+        $metadata = $media->getMetadata();
+
+        return is_array($metadata)
+            && (
+                ($metadata['articleResponsiveWebp'] ?? false) === true
+                || ($metadata['articleOptimizedSingleWebp'] ?? false) === true
+            );
     }
 
     /**

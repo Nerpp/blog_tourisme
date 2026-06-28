@@ -2,10 +2,12 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\ArticleMedia;
 use App\Entity\Comment;
 use App\Entity\Place;
 use App\Entity\User;
 use App\Enum\CommentStatus;
+use App\Enum\MediaRole;
 use Symfony\Component\DomCrawler\Crawler;
 
 final class PublicAssetSlotsTest extends FunctionalTestCase
@@ -70,8 +72,39 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
             $crawler,
             ['assets/app.js', 'assets/entries/article-show.js', 'assets/entries/comments.js'],
             ['assets/app.js', 'assets/entries/article-show.js', 'assets/entries/comments.js'],
+            ['assets/entries/public-listing.js', 'assets/entries/public-detail.js', 'assets/entries/article-gallery.js', 'assets/entries/home.js'],
+        );
+        foreach ($this->manifestStyleUrls('assets/entries/comments.js') as $styleUrl) {
+            self::assertSame(1, $crawler->filter(sprintf('head > link[href="%s"][media="print"]', $styleUrl))->count());
+        }
+    }
+
+    public function testArticleGalleryAssetsAreLoadedOnlyWhenAnArticleHasGalleryMedia(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $media = $this->createImageMedia('Galerie assets Article');
+        $link = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($media)
+            ->setRole(MediaRole::Gallery)
+            ->setPosition(0);
+        $article->getMediaLinks()->add($link);
+        $media->getArticleLinks()->add($link);
+        $this->persistAndFlush($article, $media, $link);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $this->assertRenderedAssets(
+            $crawler,
+            ['assets/app.js', 'assets/entries/article-show.js', 'assets/entries/comments.js', 'assets/entries/article-gallery.js'],
+            ['assets/app.js', 'assets/entries/article-show.js', 'assets/entries/article-gallery.js'],
             ['assets/entries/public-listing.js', 'assets/entries/public-detail.js', 'assets/entries/home.js'],
         );
+        foreach ($this->manifestStyleUrls('assets/entries/article-gallery.js') as $styleUrl) {
+            self::assertSame(1, $crawler->filter(sprintf('head > link[href="%s"][media="print"]', $styleUrl))->count());
+        }
     }
 
     public function testPlaceDetailLoadsRelatedArticlesAndCommentAssetsWhenInteractiveCommentsAreDisplayed(): void
@@ -212,6 +245,10 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
         $urls = [];
 
         foreach ($crawler->filter('link[href], script[src]') as $node) {
+            if (strtolower($node->parentNode?->nodeName ?? '') === 'noscript') {
+                continue;
+            }
+
             $url = $node->attributes->getNamedItem('href')?->nodeValue
                 ?? $node->attributes->getNamedItem('src')?->nodeValue;
 

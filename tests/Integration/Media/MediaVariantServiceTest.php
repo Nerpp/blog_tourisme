@@ -72,7 +72,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->trackVariantFiles($media->getVariants());
     }
 
-    public function testArticleSingleWebpIsTreatedAsAlreadyOptimizedEvenWhenForced(): void
+    public function testLegacyArticleSingleWebpIsNotAutomaticallyModifiedEvenWhenForced(): void
     {
         $source = TestImageFactory::createWebp(TestImageFactory::publicMediaDirectory(), 1600, 900, 'article-single-service.webp');
         $this->files[] = $source;
@@ -93,10 +93,47 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertSame([
             'status' => 'skipped',
             'generated' => false,
-            'message' => 'Média Article déjà optimisé en WebP unique.',
+            'message' => 'Média Article déjà géré par son pipeline WebP dédié.',
         ], $service->generateForMedia($media, force: true));
         self::assertNull($media->getVariants());
         self::assertSame($publicPath, $media->getFilePath());
+    }
+
+    public function testResponsiveArticleWebpsAreNotRegeneratedByTheSharedPipeline(): void
+    {
+        $source = TestImageFactory::createWebp(TestImageFactory::publicMediaDirectory(), 1600, 900, 'article-responsive-service.webp');
+        $this->files[] = $source;
+        $publicPath = TestImageFactory::publicPathFor($source);
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath($publicPath)
+            ->setThumbnailPath('/uploads/media/article-inline.webp')
+            ->setMimeType('image/webp')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/article-inline.webp', 'width' => 640, 'height' => 360],
+                'mobile' => ['webp' => '/uploads/media/article-display.webp', 'width' => 960, 'height' => 540],
+                'medium' => ['webp' => '/uploads/media/article-cover.webp', 'width' => 1280, 'height' => 720],
+                'large' => ['webp' => $publicPath, 'width' => 1600, 'height' => 900],
+            ])
+            ->setMetadata(['articleResponsiveWebp' => true]);
+
+        $result = $this->mediaVariantService()->generateForMedia($media, force: true);
+
+        self::assertSame('skipped', $result['status']);
+        self::assertFalse($result['generated']);
+        self::assertSame($publicPath, $media->getFilePath());
+        self::assertSame(640, $media->getVariants()['thumb']['width'] ?? null);
+
+        $masterCleanup = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
+        self::assertTrue($masterCleanup['skipped']);
+        self::assertSame('source WebP Article conservée pour le lightbox', $masterCleanup['reason']);
+        self::assertFileExists($source);
+
+        $variantCleanup = $this->standardLegacyVariantCleanupService()->cleanup($media, pruneMetadata: true);
+        self::assertTrue($variantCleanup['skipped']);
+        self::assertSame('variantes Article gérées par leur pipeline dédié', $variantCleanup['reason']);
+        self::assertSame(640, $media->getVariants()['thumb']['width'] ?? null);
     }
 
     public function testReportsSupportedOutputFormatsAndMediaSupportRules(): void

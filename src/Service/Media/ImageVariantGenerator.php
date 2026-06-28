@@ -14,6 +14,10 @@ final class ImageVariantGenerator
     private const JPEG_QUALITY = 92;
     private const WEBP_QUALITY = 90;
     private const AVIF_QUALITY = 66;
+    private const ARTICLE_INLINE_WEBP_QUALITY = 78;
+    private const ARTICLE_DISPLAY_WEBP_QUALITY = 79;
+    private const ARTICLE_COVER_WEBP_QUALITY = 80;
+    private const ARTICLE_SOURCE_WEBP_QUALITY = 82;
 
     /** @var array<string, int> */
     private const LEGACY_SIZES = [
@@ -84,22 +88,37 @@ final class ImageVariantGenerator
     }
 
     /**
-     * Generate the single optimized WebP file used by newly uploaded Article images.
+     * Generate the three WebP resources used only by newly uploaded Article images.
+     * The original upload is deliberately not part of the returned data.
      *
-     * @return array{path: string, mimeType: 'image/webp', width: int, height: int, fileSize: int}
+     * @return array{
+     *     source: array{path: string, mimeType: 'image/webp', width: int, height: int, fileSize: int, generatedAt: string, formats: list<'webp'>},
+     *     thumb: array{webp: string, width: int, height: int, fileSize: int},
+     *     mobile: array{webp: string, width: int, height: int, fileSize: int},
+     *     medium: array{webp: string, width: int, height: int, fileSize: int},
+     *     large: array{webp: string, width: int, height: int, fileSize: int}
+     * }
      */
-    public function generateArticleSingleWebp(
+    public function generateArticleResponsiveWebps(
         string $publicSourcePath,
         string $basenameSeed,
-        int $maxLongSide,
+        int $inlineMaxLongSide = 640,
+        int $displayMaxLongSide = 960,
+        int $coverMaxLongSide = 1280,
+        int $sourceMaxLongSide = 1600,
         string $publicTargetDirectory = self::PUBLIC_SOURCE_DIRECTORY,
     ): array {
         if (!$this->supportsWebp()) {
             throw new InvalidArgumentException('Le support WebP est requis pour optimiser les images d’article.');
         }
 
-        if ($maxLongSide < 1) {
-            throw new InvalidArgumentException('La taille maximale Article est invalide.');
+        if (
+            $inlineMaxLongSide < 1
+            || $displayMaxLongSide < $inlineMaxLongSide
+            || $coverMaxLongSide < $displayMaxLongSide
+            || $sourceMaxLongSide < $coverMaxLongSide
+        ) {
+            throw new InvalidArgumentException('Les tailles de variantes Article sont invalides.');
         }
 
         $sourceFile = $this->resolvePublicFile($publicSourcePath);
@@ -119,11 +138,6 @@ final class ImageVariantGenerator
             throw new InvalidArgumentException('Les dimensions de l’image source sont invalides.');
         }
 
-        $longSide = max($sourceWidth, $sourceHeight);
-        $scale = min(1.0, $maxLongSide / $longSide);
-        $targetWidth = max(1, (int) round($sourceWidth * $scale));
-        $targetHeight = max(1, (int) round($sourceHeight * $scale));
-
         $targetDirectory = $this->publicDirectory($publicTargetDirectory);
         $this->ensureDirectory($targetDirectory);
 
@@ -132,18 +146,108 @@ final class ImageVariantGenerator
             throw new InvalidArgumentException('L’image source ne peut pas être identifiée.');
         }
 
-        $filename = 'article_'.substr(hash('sha256', $basenameSeed.'|'.filesize($sourceFile).'|'.$contentHash.'|'.$maxLongSide), 0, 24).'.webp';
-        $targetFile = $targetDirectory.'/'.$filename;
-        $temporaryFile = $targetFile.'.tmp-'.bin2hex(random_bytes(6));
-
+        $baseName = 'article_'.substr(hash(
+            'sha256',
+            $basenameSeed.'|'.filesize($sourceFile).'|'.$contentHash.'|'.$inlineMaxLongSide.'|'.$displayMaxLongSide.'|'.$coverMaxLongSide.'|'.$sourceMaxLongSide,
+        ), 0, 24);
         $sourceImage = $this->createImage($sourceFile, $mimeType);
+        $generatedFiles = [];
+        /** @var array<string, array{webp: string, width: int, height: int, fileSize: int}> $variantsByDimensions */
+        $variantsByDimensions = [];
+        $articleVariants = [];
+
         try {
-            $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+            foreach ([
+                'source' => [$sourceMaxLongSide, self::ARTICLE_SOURCE_WEBP_QUALITY],
+                'cover' => [$coverMaxLongSide, self::ARTICLE_COVER_WEBP_QUALITY],
+                'display' => [$displayMaxLongSide, self::ARTICLE_DISPLAY_WEBP_QUALITY],
+                'inline' => [$inlineMaxLongSide, self::ARTICLE_INLINE_WEBP_QUALITY],
+            ] as $role => [$maxLongSide, $quality]) {
+                $longSide = max($sourceWidth, $sourceHeight);
+                $scale = min(1.0, $maxLongSide / $longSide);
+                $targetWidth = max(1, (int) round($sourceWidth * $scale));
+                $targetHeight = max(1, (int) round($sourceHeight * $scale));
+                $dimensionKey = $targetWidth.'x'.$targetHeight;
+
+                if (isset($variantsByDimensions[$dimensionKey])) {
+                    $articleVariants[$role] = $variantsByDimensions[$dimensionKey];
+
+                    continue;
+                }
+
+                $variant = $this->generateArticleWebpSize(
+                    $sourceImage,
+                    $mimeType,
+                    $sourceWidth,
+                    $sourceHeight,
+                    $targetDirectory,
+                    $publicTargetDirectory,
+                    $baseName,
+                    $role,
+                    $targetWidth,
+                    $targetHeight,
+                    $quality,
+                );
+                $generatedFiles[] = $targetDirectory.'/'.basename($variant['webp']);
+                $variantsByDimensions[$dimensionKey] = $variant;
+                $articleVariants[$role] = $variant;
+            }
         } catch (\Throwable $exception) {
-            imagedestroy($sourceImage);
+            foreach ($generatedFiles as $generatedFile) {
+                if (is_file($generatedFile)) {
+                    @unlink($generatedFile);
+                }
+            }
 
             throw $exception;
+        } finally {
+            imagedestroy($sourceImage);
         }
+
+        if (!isset($articleVariants['source'], $articleVariants['inline'], $articleVariants['display'], $articleVariants['cover'])) {
+            throw new InvalidArgumentException('Les variantes WebP Article sont incomplètes.');
+        }
+
+        $source = $articleVariants['source'];
+        $inline = $articleVariants['inline'];
+        $display = $articleVariants['display'];
+        $cover = $articleVariants['cover'];
+
+        return [
+            'source' => [
+                'path' => $source['webp'],
+                'mimeType' => 'image/webp',
+                'width' => $source['width'],
+                'height' => $source['height'],
+                'fileSize' => $source['fileSize'],
+                'generatedAt' => (new DateTimeImmutable())->format(DATE_ATOM),
+                'formats' => ['webp'],
+            ],
+            'thumb' => $inline,
+            'mobile' => $display,
+            'medium' => $cover,
+            'large' => $source,
+        ];
+    }
+
+    /** @return array{webp: string, width: int, height: int, fileSize: int} */
+    private function generateArticleWebpSize(
+        GdImage $sourceImage,
+        string $mimeType,
+        int $sourceWidth,
+        int $sourceHeight,
+        string $targetDirectory,
+        string $publicTargetDirectory,
+        string $baseName,
+        string $role,
+        int $targetWidth,
+        int $targetHeight,
+        int $quality,
+    ): array {
+        $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
+        $filename = sprintf('%s_%s.webp', $baseName, $role);
+        $targetFile = $targetDirectory.'/'.$filename;
+        $temporaryFile = $targetFile.'.tmp-'.bin2hex(random_bytes(6));
 
         try {
             if (!imagecopyresampled(
@@ -161,41 +265,36 @@ final class ImageVariantGenerator
                 throw new InvalidArgumentException('La génération WebP Article a échoué.');
             }
 
-            try {
-                if (!imagewebp($targetImage, $temporaryFile, self::WEBP_QUALITY)) {
-                    throw new InvalidArgumentException('La génération WebP Article a échoué.');
-                }
-
-                $generatedImageSize = @getimagesize($temporaryFile);
-                if (
-                    !is_array($generatedImageSize)
-                    || $generatedImageSize['mime'] !== 'image/webp'
-                    || (int) $generatedImageSize[0] !== $targetWidth
-                    || (int) $generatedImageSize[1] !== $targetHeight
-                ) {
-                    throw new InvalidArgumentException('Le WebP Article généré est illisible ou incomplet.');
-                }
-
-                if (!rename($temporaryFile, $targetFile)) {
-                    throw new InvalidArgumentException('L’enregistrement du WebP Article a échoué.');
-                }
-            } finally {
-                if (is_file($temporaryFile)) {
-                    @unlink($temporaryFile);
-                }
+            if (!imagewebp($targetImage, $temporaryFile, $quality)) {
+                throw new InvalidArgumentException('La génération WebP Article a échoué.');
             }
-        } finally {
-            imagedestroy($sourceImage);
-            imagedestroy($targetImage);
-        }
 
-        return [
-            'path' => $publicTargetDirectory.'/'.$filename,
-            'mimeType' => 'image/webp',
-            'width' => $targetWidth,
-            'height' => $targetHeight,
-            'fileSize' => (int) (filesize($targetFile) ?: 0),
-        ];
+            $generatedImageSize = @getimagesize($temporaryFile);
+            if (
+                !is_array($generatedImageSize)
+                || $generatedImageSize['mime'] !== 'image/webp'
+                || (int) $generatedImageSize[0] !== $targetWidth
+                || (int) $generatedImageSize[1] !== $targetHeight
+            ) {
+                throw new InvalidArgumentException('Le WebP Article généré est illisible ou incomplet.');
+            }
+
+            if (!rename($temporaryFile, $targetFile)) {
+                throw new InvalidArgumentException('L’enregistrement du WebP Article a échoué.');
+            }
+
+            return [
+                'webp' => $publicTargetDirectory.'/'.$filename,
+                'width' => $targetWidth,
+                'height' => $targetHeight,
+                'fileSize' => (int) (filesize($targetFile) ?: 0),
+            ];
+        } finally {
+            imagedestroy($targetImage);
+            if (is_file($temporaryFile)) {
+                @unlink($temporaryFile);
+            }
+        }
     }
 
     /**

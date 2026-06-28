@@ -150,6 +150,35 @@ final class ArticleContentExtensionTest extends TestCase
         self::assertStringNotContainsString('/uploads/media/variants/', $html);
     }
 
+    public function testContentHtmlUsesLightArticleVariantAndKeepsSourceOutOfSrcset(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/article-source.webp')
+            ->setThumbnailPath('/uploads/media/article-inline.webp')
+            ->setMimeType('image/webp')
+            ->setTitle('Illustration responsive')
+            ->setAltText('Illustration responsive optimisée')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/article-inline.webp', 'width' => 640, 'height' => 360],
+                'mobile' => ['webp' => '/uploads/media/article-display.webp', 'width' => 960, 'height' => 540],
+                'medium' => ['webp' => '/uploads/media/article-cover.webp', 'width' => 1280, 'height' => 720],
+                'large' => ['webp' => '/uploads/media/article-source.webp', 'width' => 1600, 'height' => 900],
+            ])
+            ->setMetadata(['articleResponsiveWebp' => true]);
+        $this->setEntityId($media, 80);
+        $article = $this->article('<p>[[media:80]]</p>');
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($media));
+
+        $html = $this->extension()->contentHtml($article);
+
+        self::assertStringContainsString('<img src="/uploads/media/article-inline.webp"', $html);
+        self::assertStringContainsString('srcset="/uploads/media/article-inline.webp 640w, /uploads/media/article-display.webp 960w, /uploads/media/article-cover.webp 1280w"', $html);
+        self::assertStringContainsString('sizes="(min-width: 900px) 640px, calc(100vw - 72px)"', $html);
+        self::assertStringNotContainsString('/uploads/media/article-source.webp 1600w', $html);
+    }
+
     public function testContentHtmlDropsUnknownOrNonImageMediaPlaceholder(): void
     {
         $video = (new MediaAsset())->setMediaType(MediaType::Video)->setExternalUrl('https://youtu.be/abcDEF_1234');

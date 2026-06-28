@@ -48,7 +48,10 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 final class AdminArticleController extends AbstractController
 {
     private const UPLOAD_DIRECTORY = 'uploads/media';
-    private const ARTICLE_IMAGE_MAX_LONG_SIDE = 1600;
+    private const ARTICLE_INLINE_MAX_LONG_SIDE = 640;
+    private const ARTICLE_DISPLAY_MAX_LONG_SIDE = 960;
+    private const ARTICLE_COVER_MAX_LONG_SIDE = 1280;
+    private const ARTICLE_SOURCE_MAX_LONG_SIDE = 1600;
     private const ARTICLE_SUBMISSIONS_SESSION_KEY = 'admin_article_form_submissions';
     private const ARTICLE_SUBMISSION_PENDING = 'pending';
     private const ARTICLE_SUBMISSION_COMPLETED = 'completed';
@@ -906,16 +909,19 @@ final class AdminArticleController extends AbstractController
             ->setCaption($caption)
             ->setMediaType(MediaType::Image)
             ->setImageType(ImageType::Standard)
-            ->setFilePath($storedFile['path'])
-            ->setThumbnailPath($storedFile['path'])
-            ->setMimeType($storedFile['mimeType'])
-            ->setFileSize($storedFile['fileSize'])
-            ->setWidth($storedFile['width'])
-            ->setHeight($storedFile['height'])
-            ->setVariants(null)
+            ->setFilePath($storedFile['variants']['source']['path'])
+            ->setThumbnailPath($storedFile['variants']['thumb']['webp'])
+            ->setMimeType($storedFile['variants']['source']['mimeType'])
+            ->setFileSize($storedFile['variants']['source']['fileSize'])
+            ->setWidth($storedFile['variants']['source']['width'])
+            ->setHeight($storedFile['variants']['source']['height'])
+            ->setVariants($storedFile['variants'])
             ->setMetadata([
-                'articleOptimizedSingleWebp' => true,
-                'articleMaxLongSide' => self::ARTICLE_IMAGE_MAX_LONG_SIDE,
+                'articleResponsiveWebp' => true,
+                'articleInlineMaxLongSide' => self::ARTICLE_INLINE_MAX_LONG_SIDE,
+                'articleDisplayMaxLongSide' => self::ARTICLE_DISPLAY_MAX_LONG_SIDE,
+                'articleCoverMaxLongSide' => self::ARTICLE_COVER_MAX_LONG_SIDE,
+                'articleSourceMaxLongSide' => self::ARTICLE_SOURCE_MAX_LONG_SIDE,
                 'originalMimeType' => $storedFile['originalMimeType'],
                 'originalFileSize' => $storedFile['originalFileSize'],
                 'sanitizedOriginalWidth' => $storedFile['sanitizedOriginalWidth'],
@@ -929,11 +935,13 @@ final class AdminArticleController extends AbstractController
      * @return array{
      *     title: string,
      *     altText: string,
-     *     path: string,
-     *     mimeType: string,
-     *     fileSize: int,
-     *     width: int,
-     *     height: int,
+     *     variants: array{
+     *         source: array{path: string, mimeType: string, fileSize: int, width: int, height: int, generatedAt: string, formats: list<string>},
+     *         thumb: array{webp: string, fileSize: int, width: int, height: int},
+     *         mobile: array{webp: string, fileSize: int, width: int, height: int},
+     *         medium: array{webp: string, fileSize: int, width: int, height: int},
+     *         large: array{webp: string, fileSize: int, width: int, height: int}
+     *     },
      *     originalMimeType: string,
      *     originalFileSize: int,
      *     sanitizedOriginalWidth: int,
@@ -963,18 +971,18 @@ final class AdminArticleController extends AbstractController
 
         try {
             $sanitized = $this->imageMetadataSanitizer->sanitizePublicPath($publicPath);
-            $optimized = $this->imageVariantGenerator->generateArticleSingleWebp(
+            $optimized = $this->imageVariantGenerator->generateArticleResponsiveWebps(
                 $publicPath,
                 $publicPath,
-                self::ARTICLE_IMAGE_MAX_LONG_SIDE,
+                self::ARTICLE_INLINE_MAX_LONG_SIDE,
+                self::ARTICLE_DISPLAY_MAX_LONG_SIDE,
+                self::ARTICLE_COVER_MAX_LONG_SIDE,
+                self::ARTICLE_SOURCE_MAX_LONG_SIDE,
                 '/'.self::UPLOAD_DIRECTORY,
             );
 
             if (is_file($sourceAbsolutePath) && !@unlink($sourceAbsolutePath)) {
-                $optimizedAbsolutePath = $targetDirectory.'/'.basename($optimized['path']);
-                if (is_file($optimizedAbsolutePath)) {
-                    @unlink($optimizedAbsolutePath);
-                }
+                $this->deleteGeneratedArticleVariants($optimized);
 
                 throw new InvalidArgumentException('le fichier original Article n’a pas pu être supprimé après optimisation.');
             }
@@ -991,16 +999,31 @@ final class AdminArticleController extends AbstractController
         return [
             'title' => $this->mediaSeoTextService->titleForContext($article, MediaType::Image, ImageType::Standard),
             'altText' => $this->mediaSeoTextService->altTextForContext($article, MediaType::Image, ImageType::Standard),
-            'path' => $optimized['path'],
-            'mimeType' => $optimized['mimeType'],
-            'fileSize' => $optimized['fileSize'],
-            'width' => $optimized['width'],
-            'height' => $optimized['height'],
+            'variants' => $optimized,
             'originalMimeType' => $inspection['mimeType'],
             'originalFileSize' => $inspection['fileSize'],
             'sanitizedOriginalWidth' => $sanitized['width'],
             'sanitizedOriginalHeight' => $sanitized['height'],
         ];
+    }
+
+    /** @param array<array-key, mixed> $variants */
+    private function deleteGeneratedArticleVariants(array $variants): void
+    {
+        $paths = [];
+        array_walk_recursive($variants, static function (mixed $value) use (&$paths): void {
+            if (is_string($value) && str_starts_with($value, '/'.self::UPLOAD_DIRECTORY.'/')) {
+                $paths[$value] = true;
+            }
+        });
+
+        $publicDirectory = rtrim((string) $this->parameterBag->get('kernel.project_dir'), '/').'/public';
+        foreach (array_keys($paths) as $path) {
+            $absolutePath = $publicDirectory.$path;
+            if (is_file($absolutePath)) {
+                @unlink($absolutePath);
+            }
+        }
     }
 
     /**

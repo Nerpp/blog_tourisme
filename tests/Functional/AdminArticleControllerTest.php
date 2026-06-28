@@ -419,34 +419,47 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertSame($coverMedia->getId(), $coverLinks->first()->getMediaAsset()?->getId());
         self::assertIsString($coverMedia->getFilePath());
         self::assertStringStartsWith('/uploads/media/article_', $coverMedia->getFilePath());
+        self::assertStringEndsWith('_source.webp', $coverMedia->getFilePath());
         self::assertStringEndsWith('.webp', $coverMedia->getFilePath());
-        self::assertSame($coverMedia->getFilePath(), $coverMedia->getThumbnailPath());
+        self::assertStringEndsWith('_inline.webp', (string) $coverMedia->getThumbnailPath());
+        self::assertNotSame($coverMedia->getFilePath(), $coverMedia->getThumbnailPath());
         self::assertSame('image/webp', $coverMedia->getMimeType());
         self::assertSame(1600, $coverMedia->getWidth());
         self::assertSame(902, $coverMedia->getHeight());
-        self::assertNull($coverMedia->getVariants());
-        self::assertSame(true, $coverMedia->getMetadata()['articleOptimizedSingleWebp'] ?? null);
-        self::assertSame(1600, $coverMedia->getMetadata()['articleMaxLongSide'] ?? null);
+        self::assertIsArray($coverMedia->getVariants());
+        self::assertSame(640, $coverMedia->getVariants()['thumb']['width'] ?? null);
+        self::assertSame(960, $coverMedia->getVariants()['mobile']['width'] ?? null);
+        self::assertSame(1280, $coverMedia->getVariants()['medium']['width'] ?? null);
+        self::assertSame(1600, $coverMedia->getVariants()['large']['width'] ?? null);
+        self::assertSame(true, $coverMedia->getMetadata()['articleResponsiveWebp'] ?? null);
+        self::assertSame(640, $coverMedia->getMetadata()['articleInlineMaxLongSide'] ?? null);
+        self::assertSame(960, $coverMedia->getMetadata()['articleDisplayMaxLongSide'] ?? null);
+        self::assertSame(1280, $coverMedia->getMetadata()['articleCoverMaxLongSide'] ?? null);
+        self::assertSame(1600, $coverMedia->getMetadata()['articleSourceMaxLongSide'] ?? null);
+        self::assertArrayNotHasKey('articleOptimizedSingleWebp', $coverMedia->getMetadata() ?? []);
         self::assertGreaterThan(0, $coverMedia->getFileSize());
 
         $coverFiles = $this->mediaFiles($coverMedia);
-        self::assertCount(1, $coverFiles);
-        self::assertFileExists($coverFiles[0]);
-        $coverImageSize = getimagesize($coverFiles[0]);
-        self::assertIsArray($coverImageSize);
-        self::assertSame('image/webp', $coverImageSize['mime']);
-        self::assertSame(1600, $coverImageSize[0]);
-        self::assertSame(902, $coverImageSize[1]);
-        self::assertNotSame('jpg', pathinfo($coverFiles[0], PATHINFO_EXTENSION));
+        self::assertCount(4, $coverFiles);
+        foreach ($coverFiles as $coverFile) {
+            self::assertFileExists($coverFile);
+            $coverImageSize = getimagesize($coverFile);
+            self::assertIsArray($coverImageSize);
+            self::assertSame('image/webp', $coverImageSize['mime']);
+            self::assertNotSame('jpg', pathinfo($coverFile, PATHINFO_EXTENSION));
+        }
 
         $galleryMedia = $galleryLinks->first()->getMediaAsset();
         self::assertInstanceOf(MediaAsset::class, $galleryMedia);
         self::assertIsString($galleryMedia->getFilePath());
-        self::assertSame($galleryMedia->getFilePath(), $galleryMedia->getThumbnailPath());
+        self::assertNotSame($galleryMedia->getFilePath(), $galleryMedia->getThumbnailPath());
         self::assertSame('image/webp', $galleryMedia->getMimeType());
         self::assertSame(1600, $galleryMedia->getWidth());
         self::assertSame(1067, $galleryMedia->getHeight());
-        self::assertNull($galleryMedia->getVariants());
+        self::assertSame(640, $galleryMedia->getVariants()['thumb']['width'] ?? null);
+        self::assertSame(960, $galleryMedia->getVariants()['mobile']['width'] ?? null);
+        self::assertSame(1280, $galleryMedia->getVariants()['medium']['width'] ?? null);
+        self::assertSame(1600, $galleryMedia->getVariants()['large']['width'] ?? null);
         self::assertGreaterThan(0, $galleryMedia->getFileSize());
     }
 
@@ -468,7 +481,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertNull($this->entityManager()->getRepository(Article::class)->findOneBy(['title' => 'Article sans contenu']));
     }
 
-    public function testDeletingNewArticleSingleWebpImageRemovesTheOnlyGeneratedFile(): void
+    public function testDeletingNewResponsiveArticleImageRemovesEveryGeneratedFile(): void
     {
         if (!function_exists('imagewebp')) {
             self::markTestSkipped('GD WebP support is required for article media optimization.');
@@ -514,8 +527,10 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertIsInt($linkId);
         self::assertIsInt($mediaId);
         $files = $this->mediaFiles($media);
-        self::assertCount(1, $files);
-        self::assertFileExists($files[0]);
+        self::assertCount(4, $files);
+        foreach ($files as $file) {
+            self::assertFileExists($file);
+        }
 
         $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $storedArticleId));
         self::assertResponseIsSuccessful();
@@ -533,7 +548,9 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $this->entityManager()->clear();
         self::assertNull($this->entityManager()->find(ArticleMedia::class, $linkId));
         self::assertNull($this->entityManager()->find(MediaAsset::class, $mediaId));
-        self::assertFileDoesNotExist($files[0]);
+        foreach ($files as $file) {
+            self::assertFileDoesNotExist($file);
+        }
     }
 
     public function testInvalidArticleCreateKeepsSelectedCategory(): void

@@ -125,17 +125,20 @@ final class ArticleContentExtension extends AbstractExtension
         $alt = $this->mediaImageExtension->publicAlt($media, $article, $title ?? $article->getTitle());
 
         $html = '<figure class="article-content-media"><picture>';
+        $displaySizes = '(min-width: 900px) 640px, calc(100vw - 72px)';
         if ($avifSrcset !== null) {
             $html .= sprintf(
-                '<source type="image/avif" srcset="%s" sizes="(min-width: 900px) 820px, 100vw">',
+                '<source type="image/avif" srcset="%s" sizes="%s">',
                 $this->escape($avifSrcset),
+                $displaySizes,
             );
         }
 
         if (!$isStandardImage && $webpSrcset !== null) {
             $html .= sprintf(
-                '<source type="image/webp" srcset="%s" sizes="(min-width: 900px) 820px, 100vw">',
+                '<source type="image/webp" srcset="%s" sizes="%s">',
                 $this->escape($webpSrcset),
+                $displaySizes,
             );
         }
 
@@ -143,7 +146,7 @@ final class ArticleContentExtension extends AbstractExtension
             '<img src="%s" alt="%s" loading="lazy" decoding="async"%s%s>',
             $this->escape($src),
             $this->escape($alt),
-            $imgSrcset !== null ? sprintf(' srcset="%s" sizes="(min-width: 900px) 820px, 100vw"', $this->escape($imgSrcset)) : '',
+            $imgSrcset !== null ? sprintf(' srcset="%s" sizes="%s"', $this->escape($imgSrcset), $displaySizes) : '',
             $dimensions !== null ? sprintf(' width="%d" height="%d"', $dimensions['width'], $dimensions['height']) : '',
         );
         $html .= '</picture>';
@@ -184,6 +187,11 @@ final class ArticleContentExtension extends AbstractExtension
 
     private function articleImageUrl(MediaAsset $media): ?string
     {
+        $metadata = $media->getMetadata();
+        if (is_array($metadata) && ($metadata['articleResponsiveWebp'] ?? false) === true) {
+            return $this->mediaImageExtension->imageUrl($media, 'thumb');
+        }
+
         foreach (['medium', 'large', 'thumb'] as $size) {
             if ($this->mediaImageExtension->imageDimensions($media, $size) === null) {
                 continue;

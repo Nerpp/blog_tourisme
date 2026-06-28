@@ -1,6 +1,7 @@
 {% set image_media_links = media_links|filter(link => link.mediaAsset and link.mediaAsset.mediaType.value == 'image') %}
 {% set gallery_context = gallery_context|default(null) %}
 {% set gallery_context_title = gallery_context_title|default('Média touristique') %}
+{% set gallery_preload_neighbors = gallery_preload_neighbors is defined ? gallery_preload_neighbors : true %}
 
 {% if image_media_links|length > 0 %}
     <div class="journey-gallery">
@@ -46,6 +47,7 @@
         aria-modal="true"
         aria-hidden="true"
         aria-labelledby="{{ gallery_id }}-title"
+        data-gallery-preload-neighbors="{{ gallery_preload_neighbors ? 'true' : 'false' }}"
         hidden
     >
         <div class="gallery-modal__dialog" role="document">

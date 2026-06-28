@@ -52,7 +52,7 @@
             {% include 'public_detail/_responsive_image.html.twig' with {
                 media: cover_media,
                 alt: media_public_alt(cover_media, article, article.title),
-                image_size: 'medium',
+                image_size: 'thumb',
                 sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
                 img_class: 'article-list-card__image'
             } only %}

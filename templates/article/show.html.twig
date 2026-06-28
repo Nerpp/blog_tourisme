@@ -27,6 +27,9 @@
 	{% set article_cover_image_size = media_image_dimensions(article_cover_media, 'medium') ? 'medium' : (media_image_dimensions(article_cover_media, 'large') ? 'large' : 'thumb') %}
 {% endif %}
 {% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, article_cover_image_size) : null %}
+{% set article_cover_srcset = article_cover_media ? media_image_srcset(article_cover_media, 'webp') : null %}
+{% set article_cover_sizes = '(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
+{% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
 
 {% set related_article_links = [] %}
 {% set related_article_ids = [article.id] %}
@@ -73,6 +76,13 @@
 
 {% block page_stylesheets %}
 	{{ vite_entry_link_tags('assets/entries/article-show.js') }}
+	{% if gallery_media_links|length > 0 %}
+		{{ vite_entry_deferred_style_tags('assets/entries/article-gallery.js') }}
+	{% endif %}
+{% endblock %}
+
+{% block layout_stylesheets %}
+	{{ vite_entry_deferred_style_tags('assets/entries/comments.js') }}
 {% endblock %}
 
 {% block page_javascripts %}
@@ -81,6 +91,9 @@
 	{% set has_comment_replies = comment_thread_items|filter(comment => comment.parent is null and (comment.children|filter(child => child.status.value == 'approved' or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected']))|length) > 0)|length > 0 %}
 
 	{{ vite_entry_script_tags('assets/entries/article-show.js') }}
+	{% if gallery_media_links|length > 0 %}
+		{{ vite_entry_script_tags('assets/entries/article-gallery.js') }}
+	{% endif %}
 	{% if has_comment_reply_forms or has_comment_replies %}
 		{{ vite_entry_script_tags('assets/entries/comments.js') }}
 	{% endif %}
@@ -88,7 +101,13 @@
 
 {% block preloads %}
 	{% if article_cover_image %}
-		<link rel="preload" as="image" href="{{ article_cover_image }}">
+		<link
+			rel="preload"
+			as="image"
+			href="{{ article_cover_image }}"
+			{% if article_cover_srcset %}imagesrcset="{{ article_cover_srcset }}" imagesizes="{{ article_cover_sizes }}"{% endif %}
+			fetchpriority="high"
+		>
 	{% endif %}
 {% endblock %}
 
@@ -150,7 +169,20 @@
 					{% endif %}
 				</div>
 
-				<div class="public-detail-cover article-show-cover" {% if article_cover_image %} style="--public-cover-image: url('{{ article_cover_image|e('html_attr') }}');" {% endif %}></div>
+				<div class="public-detail-cover article-show-cover {{ article_cover_media ? 'article-show-cover--image' : '' }}">
+					{% if article_cover_media %}
+						{% include 'public_detail/_responsive_image.html.twig' with {
+							media: article_cover_media,
+							alt: media_public_alt(article_cover_media, article, article.title),
+							image_size: article_cover_image_size,
+							sizes: article_cover_sizes,
+							picture_class: 'article-show-cover__picture',
+							img_class: 'article-show-cover__image',
+							loading: 'eager',
+							fetchpriority: 'high'
+						} only %}
+					{% endif %}
+				</div>
 			</div>
 		</section>
 
@@ -162,7 +194,6 @@
 							{{ article_content_html(article) }}
 						</div>
 
-						{% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
 						{% if gallery_media_links|length > 0 %}
 							<section class="section-block article-gallery-section">
 								{% set article_gallery_id = 'article-gallery-' ~ article.id %}
@@ -191,7 +222,8 @@
 									gallery_id: article_gallery_id,
 									modal_title: 'Galerie',
 									gallery_context: article,
-									gallery_context_title: article.title
+									gallery_context_title: article.title,
+									gallery_preload_neighbors: false
 								} only %}
 							</section>
 						{% endif %}

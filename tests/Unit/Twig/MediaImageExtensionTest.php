@@ -196,6 +196,27 @@ final class MediaImageExtensionTest extends TestCase
         self::assertNull($extension->imageSrcset($media, 'avif'));
     }
 
+    public function testResponsiveArticleSourceIsReservedForModal(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setMetadata(['articleResponsiveWebp' => true])
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/article-inline.webp', 'width' => 640, 'height' => 360],
+                'mobile' => ['webp' => '/uploads/media/article-display.webp', 'width' => 960, 'height' => 540],
+                'medium' => ['webp' => '/uploads/media/article-cover.webp', 'width' => 1280, 'height' => 720],
+                'large' => ['webp' => '/uploads/media/article-source.webp', 'width' => 1600, 'height' => 900],
+            ]);
+        $extension = $this->extension();
+
+        self::assertSame(
+            '/uploads/media/article-inline.webp 640w, /uploads/media/article-display.webp 960w, /uploads/media/article-cover.webp 1280w',
+            $extension->imageSrcset($media, 'webp'),
+        );
+        self::assertSame('/uploads/media/article-source.webp', $extension->modalUrl($media));
+    }
+
     public function testMalformedVariantDataUsesExistingFallbacks(): void
     {
         $extension = $this->extension();

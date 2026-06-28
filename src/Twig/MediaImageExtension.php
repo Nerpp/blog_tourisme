@@ -124,6 +124,10 @@ final class MediaImageExtension extends AbstractExtension
         $entries = [];
         $seenWidths = [];
         $sizes = $isStandardImage ? self::STANDARD_RESPONSIVE_SIZES : self::LEGACY_RESPONSIVE_SIZES;
+        if ($this->isArticleResponsiveImage($media)) {
+            // The larger Article source is intentionally reserved for the click-opened lightbox.
+            $sizes = ['thumb', 'mobile', 'medium'];
+        }
         foreach ($sizes as $size) {
             $variant = $this->variant($media->getVariants(), $size);
             $path = $variant[$format] ?? null;
@@ -235,5 +239,14 @@ final class MediaImageExtension extends AbstractExtension
     {
         return $media->getMediaType() === MediaType::Image
             && $media->getImageType() === ImageType::Standard;
+    }
+
+    private function isArticleResponsiveImage(MediaAsset $media): bool
+    {
+        $metadata = $media->getMetadata();
+
+        return $this->isStandardImage($media)
+            && is_array($metadata)
+            && ($metadata['articleResponsiveWebp'] ?? false) === true;
     }
 }

@@ -63,7 +63,7 @@ final class MediaVariantService
 
     public function hasUsableVariants(MediaAsset $media): bool
     {
-        if ($this->isArticleSingleWebp($media)) {
+        if ($this->isLegacyArticleSingleWebp($media)) {
             return $this->localPublicFileExists((string) $media->getFilePath());
         }
 
@@ -95,11 +95,11 @@ final class MediaVariantService
      */
     public function generateForMedia(MediaAsset $media, bool $force = false): array
     {
-        if ($this->isArticleSingleWebp($media)) {
+        if ($this->isManagedArticleWebp($media)) {
             return [
                 'status' => 'skipped',
                 'generated' => false,
-                'message' => 'Média Article déjà optimisé en WebP unique.',
+                'message' => 'Média Article déjà géré par son pipeline WebP dédié.',
             ];
         }
 
@@ -240,7 +240,20 @@ final class MediaVariantService
         return !str_starts_with($path, 'http://') && !str_starts_with($path, 'https://');
     }
 
-    private function isArticleSingleWebp(MediaAsset $media): bool
+    private function isManagedArticleWebp(MediaAsset $media): bool
+    {
+        $metadata = $media->getMetadata();
+
+        return $this->isLegacyArticleSingleWebp($media)
+            || (
+                $media->getMediaType() === MediaType::Image
+                && $media->getImageType() === ImageType::Standard
+                && is_array($metadata)
+                && ($metadata['articleResponsiveWebp'] ?? false) === true
+            );
+    }
+
+    private function isLegacyArticleSingleWebp(MediaAsset $media): bool
     {
         $metadata = $media->getMetadata();
 

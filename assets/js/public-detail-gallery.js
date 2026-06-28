@@ -9,6 +9,7 @@ export function initPublicDetailGallery() {
       const nextButtons = modal.querySelectorAll('.js-gallery-next');
       const prevButtons = modal.querySelectorAll('.js-gallery-prev');
       const counter = modal.querySelector('.js-gallery-counter');
+      const shouldPreloadNeighborSlides = modal.dataset.galleryPreloadNeighbors !== 'false';
 
       if (slides.length === 0) {
         return;
@@ -134,7 +135,7 @@ export function initPublicDetailGallery() {
       };
 
       const preloadNeighborSlides = () => {
-        if (slides.length < 2) {
+        if (!shouldPreloadNeighborSlides || slides.length < 2) {
           return;
         }
 
