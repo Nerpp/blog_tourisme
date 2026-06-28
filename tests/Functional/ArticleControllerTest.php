@@ -14,7 +14,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $article = $this->createArticle($this->createUser());
 
-        $client->request('GET', '/articles');
+        $client->request('GET', '/articles?q='.rawurlencode((string) $article->getTitle()));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Articles');
@@ -24,15 +24,17 @@ final class ArticleControllerTest extends FunctionalTestCase
     public function testArticleIndexDoesNotListDraftArticles(): void
     {
         $client = static::createClient();
+        $token = $this->uniqueToken('visibility');
         $published = $this->createArticle($this->createUser());
+        $published->setTitle('Article visible '.$token);
         $draft = $this->createArticle($this->createUser());
         $draft
-            ->setTitle('Article brouillon invisible '.$this->uniqueToken('article'))
+            ->setTitle('Article brouillon invisible '.$token)
             ->setStatus(ContentStatus::Draft)
             ->setPublishedAt(null);
-        $this->persistAndFlush($draft);
+        $this->persistAndFlush($published, $draft);
 
-        $client->request('GET', '/articles');
+        $client->request('GET', '/articles?q='.rawurlencode($token));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $published->getTitle());
@@ -121,6 +123,31 @@ final class ArticleControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertSame(0, $crawler->filter('.article-gallery-section')->count());
+    }
+
+    public function testGallerySectionIsTheNextArticleBlockAfterTheCompleteProse(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $media = $this->createImageMedia('Photo de galerie après la prose');
+        $link = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($media)
+            ->setRole(MediaRole::Gallery)
+            ->setPosition(0);
+        $article->getMediaLinks()->add($link);
+        $media->getArticleLinks()->add($link);
+        $article->setContent(sprintf('<p>Texte long avant la galerie avec [[media:%d]] en fin de paragraphe.</p>', $media->getId()));
+        $this->persistAndFlush($article, $media, $link);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('.article-show-main > .article-content + .article-gallery-section')->count());
+        self::assertSame(0, $crawler->filter('.article-content .article-gallery-section')->count());
+        self::assertSame(1, $crawler->filter('.article-gallery-section .journey-gallery-card')->count());
+        self::assertSame(1, $crawler->filter('.article-gallery-section .gallery-modal')->count());
     }
 
     public function testPublishedArticleCoverIsAHighPriorityResponsiveImage(): void

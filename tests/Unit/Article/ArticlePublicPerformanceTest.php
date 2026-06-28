@@ -19,7 +19,11 @@ final class ArticlePublicPerformanceTest extends TestCase
             $css,
         );
         self::assertMatchesRegularExpression(
-            '/\.article-show-main \.article-content\s*\{[^}]*max-width: 820px;[^}]*margin-inline: auto;/s',
+            '/\.article-show-main \.article-content\s*\{[^}]*display: flow-root;[^}]*max-width: 820px;[^}]*margin-inline: auto;/s',
+            $css,
+        );
+        self::assertMatchesRegularExpression(
+            '/\.article-show-main \.article-gallery-section\s*\{[^}]*clear: both;[^}]*margin-top: 42px;/s',
             $css,
         );
     }

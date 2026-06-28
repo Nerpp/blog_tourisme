@@ -71,6 +71,7 @@
 }
 
 .article-show-main .article-content {
+  display: flow-root;
   max-width: 820px;
   margin-inline: auto;
 }
@@ -204,6 +205,7 @@
 /* Galerie article */
 
 .article-show-main .article-gallery-section {
+  clear: both;
   margin-top: 42px;
 }
 
