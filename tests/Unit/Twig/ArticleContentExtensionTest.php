@@ -37,6 +37,13 @@ final class ArticleContentExtensionTest extends TestCase
         self::assertSame('<p>Texte lien</p>', $this->extension()->editorContentHtml($article));
     }
 
+    public function testEditorContentKeepsExistingBlockAndInlineMediaTokens(): void
+    {
+        $content = '<p>Avant [[media:77]] après.</p><p>[[media:78]]</p>';
+
+        self::assertSame($content, $this->extension()->editorContentHtml($this->article($content)));
+    }
+
     public function testContentHtmlRendersIsolatedLinkedImagePlaceholderAsResponsiveFigure(): void
     {
         $media = (new MediaAsset())
@@ -177,6 +184,36 @@ final class ArticleContentExtensionTest extends TestCase
         self::assertStringContainsString('srcset="/uploads/media/article-inline.webp 640w, /uploads/media/article-display.webp 960w, /uploads/media/article-cover.webp 1280w"', $html);
         self::assertStringContainsString('sizes="(min-width: 900px) 640px, calc(100vw - 72px)"', $html);
         self::assertStringNotContainsString('/uploads/media/article-source.webp 1600w', $html);
+    }
+
+    public function testContentHtmlSkipsAMissingResponsiveCandidateWithoutInventingItsDescriptor(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/article-source.webp')
+            ->setThumbnailPath('/uploads/media/article-inline.webp')
+            ->setWidth(1600)
+            ->setHeight(900)
+            ->setTitle('Illustration incomplète')
+            ->setAltText('Alternative conservée')
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/article-inline.webp', 'width' => 640, 'height' => 360],
+                'medium' => ['webp' => '/uploads/media/article-cover.webp', 'width' => 1280, 'height' => 720],
+                'large' => ['webp' => '/uploads/media/article-source.webp', 'width' => 1600, 'height' => 900],
+            ])
+            ->setMetadata(['articleResponsiveWebp' => true]);
+        $this->setEntityId($media, 81);
+        $article = $this->article('<p>[[media:81]]</p>');
+        $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($media));
+
+        $html = $this->extension()->contentHtml($article);
+
+        self::assertStringContainsString('<img src="/uploads/media/article-inline.webp" alt="Alternative conservée" loading="lazy"', $html);
+        self::assertStringContainsString('srcset="/uploads/media/article-inline.webp 640w, /uploads/media/article-cover.webp 1280w"', $html);
+        self::assertStringNotContainsString('960w', $html);
+        self::assertStringNotContainsString('/uploads/media/article-inline.webp 1600w', $html);
+        self::assertStringNotContainsString('fetchpriority=', $html);
     }
 
     public function testContentHtmlDropsUnknownOrNonImageMediaPlaceholder(): void

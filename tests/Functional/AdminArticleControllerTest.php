@@ -1048,7 +1048,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         }
     }
 
-    public function testArticleAdminDisplaysExistingMediaWithLightweightThumbnails(): void
+    public function testArticleAdminRestoresEveryExistingMediaActionWithAnAdminOnlyThumbnail(): void
     {
         $client = static::createClient();
         $article = $this->createDraftArticle();
@@ -1076,18 +1076,87 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertNull($cardImage->attr('sizes'));
         self::assertSame('lazy', $cardImage->attr('loading'));
         self::assertSame('async', $cardImage->attr('decoding'));
+        self::assertNull($cardImage->attr('fetchpriority'));
         self::assertSame('600', $cardImage->attr('width'));
         self::assertSame('338', $cardImage->attr('height'));
         self::assertSame(0, $crawler->filter('.article-admin-media-item picture')->count());
-        $copyButton = $crawler->filter('button[data-article-copy-media-code]')->first();
-        self::assertSame(1, $copyButton->count());
-        self::assertSame('button', $copyButton->attr('type'));
-        self::assertSame(sprintf('[[media:%d]]', $media->getId()), $copyButton->attr('data-article-copy-media-code'));
-        self::assertSame('Copier le code', trim($copyButton->text()));
-        self::assertSame(0, $crawler->filter('[data-article-insert-media]')->count());
-        self::assertSame(1, $crawler->filter('[data-article-copy-status][aria-live="polite"]')->count());
+        $insertButton = $crawler->filter(sprintf('button[data-article-insert-media="[[media:%d]]"]', $media->getId()))->first();
+        self::assertSame(1, $insertButton->count());
+        self::assertSame('button', $insertButton->attr('type'));
+        self::assertSame('Insérer', trim($insertButton->text()));
+        self::assertSame(1, $crawler->filter('input[data-article-cover-choice]')->count());
+        self::assertSame(1, $crawler->filter('input[data-article-delete-media]')->count());
+        self::assertSame(9, $crawler->filter('.article-editor-toolbar button')->count());
+        self::assertSame(0, $crawler->filter('[data-article-copy-media-code], [data-article-copy-status]')->count());
 
         self::assertSame(0, $crawler->filter('.article-admin-cover-preview')->count());
+    }
+
+    public function testExistingMediaSettingsSurviveEditingAndRenderResponsivelyOnThePublicArticle(): void
+    {
+        $client = static::createClient();
+        $article = $this->createDraftArticle('Article avec réglages média '.$this->uniqueToken('article'));
+        $article->setStatus(ContentStatus::Published)->setPublishedAt(new \DateTimeImmutable('-1 hour'));
+        $cover = $this->createImageMedia('Couverture distincte');
+        $article->setFeaturedImage($cover);
+        $media = $this->createImageMedia('Légende éditoriale conservée')
+            ->setAltText('Vue éditoriale personnalisée');
+        $alt = (string) $media->getAltText();
+        $media
+            ->setFilePath('/uploads/media/article-editor-source.webp')
+            ->setThumbnailPath('/uploads/media/article-editor-inline.webp')
+            ->setMimeType('image/webp')
+            ->setWidth(1600)
+            ->setHeight(900)
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/article-editor-inline.webp', 'width' => 640, 'height' => 360],
+                'mobile' => ['webp' => '/uploads/media/article-editor-display.webp', 'width' => 960, 'height' => 540],
+                'medium' => ['webp' => '/uploads/media/article-editor-cover.webp', 'width' => 1280, 'height' => 720],
+                'large' => ['webp' => '/uploads/media/article-editor-source.webp', 'width' => 1600, 'height' => 900],
+            ])
+            ->setMetadata(['articleResponsiveWebp' => true]);
+        $this->linkArticleMedia($article, $media, MediaRole::Gallery, 0);
+        $content = sprintf('<p>Introduction avec [[media:%d]] en ligne.</p><p>[[media:%d]]</p>', $media->getId(), $media->getId());
+        $article->setContent($content);
+        $this->persistAndFlush($article, $media, $cover);
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($content, trim((string) $crawler->filter('[data-article-editor-source]')->text()));
+        self::assertSame(1, $crawler->filter(sprintf('[data-article-insert-media="[[media:%d]]"]', $media->getId()))->count());
+
+        $client->request('POST', sprintf('/admin/articles/%d/edit', $article->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => (string) $article->getTitle(),
+            'content' => $content,
+            'status' => ContentStatus::Published->value,
+            'linkedContentType' => 'none',
+            'articleRole' => 'related',
+        ]);
+
+        self::assertResponseRedirects('/admin/articles');
+        $article = $this->refresh($article);
+        self::assertSame($content, $article->getContent());
+
+        $publicCrawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $blockImage = $publicCrawler->filter('.article-content-media img')->first();
+        self::assertSame('/uploads/media/article-editor-inline.webp', $blockImage->attr('src'));
+        self::assertSame(
+            '/uploads/media/article-editor-inline.webp 640w, /uploads/media/article-editor-display.webp 960w, /uploads/media/article-editor-cover.webp 1280w',
+            $blockImage->attr('srcset'),
+        );
+        self::assertSame('(min-width: 900px) 640px, calc(100vw - 72px)', $blockImage->attr('sizes'));
+        self::assertSame($alt, $blockImage->attr('alt'));
+        self::assertSame('lazy', $blockImage->attr('loading'));
+        self::assertNull($blockImage->attr('fetchpriority'));
+        self::assertSame('1280', $blockImage->attr('width'));
+        self::assertSame('720', $blockImage->attr('height'));
+        self::assertSame('Légende éditoriale conservée', trim($publicCrawler->filter('.article-content-media figcaption')->text()));
+        self::assertSame(1, $publicCrawler->filter('.article-content-media-inline img[loading="lazy"]')->count());
     }
 
     public function testStructuredMediaIdentifiersDoNotRemoveOrPromoteArticleMedia(): void

@@ -375,84 +375,85 @@ const initDeleteConfirmations = (form) => {
     });
 };
 
-const fallbackCopyText = (text) => {
-    const activeElement = document.activeElement;
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.setAttribute('readonly', '');
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    textarea.style.top = '0';
-    document.body.append(textarea);
-    textarea.select();
+const initRichTextEditor = (form) => {
+    const editor = form.querySelector('[data-article-editor]');
+    const source = form.querySelector('[data-article-editor-source]');
 
-    try {
-        if (!document.execCommand('copy')) {
-            throw new Error('Copy command was refused.');
-        }
-    } finally {
-        textarea.remove();
-        if (activeElement && typeof activeElement.focus === 'function') {
-            activeElement.focus();
-        }
-    }
-};
-
-const copyText = async (text) => {
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        try {
-            await navigator.clipboard.writeText(text);
-            return;
-        } catch (error) {
-            // The fallback below covers blocked Clipboard API permissions.
-        }
+    if (!(editor instanceof HTMLElement) || !(source instanceof HTMLTextAreaElement)) {
+        return;
     }
 
-    fallbackCopyText(text);
-};
+    let savedRange = null;
 
-const initMediaCodeCopy = (form) => {
-    const status = form.querySelector('[data-article-copy-status]');
-    const resetTimers = new WeakMap();
+    const syncSource = () => {
+        source.value = editor.innerHTML.trim();
+    };
 
-    form.querySelectorAll('[data-article-copy-media-code]').forEach((button) => {
-        if (!(button instanceof HTMLButtonElement)) {
+    const rememberSelection = () => {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
             return;
         }
 
-        const defaultLabel = button.textContent?.trim() || 'Copier le code';
+        const range = selection.getRangeAt(0);
+        if (editor.contains(range.commonAncestorContainer)) {
+            savedRange = range.cloneRange();
+        }
+    };
 
-        button.addEventListener('click', async (event) => {
-            event.preventDefault();
+    const restoreSelection = () => {
+        editor.focus();
 
-            const code = button.dataset.articleCopyMediaCode || '';
-            if (code === '') {
-                return;
+        const range = savedRange ?? document.createRange();
+        if (savedRange === null) {
+            range.selectNodeContents(editor);
+            range.collapse(false);
+        }
+
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+    };
+
+    const runCommand = (command, value = null) => {
+        restoreSelection();
+        document.execCommand(command, false, value);
+        syncSource();
+        rememberSelection();
+    };
+
+    form.querySelectorAll('[data-article-editor-command]').forEach((button) => {
+        button.addEventListener('click', () => runCommand(button.dataset.articleEditorCommand));
+    });
+
+    form.querySelectorAll('[data-article-editor-format]').forEach((button) => {
+        button.addEventListener('click', () => runCommand('formatBlock', button.dataset.articleEditorFormat));
+    });
+
+    form.querySelectorAll('[data-article-editor-link]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const href = window.prompt('URL du lien');
+            if (href) {
+                runCommand('createLink', href);
             }
-
-            window.clearTimeout(resetTimers.get(button));
-
-            try {
-                await copyText(code);
-                button.textContent = 'Code copié';
-                if (status) {
-                    status.textContent = `Code copié : ${code}`;
-                }
-            } catch (error) {
-                button.textContent = 'Copie impossible';
-                if (status) {
-                    status.textContent = `Copie impossible. Le code à copier est ${code}.`;
-                }
-            }
-
-            resetTimers.set(button, window.setTimeout(() => {
-                button.textContent = defaultLabel;
-                if (status) {
-                    status.textContent = '';
-                }
-            }, 1800));
         });
     });
+
+    form.querySelectorAll('[data-article-insert-media]').forEach((button) => {
+        button.addEventListener('mousedown', rememberSelection);
+        button.addEventListener('click', () => {
+            const mediaToken = button.dataset.articleInsertMedia || '';
+            if (mediaToken !== '') {
+                runCommand('insertText', ` ${mediaToken} `);
+            }
+        });
+    });
+
+    editor.addEventListener('input', syncSource);
+    editor.addEventListener('keyup', rememberSelection);
+    editor.addEventListener('mouseup', rememberSelection);
+    form.addEventListener('submit', syncSource);
+    syncSource();
 };
 
 const initSubmitLock = (form) => {
@@ -498,7 +499,7 @@ const initArticleForm = (form) => {
     initCoverChoices(form);
     initFilePreviews(form);
     initDeleteConfirmations(form);
-    initMediaCodeCopy(form);
+    initRichTextEditor(form);
     initSubmitLock(form);
 };
 

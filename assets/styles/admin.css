@@ -589,13 +589,6 @@ a {
     font-weight: 700;
 }
 
-.article-admin-copy-status {
-    min-height: 1.25rem;
-    color: var(--admin-primary);
-    font-size: 0.9rem;
-    font-weight: 800;
-}
-
 .article-admin-check {
     display: inline-flex;
     align-items: center;

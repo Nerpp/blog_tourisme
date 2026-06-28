@@ -22,10 +22,9 @@
 
 {% set article_cover_media = article_cover_media ?: article_fallback_cover_media %}
 
-{% set article_cover_image_size = null %}
-{% if article_cover_media %}
-	{% set article_cover_image_size = media_image_dimensions(article_cover_media, 'medium') ? 'medium' : (media_image_dimensions(article_cover_media, 'large') ? 'large' : 'thumb') %}
-{% endif %}
+{# Keep the non-responsive fallback below the 1280 px candidate. Modern browsers
+   still select the best candidate from srcset, including 1280 px on dense screens. #}
+{% set article_cover_image_size = article_cover_media ? 'mobile' : null %}
 {% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, article_cover_image_size) : null %}
 {% set article_cover_srcset = article_cover_media ? media_image_srcset(article_cover_media, 'webp') : null %}
 {% set article_cover_sizes = '(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}

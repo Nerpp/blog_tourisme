@@ -150,12 +150,12 @@ final class ArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         $coverImage = $crawler->filter('.article-show-cover picture img')->first();
-        self::assertSame('/uploads/media/variants/article-cover-medium.webp', $coverImage->attr('src'));
+        self::assertSame('/uploads/media/variants/article-cover-mobile.webp', $coverImage->attr('src'));
         self::assertSame('eager', $coverImage->attr('loading'));
         self::assertSame('high', $coverImage->attr('fetchpriority'));
         self::assertSame('async', $coverImage->attr('decoding'));
-        self::assertSame('1600', $coverImage->attr('width'));
-        self::assertSame('900', $coverImage->attr('height'));
+        self::assertSame('960', $coverImage->attr('width'));
+        self::assertSame('540', $coverImage->attr('height'));
         self::assertSame('(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)', $coverImage->attr('sizes'));
         self::assertSame(
             '/uploads/media/variants/article-cover-thumb.webp 600w, /uploads/media/variants/article-cover-mobile.webp 960w, /uploads/media/variants/article-cover-medium.webp 1600w, /uploads/media/variants/article-cover-large.webp 1920w',
@@ -164,7 +164,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertNull($crawler->filter('.article-show-cover')->attr('style'));
         self::assertStringNotContainsString('hero-sea-mountain-desktop.webp', (string) $client->getResponse()->getContent());
         $preload = $crawler->filter('link[rel="preload"][as="image"]')->first();
-        self::assertSame('/uploads/media/variants/article-cover-medium.webp', $preload->attr('href'));
+        self::assertSame('/uploads/media/variants/article-cover-mobile.webp', $preload->attr('href'));
         self::assertSame('high', $preload->attr('fetchpriority'));
     }
 
@@ -215,8 +215,13 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         self::assertSame($coverPath, $crawler->filter('.article-show-cover img')->first()->attr('src'));
         self::assertSame($coverPath, $crawler->filter('link[rel="preload"][as="image"]')->first()->attr('href'));
-        self::assertSame($galleryPath, $crawler->filter('.article-content-media img')->first()->attr('src'));
-        self::assertStringContainsString(sprintf('%s 1600w', $galleryPath), (string) $crawler->filter('.article-content-media img')->first()->attr('srcset'));
+        $contentImage = $crawler->filter('.article-content-media img')->first();
+        self::assertSame($galleryPath, $contentImage->attr('src'));
+        self::assertStringContainsString(sprintf('%s 1600w', $galleryPath), (string) $contentImage->attr('srcset'));
+        self::assertSame('lazy', $contentImage->attr('loading'));
+        self::assertNull($contentImage->attr('fetchpriority'));
+        self::assertSame('1600', $contentImage->attr('width'));
+        self::assertSame('1067', $contentImage->attr('height'));
 
         $galleryId = sprintf('article-gallery-%d', $article->getId());
         self::assertSame(1, $crawler->filter(sprintf('.journey-gallery-card[data-gallery-target="#%s"][data-gallery-index="0"]', $galleryId))->count());
@@ -254,13 +259,24 @@ final class ArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         $coverImage = $crawler->filter('.article-show-cover img')->first();
-        self::assertSame('/uploads/media/article-cover-cover.webp', $coverImage->attr('src'));
+        self::assertSame('/uploads/media/article-cover-display.webp', $coverImage->attr('src'));
         self::assertSame('/uploads/media/article-cover-inline.webp 640w, /uploads/media/article-cover-display.webp 960w, /uploads/media/article-cover-cover.webp 1280w', $coverImage->attr('srcset'));
+        self::assertSame('(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)', $coverImage->attr('sizes'));
+        self::assertSame('eager', $coverImage->attr('loading'));
+        self::assertSame('high', $coverImage->attr('fetchpriority'));
+        self::assertNotSame('lazy', $coverImage->attr('loading'));
         self::assertStringNotContainsString('article-cover-source.webp', (string) $coverImage->attr('srcset'));
+
+        $preload = $crawler->filter('link[rel="preload"][as="image"]')->first();
+        self::assertSame('/uploads/media/article-cover-display.webp', $preload->attr('href'));
+        self::assertSame($coverImage->attr('srcset'), $preload->attr('imagesrcset'));
+        self::assertSame($coverImage->attr('sizes'), $preload->attr('imagesizes'));
 
         $contentImage = $crawler->filter('.article-content-media img')->first();
         self::assertSame('/uploads/media/article-gallery-inline.webp', $contentImage->attr('src'));
         self::assertSame('/uploads/media/article-gallery-inline.webp 640w, /uploads/media/article-gallery-display.webp 960w, /uploads/media/article-gallery-cover.webp 1280w', $contentImage->attr('srcset'));
+        self::assertSame('lazy', $contentImage->attr('loading'));
+        self::assertNull($contentImage->attr('fetchpriority'));
         self::assertStringNotContainsString('article-gallery-source.webp', (string) $contentImage->attr('srcset'));
 
         $galleryCardImage = $crawler->filter('.article-gallery-section .journey-gallery-card img')->first();
@@ -279,6 +295,39 @@ final class ArticleControllerTest extends FunctionalTestCase
             $crawler->filter('.article-gallery-section .gallery-modal__slide img')->first()->attr('data-gallery-src'),
         );
         self::assertNull($crawler->filter('.article-gallery-section .gallery-modal__slide img')->first()->attr('src'));
+    }
+
+    public function testResponsiveArticleCoverStillRendersWhenTheDisplayVariantIsMissing(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $cover = $this->responsiveArticleMedia('Couverture responsive incomplète', 'incomplete-cover', 900);
+        $variants = $cover->getVariants();
+        self::assertIsArray($variants);
+        unset($variants['mobile']);
+        $cover->setVariants($variants);
+
+        $link = (new ArticleMedia())
+            ->setArticle($article)
+            ->setMediaAsset($cover)
+            ->setRole(MediaRole::Cover)
+            ->setPosition(0);
+        $article->getMediaLinks()->add($link);
+        $cover->getArticleLinks()->add($link);
+        $article->setFeaturedImage($cover);
+        $this->persistAndFlush($article, $cover, $link);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $coverImage = $crawler->filter('.article-show-cover img')->first();
+        self::assertSame('/uploads/media/article-incomplete-cover-inline.webp', $coverImage->attr('src'));
+        self::assertSame(
+            '/uploads/media/article-incomplete-cover-inline.webp 640w, /uploads/media/article-incomplete-cover-cover.webp 1280w',
+            $coverImage->attr('srcset'),
+        );
+        self::assertSame('eager', $coverImage->attr('loading'));
+        self::assertSame('high', $coverImage->attr('fetchpriority'));
     }
 
     public function testInvalidCommentSortFallsBackWithoutServerError(): void

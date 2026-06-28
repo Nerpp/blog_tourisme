@@ -207,15 +207,27 @@ final class ArticleContentExtension extends AbstractExtension
     {
         $entries = [];
         $seenWidths = [];
+        $variants = $media->getVariants();
 
         foreach (['thumb', 'mobile', 'medium'] as $size) {
-            $src = $this->mediaImageExtension->imageUrl($media, $size);
-            $dimensions = $this->mediaImageExtension->imageDimensions($media, $size);
-            if ($src === null || $dimensions === null) {
+            $variant = is_array($variants) && isset($variants[$size]) && is_array($variants[$size])
+                ? $variants[$size]
+                : null;
+            if (
+                !is_array($variant)
+                || !is_string($variant['webp'] ?? null)
+                || trim($variant['webp']) === ''
+                || !is_numeric($variant['width'] ?? null)
+            ) {
                 continue;
             }
 
-            $width = $dimensions['width'];
+            $src = $this->mediaImageExtension->imageUrl($media, $size);
+            if ($src === null) {
+                continue;
+            }
+
+            $width = (int) $variant['width'];
             if (isset($seenWidths[$width])) {
                 continue;
             }

@@ -88,7 +88,6 @@
                         <span id="article-gallery-images-help" class="admin-muted">Formats acceptés : JPG, PNG, WebP. Taille maximum : 30 Mo par photo. Les images sont renommées, nettoyées et optimisées automatiquement.</span>
                         <div class="article-upload-preview" data-article-file-preview="gallery" aria-live="polite"></div>
                         <input type="hidden" name="newCoverImageIndex" value="" data-article-new-cover-index>
-                        <span class="article-admin-copy-status" data-article-copy-status aria-live="polite" aria-atomic="true"></span>
                     </div>
 
                     {% set article_image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
@@ -100,20 +99,17 @@
                                 {% set media = article.featuredImage %}
                                 {% set media_title = media_public_title(media, article, 'Image d’article') %}
                                 <article class="article-admin-media-item is-main-media" data-main-media-card data-main-media-state="main">
-                                    {% include 'public_detail/_responsive_image.html.twig' with {
+                                    {% include 'admin/articles/_media_thumbnail.html.twig' with {
                                         media: media,
                                         alt: media_public_alt(media, article, media_title),
-                                        image_mode: 'card_thumbnail',
-                                        img_class: 'article-admin-media-item__image',
-                                        loading: 'lazy',
-                                        decoding: 'async'
+                                        img_class: 'article-admin-media-item__image'
                                     } only %}
                                     <div>
                                         <strong>{{ media_title }}</strong>
                                         <span class="studio-media-role-badge" data-main-media-badge>Image principale</span>
                                         <code>[[media:{{ media.id }}]]</code>
                                         <div class="article-admin-media-actions">
-                                            <button type="button" class="admin-button admin-button--secondary" data-article-copy-media-code="[[media:{{ media.id }}]]">Copier le code</button>
+                                            <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">Insérer</button>
                                             <label class="article-admin-cover-choice">
                                                 <input type="radio" name="promoteCoverMedia" value="" checked data-article-cover-choice>
                                                 Image principale
@@ -142,13 +138,10 @@
                                     data-main-media-card
                                     data-main-media-state="{{ is_cover_image ? 'main' : 'gallery' }}"
                                 >
-                                    {% include 'public_detail/_responsive_image.html.twig' with {
+                                    {% include 'admin/articles/_media_thumbnail.html.twig' with {
                                         media: media,
                                         alt: media_public_alt(media, article, media_title),
-                                        image_mode: 'card_thumbnail',
-                                        img_class: 'article-admin-media-item__image',
-                                        loading: 'lazy',
-                                        decoding: 'async'
+                                        img_class: 'article-admin-media-item__image'
                                     } only %}
 
                                     <div>
@@ -158,8 +151,8 @@
                                         </span>
                                         <code>[[media:{{ media.id }}]]</code>
                                         <div class="article-admin-media-actions">
-                                            <button type="button" class="admin-button admin-button--secondary" data-article-copy-media-code="[[media:{{ media.id }}]]">
-                                                Copier le code
+                                            <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">
+                                                Insérer
                                             </button>
                                             <label class="article-admin-cover-choice">
                                                 <input
@@ -369,60 +362,4 @@
             </aside>
         </div>
     </form>
-{% endblock %}
-
-{% block javascripts %}
-    {{ parent() }}
-    <script>
-        (() => {
-            const editor = document.querySelector('[data-article-editor]');
-            const source = document.querySelector('[data-article-editor-source]');
-            const form = document.querySelector('.article-admin-form');
-
-            if (!editor || !source || !form) {
-                return;
-            }
-
-            const syncSource = () => {
-                source.value = editor.innerHTML.trim();
-            };
-
-            const focusEditor = () => {
-                editor.focus();
-            };
-
-            document.querySelectorAll('[data-article-editor-command]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    focusEditor();
-                    document.execCommand(button.dataset.articleEditorCommand, false);
-                    syncSource();
-                });
-            });
-
-            document.querySelectorAll('[data-article-editor-format]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    focusEditor();
-                    document.execCommand('formatBlock', false, button.dataset.articleEditorFormat);
-                    syncSource();
-                });
-            });
-
-            document.querySelectorAll('[data-article-editor-link]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    const href = window.prompt('URL du lien');
-                    if (!href) {
-                        return;
-                    }
-
-                    focusEditor();
-                    document.execCommand('createLink', false, href);
-                    syncSource();
-                });
-            });
-
-            editor.addEventListener('input', syncSource);
-            form.addEventListener('submit', syncSource);
-            syncSource();
-        })();
-    </script>
 {% endblock %}
