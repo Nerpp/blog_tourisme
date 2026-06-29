@@ -131,7 +131,7 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
 
         $variants = $this->generator()->generate(TestImageFactory::publicPathFor($source), 'jpeg-test');
 
-        foreach (['thumb', 'medium', 'large'] as $size) {
+        foreach (['thumb', 'mobile', 'medium', 'large'] as $size) {
             self::assertArrayHasKey($size, $variants);
             self::assertSame(80, $variants[$size]['width']);
             self::assertSame(40, $variants[$size]['height']);
@@ -157,16 +157,42 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         $first = $generator->generate(TestImageFactory::publicPathFor($source), 'stable-large-image');
         $second = $generator->generate(TestImageFactory::publicPathFor($source), 'stable-large-image');
 
-        self::assertSame(600, $first['thumb']['width']);
-        self::assertSame(300, $first['thumb']['height']);
+        self::assertSame(640, $first['thumb']['width']);
+        self::assertSame(320, $first['thumb']['height']);
         self::assertSame(800, $first['medium']['width']);
         self::assertSame(400, $first['medium']['height']);
         self::assertSame($first['thumb']['fallback'], $second['thumb']['fallback']);
         self::assertSame($first['medium']['fallback'], $second['medium']['fallback']);
         self::assertSame($first['large']['fallback'], $second['large']['fallback']);
-        $this->assertPublicImage($second['thumb']['fallback'], 'image/jpeg', 600, 300);
+        $this->assertPublicImage($second['thumb']['fallback'], 'image/jpeg', 640, 320);
+        $this->assertPublicImage($second['mobile']['fallback'], 'image/jpeg', 800, 400);
         $this->assertPublicImage($second['medium']['fallback'], 'image/jpeg', 800, 400);
         $this->assertPublicImage($second['large']['fallback'], 'image/jpeg', 800, 400);
+    }
+
+    public function testLegacyPipelineGeneratesCoverCandidatesAtTargetDimensionsAndQualities(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 1600, 800);
+        $this->files[] = $source;
+
+        $variants = $this->generator()->generate(TestImageFactory::publicPathFor($source), 'cover-targets');
+
+        foreach ([
+            'thumb' => [640, 320],
+            'mobile' => [960, 480],
+            'medium' => [1280, 640],
+            'large' => [1600, 800],
+        ] as $size => [$width, $height]) {
+            $this->assertPublicImage($variants[$size]['fallback'], 'image/jpeg', $width, $height);
+            if (isset($variants[$size]['webp'])) {
+                $this->assertPublicImage($variants[$size]['webp'], 'image/webp', $width, $height);
+            }
+        }
+
+        self::assertSame(
+            ['thumb' => 76, 'mobile' => 78, 'medium' => 80, 'large' => 90],
+            (new \ReflectionClass(ImageVariantGenerator::class))->getConstant('LEGACY_WEBP_QUALITIES'),
+        );
     }
 
     public function testReportsSupportedFormatsAndMimeTypes(): void

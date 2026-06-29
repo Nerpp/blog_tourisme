@@ -20,16 +20,30 @@
 {% set cover_media = cover_media ?: fallback_cover_media %}
 
 {% set cover_image = null %}
+{% set cover_webp_image = null %}
+{% set cover_webp_srcset = null %}
+{% set cover_fallback_srcset = null %}
+{% set cover_sizes = '(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
 
 {% if cover_media %}
-    {% set cover_image = media_image_url(cover_media, 'large') %}
+    {% set cover_image = media_cover_image_url(cover_media, 'medium', 'fallback') %}
+    {% set cover_webp_image = media_cover_image_url(cover_media, 'medium', 'webp') %}
+    {% set cover_webp_srcset = media_cover_image_srcset(cover_media, 'webp') %}
+    {% set cover_fallback_srcset = media_cover_image_srcset(cover_media, 'fallback') %}
 {% endif %}
 
 {% block title %}{{ city_visit.title }} - Visite de ville{% endblock %}
 
 {% block preloads %}
     {% if cover_image %}
-        <link rel="preload" as="image" href="{{ cover_image }}">
+        <link
+            rel="preload"
+            as="image"
+            href="{{ cover_webp_image ?: cover_image }}"
+            {% if cover_webp_image %}type="image/webp"{% endif %}
+            {% if cover_webp_srcset %}imagesrcset="{{ cover_webp_srcset }}" imagesizes="{{ cover_sizes }}"{% elseif cover_fallback_srcset %}imagesrcset="{{ cover_fallback_srcset }}" imagesizes="{{ cover_sizes }}"{% endif %}
+            fetchpriority="high"
+        >
     {% endif %}
 {% endblock %}
 
@@ -55,12 +69,15 @@
                     } only %}
                 </div>
 
-                <div
-                    class="public-detail-cover"
-                    {% if cover_image %}
-                        style="--public-cover-image: url('{{ cover_image|e('html_attr') }}');"
+                <div class="public-detail-cover {{ cover_media ? 'public-detail-cover--media' : '' }}">
+                    {% if cover_media %}
+                        {% include 'public_detail/_cover_image.html.twig' with {
+                            media: cover_media,
+                            alt: media_public_alt(cover_media, city_visit, city_visit.title),
+                            sizes: cover_sizes
+                        } only %}
                     {% endif %}
-                ></div>
+                </div>
             </div>
         </section>
 

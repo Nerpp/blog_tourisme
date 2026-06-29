@@ -18,12 +18,22 @@ final class ImageVariantGenerator
     private const ARTICLE_DISPLAY_WEBP_QUALITY = 79;
     private const ARTICLE_COVER_WEBP_QUALITY = 80;
     private const ARTICLE_SOURCE_WEBP_QUALITY = 82;
+    private const LEGACY_VARIANT_PIPELINE_VERSION = 'responsive-cover-v2';
 
     /** @var array<string, int> */
     private const LEGACY_SIZES = [
-        'thumb' => 600,
-        'medium' => 1920,
+        'thumb' => 640,
+        'mobile' => 960,
+        'medium' => 1280,
         'large' => 2560,
+    ];
+
+    /** @var array<string, int> */
+    private const LEGACY_WEBP_QUALITIES = [
+        'thumb' => 76,
+        'mobile' => 78,
+        'medium' => 80,
+        'large' => 90,
     ];
 
     /** @var array<string, int> */
@@ -326,7 +336,10 @@ final class ImageVariantGenerator
         $this->ensureDirectory($variantDirectory);
 
         $seed = $basenameSeed ?: $publicSourcePath;
-        $baseName = 'media_'.substr(hash('sha256', $seed.'|'.filesize($sourceFile).'|'.filemtime($sourceFile)), 0, 20);
+        $baseName = 'media_'.substr(hash(
+            'sha256',
+            $seed.'|'.filesize($sourceFile).'|'.filemtime($sourceFile).'|'.self::LEGACY_VARIANT_PIPELINE_VERSION,
+        ), 0, 20);
         $variants = [
             'source' => [
                 'path' => $publicSourcePath,
@@ -570,7 +583,13 @@ final class ImageVariantGenerator
         $fallbackExtension = self::FALLBACK_EXTENSIONS[$mimeType];
         $fallbackFilename = sprintf('%s_%s.%s', $baseName, $sizeName, $fallbackExtension);
         $fallbackFile = $variantDirectory.'/'.$fallbackFilename;
-        $this->saveImage($targetImage, $fallbackFile, $mimeType);
+        $this->saveImage(
+            $targetImage,
+            $fallbackFile,
+            $mimeType,
+            self::LEGACY_WEBP_QUALITIES[$sizeName],
+        );
+        $this->assertGeneratedImage($fallbackFile, $mimeType, $targetWidth, $targetHeight);
 
         $variant = [
             'fallback' => $publicTargetDirectory.'/'.$fallbackFilename,
@@ -585,9 +604,10 @@ final class ImageVariantGenerator
             } else {
                 $webpFilename = sprintf('%s_%s.webp', $baseName, $sizeName);
                 $webpFile = $variantDirectory.'/'.$webpFilename;
-                if (!imagewebp($targetImage, $webpFile, self::WEBP_QUALITY)) {
+                if (!imagewebp($targetImage, $webpFile, self::LEGACY_WEBP_QUALITIES[$sizeName])) {
                     throw new InvalidArgumentException('La génération WebP a échoué.');
                 }
+                $this->assertGeneratedImage($webpFile, 'image/webp', $targetWidth, $targetHeight);
                 $variant['webp'] = $publicTargetDirectory.'/'.$webpFilename;
             }
         }
@@ -598,6 +618,7 @@ final class ImageVariantGenerator
             if (!imageavif($targetImage, $avifFile, self::AVIF_QUALITY)) {
                 throw new InvalidArgumentException('La génération AVIF a échoué.');
             }
+            $this->assertGeneratedImage($avifFile, 'image/avif', $targetWidth, $targetHeight);
             $variant['avif'] = $publicTargetDirectory.'/'.$avifFilename;
         }
 
@@ -605,6 +626,21 @@ final class ImageVariantGenerator
         imagedestroy($targetImage);
 
         return $variant;
+    }
+
+    private function assertGeneratedImage(string $path, string $mimeType, int $width, int $height): void
+    {
+        $imageSize = @getimagesize($path);
+        if (
+            !is_array($imageSize)
+            || ($imageSize['mime'] ?? null) !== $mimeType
+            || (int) $imageSize[0] !== $width
+            || (int) $imageSize[1] !== $height
+            || !is_file($path)
+            || (int) filesize($path) < 1
+        ) {
+            throw new InvalidArgumentException('La variante générée est illisible ou incomplète.');
+        }
     }
 
     private function createImage(string $path, string $mimeType): GdImage
@@ -657,12 +693,17 @@ final class ImageVariantGenerator
         return $image;
     }
 
-    private function saveImage(GdImage $image, string $targetFile, string $mimeType): void
+    private function saveImage(
+        GdImage $image,
+        string $targetFile,
+        string $mimeType,
+        int $webpQuality = self::WEBP_QUALITY,
+    ): void
     {
         $saved = match ($mimeType) {
             'image/jpeg' => $this->saveJpeg($image, $targetFile),
             'image/png' => imagepng($image, $targetFile, 5),
-            'image/webp' => imagewebp($image, $targetFile, self::WEBP_QUALITY),
+            'image/webp' => imagewebp($image, $targetFile, $webpQuality),
             default => false,
         };
 

@@ -13,7 +13,8 @@ use Twig\TwigFunction;
 final class MediaImageExtension extends AbstractExtension
 {
     private const STANDARD_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium', 'large'];
-    private const LEGACY_RESPONSIVE_SIZES = ['thumb', 'medium', 'large'];
+    private const LEGACY_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium', 'large'];
+    private const COVER_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium'];
     private const IMAGE_PLACEHOLDER = '/images/placeholders/destination-card-placeholder.webp';
 
     public function __construct(
@@ -30,6 +31,9 @@ final class MediaImageExtension extends AbstractExtension
             new TwigFunction('media_poster_url', [$this, 'posterUrl']),
             new TwigFunction('media_image_srcset', [$this, 'imageSrcset']),
             new TwigFunction('media_image_dimensions', [$this, 'imageDimensions']),
+            new TwigFunction('media_cover_image_url', [$this, 'coverUrl']),
+            new TwigFunction('media_cover_image_srcset', [$this, 'coverSrcset']),
+            new TwigFunction('media_cover_image_dimensions', [$this, 'coverDimensions']),
             new TwigFunction('media_public_title', [$this, 'publicTitle']),
             new TwigFunction('media_public_alt', [$this, 'publicAlt']),
         ];
@@ -149,6 +153,88 @@ final class MediaImageExtension extends AbstractExtension
         return $entries === [] ? null : implode(', ', $entries);
     }
 
+    public function coverUrl(?MediaAsset $media, string $size = 'medium', string $format = 'webp'): ?string
+    {
+        if (!$media instanceof MediaAsset) {
+            return null;
+        }
+
+        foreach ($this->coverCandidateSizes($size) as $candidateSize) {
+            $path = $this->variantPath($media->getVariants(), $candidateSize, $format);
+            if ($path !== null) {
+                return $this->toPublicUrl($path);
+            }
+
+            if ($format === 'fallback' && $this->isStandardImage($media)) {
+                $path = $this->variantPath($media->getVariants(), $candidateSize, 'webp');
+                if ($path !== null) {
+                    return $this->toPublicUrl($path);
+                }
+            }
+        }
+
+        return $format === 'fallback' ? $this->imageUrl($media, $size) : null;
+    }
+
+    public function coverSrcset(?MediaAsset $media, string $format): ?string
+    {
+        if (!$media instanceof MediaAsset) {
+            return null;
+        }
+
+        $entries = [];
+        $seenWidths = [];
+        foreach (self::COVER_RESPONSIVE_SIZES as $size) {
+            $variant = $this->variant($media->getVariants(), $size);
+            $path = $variant[$format] ?? null;
+            if ($format === 'fallback' && $this->isStandardImage($media)) {
+                $path = $variant['webp'] ?? null;
+            }
+            $width = $variant['width'] ?? null;
+            if (!is_string($path) || trim($path) === '' || !is_numeric($width)) {
+                continue;
+            }
+
+            $width = (int) $width;
+            if (isset($seenWidths[$width])) {
+                continue;
+            }
+
+            $seenWidths[$width] = true;
+            $entries[] = sprintf('%s %dw', $this->toPublicUrl($path), $width);
+        }
+
+        if ($entries === []) {
+            $variant = $this->variant($media->getVariants(), 'large');
+            $path = $variant[$format] ?? null;
+            if ($format === 'fallback' && $this->isStandardImage($media)) {
+                $path = $variant['webp'] ?? null;
+            }
+            if (is_string($path) && trim($path) !== '' && is_numeric($variant['width'] ?? null)) {
+                $entries[] = sprintf('%s %dw', $this->toPublicUrl($path), (int) $variant['width']);
+            }
+        }
+
+        return $entries === [] ? null : implode(', ', $entries);
+    }
+
+    /** @return array{width: int, height: int}|null */
+    public function coverDimensions(?MediaAsset $media, string $size = 'medium'): ?array
+    {
+        if (!$media instanceof MediaAsset) {
+            return null;
+        }
+
+        foreach ($this->coverCandidateSizes($size) as $candidateSize) {
+            $variant = $this->variant($media->getVariants(), $candidateSize);
+            if (isset($variant['width'], $variant['height']) && is_numeric($variant['width']) && is_numeric($variant['height'])) {
+                return ['width' => (int) $variant['width'], 'height' => (int) $variant['height']];
+            }
+        }
+
+        return $this->imageDimensions($media, $size);
+    }
+
     /** @return array{width: int, height: int}|null */
     public function imageDimensions(?MediaAsset $media, string $size = 'thumb'): ?array
     {
@@ -206,6 +292,17 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         return $variants[$size];
+    }
+
+    /** @return list<string> */
+    private function coverCandidateSizes(string $size): array
+    {
+        return match ($size) {
+            'thumb' => ['thumb', 'mobile', 'medium', 'large'],
+            'mobile' => ['mobile', 'thumb', 'medium', 'large'],
+            'large' => ['large', 'medium', 'mobile', 'thumb'],
+            default => ['medium', 'mobile', 'thumb', 'large'],
+        };
     }
 
     private function toPublicUrl(?string $path): ?string

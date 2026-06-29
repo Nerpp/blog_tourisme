@@ -5,6 +5,7 @@ namespace App\Tests\Functional;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
+use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use DOMDocument;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -24,6 +25,43 @@ final class HikeControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+    }
+
+    public function testHikeCoverUsesAHighPriorityResponsiveWebpPicture(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin());
+        $media = $this->createImageMedia('Couverture panoramique randonnée')
+            ->setImageType(ImageType::Degree360)
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/cover-640.webp', 'fallback' => '/uploads/media/cover-640.jpg', 'width' => 640, 'height' => 320],
+                'mobile' => ['webp' => '/uploads/media/cover-960.webp', 'fallback' => '/uploads/media/cover-960.jpg', 'width' => 960, 'height' => 480],
+                'medium' => ['webp' => '/uploads/media/cover-1280.webp', 'fallback' => '/uploads/media/cover-1280.jpg', 'width' => 1280, 'height' => 640],
+                'large' => ['webp' => '/uploads/media/modal-2560.webp', 'fallback' => '/uploads/media/modal-2560.jpg', 'width' => 2560, 'height' => 1280],
+            ]);
+        $this->persistAndFlush($media);
+        $this->linkHikeMedia($hike, $media, MediaRole::Cover);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $cover = $crawler->filter('.public-detail-cover--media');
+        self::assertSame(1, $cover->count());
+        self::assertNull($cover->attr('style'));
+        $source = $cover->filter('source[type="image/webp"]');
+        self::assertSame('/uploads/media/cover-640.webp 640w, /uploads/media/cover-960.webp 960w, /uploads/media/cover-1280.webp 1280w', $source->attr('srcset'));
+        $image = $cover->filter('img.public-detail-cover__image');
+        self::assertSame('/uploads/media/cover-1280.jpg', $image->attr('src'));
+        self::assertSame('eager', $image->attr('loading'));
+        self::assertSame('async', $image->attr('decoding'));
+        self::assertSame('high', $image->attr('fetchpriority'));
+        self::assertSame('1280', $image->attr('width'));
+        self::assertSame('640', $image->attr('height'));
+        self::assertStringNotContainsString('2560', (string) $source->attr('srcset'));
+        $preload = $crawler->filter('link[rel="preload"][as="image"]')->first();
+        self::assertSame('/uploads/media/cover-1280.webp', $preload->attr('href'));
+        self::assertSame('image/webp', $preload->attr('type'));
+        self::assertSame('high', $preload->attr('fetchpriority'));
     }
 
     public function testStandardPhotoCardAndModalUseWebpOnlyResponsiveVariants(): void

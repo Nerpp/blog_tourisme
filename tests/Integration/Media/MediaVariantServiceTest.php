@@ -201,6 +201,17 @@ final class MediaVariantServiceTest extends IntegrationTestCase
                 ->setImageType(ImageType::Degree180)
                 ->setVariants([
                     'thumb' => ['fallback' => '/uploads/media/thumb.jpg'],
+                    'mobile' => ['fallback' => '/uploads/media/mobile.jpg'],
+                    'medium' => ['fallback' => '/uploads/media/medium.jpg'],
+                    'large' => ['fallback' => '/uploads/media/large.jpg'],
+                ]),
+        ));
+        self::assertFalse($service->hasUsableVariants(
+            (new MediaAsset())
+                ->setMediaType(MediaType::Image)
+                ->setImageType(ImageType::Degree180)
+                ->setVariants([
+                    'thumb' => ['fallback' => '/uploads/media/thumb.jpg'],
                     'medium' => ['fallback' => '/uploads/media/medium.jpg'],
                     'large' => ['fallback' => '/uploads/media/large.jpg'],
                 ]),
@@ -559,7 +570,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertNull($media->getMetadata());
     }
 
-    public function testCleanupSkipsEverySpecialImageTypeAndLeavesLegacyPipelineUntouched(): void
+    public function testCleanupSkipsEverySpecialImageTypeAndKeepsItsResponsiveCoverVariants(): void
     {
         foreach ([ImageType::Degree360, ImageType::Degree180, ImageType::Panorama, ImageType::WideAngle] as $imageType) {
             $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
@@ -574,7 +585,8 @@ final class MediaVariantServiceTest extends IntegrationTestCase
             $variants = $media->getVariants();
             self::assertIsArray($variants);
             self::assertArrayHasKey('fallback', $variants['thumb']);
-            self::assertArrayNotHasKey('mobile', $variants);
+            self::assertArrayHasKey('mobile', $variants);
+            self::assertArrayHasKey('fallback', $variants['mobile']);
 
             $result = $this->publicMediaMasterCleanupService()->cleanupIfSafe($media);
 

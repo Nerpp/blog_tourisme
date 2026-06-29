@@ -87,7 +87,7 @@ final class MediaVariantService
             return true;
         }
 
-        return isset($variants['thumb'], $variants['medium'], $variants['large']);
+        return isset($variants['thumb'], $variants['mobile'], $variants['medium'], $variants['large']);
     }
 
     /**

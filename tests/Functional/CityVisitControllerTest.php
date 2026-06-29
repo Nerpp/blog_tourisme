@@ -4,6 +4,8 @@ namespace App\Tests\Functional;
 
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\DestinationType;
+use App\Enum\ImageType;
+use App\Enum\MediaRole;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class CityVisitControllerTest extends FunctionalTestCase
@@ -21,6 +23,35 @@ final class CityVisitControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+    }
+
+    public function testCityVisitCoverUsesTheSameResponsiveWebpContract(): void
+    {
+        $client = static::createClient();
+        $cityVisit = $this->createPublishedCityVisit($this->createVerifiedAdmin());
+        $media = $this->createImageMedia('Couverture panoramique visite')
+            ->setImageType(ImageType::Panorama)
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/visit-640.webp', 'fallback' => '/uploads/media/visit-640.jpg', 'width' => 640, 'height' => 360],
+                'mobile' => ['webp' => '/uploads/media/visit-960.webp', 'fallback' => '/uploads/media/visit-960.jpg', 'width' => 960, 'height' => 540],
+                'medium' => ['webp' => '/uploads/media/visit-1280.webp', 'fallback' => '/uploads/media/visit-1280.jpg', 'width' => 1280, 'height' => 720],
+                'large' => ['webp' => '/uploads/media/visit-2560.webp', 'fallback' => '/uploads/media/visit-2560.jpg', 'width' => 2560, 'height' => 1440],
+            ]);
+        $this->persistAndFlush($media);
+        $this->linkCityVisitMedia($cityVisit, $media, MediaRole::Cover);
+
+        $crawler = $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $cover = $crawler->filter('.public-detail-cover--media');
+        self::assertSame(1, $cover->count());
+        self::assertSame('/uploads/media/visit-640.webp 640w, /uploads/media/visit-960.webp 960w, /uploads/media/visit-1280.webp 1280w', $cover->filter('source[type="image/webp"]')->attr('srcset'));
+        $image = $cover->filter('img.public-detail-cover__image');
+        self::assertSame('/uploads/media/visit-1280.jpg', $image->attr('src'));
+        self::assertSame('eager', $image->attr('loading'));
+        self::assertSame('high', $image->attr('fetchpriority'));
+        self::assertSame('1280', $image->attr('width'));
+        self::assertSame('720', $image->attr('height'));
     }
 
     public function testCityVisitIndexListsOnlyPublicVisits(): void

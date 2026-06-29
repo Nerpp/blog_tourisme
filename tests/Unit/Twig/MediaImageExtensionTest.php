@@ -28,6 +28,9 @@ final class MediaImageExtensionTest extends TestCase
             'media_poster_url',
             'media_image_srcset',
             'media_image_dimensions',
+            'media_cover_image_url',
+            'media_cover_image_srcset',
+            'media_cover_image_dimensions',
             'media_public_title',
             'media_public_alt',
         ], $functionNames);
@@ -155,6 +158,9 @@ final class MediaImageExtensionTest extends TestCase
         self::assertNull($extension->posterUrl(null));
         self::assertNull($extension->imageSrcset(null, 'webp'));
         self::assertNull($extension->imageDimensions(null));
+        self::assertNull($extension->coverUrl(null));
+        self::assertNull($extension->coverSrcset(null, 'webp'));
+        self::assertNull($extension->coverDimensions(null));
     }
 
     public function testSrcsetSkipsIncompleteVariantsAndPosterFallsBackToThumbnail(): void
@@ -194,6 +200,55 @@ final class MediaImageExtensionTest extends TestCase
             $extension->imageSrcset($media, 'webp'),
         );
         self::assertNull($extension->imageSrcset($media, 'avif'));
+    }
+
+    public function testPublicCoverUsesOnlyWebpDisplayCandidatesAndKeepsJpegFallback(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Degree360)
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/cover-640.webp', 'fallback' => '/uploads/media/cover-640.jpg', 'width' => 640, 'height' => 320],
+                'mobile' => ['webp' => '/uploads/media/cover-960.webp', 'fallback' => '/uploads/media/cover-960.jpg', 'width' => 960, 'height' => 480],
+                'medium' => ['webp' => '/uploads/media/cover-1280.webp', 'fallback' => '/uploads/media/cover-1280.jpg', 'width' => 1280, 'height' => 640],
+                'large' => ['webp' => '/uploads/media/modal-2560.webp', 'fallback' => '/uploads/media/modal-2560.jpg', 'width' => 2560, 'height' => 1280],
+            ]);
+        $extension = $this->extension();
+
+        self::assertSame('/uploads/media/cover-1280.webp', $extension->coverUrl($media));
+        self::assertSame('/uploads/media/cover-1280.jpg', $extension->coverUrl($media, format: 'fallback'));
+        self::assertSame(
+            '/uploads/media/cover-640.webp 640w, /uploads/media/cover-960.webp 960w, /uploads/media/cover-1280.webp 1280w',
+            $extension->coverSrcset($media, 'webp'),
+        );
+        self::assertSame(
+            '/uploads/media/cover-640.jpg 640w, /uploads/media/cover-960.jpg 960w, /uploads/media/cover-1280.jpg 1280w',
+            $extension->coverSrcset($media, 'fallback'),
+        );
+        self::assertSame(['width' => 1280, 'height' => 640], $extension->coverDimensions($media));
+        self::assertStringNotContainsString('2560', (string) $extension->coverSrcset($media, 'webp'));
+    }
+
+    public function testPublicCoverKeepsAValidFallbackWhenHistoricalWebpOrSizeIsMissing(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Panorama)
+            ->setFilePath('/uploads/media/historical-panorama.jpg')
+            ->setVariants([
+                'thumb' => ['fallback' => '/uploads/media/historical-640.jpg', 'width' => 640, 'height' => 320],
+                'medium' => ['fallback' => '/uploads/media/historical-1280.jpg', 'width' => 1280, 'height' => 640],
+            ]);
+        $extension = $this->extension();
+
+        self::assertNull($extension->coverUrl($media, format: 'webp'));
+        self::assertNull($extension->coverSrcset($media, 'webp'));
+        self::assertSame('/uploads/media/historical-1280.jpg', $extension->coverUrl($media, format: 'fallback'));
+        self::assertSame(
+            '/uploads/media/historical-640.jpg 640w, /uploads/media/historical-1280.jpg 1280w',
+            $extension->coverSrcset($media, 'fallback'),
+        );
+        self::assertSame(['width' => 1280, 'height' => 640], $extension->coverDimensions($media));
     }
 
     public function testResponsiveArticleSourceIsReservedForModal(): void
