@@ -86,6 +86,27 @@ services:
     networks:
       - blog_tourisme
 
+  lighthouse:
+    image: blog-tourisme-lighthouse:local
+    build:
+      context: .
+      dockerfile: docker/lighthouse/Dockerfile
+    profiles:
+      - tools
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    working_dir: /workspace
+    environment:
+      CHROME_PATH: /usr/bin/chromium
+      HOME: /tmp/lighthouse-home
+      XDG_CACHE_HOME: /tmp/lighthouse-cache
+      XDG_CONFIG_HOME: /tmp/lighthouse-config
+    volumes:
+      - ./:/workspace
+    depends_on:
+      - web
+    networks:
+      - blog_tourisme
+
 networks:
   blog_tourisme:
     driver: bridge

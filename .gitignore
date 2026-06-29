@@ -5,6 +5,7 @@
 /node_modules/
 /.phpunit.cache/
 /var/
+/var/lighthouse/*
 /var/panther/
 /var/error-screenshots/
 /public/build/
