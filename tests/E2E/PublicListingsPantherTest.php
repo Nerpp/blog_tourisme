@@ -84,7 +84,7 @@ final class PublicListingsPantherTest extends PantherTestCase
         $client->waitFor('[data-public-listing="hikes"] [data-public-search-input]');
         $this->assertPageHasBuiltAssets($client, 'assets/app.js', 'assets/entries/public-listing.js');
         $input = $webDriver->findElement(WebDriverBy::cssSelector('[data-public-search-input]'));
-        $input->sendKeys('Canigou');
+        $input->sendKeys('Canigou découverte');
         $this->waitForSuggestionText($webDriver, 'Boucle du Canigou découverte');
         self::assertStringNotContainsString('Randonnée brouillon admin', $this->visibleSuggestionsText($webDriver));
 
@@ -112,11 +112,18 @@ final class PublicListingsPantherTest extends PantherTestCase
 
         $webDriver = $client->getWebDriver();
         $input = $webDriver->findElement(WebDriverBy::cssSelector('[data-public-search-input]'));
-        $input->sendKeys('Canigou');
+        $query = 'Canigou découverte';
+        $input->sendKeys($query);
         $this->waitForSuggestionText($webDriver, 'Boucle du Canigou découverte');
         $input->sendKeys(WebDriverKeys::ENTER);
 
-        (new WebDriverWait($webDriver, 8))->until(static fn () => str_contains($webDriver->getCurrentURL(), '/randonnees?q=Canigou'));
+        (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $query): bool {
+            $queryParameters = [];
+            parse_str((string) parse_url($webDriver->getCurrentURL(), PHP_URL_QUERY), $queryParameters);
+
+            return parse_url($webDriver->getCurrentURL(), PHP_URL_PATH) === '/randonnees'
+                && ($queryParameters['q'] ?? null) === $query;
+        });
         self::assertSelectorTextContains('[data-public-listing="hikes"]', 'Boucle du Canigou découverte');
     }
 
