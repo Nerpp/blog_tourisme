@@ -32,7 +32,7 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         parent::tearDown();
     }
 
-    public function testGeneratesOnlyFourWebpVariantsForStandardImage(): void
+    public function testGeneratesCoreAndSecondaryWebpVariantsForStandardImage(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 2000, 1000);
         $this->files[] = $source;
@@ -45,11 +45,41 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
             'mobile' => [960, 480],
             'medium' => [1600, 800],
             'large' => [1920, 960],
+            'thumbnail320' => [320, 160],
+            'thumbnail480' => [480, 240],
+            'content640' => [640, 320],
+            'content768' => [768, 384],
+            'content960' => [960, 480],
         ] as $size => [$width, $height]) {
             self::assertSame(['webp', 'width', 'height'], array_keys($variants[$size]));
             self::assertArrayNotHasKey('fallback', $variants[$size]);
             self::assertArrayNotHasKey('fallbackFormat', $variants[$size]);
             self::assertArrayNotHasKey('avif', $variants[$size]);
+            $this->assertPublicImage($variants[$size]['webp'], 'image/webp', $width, $height);
+        }
+    }
+
+    public function testGeneratesOnlySecondaryVariantsFromARetainedWebp(): void
+    {
+        $source = TestImageFactory::createWebp(TestImageFactory::publicMediaDirectory(), 1920, 960);
+        $this->files[] = $source;
+
+        $variants = $this->generator()->generateStandardSecondary(
+            TestImageFactory::publicPathFor($source),
+            'retained-standard-webp',
+        );
+
+        self::assertSame(
+            ['thumbnail320', 'thumbnail480', 'content640', 'content768', 'content960'],
+            array_keys($variants),
+        );
+        foreach ([
+            'thumbnail320' => [320, 160],
+            'thumbnail480' => [480, 240],
+            'content640' => [640, 320],
+            'content768' => [768, 384],
+            'content960' => [960, 480],
+        ] as $size => [$width, $height]) {
             $this->assertPublicImage($variants[$size]['webp'], 'image/webp', $width, $height);
         }
     }

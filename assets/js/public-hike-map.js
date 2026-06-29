@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import '../styles/public-route-map.css';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -80,7 +81,7 @@ const initMap = (mapElement) => {
   const points = routePoints(mapElement);
   const mapId = mapElement.dataset.mapId || mapElement.closest('.public-route-map')?.id || '';
 
-  if (points.length === 0 || mapId === '') {
+  if (points.length === 0 || mapId === '' || mapInstances.has(mapId) || mapElement.dataset.publicHikeMapReady === 'true') {
     return;
   }
 
@@ -134,7 +135,7 @@ const initMap = (mapElement) => {
   });
 };
 
-const focusPoint = (trigger) => {
+export const focusPublicHikeMapPoint = (trigger) => {
   const mapId = (trigger.getAttribute('href') || '').replace(/^#/, '');
   const instance = mapInstances.get(mapId);
 
@@ -166,16 +167,6 @@ const focusPoint = (trigger) => {
   }, 180);
 };
 
-const initFocusButtons = () => {
-  document.querySelectorAll('[data-hike-map-focus]').forEach((trigger) => {
-    trigger.addEventListener('click', (event) => {
-      event.preventDefault();
-      focusPoint(trigger);
-    });
-  });
-};
-
 export const initPublicHikeMaps = () => {
   document.querySelectorAll('[data-public-hike-map]').forEach(initMap);
-  initFocusButtons();
 };

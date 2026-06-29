@@ -530,6 +530,7 @@
                     <a
                         class="public-point-gps__button public-point-gps__button--secondary"
                         href="#{{ route_map_id }}"
+                        data-hike-map-load
                     >
                         Voir le parcours
                     </a>
@@ -712,6 +713,7 @@
                                                     media: media,
                                                     alt: media_public_alt(media, item, point.title ?: item_title),
                                                     image_size: 'thumb',
+                                                    display_profile: 'thumbnail',
                                                     sizes: '(min-width: 760px) 240px, 45vw'
                                                 } only %}
 

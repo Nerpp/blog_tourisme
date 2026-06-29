@@ -17,7 +17,13 @@ final class PublicHikeMapPantherTest extends PantherTestCase
         $this->blockOpenStreetMapRequests($webDriver);
 
         $client->request('GET', '/randonnees/petite-boucle-de-montner');
-        $client->waitFor('[data-public-hike-map][data-public-hike-map-ready="true"]');
+        $client->waitFor('[data-public-hike-map]');
+        self::assertNull($webDriver->executeScript(
+            'return document.querySelector("[data-public-hike-map]").getAttribute("data-public-hike-map-ready");',
+        ));
+        self::assertFalse((bool) $webDriver->executeScript(
+            'return performance.getEntriesByType("resource").some((entry) => entry.name.includes("public-hike-map-") || entry.name.includes("marker-shadow-"));',
+        ));
         $this->assertPageHasBuiltAssets(
             $client,
             'assets/app.js',
@@ -49,15 +55,20 @@ final class PublicHikeMapPantherTest extends PantherTestCase
 
         self::assertNotSame('', $expected['title']);
         self::assertGreaterThanOrEqual(2, $expected['pointCount']);
-        self::assertSame(
-            $expected['pointCount'],
-            count($webDriver->findElements(WebDriverBy::cssSelector($mapSelector.' .leaflet-marker-icon')))
-        );
 
         $initialUrl = $webDriver->getCurrentURL();
         $initialWindowHandles = $webDriver->getWindowHandles();
 
         $trigger->click();
+
+        $client->waitFor('[data-public-hike-map][data-public-hike-map-ready="true"]');
+        self::assertTrue((bool) $webDriver->executeScript(
+            'return performance.getEntriesByType("resource").some((entry) => entry.name.includes("public-hike-map-"));',
+        ));
+        self::assertSame(
+            $expected['pointCount'],
+            count($webDriver->findElements(WebDriverBy::cssSelector($mapSelector.' .leaflet-marker-icon')))
+        );
 
         $popupSelector = $mapSelector.' .leaflet-popup-pane .leaflet-popup-content';
         (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $popupSelector, $expected): bool {

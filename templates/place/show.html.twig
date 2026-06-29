@@ -1,12 +1,16 @@
 {% extends 'layouts/comments.html.twig' %}
 
+{% set has_related_articles = place.articleLinks|filter(link => link.article and link.article.status.value == 'published')|length > 0 %}
+
 {% block title %}{{ place.seoTitle ?: place.name }} - Carnet de lieux{% endblock %}
 {% block meta_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
 {% block open_graph_title %}{{ place.seoTitle ?: place.name }}{% endblock %}
 {% block open_graph_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
 
 {% block page_stylesheets %}
-    {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
+    {% if has_related_articles %}
+        {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
+    {% endif %}
 {% endblock %}
 
 {% block page_javascripts %}
@@ -14,7 +18,9 @@
     {% set has_comment_reply_forms = app.user and app.user.verified is defined and app.user.verified and comment_thread_items|filter(comment => comment.parent is null and comment.status.value == 'approved')|length > 0 %}
     {% set has_comment_replies = comment_thread_items|filter(comment => comment.parent is null and (comment.children|filter(child => child.status.value == 'approved' or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected']))|length) > 0)|length > 0 %}
 
-    {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
+    {% if has_related_articles %}
+        {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
+    {% endif %}
     {% if has_comment_reply_forms or has_comment_replies %}
         {{ vite_entry_script_tags('assets/entries/comments.js') }}
     {% endif %}

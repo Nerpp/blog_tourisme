@@ -1,11 +1,21 @@
 {% extends 'base.html.twig' %}
 
+{% set public_detail_related_links = hike is defined
+    ? hike.articleLinks
+    : (city_visit is defined ? city_visit.articleLinks : [])
+%}
+{% set public_detail_has_related_articles = public_detail_related_links|filter(link => link.article and link.article.status.value == 'published')|length > 0 %}
+
 {% block layout_stylesheets %}
     {{ vite_entry_link_tags('assets/entries/public-detail.js') }}
-    {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
+    {% if public_detail_has_related_articles %}
+        {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
+    {% endif %}
 {% endblock %}
 
 {% block layout_javascripts %}
     {{ vite_entry_script_tags('assets/entries/public-detail.js') }}
-    {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
+    {% if public_detail_has_related_articles %}
+        {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
+    {% endif %}
 {% endblock %}

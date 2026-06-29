@@ -31,6 +31,9 @@ final class MediaImageExtensionTest extends TestCase
             'media_cover_image_url',
             'media_cover_image_srcset',
             'media_cover_image_dimensions',
+            'media_display_image_url',
+            'media_display_image_srcset',
+            'media_display_image_dimensions',
             'media_public_title',
             'media_public_alt',
         ], $functionNames);
@@ -161,6 +164,9 @@ final class MediaImageExtensionTest extends TestCase
         self::assertNull($extension->coverUrl(null));
         self::assertNull($extension->coverSrcset(null, 'webp'));
         self::assertNull($extension->coverDimensions(null));
+        self::assertNull($extension->displayUrl(null));
+        self::assertNull($extension->displaySrcset(null));
+        self::assertNull($extension->displayDimensions(null));
     }
 
     public function testSrcsetSkipsIncompleteVariantsAndPosterFallsBackToThumbnail(): void
@@ -200,6 +206,38 @@ final class MediaImageExtensionTest extends TestCase
             $extension->imageSrcset($media, 'webp'),
         );
         self::assertNull($extension->imageSrcset($media, 'avif'));
+    }
+
+    public function testStandardSecondaryProfilesPreferCompactVariantsAndKeepHighDensityCandidates(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/thumb.webp', 'width' => 600, 'height' => 450],
+                'mobile' => ['webp' => '/uploads/media/mobile.webp', 'width' => 960, 'height' => 720],
+                'medium' => ['webp' => '/uploads/media/medium.webp', 'width' => 1600, 'height' => 1200],
+                'large' => ['webp' => '/uploads/media/large.webp', 'width' => 1920, 'height' => 1440],
+                'thumbnail320' => ['webp' => '/uploads/media/thumbnail-320.webp', 'width' => 320, 'height' => 240],
+                'thumbnail480' => ['webp' => '/uploads/media/thumbnail-480.webp', 'width' => 480, 'height' => 360],
+                'content640' => ['webp' => '/uploads/media/content-640.webp', 'width' => 640, 'height' => 480],
+                'content768' => ['webp' => '/uploads/media/content-768.webp', 'width' => 768, 'height' => 576],
+                'content960' => ['webp' => '/uploads/media/content-960.webp', 'width' => 960, 'height' => 720],
+            ]);
+        $extension = $this->extension();
+
+        self::assertSame('/uploads/media/content-768.webp', $extension->displayUrl($media));
+        self::assertSame('/uploads/media/thumbnail-480.webp', $extension->displayUrl($media, 'thumbnail'));
+        self::assertSame(
+            '/uploads/media/content-640.webp 640w, /uploads/media/content-768.webp 768w, /uploads/media/content-960.webp 960w, /uploads/media/medium.webp 1600w, /uploads/media/large.webp 1920w',
+            $extension->displaySrcset($media),
+        );
+        self::assertSame(
+            '/uploads/media/thumbnail-320.webp 320w, /uploads/media/thumbnail-480.webp 480w, /uploads/media/thumb.webp 600w, /uploads/media/mobile.webp 960w',
+            $extension->displaySrcset($media, 'thumbnail'),
+        );
+        self::assertSame(['width' => 768, 'height' => 576], $extension->displayDimensions($media));
+        self::assertSame(['width' => 480, 'height' => 360], $extension->displayDimensions($media, 'thumbnail'));
     }
 
     public function testPublicCoverUsesOnlyWebpDisplayCandidatesAndKeepsJpegFallback(): void

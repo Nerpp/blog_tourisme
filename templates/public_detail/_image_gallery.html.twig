@@ -27,6 +27,7 @@
                         media: media,
                         alt: media_public_alt(media, gallery_context, gallery_context_title),
                         image_size: loop.first ? 'medium' : 'thumb',
+                        display_profile: loop.first ? 'content' : 'thumbnail',
                         sizes: card_sizes
                     } only %}
 

@@ -107,7 +107,7 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
         }
     }
 
-    public function testPlaceDetailLoadsRelatedArticlesAndCommentAssetsWhenInteractiveCommentsAreDisplayed(): void
+    public function testPlaceDetailSkipsRelatedArticleAssetsWhenNoRelatedArticleExists(): void
     {
         $client = static::createClient();
         $user = $this->createUser();
@@ -121,9 +121,9 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
         self::assertGreaterThan(0, $crawler->filter('[data-comment-reply-panel]')->count());
         $this->assertRenderedAssets(
             $crawler,
-            ['assets/app.js', 'assets/entries/comments.js', 'assets/entries/related-articles.js'],
-            ['assets/app.js', 'assets/entries/comments.js', 'assets/entries/related-articles.js'],
-            ['assets/entries/public-listing.js', 'assets/entries/public-detail.js', 'assets/entries/article-show.js'],
+            ['assets/app.js', 'assets/entries/comments.js'],
+            ['assets/app.js', 'assets/entries/comments.js'],
+            ['assets/entries/related-articles.js', 'assets/entries/public-listing.js', 'assets/entries/public-detail.js', 'assets/entries/article-show.js'],
         );
     }
 
@@ -144,7 +144,7 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
         );
     }
 
-    public function testHikeDetailLoadsPublicDetailLayoutAssets(): void
+    public function testHikeDetailLoadsPublicDetailAssetsWithoutUnusedRelatedArticles(): void
     {
         $client = static::createClient();
         $hike = $this->createPublishedHike($this->createVerifiedAdmin());
@@ -154,9 +154,9 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         $this->assertRenderedAssets(
             $crawler,
-            ['assets/app.js', 'assets/entries/public-detail.js', 'assets/entries/related-articles.js'],
-            ['assets/app.js', 'assets/entries/public-detail.js', 'assets/entries/related-articles.js'],
-            ['assets/entries/public-listing.js', 'assets/entries/article-show.js', 'assets/entries/comments.js'],
+            ['assets/app.js', 'assets/entries/public-detail.js'],
+            ['assets/app.js', 'assets/entries/public-detail.js'],
+            ['assets/entries/related-articles.js', 'assets/entries/public-listing.js', 'assets/entries/article-show.js', 'assets/entries/comments.js'],
         );
     }
 

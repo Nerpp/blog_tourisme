@@ -83,7 +83,7 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         self::assertGreaterThan(0, $latestDesktop['height']);
     }
 
-    public function testMobileGallerySelectsACompactWebpVariantFromTheFourSizeSrcset(): void
+    public function testGallerySelectsTheNewCompactDisplayVariants(): void
     {
         $this->skipIfFrontendBuildIsMissing();
         $this->ensureFixtureStandardGalleryVariants();
@@ -105,11 +105,13 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         });
         $srcset = (string) $image->getAttribute('srcset');
 
-        self::assertStringContainsString(' 600w', $srcset);
+        self::assertStringContainsString(' 640w', $srcset);
+        self::assertStringContainsString(' 768w', $srcset);
         self::assertStringContainsString(' 960w', $srcset);
         self::assertStringContainsString(' 1600w', $srcset);
         self::assertSame(1, substr_count($srcset, ' 1600w'));
         self::assertStringEndsWith('.webp', $currentSource);
+        self::assertStringContainsString('_content640.webp', $currentSource);
         self::assertStringNotContainsString('_medium.webp', $currentSource);
         self::assertStringNotContainsString('_large.webp', $currentSource);
 
@@ -121,6 +123,32 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         $desktopSource = $this->currentSourceForSelector($desktopDriver, '.journey-gallery img[srcset]');
 
         self::assertStringEndsWith('.webp', $desktopSource);
+        self::assertStringContainsString('_content768.webp', $desktopSource);
+    }
+
+    public function testPanoramaBundleLoadsOnlyWhenTheImmersiveGalleryOpens(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+        $slug = $this->ensureFixturePanoramaIsLinkedToCityVisit();
+        $client = self::createBrowser();
+        $webDriver = $client->getWebDriver();
+
+        $client->request('GET', '/visites-de-ville/'.$slug);
+        $client->waitFor('.immersive-gallery-card[data-gallery-index="0"]');
+
+        self::assertFalse($this->resourceWasRequested($webDriver, 'panorama-viewer-'));
+        $trigger = $webDriver->findElement(WebDriverBy::cssSelector('.immersive-gallery-card[data-gallery-index="0"]'));
+        $modalSelector = (string) $trigger->getAttribute('data-gallery-target');
+        $trigger->click();
+
+        (new WebDriverWait($webDriver, 8))->until(static fn () => (bool) $webDriver->executeScript(
+            'return document.querySelector(arguments[0] + " .js-panorama-viewer")?.dataset.panoramaInitialized === "true";',
+            [$modalSelector],
+        ));
+
+        self::assertTrue($this->resourceWasRequested($webDriver, 'panorama-viewer-'));
+        self::assertSame('false', $webDriver->findElement(WebDriverBy::cssSelector($modalSelector))->getAttribute('aria-hidden'));
+        $this->assertNoBrowserSevereErrors($client);
     }
 
     public function testPhotoGalleryOpensRequestedSlideNavigatesByKeyboardAndRestoresFocus(): void
@@ -341,6 +369,52 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         return $slug;
     }
 
+    private function ensureFixturePanoramaIsLinkedToCityVisit(): string
+    {
+        self::bootKernel();
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        $cityVisit = $entityManager->getRepository(CityVisitDraft::class)->findOneBy([
+            'slug' => 'visiter-collioure-a-pied',
+        ]);
+        $panorama = $entityManager->getRepository(MediaAsset::class)->findOneBy([
+            'mediaType' => MediaType::Image,
+            'imageType' => ImageType::Degree360,
+        ]);
+        self::assertInstanceOf(CityVisitDraft::class, $cityVisit);
+        self::assertInstanceOf(MediaAsset::class, $panorama);
+
+        $existingLink = $entityManager->getRepository(CityVisitDraftMedia::class)->findOneBy([
+            'cityVisitDraft' => $cityVisit,
+            'mediaAsset' => $panorama,
+        ]);
+        if (!$existingLink instanceof CityVisitDraftMedia) {
+            $entityManager->persist((new CityVisitDraftMedia())
+                ->setCityVisitDraft($cityVisit)
+                ->setMediaAsset($panorama)
+                ->setRole(MediaRole::Gallery)
+                ->setPosition(99));
+            $entityManager->flush();
+        }
+
+        $slug = $cityVisit->getSlug();
+        self::assertNotNull($slug);
+        self::ensureKernelShutdown();
+
+        return $slug;
+    }
+
+    private function resourceWasRequested(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $fragment,
+    ): bool {
+        return (bool) $webDriver->executeScript(
+            'return performance.getEntriesByType("resource").some((entry) => entry.name.includes(arguments[0]));',
+            [$fragment],
+        );
+    }
+
     private function ensureFixtureStandardGalleryVariants(): void
     {
         self::bootKernel();
@@ -363,10 +437,6 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
             if ($variantService->hasUsableVariants($media)) {
                 ++$generated;
 
-                continue;
-            }
-
-            if ($media->getFilePath() === null) {
                 continue;
             }
 

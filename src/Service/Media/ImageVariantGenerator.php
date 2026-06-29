@@ -44,6 +44,15 @@ final class ImageVariantGenerator
         'large' => 1920,
     ];
 
+    /** @var array<string, array{width: int, quality: int}> */
+    private const STANDARD_SECONDARY_SIZES = [
+        'thumbnail320' => ['width' => 320, 'quality' => 74],
+        'thumbnail480' => ['width' => 480, 'quality' => 76],
+        'content640' => ['width' => 640, 'quality' => 78],
+        'content768' => ['width' => 768, 'quality' => 79],
+        'content960' => ['width' => 960, 'quality' => 80],
+    ];
+
     /** @var array<string, string> */
     private const FALLBACK_EXTENSIONS = [
         'image/jpeg' => 'jpg',
@@ -449,9 +458,109 @@ final class ImageVariantGenerator
                     $sizeName,
                     $targetWidth,
                     $targetHeight,
+                    self::WEBP_QUALITY,
                 );
                 $variantsByDimensions[$dimensionKey] = $variant;
                 $variants[$sizeName] = $variant;
+            }
+
+            foreach (self::STANDARD_SECONDARY_SIZES as $sizeName => $configuration) {
+                $targetWidth = min($sourceWidth, $configuration['width']);
+                $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+                if ($targetHeight < 1) {
+                    throw new InvalidArgumentException('Les dimensions calculées de la variante secondaire sont invalides.');
+                }
+
+                $variants[$sizeName] = $this->generateStandardSize(
+                    $sourceImage,
+                    $mimeType,
+                    $sourceWidth,
+                    $sourceHeight,
+                    $variantDirectory,
+                    $publicTargetDirectory,
+                    $baseName,
+                    $sizeName,
+                    $targetWidth,
+                    $targetHeight,
+                    $configuration['quality'],
+                );
+            }
+        } finally {
+            imagedestroy($sourceImage);
+        }
+
+        return $variants;
+    }
+
+    /**
+     * Generate only the smaller public display resources from the best retained
+     * standard WebP. Existing cover and modal resources remain untouched.
+     *
+     * @return array<string, array{webp: string, width: int, height: int}>
+     */
+    public function generateStandardSecondary(
+        string $publicSourcePath,
+        ?string $basenameSeed = null,
+        string $publicTargetDirectory = self::PUBLIC_VARIANT_DIRECTORY,
+    ): array {
+        if (!$this->supportsWebp()) {
+            throw new InvalidArgumentException('Le support WebP est requis pour générer les variantes secondaires.');
+        }
+
+        $sourceFile = $this->resolvePublicFile($publicSourcePath);
+        $imageSize = @getimagesize($sourceFile);
+        if (!is_array($imageSize)) {
+            throw new InvalidArgumentException('L’image source secondaire est illisible.');
+        }
+
+        $mimeType = (string) $imageSize['mime'];
+        if (!$this->supportsMimeType($mimeType)) {
+            throw new InvalidArgumentException('Le format de la source secondaire n’est pas supporté.');
+        }
+
+        $sourceWidth = (int) $imageSize[0];
+        $sourceHeight = (int) $imageSize[1];
+        if ($sourceWidth < 1 || $sourceHeight < 1) {
+            throw new InvalidArgumentException('Les dimensions de la source secondaire sont invalides.');
+        }
+
+        $variantDirectory = $this->publicDirectory($publicTargetDirectory);
+        $this->ensureDirectory($variantDirectory);
+
+        $contentHash = hash_file('sha256', $sourceFile);
+        if (!is_string($contentHash)) {
+            throw new InvalidArgumentException('La source secondaire ne peut pas être identifiée.');
+        }
+
+        $seed = $basenameSeed ?: $publicSourcePath;
+        $baseName = 'media_'.substr(hash(
+            'sha256',
+            $seed.'|'.filesize($sourceFile).'|'.$contentHash.'|secondary-display-v1',
+        ), 0, 20);
+        $sourceImage = $this->createImage($sourceFile, $mimeType);
+        $variants = [];
+
+        try {
+            foreach (self::STANDARD_SECONDARY_SIZES as $sizeName => $configuration) {
+                $targetWidth = min($sourceWidth, $configuration['width']);
+                $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+                if ($targetHeight < 1) {
+                    throw new InvalidArgumentException('Les dimensions calculées de la variante secondaire sont invalides.');
+                }
+
+                $variants[$sizeName] = $this->generateStandardSize(
+                    $sourceImage,
+                    $mimeType,
+                    $sourceWidth,
+                    $sourceHeight,
+                    $variantDirectory,
+                    $publicTargetDirectory,
+                    $baseName,
+                    $sizeName,
+                    $targetWidth,
+                    $targetHeight,
+                    $configuration['quality'],
+                );
             }
         } finally {
             imagedestroy($sourceImage);
@@ -474,6 +583,7 @@ final class ImageVariantGenerator
         string $sizeName,
         int $targetWidth,
         int $targetHeight,
+        int $quality,
     ): array {
         $targetImage = $this->createCanvas($targetWidth, $targetHeight, $mimeType);
 
@@ -498,7 +608,7 @@ final class ImageVariantGenerator
             $temporaryFile = $targetFile.'.tmp-'.bin2hex(random_bytes(6));
 
             try {
-                if (!imagewebp($targetImage, $temporaryFile, self::WEBP_QUALITY)) {
+                if (!imagewebp($targetImage, $temporaryFile, $quality)) {
                     throw new InvalidArgumentException('La génération WebP a échoué.');
                 }
 

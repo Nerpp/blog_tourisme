@@ -77,6 +77,11 @@ final class HikeControllerTest extends FunctionalTestCase
                 'mobile' => ['webp' => '/uploads/media/variants/photo-mobile.webp', 'width' => 960, 'height' => 640],
                 'medium' => ['webp' => '/uploads/media/variants/photo-medium.webp', 'width' => 1600, 'height' => 1067],
                 'large' => ['webp' => '/uploads/media/variants/photo-large.webp', 'width' => 1920, 'height' => 1280],
+                'thumbnail320' => ['webp' => '/uploads/media/variants/photo-thumbnail-320.webp', 'width' => 320, 'height' => 213],
+                'thumbnail480' => ['webp' => '/uploads/media/variants/photo-thumbnail-480.webp', 'width' => 480, 'height' => 320],
+                'content640' => ['webp' => '/uploads/media/variants/photo-content-640.webp', 'width' => 640, 'height' => 427],
+                'content768' => ['webp' => '/uploads/media/variants/photo-content-768.webp', 'width' => 768, 'height' => 512],
+                'content960' => ['webp' => '/uploads/media/variants/photo-content-960.webp', 'width' => 960, 'height' => 640],
             ]);
         $this->persistAndFlush($media);
         $this->linkHikeMedia($hike, $media, MediaRole::Gallery);
@@ -85,9 +90,9 @@ final class HikeControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         $cardImage = $crawler->filter('.journey-gallery img')->first();
-        self::assertSame('/uploads/media/variants/photo-medium.webp', $cardImage->attr('src'));
+        self::assertSame('/uploads/media/variants/photo-content-768.webp', $cardImage->attr('src'));
         self::assertSame(
-            '/uploads/media/variants/photo-thumb.webp 600w, /uploads/media/variants/photo-mobile.webp 960w, /uploads/media/variants/photo-medium.webp 1600w, /uploads/media/variants/photo-large.webp 1920w',
+            '/uploads/media/variants/photo-content-640.webp 640w, /uploads/media/variants/photo-content-768.webp 768w, /uploads/media/variants/photo-content-960.webp 960w, /uploads/media/variants/photo-medium.webp 1600w, /uploads/media/variants/photo-large.webp 1920w',
             $cardImage->attr('srcset'),
         );
         self::assertSame('/uploads/media/variants/photo-large.webp', $crawler->filter('.gallery-modal__slide img')->first()->attr('data-gallery-src'));

@@ -44,7 +44,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertSame(60, $media->getHeight());
         self::assertIsArray($media->getVariants());
         self::assertSame(['webp'], $media->getVariants()['source']['formats']);
-        foreach (['thumb', 'mobile', 'medium', 'large'] as $size) {
+        foreach (['thumb', 'mobile', 'medium', 'large', 'thumbnail320', 'thumbnail480', 'content640', 'content768', 'content960'] as $size) {
             self::assertArrayHasKey($size, $media->getVariants());
             self::assertArrayHasKey('webp', $media->getVariants()[$size]);
             self::assertArrayNotHasKey('fallback', $media->getVariants()[$size]);
@@ -52,6 +52,40 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         }
         self::assertStringStartsWith('/uploads/media/variants/', (string) $media->getThumbnailPath());
         self::assertStringEndsWith('.webp', (string) $media->getThumbnailPath());
+        $this->trackVariantFiles($media->getVariants());
+    }
+
+    public function testGeneratesSecondaryVariantsFromRetainedLargeWebpWithoutChangingCoreVariants(): void
+    {
+        $retained = TestImageFactory::createWebp(TestImageFactory::publicMediaDirectory().'/variants', 1920, 960);
+        $this->files[] = $retained;
+        $retainedPath = '/uploads/media/variants/'.basename($retained);
+        $coreVariants = [
+            'source' => ['path' => '/uploads/media/deleted-master.jpg', 'width' => 2400, 'height' => 1200],
+            'thumb' => ['webp' => '/uploads/media/variants/original-thumb.webp', 'width' => 600, 'height' => 300],
+            'mobile' => ['webp' => '/uploads/media/variants/original-mobile.webp', 'width' => 960, 'height' => 480],
+            'medium' => ['webp' => '/uploads/media/variants/original-medium.webp', 'width' => 1600, 'height' => 800],
+            'large' => ['webp' => $retainedPath, 'width' => 1920, 'height' => 960],
+        ];
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath(null)
+            ->setVariants($coreVariants);
+
+        $service = $this->mediaVariantService();
+
+        self::assertTrue($service->supports($media));
+        self::assertFalse($service->hasUsableVariants($media));
+        self::assertSame('generated', $service->generateForMedia($media)['status']);
+        foreach ($coreVariants as $name => $variant) {
+            self::assertSame($variant, $media->getVariants()[$name]);
+        }
+        foreach (['thumbnail320', 'thumbnail480', 'content640', 'content768', 'content960'] as $size) {
+            self::assertArrayHasKey($size, $media->getVariants());
+            self::assertArrayHasKey('webp', $media->getVariants()[$size]);
+        }
+        self::assertTrue($service->hasUsableVariants($media));
         $this->trackVariantFiles($media->getVariants());
     }
 
@@ -187,6 +221,11 @@ final class MediaVariantServiceTest extends IntegrationTestCase
                     'mobile' => ['webp' => '/uploads/media/mobile.webp'],
                     'medium' => ['webp' => '/uploads/media/medium.webp'],
                     'large' => ['webp' => '/uploads/media/large.webp'],
+                    'thumbnail320' => ['webp' => '/uploads/media/thumbnail-320.webp'],
+                    'thumbnail480' => ['webp' => '/uploads/media/thumbnail-480.webp'],
+                    'content640' => ['webp' => '/uploads/media/content-640.webp'],
+                    'content768' => ['webp' => '/uploads/media/content-768.webp'],
+                    'content960' => ['webp' => '/uploads/media/content-960.webp'],
                 ]),
         ));
         self::assertFalse($service->hasUsableVariants(
@@ -241,6 +280,11 @@ final class MediaVariantServiceTest extends IntegrationTestCase
                 'mobile' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
                 'medium' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
                 'large' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'thumbnail320' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'thumbnail480' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'content640' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'content768' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
+                'content960' => ['webp' => '/uploads/media/existing-thumb.webp', 'width' => 40, 'height' => 20],
             ]);
 
         $result = $this->mediaVariantService()->generateForMedia($media);

@@ -153,6 +153,11 @@ final class MediaAndTrafficCommandTest extends IntegrationTestCase
             'mobile' => ['webp' => '/uploads/media/variants/mobile.webp'],
             'medium' => ['webp' => '/uploads/media/variants/medium.webp'],
             'large' => ['webp' => '/uploads/media/variants/large.webp'],
+            'thumbnail320' => ['webp' => '/uploads/media/variants/thumbnail-320.webp'],
+            'thumbnail480' => ['webp' => '/uploads/media/variants/thumbnail-480.webp'],
+            'content640' => ['webp' => '/uploads/media/variants/content-640.webp'],
+            'content768' => ['webp' => '/uploads/media/variants/content-768.webp'],
+            'content960' => ['webp' => '/uploads/media/variants/content-960.webp'],
         ];
         $media = (new MediaAsset())
             ->setTitle('Image avec variantes existantes')

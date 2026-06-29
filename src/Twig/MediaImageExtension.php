@@ -15,6 +15,18 @@ final class MediaImageExtension extends AbstractExtension
     private const STANDARD_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium', 'large'];
     private const LEGACY_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium', 'large'];
     private const COVER_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium'];
+    private const DISPLAY_RESPONSIVE_SIZES = [
+        'content' => ['content640', 'content768', 'content960', 'medium', 'large'],
+        'thumbnail' => ['thumbnail320', 'thumbnail480', 'thumb', 'mobile'],
+    ];
+    private const DISPLAY_PREFERRED_SIZES = [
+        'content' => ['content768', 'content960', 'content640', 'mobile', 'thumb', 'medium', 'large'],
+        'thumbnail' => ['thumbnail480', 'thumbnail320', 'thumb', 'mobile', 'medium'],
+    ];
+    private const DISPLAY_FALLBACK_SIZES = [
+        'content' => ['thumb', 'mobile', 'medium', 'large'],
+        'thumbnail' => ['thumb', 'mobile', 'medium'],
+    ];
     private const IMAGE_PLACEHOLDER = '/images/placeholders/destination-card-placeholder.webp';
 
     public function __construct(
@@ -34,6 +46,9 @@ final class MediaImageExtension extends AbstractExtension
             new TwigFunction('media_cover_image_url', [$this, 'coverUrl']),
             new TwigFunction('media_cover_image_srcset', [$this, 'coverSrcset']),
             new TwigFunction('media_cover_image_dimensions', [$this, 'coverDimensions']),
+            new TwigFunction('media_display_image_url', [$this, 'displayUrl']),
+            new TwigFunction('media_display_image_srcset', [$this, 'displaySrcset']),
+            new TwigFunction('media_display_image_dimensions', [$this, 'displayDimensions']),
             new TwigFunction('media_public_title', [$this, 'publicTitle']),
             new TwigFunction('media_public_alt', [$this, 'publicAlt']),
         ];
@@ -235,6 +250,90 @@ final class MediaImageExtension extends AbstractExtension
         return $this->imageDimensions($media, $size);
     }
 
+    public function displayUrl(?MediaAsset $media, string $profile = 'content'): ?string
+    {
+        if (!$media instanceof MediaAsset) {
+            return null;
+        }
+
+        if (!$this->isStandardImage($media)) {
+            return $this->imageUrl($media, $profile === 'thumbnail' ? 'thumb' : 'mobile');
+        }
+
+        foreach ($this->displayPreferredSizes($profile) as $size) {
+            $path = $this->variantPath($media->getVariants(), $size, 'webp');
+            if ($path !== null) {
+                return $this->toPublicUrl($path);
+            }
+        }
+
+        return $this->imageUrl($media, $profile === 'thumbnail' ? 'thumb' : 'mobile');
+    }
+
+    public function displaySrcset(?MediaAsset $media, string $profile = 'content'): ?string
+    {
+        if (!$media instanceof MediaAsset) {
+            return null;
+        }
+
+        if (!$this->isStandardImage($media)) {
+            return $this->imageSrcset($media, 'webp');
+        }
+
+        if ($this->isArticleResponsiveImage($media)) {
+            return $this->imageSrcset($media, 'webp');
+        }
+
+        $entries = [];
+        $seenWidths = [];
+        $sizes = $this->displayResponsiveSizes($profile);
+        $semanticPrefix = $profile === 'thumbnail' ? 'thumbnail' : 'content';
+        $hasProfileVariant = array_any(
+            $sizes,
+            fn (string $size): bool => str_starts_with($size, $semanticPrefix)
+                && $this->variantPath($media->getVariants(), $size, 'webp') !== null,
+        );
+        if (!$hasProfileVariant) {
+            $sizes = self::DISPLAY_FALLBACK_SIZES[$profile] ?? self::DISPLAY_FALLBACK_SIZES['content'];
+        }
+
+        foreach ($sizes as $size) {
+            $variant = $this->variant($media->getVariants(), $size);
+            $path = $variant['webp'] ?? null;
+            $width = $variant['width'] ?? null;
+            if (!is_string($path) || trim($path) === '' || !is_numeric($width)) {
+                continue;
+            }
+
+            $width = (int) $width;
+            if (isset($seenWidths[$width])) {
+                continue;
+            }
+
+            $seenWidths[$width] = true;
+            $entries[] = sprintf('%s %dw', $this->toPublicUrl($path), $width);
+        }
+
+        return $entries === [] ? null : implode(', ', $entries);
+    }
+
+    /** @return array{width: int, height: int}|null */
+    public function displayDimensions(?MediaAsset $media, string $profile = 'content'): ?array
+    {
+        if (!$media instanceof MediaAsset) {
+            return null;
+        }
+
+        foreach ($this->displayPreferredSizes($profile) as $size) {
+            $variant = $this->variant($media->getVariants(), $size);
+            if (isset($variant['width'], $variant['height']) && is_numeric($variant['width']) && is_numeric($variant['height'])) {
+                return ['width' => (int) $variant['width'], 'height' => (int) $variant['height']];
+            }
+        }
+
+        return $this->imageDimensions($media, $profile === 'thumbnail' ? 'thumb' : 'mobile');
+    }
+
     /** @return array{width: int, height: int}|null */
     public function imageDimensions(?MediaAsset $media, string $size = 'thumb'): ?array
     {
@@ -303,6 +402,18 @@ final class MediaImageExtension extends AbstractExtension
             'large' => ['large', 'medium', 'mobile', 'thumb'],
             default => ['medium', 'mobile', 'thumb', 'large'],
         };
+    }
+
+    /** @return list<string> */
+    private function displayResponsiveSizes(string $profile): array
+    {
+        return self::DISPLAY_RESPONSIVE_SIZES[$profile] ?? self::DISPLAY_RESPONSIVE_SIZES['content'];
+    }
+
+    /** @return list<string> */
+    private function displayPreferredSizes(string $profile): array
+    {
+        return self::DISPLAY_PREFERRED_SIZES[$profile] ?? self::DISPLAY_PREFERRED_SIZES['content'];
     }
 
     private function toPublicUrl(?string $path): ?string

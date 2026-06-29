@@ -1,12 +1,13 @@
 {% set image_mode = image_mode|default('responsive') %}
 {% set image_size = image_mode == 'card_thumbnail' ? 'thumb' : image_size|default('thumb') %}
-{% set image_src = media_image_url(media, image_size) %}
+{% set display_profile = display_profile|default(null) %}
+{% set image_src = display_profile ? media_display_image_url(media, display_profile) : media_image_url(media, image_size) %}
 {% set is_standard_image = media.mediaType.value == 'image' and media.imageType and media.imageType.value == 'standard' %}
 {% set avif_srcset = is_standard_image ? null : media_image_srcset(media, 'avif') %}
-{% set webp_srcset = media_image_srcset(media, 'webp') %}
+{% set webp_srcset = display_profile ? media_display_image_srcset(media, display_profile) : media_image_srcset(media, 'webp') %}
 {% set fallback_srcset = is_standard_image ? null : media_image_srcset(media, 'fallback') %}
 {% set img_srcset = is_standard_image ? webp_srcset : fallback_srcset %}
-{% set dimensions = media_image_dimensions(media, image_size) %}
+{% set dimensions = display_profile ? media_display_image_dimensions(media, display_profile) : media_image_dimensions(media, image_size) %}
 
 {% if image_src %}
     {% if image_mode == 'card_thumbnail' %}

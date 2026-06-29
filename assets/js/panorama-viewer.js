@@ -39,7 +39,7 @@ function panoramaUrlForElement(element) {
     : element.dataset.panoramaUrl;
 }
 
-function initPanoramaViewer(element) {
+export function initPanoramaViewer(element) {
   const pannellum = window.pannellum;
 
   if (!pannellum || typeof pannellum.viewer !== 'function') {
@@ -109,13 +109,6 @@ export function initPanoramaViewers() {
       initPanoramaViewer(element);
     });
 
-    document.addEventListener('public-detail:panorama-activate', (event) => {
-      if (!(event.target instanceof Element) || !event.target.matches('.js-panorama-viewer')) {
-        return;
-      }
-
-      initPanoramaViewer(event.target);
-    });
   };
 
   if (document.readyState === 'loading') {
