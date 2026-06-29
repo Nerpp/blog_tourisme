@@ -204,6 +204,8 @@ final class HikeControllerTest extends FunctionalTestCase
 
         $map = $crawler->filter('[data-public-hike-map]');
         self::assertCount(1, $map);
+        self::assertSame('region', $map->attr('role'));
+        self::assertSame('Carte du parcours de randonnée', $map->attr('aria-label'));
         $points = json_decode($map->attr('data-points') ?? '[]', true, flags: JSON_THROW_ON_ERROR);
         self::assertCount(3, $points);
         self::assertSame('Point randonnée 1', $points[0]['title'] ?? null);
