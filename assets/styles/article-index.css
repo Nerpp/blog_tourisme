@@ -205,6 +205,10 @@
   padding: 58px 0 82px;
 }
 
+.article-index-results .article-index-kicker {
+  color: #12615c;
+}
+
 .article-index-section-heading {
   display: flex;
   min-width: 0;

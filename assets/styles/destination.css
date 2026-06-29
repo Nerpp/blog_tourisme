@@ -131,18 +131,18 @@
   max-width: 100%;
   min-height: 46px;
   padding: 0 18px;
-  border: 1px solid #4f9f75;
+  border: 1px solid #12615c;
   border-radius: 999px;
-  background: #4f9f75;
+  background: #12615c;
   color: #fff;
   font: inherit;
   font-weight: 900;
   white-space: normal;
-  box-shadow: 0 12px 28px rgba(79, 159, 117, 0.22);
+  box-shadow: 0 12px 28px rgba(18, 97, 92, 0.22);
 }
 
 .destination-tool-btn:hover {
-  background: #458f68;
+  background: #0e504c;
 }
 
 .destination-tool-btn--secondary {
@@ -332,6 +332,10 @@
 }
 
 .destination-name {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  width: fit-content;
   color: #18322a;
   font-size: 1.03rem;
   font-weight: 950;
@@ -363,7 +367,7 @@
   gap: 8px;
 }
 
-.destination-stat {
+.destinations-page .destination-stat {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
@@ -371,7 +375,7 @@
   padding: 0 10px;
   border-radius: 999px;
   background: #f1f4ef;
-  color: rgba(24, 50, 42, 0.62);
+  color: #51605b;
   font-size: 0.8rem;
   font-weight: 850;
   text-decoration: none;
@@ -572,6 +576,10 @@ a.destination-stat:focus-visible {
   font-weight: 950;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.destination-detail-section .destination-detail-kicker {
+  color: #12615c;
 }
 
 .destination-detail-hero h1 {
