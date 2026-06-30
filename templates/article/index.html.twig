@@ -4,6 +4,26 @@
 {% block meta_description %}Tous les articles publiés : itinéraires, conseils voyage et idées de découverte pour préparer vos visites.{% endblock %}
 
 {% block body %}
+    {% set current_query_params = app.request.query.all %}
+    {% set query_params_without_category = current_query_params|filter((value, key) => key != 'category') %}
+    {% set query_params_without_search = current_query_params|filter((value, key) => key != 'q') %}
+    {% set quick_filters = [
+        {
+            label: 'Tous',
+            href: path('app_article_index', query_params_without_category),
+            active: selected_category_slug is empty
+        }
+    ] %}
+    {% for category in categories %}
+        {% set quick_filters = quick_filters|merge([
+            {
+                label: category.name,
+                href: path('app_article_index', current_query_params|merge({ category: category.slug })),
+                active: selected_category_slug == category.slug
+            }
+        ]) %}
+    {% endfor %}
+
     {% include 'public_listing/_content_list.html.twig' with {
         content_type: 'articles',
         page_modifier: 'article-index-page--articles',
@@ -16,13 +36,9 @@
         suggestions_id: 'article-search-suggestions',
         search_label: 'Rechercher dans les articles',
         search_placeholder: 'Rechercher un article, une balade, une ville…',
-        quick_filters: [
-            { label: 'Tous', query: '' },
-            { label: 'Patrimoine', query: 'patrimoine' },
-            { label: 'Nature', query: 'nature' },
-            { label: 'Conseil voyage', query: 'conseil voyage' },
-            { label: 'Itinéraire', query: 'itinéraire' }
-        ],
+        search_hidden_params: query_params_without_search,
+        search_reset_url: path('app_article_index', query_params_without_search),
+        quick_filters: quick_filters,
         results_kicker: 'Dernières publications',
         results_title: 'Guides, récits et histoires locales',
         count_singular: 'article',

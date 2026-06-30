@@ -1,4 +1,6 @@
 {% set item_count = items|length %}
+{% set search_hidden_params = search_hidden_params|default({}) %}
+{% set search_reset_url = search_reset_url|default(search_action) %}
 
 <main class="article-index-page {{ page_modifier }}" data-public-listing="{{ content_type }}">
     <section class="article-index-hero">
@@ -18,6 +20,12 @@
                 data-min-chars="2"
                 aria-label="{{ search_label }}"
             >
+                {% for name, value in search_hidden_params %}
+                    {% if value is not iterable and value is not same as('') %}
+                        <input type="hidden" name="{{ name }}" value="{{ value }}">
+                    {% endif %}
+                {% endfor %}
+
                 <label for="{{ search_id }}">{{ search_label }}</label>
                 <div class="article-index-search__field">
                     <input
@@ -35,7 +43,7 @@
                     >
                     <button type="submit">Rechercher</button>
                     {% if search_query %}
-                        <a class="article-index-search__reset" href="{{ search_action }}">Réinitialiser</a>
+                        <a class="article-index-search__reset" href="{{ search_reset_url }}">Réinitialiser</a>
                     {% endif %}
                 </div>
 
@@ -51,7 +59,22 @@
                 {% if quick_filters|length > 0 %}
                     <div class="article-index-search__filters" aria-label="Filtres rapides">
                         {% for filter in quick_filters %}
-                            <button type="submit" name="q" value="{{ filter.query }}">{{ filter.label }}</button>
+                            {% set is_active = filter.active|default(false) %}
+                            {% if filter.href is defined %}
+                                <a
+                                    href="{{ filter.href }}"
+                                    class="{{ is_active ? 'is-active' : '' }}"
+                                    {% if is_active %}aria-current="page"{% endif %}
+                                >{{ filter.label }}</a>
+                            {% else %}
+                                <button
+                                    type="submit"
+                                    name="q"
+                                    value="{{ filter.query }}"
+                                    class="{{ is_active ? 'is-active' : '' }}"
+                                    {% if is_active %}aria-current="page"{% endif %}
+                                >{{ filter.label }}</button>
+                            {% endif %}
                         {% endfor %}
                     </div>
                 {% endif %}

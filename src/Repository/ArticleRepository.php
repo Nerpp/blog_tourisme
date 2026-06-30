@@ -28,31 +28,53 @@ class ArticleRepository extends ServiceEntityRepository
     }
 
     /** @return list<Article> */
-    public function findPublishedForListing(?string $query = null, int $limit = 24): array
+    public function findPublishedForListing(?string $query = null, ?int $limit = null, ?string $categorySlug = null): array
     {
+        if ($limit !== null && $limit <= 0) {
+            return [];
+        }
+
+        $idQueryBuilder = $this->applyCategoryFilter(
+            $this->applySearch($this->createPublicListingIdQueryBuilder(), $query),
+            $categorySlug,
+        );
+
+        if ($limit !== null) {
+            $idQueryBuilder->setMaxResults($limit);
+        }
+
+        /** @var list<array{id: int|string}> $rows */
+        $rows = $idQueryBuilder
+            ->getQuery()
+            ->getScalarResult();
+        $articleIds = array_map(static fn (array $row): int => (int) $row['id'], $rows);
+
+        if ($articleIds === []) {
+            return [];
+        }
+
         /** @var list<Article> $articles */
-        $articles = $this->applySearch($this->createPublishedQueryBuilder(), $query)
-            ->setMaxResults($limit)
+        $articles = $this->createPublishedQueryBuilder()
+            ->andWhere('a.id IN (:articleIds)')
+            ->setParameter('articleIds', $articleIds, ArrayParameterType::INTEGER)
             ->getQuery()
             ->getResult();
 
-        return $articles;
+        return $this->sortArticlesByIdList($articles, $articleIds);
     }
 
     /** @return list<Article> */
     public function findPublishedSuggestions(string $query, int $limit = 8): array
     {
+        $queryBuilder = $this->createQueryBuilder('a')
+            ->addSelect('category')
+            ->leftJoin('a.category', 'category')
+            ->orderBy('a.publishedAt', 'DESC')
+            ->addOrderBy('a.id', 'DESC');
+        self::restrictToPubliclyVisible($queryBuilder, 'a');
+
         /** @var list<Article> $articles */
-        $articles = $this->applySearch(
-            $this->createQueryBuilder('a')
-                ->addSelect('category')
-                ->leftJoin('a.category', 'category')
-                ->andWhere('a.status = :status')
-                ->setParameter('status', ContentStatus::Published)
-                ->orderBy('a.publishedAt', 'DESC')
-                ->addOrderBy('a.id', 'DESC'),
-            $query,
-        )
+        $articles = $this->applySearch($queryBuilder, $query)
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
@@ -62,8 +84,7 @@ class ArticleRepository extends ServiceEntityRepository
 
     public function findPublishedBySlug(string $slug): ?Article
     {
-        /** @var Article|null $article */
-        $article = $this->createQueryBuilder('a')
+        $queryBuilder = $this->createQueryBuilder('a')
             ->addSelect('category', 'featuredImage', 'destinationLinks', 'destinations', 'placeLinks', 'places', 'hikeLinks', 'hikes', 'cityVisitLinks', 'cityVisits', 'mediaLinks', 'mediaAssets', 'tagLinks', 'tags')
             ->leftJoin('a.category', 'category')
             ->leftJoin('a.featuredImage', 'featuredImage')
@@ -80,14 +101,16 @@ class ArticleRepository extends ServiceEntityRepository
             ->leftJoin('a.tagLinks', 'tagLinks')
             ->leftJoin('tagLinks.tag', 'tags')
             ->andWhere('a.slug = :slug')
-            ->andWhere('a.status = :status')
             ->setParameter('slug', $slug)
-            ->setParameter('status', ContentStatus::Published)
             ->orderBy('destinationLinks.position', 'ASC')
             ->addOrderBy('placeLinks.position', 'ASC')
             ->addOrderBy('hikeLinks.position', 'ASC')
             ->addOrderBy('cityVisitLinks.position', 'ASC')
-            ->addOrderBy('mediaLinks.position', 'ASC')
+            ->addOrderBy('mediaLinks.position', 'ASC');
+        self::restrictToPubliclyVisible($queryBuilder, 'a');
+
+        /** @var Article|null $article */
+        $article = $queryBuilder
             ->getQuery()
             ->getOneOrNullResult();
 
@@ -146,7 +169,7 @@ class ArticleRepository extends ServiceEntityRepository
 
     private function createPublishedQueryBuilder(): QueryBuilder
     {
-        return $this->createQueryBuilder('a')
+        $queryBuilder = $this->createQueryBuilder('a')
             ->addSelect(
                 'category',
                 'featuredImage',
@@ -181,11 +204,22 @@ class ArticleRepository extends ServiceEntityRepository
             ->leftJoin('mediaLinks.mediaAsset', 'mediaAssets')
             ->leftJoin('a.tagLinks', 'tagLinks')
             ->leftJoin('tagLinks.tag', 'tags')
-            ->andWhere('a.status = :status')
-            ->setParameter('status', ContentStatus::Published)
             ->orderBy('a.publishedAt', 'DESC')
             ->addOrderBy('mediaLinks.position', 'ASC')
             ->addOrderBy('a.id', 'DESC');
+
+        return self::restrictToPubliclyVisible($queryBuilder, 'a');
+    }
+
+    private function createPublicListingIdQueryBuilder(): QueryBuilder
+    {
+        $queryBuilder = $this->createQueryBuilder('a')
+            ->select('a.id')
+            ->leftJoin('a.category', 'category')
+            ->orderBy('a.publishedAt', 'DESC')
+            ->addOrderBy('a.id', 'DESC');
+
+        return self::restrictToPubliclyVisible($queryBuilder, 'a');
     }
 
     private function applySearch(QueryBuilder $queryBuilder, ?string $query): QueryBuilder
@@ -197,8 +231,21 @@ class ArticleRepository extends ServiceEntityRepository
         }
 
         return $queryBuilder
-            ->andWhere('LOWER(a.title) LIKE :publicSearchQuery OR LOWER(a.excerpt) LIKE :publicSearchQuery')
+            ->andWhere('(LOWER(a.title) LIKE :publicSearchQuery OR LOWER(a.excerpt) LIKE :publicSearchQuery)')
             ->setParameter('publicSearchQuery', '%'.$normalizedQuery.'%');
+    }
+
+    private function applyCategoryFilter(QueryBuilder $queryBuilder, ?string $categorySlug): QueryBuilder
+    {
+        $normalizedCategorySlug = $this->normalizeCategorySlug($categorySlug);
+
+        if ($normalizedCategorySlug === null) {
+            return $queryBuilder;
+        }
+
+        return $queryBuilder
+            ->andWhere('category.slug = :publicCategorySlug')
+            ->setParameter('publicCategorySlug', $normalizedCategorySlug);
     }
 
     private function normalizeSearchQuery(?string $query): ?string
@@ -206,6 +253,38 @@ class ArticleRepository extends ServiceEntityRepository
         $normalizedQuery = trim(mb_strtolower((string) $query));
 
         return $normalizedQuery === '' ? null : $normalizedQuery;
+    }
+
+    private function normalizeCategorySlug(?string $categorySlug): ?string
+    {
+        $normalizedCategorySlug = trim(mb_strtolower((string) $categorySlug));
+
+        return $normalizedCategorySlug === '' ? null : $normalizedCategorySlug;
+    }
+
+    public static function restrictToPubliclyVisible(QueryBuilder $queryBuilder, string $articleAlias): QueryBuilder
+    {
+        return $queryBuilder
+            ->andWhere(sprintf('%s.status = :publicArticleStatus', $articleAlias))
+            ->setParameter('publicArticleStatus', ContentStatus::Published);
+    }
+
+    /**
+     * @param list<Article> $articles
+     * @param list<int>     $articleIds
+     *
+     * @return list<Article>
+     */
+    private function sortArticlesByIdList(array $articles, array $articleIds): array
+    {
+        $positions = array_flip($articleIds);
+
+        usort(
+            $articles,
+            static fn (Article $first, Article $second): int => ($positions[$first->getId()] ?? PHP_INT_MAX) <=> ($positions[$second->getId()] ?? PHP_INT_MAX),
+        );
+
+        return $articles;
     }
 
     public function findLatestPublishedForHomepage(): ?Article

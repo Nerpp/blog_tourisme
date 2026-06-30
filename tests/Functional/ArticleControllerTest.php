@@ -2,9 +2,14 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\Article;
 use App\Entity\ArticleMedia;
+use App\Entity\Category;
+use App\Entity\User;
+use App\Enum\CategoryType;
 use App\Enum\ContentStatus;
 use App\Enum\MediaRole;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class ArticleControllerTest extends FunctionalTestCase
@@ -73,6 +78,175 @@ final class ArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Aucun article ne correspond à cette recherche.');
+    }
+
+    public function testArticleIndexShowsAllPublicArticlesAndOnlyUsefulCategoryChips(): void
+    {
+        $client = static::createClient();
+        $token = $this->uniqueToken('catalogue-public');
+        $author = $this->createUser();
+        $itineraryCategory = $this->namedArticleCategory('Itinéraire '.$token, 'itineraire-'.$token);
+        $adviceCategory = $this->namedArticleCategory('Conseil voyage '.$token, 'conseil-voyage-'.$token);
+        $heritageCategory = $this->namedArticleCategory('Patrimoine '.$token, 'patrimoine-'.$token);
+        $practicalCategory = $this->namedArticleCategory('Infos pratiques '.$token, 'infos-pratiques-'.$token);
+        $natureCategory = $this->namedArticleCategory('Nature '.$token, 'nature-'.$token);
+        $cultureCategory = $this->namedArticleCategory('Culture '.$token, 'culture-'.$token);
+
+        $expectedByCategory = [
+            (string) $itineraryCategory->getName() => [
+                $this->listedArticle('Que faire à Collioure en une journée '.$token, $itineraryCategory, $author, 1),
+            ],
+            (string) $adviceCategory->getName() => [
+                $this->listedArticle('Les plus beaux lieux des Pyrénées-Orientales '.$token, $adviceCategory, $author, 2),
+                $this->listedArticle('Séjour sans voiture dans les Pyrénées-Orientales '.$token, $adviceCategory, $author, 3),
+                $this->listedArticle('Grand guide de la côte Vermeille pour un premier séjour '.$token, $adviceCategory, $author, 4),
+            ],
+            (string) $heritageCategory->getName() => [
+                $this->listedArticle('Visiter le Fort Saint-Elme '.$token, $heritageCategory, $author, 5),
+            ],
+            (string) $practicalCategory->getName() => [
+                $this->listedArticle('Préparer une randonnée en climat méditerranéen '.$token, $practicalCategory, $author, 6),
+            ],
+            (string) $natureCategory->getName() => [
+                $this->listedArticle('Découvrir les Albères entre mer et montagne '.$token, $natureCategory, $author, 7),
+            ],
+        ];
+        $publicTitles = array_merge(...array_values($expectedByCategory));
+
+        $draftTitle = 'Idées de week-end autour de Perpignan '.$token;
+        $draft = $this->createArticle($author)
+            ->setTitle($draftTitle)
+            ->setCategory($cultureCategory)
+            ->setStatus(ContentStatus::Draft)
+            ->setPublishedAt(null);
+        $archivedTitle = 'Fête d’été sur la côte Vermeille '.$token;
+        $archived = $this->createArticle($author)
+            ->setTitle($archivedTitle)
+            ->setCategory($cultureCategory)
+            ->setStatus(ContentStatus::Archived);
+        $this->persistAndFlush($draft, $archived);
+
+        $crawler = $client->request('GET', '/articles');
+
+        self::assertResponseIsSuccessful();
+        $filterLinks = $crawler->filter('.article-index-search__filters a');
+        self::assertGreaterThan(0, $filterLinks->count());
+        self::assertSame('Tous', trim($filterLinks->first()->text()));
+        self::assertStringContainsString('is-active', (string) $filterLinks->first()->attr('class'));
+        self::assertSame('page', $filterLinks->first()->attr('aria-current'));
+
+        self::assertSame(7, $this->cardCountContaining($crawler, $token));
+        foreach ($publicTitles as $title) {
+            self::assertContains($title, $this->articleCardTitles($crawler));
+        }
+        self::assertStringNotContainsString($draftTitle, (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString($archivedTitle, (string) $client->getResponse()->getContent());
+
+        $filterLabels = $this->quickFilterLabels($crawler);
+        foreach (array_keys($expectedByCategory) as $label) {
+            self::assertContains($label, $filterLabels);
+            self::assertSame(1, count(array_filter(
+                $filterLabels,
+                static fn (string $filterLabel): bool => $filterLabel === $label,
+            )));
+        }
+        self::assertNotContains((string) $cultureCategory->getName(), $filterLabels);
+
+        foreach ($expectedByCategory as $label => $expectedTitles) {
+            $categoryCrawler = $client->request('GET', $this->pathAndQueryFromHref($this->quickFilterHrefByLabel($crawler, $label)));
+            self::assertResponseIsSuccessful();
+            self::assertSame(count($expectedTitles), $this->cardCountContaining($categoryCrawler, $token), $label);
+            foreach ($expectedTitles as $title) {
+                self::assertContains($title, $this->articleCardTitles($categoryCrawler), $label);
+            }
+            self::assertStringNotContainsString($draftTitle, (string) $client->getResponse()->getContent());
+            self::assertStringNotContainsString($archivedTitle, (string) $client->getResponse()->getContent());
+        }
+
+        foreach ($this->quickFilterLinks($crawler) as $filter) {
+            if ($filter['label'] === 'Tous') {
+                continue;
+            }
+
+            $filteredCrawler = $client->request('GET', $this->pathAndQueryFromHref($filter['href']));
+            self::assertResponseIsSuccessful();
+            self::assertGreaterThan(0, $filteredCrawler->filter('.article-list-card')->count(), $filter['label']);
+        }
+    }
+
+    public function testArticleIndexCategoryFilterCombinesWithSearchAndPreservesQueryParameters(): void
+    {
+        $client = static::createClient();
+        $token = $this->uniqueToken('category-filter');
+        $searchTerm = 'canigou-'.$token;
+        $publicCategory = $this->createCategory(CategoryType::Article)
+            ->setName('Categorie active '.$token)
+            ->setSlug('categorie-active-'.$token);
+        $otherCategory = $this->createCategory(CategoryType::Article)
+            ->setName('Categorie lien '.$token)
+            ->setSlug('categorie-lien-'.$token);
+        $this->persistAndFlush($publicCategory, $otherCategory);
+
+        $matching = $this->createArticle($this->createUser())
+            ->setTitle('Article cible '.$searchTerm)
+            ->setExcerpt('Resultat combine publie')
+            ->setCategory($publicCategory);
+        $sameCategoryWithoutSearch = $this->createArticle($this->createUser())
+            ->setTitle('Article meme categorie sans le terme')
+            ->setExcerpt('Texte hors recherche')
+            ->setCategory($publicCategory);
+        $otherCategoryMatchingSearch = $this->createArticle($this->createUser())
+            ->setTitle('Article autre categorie '.$searchTerm)
+            ->setExcerpt('Resultat a exclure par categorie')
+            ->setCategory($otherCategory);
+        $this->persistAndFlush($matching, $sameCategoryWithoutSearch, $otherCategoryMatchingSearch);
+
+        $crawler = $client->request('GET', '/articles?category='.rawurlencode((string) $publicCategory->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', (string) $matching->getTitle());
+        self::assertSelectorTextContains('body', (string) $sameCategoryWithoutSearch->getTitle());
+        self::assertStringNotContainsString((string) $otherCategoryMatchingSearch->getTitle(), (string) $client->getResponse()->getContent());
+
+        $crawler = $client->request('GET', '/articles?'.http_build_query([
+            'q' => $searchTerm,
+            'category' => $publicCategory->getSlug(),
+            'view' => 'compact',
+        ]));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', (string) $matching->getTitle());
+        self::assertStringNotContainsString((string) $sameCategoryWithoutSearch->getTitle(), (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString((string) $otherCategoryMatchingSearch->getTitle(), (string) $client->getResponse()->getContent());
+
+        $activeFilter = $crawler->filter('.article-index-search__filters a.is-active');
+        self::assertSame(1, $activeFilter->count());
+        self::assertSame((string) $publicCategory->getName(), trim($activeFilter->text()));
+        self::assertSame('page', $activeFilter->attr('aria-current'));
+        self::assertSame(1, $crawler->filter(sprintf('form input[type="hidden"][name="category"][value="%s"]', $publicCategory->getSlug()))->count());
+
+        $allFilterParams = $this->queryParamsFromHref($crawler->filter('.article-index-search__filters a')->first()->attr('href') ?? '');
+        self::assertSame($searchTerm, $allFilterParams['q'] ?? null);
+        self::assertSame('compact', $allFilterParams['view'] ?? null);
+        self::assertArrayNotHasKey('category', $allFilterParams);
+
+        $otherFilterParams = $this->queryParamsFromHref($this->quickFilterHrefByLabel($crawler, (string) $otherCategory->getName()));
+        self::assertSame($searchTerm, $otherFilterParams['q'] ?? null);
+        self::assertSame('compact', $otherFilterParams['view'] ?? null);
+        self::assertSame($otherCategory->getSlug(), $otherFilterParams['category'] ?? null);
+
+        $resetParams = $this->queryParamsFromHref($crawler->filter('.article-index-search__reset')->attr('href') ?? '');
+        self::assertSame($publicCategory->getSlug(), $resetParams['category'] ?? null);
+        self::assertSame('compact', $resetParams['view'] ?? null);
+        self::assertArrayNotHasKey('q', $resetParams);
+
+        $crawler = $client->request('GET', '/articles?category='.rawurlencode('inconnue-'.$token));
+
+        self::assertResponseIsSuccessful();
+        $activeFilter = $crawler->filter('.article-index-search__filters a.is-active');
+        self::assertSame(1, $activeFilter->count());
+        self::assertSame('Tous', trim($activeFilter->text()));
+        self::assertNotContains('inconnue-'.$token, $this->quickFilterLabels($crawler));
     }
 
     public function testArticleSuggestionsRequireTwoCharactersAndReturnLimitedPublicResults(): void
@@ -396,5 +570,109 @@ final class ArticleControllerTest extends FunctionalTestCase
         $this->persistAndFlush($media);
 
         return $media;
+    }
+
+    private function namedArticleCategory(string $name, string $slug): Category
+    {
+        $category = $this->createCategory(CategoryType::Article)
+            ->setName($name)
+            ->setSlug($slug);
+        $this->persistAndFlush($category);
+
+        return $category;
+    }
+
+    private function listedArticle(string $title, Category $category, User $author, int $position): string
+    {
+        $article = $this->createArticle($author)
+            ->setTitle($title)
+            ->setCategory($category)
+            ->setExcerpt('Extrait public '.$title)
+            ->setPublishedAt(new \DateTimeImmutable(sprintf('-%d seconds', $position)));
+        $this->persistAndFlush($article);
+
+        for ($mediaPosition = 0; $mediaPosition < 4; ++$mediaPosition) {
+            $media = $this->createImageMedia(sprintf('Image liste %s %d', $title, $mediaPosition));
+            $link = (new ArticleMedia())
+                ->setArticle($article)
+                ->setMediaAsset($media)
+                ->setRole($mediaPosition === 0 ? MediaRole::Cover : MediaRole::Gallery)
+                ->setPosition($mediaPosition);
+            $article->getMediaLinks()->add($link);
+            $media->getArticleLinks()->add($link);
+            if ($mediaPosition === 0) {
+                $article->setFeaturedImage($media);
+            }
+            $this->persistAndFlush($article, $media, $link);
+        }
+
+        return $title;
+    }
+
+    /** @return list<string> */
+    private function quickFilterLabels(Crawler $crawler): array
+    {
+        return $crawler->filter('.article-index-search__filters a')->each(
+            static fn (Crawler $link): string => trim($link->text()),
+        );
+    }
+
+    private function quickFilterHrefByLabel(Crawler $crawler, string $label): string
+    {
+        foreach ($crawler->filter('.article-index-search__filters a') as $link) {
+            $linkCrawler = new Crawler($link);
+            if (trim($linkCrawler->text()) === $label) {
+                return $linkCrawler->attr('href') ?? '';
+            }
+        }
+
+        self::fail(sprintf('No quick filter found with label "%s".', $label));
+    }
+
+    /**
+     * @return list<array{label: string, href: string}>
+     */
+    private function quickFilterLinks(Crawler $crawler): array
+    {
+        return $crawler->filter('.article-index-search__filters a')->each(
+            static fn (Crawler $link): array => [
+                'label' => trim($link->text()),
+                'href' => $link->attr('href') ?? '',
+            ],
+        );
+    }
+
+    /** @return list<string> */
+    private function articleCardTitles(Crawler $crawler): array
+    {
+        return $crawler->filter('.article-list-card h3')->each(
+            static fn (Crawler $title): string => trim($title->text()),
+        );
+    }
+
+    private function cardCountContaining(Crawler $crawler, string $needle): int
+    {
+        return count(array_filter(
+            $this->articleCardTitles($crawler),
+            static fn (string $title): bool => str_contains($title, $needle),
+        ));
+    }
+
+    private function pathAndQueryFromHref(string $href): string
+    {
+        $path = parse_url($href, PHP_URL_PATH);
+        self::assertIsString($path);
+        $query = parse_url($href, PHP_URL_QUERY);
+
+        return $path.(is_string($query) && $query !== '' ? '?'.$query : '');
+    }
+
+    /** @return array<string, mixed> */
+    private function queryParamsFromHref(string $href): array
+    {
+        $query = parse_url($href, PHP_URL_QUERY);
+        parse_str(is_string($query) ? $query : '', $params);
+
+        return $params;
     }
 }

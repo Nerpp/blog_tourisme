@@ -110,7 +110,8 @@
 
 .article-index-search__field button,
 .article-index-search__field a,
-.article-index-search__filters button {
+.article-index-search__filters button,
+.article-index-search__filters a {
   display: inline-flex;
   max-width: 100%;
   min-height: 38px;
@@ -131,13 +132,15 @@
 
 .article-index-search__field button:hover,
 .article-index-search__field a:hover,
-.article-index-search__filters button:hover {
+.article-index-search__filters button:hover,
+.article-index-search__filters a:hover {
   background: rgba(255, 255, 255, 0.18);
 }
 
 .article-index-search__field button:focus-visible,
 .article-index-search__field a:focus-visible,
-.article-index-search__filters button:focus-visible {
+.article-index-search__filters button:focus-visible,
+.article-index-search__filters a:focus-visible {
   outline: 3px solid rgba(126, 214, 167, 0.52);
   outline-offset: 2px;
 }
@@ -146,6 +149,17 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.article-index-search__filters .is-active {
+  border-color: rgba(126, 214, 167, 0.92);
+  background: #7ed6a7;
+  color: #10271f;
+}
+
+.article-index-search__filters .is-active:hover {
+  background: #94e2b8;
+  color: #10271f;
 }
 
 .article-index-search__suggestions {
@@ -163,6 +177,10 @@
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 22px 52px rgba(24, 33, 31, 0.2);
+}
+
+.article-index-search__suggestions[hidden] {
+  display: none;
 }
 
 .article-index-search__suggestion {

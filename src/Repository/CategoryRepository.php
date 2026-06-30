@@ -29,6 +29,25 @@ class CategoryRepository extends ServiceEntityRepository
         return $categories;
     }
 
+    /** @return list<Category> */
+    public function findUsedForPublicArticles(): array
+    {
+        $queryBuilder = $this->createQueryBuilder('c')
+            ->select('DISTINCT c')
+            ->innerJoin('c.articles', 'a');
+        ArticleRepository::restrictToPubliclyVisible($queryBuilder, 'a');
+
+        /** @var list<Category> $categories */
+        $categories = $queryBuilder
+            ->andWhere('c.type IN (:types)')
+            ->setParameter('types', [CategoryType::Article, CategoryType::Both])
+            ->orderBy('c.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $categories;
+    }
+
     public function findOneArticleCategoryById(int $id): ?Category
     {
         /** @var Category|null $category */

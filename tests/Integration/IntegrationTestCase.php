@@ -20,21 +20,6 @@ abstract class IntegrationTestCase extends KernelTestCase
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
 
         $this->entityManager = $entityManager;
-        $this->entityManager->getConnection()->beginTransaction();
-    }
-
-    protected function tearDown(): void
-    {
-        if (isset($this->entityManager)) {
-            $connection = $this->entityManager->getConnection();
-            while ($connection->getTransactionNestingLevel() > 0) {
-                $connection->rollBack();
-            }
-
-            $this->entityManager->close();
-        }
-
-        parent::tearDown();
     }
 
     protected function service(string $id): object
