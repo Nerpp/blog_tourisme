@@ -3,6 +3,7 @@
 namespace App\Tests\E2E;
 
 use App\Entity\User;
+use DAMA\DoctrineTestBundle\PHPUnit\SkipDatabaseRollback;
 use Doctrine\ORM\EntityManagerInterface;
 use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\WebDriverBy;
@@ -11,6 +12,7 @@ use Symfony\Component\Panther\Client;
 use Symfony\Component\Panther\PantherTestCase as BasePantherTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
+#[SkipDatabaseRollback]
 abstract class PantherTestCase extends BasePantherTestCase
 {
     protected static function createBrowser(): Client

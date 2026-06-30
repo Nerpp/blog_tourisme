@@ -14,6 +14,7 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -36,6 +37,7 @@ final class DestinationController extends AbstractController
     #[Route('/destinations/{slug}', name: 'app_destination_show', methods: ['GET'])]
     public function show(
         string $slug,
+        Request $request,
         DestinationRepository $destinationRepository,
         ArticleRepository $articleRepository,
         HikeDraftRepository $hikeDraftRepository,
@@ -58,9 +60,16 @@ final class DestinationController extends AbstractController
         $hikes = $isContentLevel ? $hikeDraftRepository->findPublicByDestinationIds($contentDestinationIds) : [];
         $cityVisits = $isContentLevel ? $cityVisitDraftRepository->findPublicByDestinationIds($contentDestinationIds) : [];
         $articleCards = $this->destinationArticleCards($articles, $destination, $contentDestinationIds, $departmentByDestinationId);
+        $destinationPath = $this->destinationPath($destination);
+        $destinationNavigationQuery = $this->destinationNavigationQuery($request);
 
         return $this->render('destination/show.html.twig', [
             'destination' => $destination,
+            'destination_path' => $destinationPath,
+            'destination_navigation_query' => $destinationNavigationQuery,
+            'destination_navigation_root_query' => isset($destinationNavigationQuery['q'])
+                ? ['q' => $destinationNavigationQuery['q']]
+                : [],
             'article_cards' => $articleCards,
             'hikes' => $hikes,
             'city_visits' => $cityVisits,
@@ -78,6 +87,62 @@ final class DestinationController extends AbstractController
                 $cityVisits,
             ),
         ]);
+    }
+
+    /**
+     * @return list<Destination>
+     */
+    private function destinationPath(Destination $destination): array
+    {
+        $path = [];
+        $seenIds = [];
+        $seenNames = [];
+        $cursor = $destination;
+
+        while ($cursor instanceof Destination) {
+            $id = $cursor->getId();
+            $name = mb_strtolower(trim((string) $cursor->getName()));
+
+            if ($id !== null && isset($seenIds[$id])) {
+                break;
+            }
+
+            if ($name !== '' && isset($seenNames[$name])) {
+                $cursor = $cursor->getParent();
+
+                continue;
+            }
+
+            if ($id !== null) {
+                $seenIds[$id] = true;
+            }
+            if ($name !== '') {
+                $seenNames[$name] = true;
+            }
+
+            $path[] = $cursor;
+            $cursor = $cursor->getParent();
+        }
+
+        return array_reverse($path);
+    }
+
+    /** @return array{q?: string, type?: string} */
+    private function destinationNavigationQuery(Request $request): array
+    {
+        $query = [];
+        $search = mb_substr(trim($request->query->getString('q')), 0, 80);
+        $type = $request->query->getString('type');
+
+        if ($search !== '') {
+            $query['q'] = $search;
+        }
+
+        if (in_array($type, ['article', 'hike', 'city_visit', 'destination'], true)) {
+            $query['type'] = $type;
+        }
+
+        return $query;
     }
 
     /**

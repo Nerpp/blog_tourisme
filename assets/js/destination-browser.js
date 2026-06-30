@@ -108,6 +108,12 @@ export function initDestinationBrowser() {
       ? Array.from(rootTree.children).filter((child) => child.matches('[data-destination-node]'))
       : [];
 
+    const initialQuery = new URLSearchParams(window.location.search).get('q') || '';
+
+    if (searchInput) {
+      searchInput.value = initialQuery;
+    }
+
     nodes.forEach((node) => {
       node.dataset.destinationSearchText = normalizeSearchValue(`${node.dataset.destinationName || ''} ${node.dataset.destinationType || ''}`);
     });
@@ -119,6 +125,9 @@ export function initDestinationBrowser() {
     });
 
     resetTree(browser, nodes, emptyState);
+    if (initialQuery.trim() !== '') {
+      filterTree(browser, normalizeSearchValue(initialQuery), rootNodes, emptyState);
+    }
 
     openAllButton?.addEventListener('click', () => {
       browser.querySelectorAll('details.destination-branch').forEach((branch) => {
@@ -132,6 +141,14 @@ export function initDestinationBrowser() {
 
     searchInput?.addEventListener('input', () => {
       const query = normalizeSearchValue(searchInput.value);
+      const url = new URL(window.location.href);
+
+      if (searchInput.value.trim() === '') {
+        url.searchParams.delete('q');
+      } else {
+        url.searchParams.set('q', searchInput.value.trim());
+      }
+      window.history.replaceState({}, '', url);
 
       if (query === '') {
         resetTree(browser, nodes, emptyState);

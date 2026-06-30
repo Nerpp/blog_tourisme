@@ -56,6 +56,22 @@
 {% block body %}
     <main class="destination-detail-page">
         <section class="destination-detail-hero">
+            <nav class="destination-detail-breadcrumb destination-detail-shell" aria-label="Fil d’Ariane">
+                <ol>
+                    <li><a href="{{ path('app_home') }}">Accueil</a></li>
+                    <li><a href="{{ path('app_destination_index') }}">Destinations</a></li>
+                    {% for path_destination in destination_path %}
+                        <li>
+                            {% if loop.last %}
+                                <span aria-current="page">{{ path_destination.name }}</span>
+                            {% else %}
+                                <a href="{{ path('app_destination_show', { slug: path_destination.slug }) }}">{{ path_destination.name }}</a>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ol>
+            </nav>
+
             <div class="destination-detail-shell destination-detail-hero__inner">
                 <div class="destination-detail-hero__content">
                     <p class="destination-detail-kicker">Destination</p>
@@ -67,14 +83,13 @@
                         <p>Explorez les articles, randonnées, visites et destinations liées à {{ destination.name }}.</p>
                     {% endif %}
 
-                    <div class="destination-detail-badges" aria-label="Contenus liés">
-                        {% if is_content_level %}
+                    {% if is_content_level %}
+                        <div class="destination-detail-badges" aria-label="Contenus liés">
                             <a href="#articles">{{ article_count }} article{{ article_count > 1 ? 's' : '' }}</a>
                             <a href="#randonnees">{{ hike_count }} randonnée{{ hike_count > 1 ? 's' : '' }}</a>
                             <a href="#visites">{{ city_visit_count }} visite{{ city_visit_count > 1 ? 's' : '' }}</a>
-                        {% endif %}
-                        <a href="#a-decouvrir">{{ child_badge_label }}</a>
-                    </div>
+                        </div>
+                    {% endif %}
 
                     {% if is_granted('EDIT', destination) %}
                         <a href="{{ path('admin_destinations_edit', { id: destination.id }) }}" class="destination-detail-admin-link">
@@ -95,7 +110,7 @@
                         {% if is_content_level %}
                             <span>{{ discover_label }}</span>
                         {% else %}
-                            <span>{{ child_badge_label }}</span>
+                            <span data-destination-discover-count>{{ child_badge_label }}</span>
                         {% endif %}
                     </div>
                 </aside>
@@ -106,6 +121,30 @@
             class="destination-detail-shell destination-detail-search js-destination-detail-search"
             aria-label="Recherche dans la destination"
         >
+            <nav class="destination-detail-search-path" aria-label="Navigation géographique de la recherche">
+                <ol>
+                    <li>
+                        <a
+                            href="{{ path('app_destination_index', destination_navigation_root_query) }}"
+                            data-destination-search-path-link
+                            data-destination-search-path-root
+                        >Toutes les destinations</a>
+                    </li>
+                    {% for path_destination in destination_path %}
+                        <li>
+                            {% if loop.last %}
+                                <span aria-current="page">{{ path_destination.name }}</span>
+                            {% else %}
+                                <a
+                                    href="{{ path('app_destination_show', destination_navigation_query|merge({ slug: path_destination.slug })) }}"
+                                    data-destination-search-path-link
+                                >{{ path_destination.name }}</a>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ol>
+            </nav>
+
             <label for="destination-detail-search-input">Recherche dans {{ destination.name }}</label>
             <div class="destination-detail-search__field">
                 <input
@@ -328,7 +367,8 @@
                                 {% include 'partials/_cover_media.html.twig' with {
                                     featured_media: null,
                                     media_links: hike.mediaLinks,
-                                    media_context: hike
+                                    media_context: hike,
+                                    display_profile: 'content'
                                 } only %}
                             </a>
                             <div class="destination-resource-card__body">
@@ -397,7 +437,8 @@
                                 {% include 'partials/_cover_media.html.twig' with {
                                     featured_media: null,
                                     media_links: city_visit.mediaLinks,
-                                    media_context: city_visit
+                                    media_context: city_visit,
+                                    display_profile: 'content'
                                 } only %}
                             </a>
                             <div class="destination-resource-card__body">

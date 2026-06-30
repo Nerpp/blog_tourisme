@@ -9,7 +9,7 @@ export function initDestinationShowSearch() {
   const root = document.querySelector('.js-destination-detail-search');
   const cards = Array.from(document.querySelectorAll('[data-destination-show-card]'));
 
-  if (!root || cards.length === 0) {
+  if (!root) {
     return;
   }
 
@@ -25,13 +25,23 @@ export function initDestinationShowSearch() {
   const departmentPanelTitle = root.querySelector('[data-destination-department-panel-title]');
   const departmentPanelLink = root.querySelector('[data-destination-department-panel-link]');
   const dynamicSectionTitle = document.querySelector('[data-destination-original-title]');
+  const pathLinks = Array.from(root.querySelectorAll('[data-destination-search-path-link]'));
 
   if (!input || !suggestions) {
     return;
   }
 
-  let currentFilter = 'all';
-  let currentDepartment = '';
+  const initialParams = new URLSearchParams(window.location.search);
+  const requestedFilter = initialParams.get('type') || 'all';
+  const requestedDepartment = initialParams.get('department') || '';
+  let currentFilter = filterButtons.some((button) => button.dataset.destinationFilter === requestedFilter)
+    ? requestedFilter
+    : 'all';
+  let currentDepartment = departmentButtons.some((button) => button.dataset.destinationDepartmentFilter === requestedDepartment)
+    ? requestedDepartment
+    : '';
+
+  input.value = initialParams.get('q') || '';
 
   const items = cards.map((card) => ({
     card,
@@ -48,6 +58,50 @@ export function initDestinationShowSearch() {
   const closeSuggestions = () => {
     suggestions.hidden = true;
     suggestions.innerHTML = '';
+  };
+
+  const updateUrlState = () => {
+    const pageUrl = new URL(window.location.href);
+    const query = input.value.trim();
+
+    if (query) {
+      pageUrl.searchParams.set('q', query);
+    } else {
+      pageUrl.searchParams.delete('q');
+    }
+
+    if (currentFilter !== 'all') {
+      pageUrl.searchParams.set('type', currentFilter);
+    } else {
+      pageUrl.searchParams.delete('type');
+    }
+
+    if (currentDepartment !== '') {
+      pageUrl.searchParams.set('department', currentDepartment);
+    } else {
+      pageUrl.searchParams.delete('department');
+    }
+
+    window.history.replaceState({}, '', pageUrl);
+
+    pathLinks.forEach((link) => {
+      const linkUrl = new URL(link.href, window.location.origin);
+
+      if (query) {
+        linkUrl.searchParams.set('q', query);
+      } else {
+        linkUrl.searchParams.delete('q');
+      }
+
+      if (currentFilter !== 'all' && !link.hasAttribute('data-destination-search-path-root')) {
+        linkUrl.searchParams.set('type', currentFilter);
+      } else {
+        linkUrl.searchParams.delete('type');
+      }
+
+      linkUrl.searchParams.delete('department');
+      link.href = `${linkUrl.pathname}${linkUrl.search}${linkUrl.hash}`;
+    });
   };
 
   const renderSuggestions = (matches) => {
@@ -156,6 +210,7 @@ export function initDestinationShowSearch() {
       closeSuggestions();
     }
 
+    updateUrlState();
     updateSections();
   };
 
@@ -226,5 +281,9 @@ export function initDestinationShowSearch() {
     }
   });
 
+  filterButtons.forEach((button) => {
+    button.classList.toggle('is-active', button.dataset.destinationFilter === currentFilter);
+  });
   updateDepartmentPanel();
+  filter();
 }
