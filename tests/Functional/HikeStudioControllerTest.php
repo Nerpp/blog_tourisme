@@ -12,6 +12,8 @@ use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
+use App\Enum\MediaType;
+use App\Enum\VideoType;
 use App\Tests\Support\TestImageFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -213,6 +215,94 @@ final class HikeStudioControllerTest extends FunctionalTestCase
 
         self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-videos', $hike->getId()));
         self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+    }
+
+    public function testHikeVideoCanBeAddedToGalleryAndPoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike, 42.55, 2.75);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/media/video', $hike->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/media/video', $hike->getId())),
+            'title' => 'Vidéo galerie randonnée',
+            'caption' => 'Vue générale vidéo',
+            'videoType' => VideoType::Youtube->value,
+            'externalUrl' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            'association' => 'gallery',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-videos', $hike->getId()));
+        $galleryVideo = $this->entityManager()->getRepository(MediaAsset::class)->findOneBy(['title' => 'Vidéo galerie randonnée']);
+        self::assertInstanceOf(MediaAsset::class, $galleryVideo);
+        self::assertSame(MediaType::Video, $galleryVideo->getMediaType());
+        self::assertSame(VideoType::Youtube, $galleryVideo->getVideoType());
+        self::assertSame('https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg', $galleryVideo->getThumbnailPath());
+        $galleryLink = $this->entityManager()->getRepository(HikeDraftMedia::class)->findOneBy([
+            'hikeDraft' => $hike,
+            'mediaAsset' => $galleryVideo,
+        ]);
+        self::assertInstanceOf(HikeDraftMedia::class, $galleryLink);
+        self::assertSame(MediaRole::Gallery, $galleryLink->getRole());
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/media/video', $hike->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/media/video', $hike->getId())),
+            'title' => 'Vidéo point randonnée',
+            'caption' => 'Vidéo rattachée au point',
+            'videoType' => VideoType::External->value,
+            'externalUrl' => 'https://example.test/video-point',
+            'association' => 'point:'.$point->getId(),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-videos', $hike->getId()));
+        $pointVideo = $this->entityManager()->getRepository(MediaAsset::class)->findOneBy(['title' => 'Vidéo point randonnée']);
+        self::assertInstanceOf(MediaAsset::class, $pointVideo);
+        self::assertSame(VideoType::External, $pointVideo->getVideoType());
+        self::assertInstanceOf(HikePointMedia::class, $this->entityManager()->getRepository(HikePointMedia::class)->findOneBy([
+            'hikePoint' => $point,
+            'mediaAsset' => $pointVideo,
+        ]));
+        self::assertNull($this->entityManager()->getRepository(HikeDraftMedia::class)->findOneBy([
+            'hikeDraft' => $hike,
+            'mediaAsset' => $pointVideo,
+        ]));
+    }
+
+    public function testHikeDeleteRequiresCsrfAndRemovesDraft(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $hikeId = $hike->getId();
+        self::assertNotNull($hikeId);
+        $this->linkHikeMedia($hike, $this->createImageMedia('Photo randonnée à nettoyer'), MediaRole::Gallery, 0);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/field-tools/hikes');
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/delete', $hikeId));
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/delete', $hikeId), [
+            '_token' => 'invalid-token',
+        ]);
+
+        self::assertResponseRedirects();
+        self::assertInstanceOf(HikeDraft::class, $this->entityManager()->find(HikeDraft::class, $hikeId));
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/delete', $hikeId), [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects();
+        $this->entityManager()->clear();
+        self::assertNull($this->entityManager()->find(HikeDraft::class, $hikeId));
     }
 
     public function testHikeMediaUpdatePromotesCoverAndDemotesPreviousCover(): void
@@ -634,6 +724,51 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertSame(42.4455, $point->getLatitude());
         self::assertSame(2.6677, $point->getLongitude());
         self::assertSame($destinationCount, $this->entityManager()->getRepository(Destination::class)->count([]));
+    }
+
+    public function testHikeDestinationUpdateCanRenameCityAndCreateParentHierarchy(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $destination = $this->createDestination('Commune avant edition', DestinationType::City, code: '66000');
+        $hike = $this->createHikeDraft($admin, $destination);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hikes/%d/destination/update', $hike->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hikes/%d/destination/update', $hike->getId())),
+            'type' => DestinationType::City->value,
+            'countryName' => 'France studio',
+            'regionName' => 'Occitanie studio',
+            'departmentName' => 'Pyrénées-Orientales studio',
+            'cityName' => 'Collioure studio',
+            'code' => '66053',
+            'latitude' => '42,5260',
+            'longitude' => '3.0830',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#section-publication', $hike->getId()));
+        $destination = $this->refresh($destination);
+        self::assertSame('Collioure studio', $destination->getName());
+        self::assertSame(DestinationType::City, $destination->getType());
+        self::assertSame('66053', $destination->getCode());
+        self::assertSame(42.526, $destination->getLatitude());
+        self::assertSame(3.083, $destination->getLongitude());
+
+        $department = $destination->getParent();
+        self::assertInstanceOf(Destination::class, $department);
+        self::assertSame('Pyrénées-Orientales studio', $department->getName());
+        self::assertSame(DestinationType::Department, $department->getType());
+        $region = $department->getParent();
+        self::assertInstanceOf(Destination::class, $region);
+        self::assertSame('Occitanie studio', $region->getName());
+        self::assertSame(DestinationType::Region, $region->getType());
+        $country = $region->getParent();
+        self::assertInstanceOf(Destination::class, $country);
+        self::assertSame('France studio', $country->getName());
+        self::assertSame(DestinationType::Country, $country->getType());
     }
 
     public function testVerifiedAdminCanUpdateHikePointCoordinatesAndAccuracy(): void

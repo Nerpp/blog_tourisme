@@ -4,7 +4,10 @@ namespace App\Tests\Integration;
 
 use App\Entity\Article;
 use App\Entity\Comment;
+use App\Entity\CommentReport;
 use App\Entity\User;
+use App\Enum\CommentReportReason;
+use App\Enum\CommentReportStatus;
 use App\Enum\CommentStatus;
 use App\Enum\ContentStatus;
 use App\Repository\CommentRepository;
@@ -73,6 +76,92 @@ final class CommentRepositoryTest extends IntegrationTestCase
         );
     }
 
+    public function testModerationQueriesFilterStatusesAndReports(): void
+    {
+        $author = $this->createUser();
+        $article = $this->article($author);
+
+        $pending = $this->comment($author, $article, CommentStatus::Pending, 'Commentaire en attente pour moderation.')
+            ->setReportedCount(3)
+            ->setCreatedAt(new DateTimeImmutable('2036-01-01 09:00:00'));
+        $approved = $this->comment($author, $article, CommentStatus::Approved, 'Commentaire approuve pour moderation.')
+            ->setCreatedAt(new DateTimeImmutable('2036-01-02 09:00:00'));
+        $spam = $this->comment($author, $article, CommentStatus::Spam, 'Commentaire spam pour moderation.')
+            ->setSpamScore(98)
+            ->setModeratedAt(new DateTimeImmutable('2036-01-03 09:00:00'))
+            ->setCreatedAt(new DateTimeImmutable('2036-01-03 08:00:00'));
+        $hidden = $this->comment($author, $article, CommentStatus::HiddenByAdmin, 'Commentaire masque admin pour moderation.')
+            ->setModeratedAt(new DateTimeImmutable('2036-01-04 09:00:00'))
+            ->setCreatedAt(new DateTimeImmutable('2036-01-04 08:00:00'));
+        $deleted = $this->comment($author, $article, CommentStatus::Deleted, 'Commentaire supprime pour moderation.')
+            ->setCreatedAt(new DateTimeImmutable('2036-01-05 09:00:00'));
+        $reported = $this->comment($author, $article, CommentStatus::HiddenPendingReport, 'Commentaire signale pour moderation.')
+            ->setReportedCount(2)
+            ->setCreatedAt(new DateTimeImmutable('2036-01-06 09:00:00'));
+        $dismissed = $this->comment($author, $article, CommentStatus::Approved, 'Commentaire signale puis restaure.')
+            ->setCreatedAt(new DateTimeImmutable('2036-01-07 09:00:00'));
+
+        $this->report($reported, $this->createUser(), CommentReportStatus::Pending, new DateTimeImmutable('2036-01-06 10:00:00'));
+        $this->report($dismissed, $this->createUser(), CommentReportStatus::Dismissed, new DateTimeImmutable('2036-01-07 10:00:00'));
+        $this->entityManager->flush();
+
+        $ids = [
+            'pending' => $this->id($pending),
+            'approved' => $this->id($approved),
+            'spam' => $this->id($spam),
+            'hidden' => $this->id($hidden),
+            'deleted' => $this->id($deleted),
+            'reported' => $this->id($reported),
+            'dismissed' => $this->id($dismissed),
+        ];
+        $authorId = $author->getId();
+        self::assertNotNull($authorId);
+        $this->entityManager->clear();
+
+        $repository = $this->repository();
+
+        self::assertContains($ids['pending'], $this->resultIds($repository->findPendingForModeration()));
+        self::assertContains($ids['spam'], $this->resultIds($repository->findSpam()));
+        self::assertContains($ids['spam'], $this->resultIds($repository->findHiddenForModeration()));
+        self::assertContains($ids['hidden'], $this->resultIds($repository->findHiddenForModeration()));
+        self::assertNotContains($ids['reported'], $this->resultIds($repository->findHiddenForModeration()));
+        self::assertContains($ids['reported'], $this->resultIds($repository->findReportedForModeration()));
+        self::assertGreaterThanOrEqual(1, $repository->countReportedForModeration());
+        self::assertContains($ids['dismissed'], $this->resultIds($repository->findDismissedReportsForModeration()));
+        self::assertContains($ids['approved'], $this->resultIds($repository->findApprovedForModeration()));
+        self::assertContains($ids['deleted'], $this->resultIds($repository->findDeletedForModeration()));
+        self::assertContains($ids['dismissed'], $this->resultIds($repository->findRecentForModeration()));
+        self::assertContains($ids['pending'], $this->resultIds($repository->findAllForModeration()));
+
+        $author = $this->entityManager->find(User::class, $authorId);
+        self::assertInstanceOf(User::class, $author);
+        self::assertSame(2, $repository->countApprovedByUser($author));
+    }
+
+    public function testRecentDuplicateDetectionHandlesEmptyExcludedAndMatchingComments(): void
+    {
+        $author = $this->createUser();
+        $article = $this->article($author);
+        $content = 'Commentaire doublon exact pour repository.';
+        $existing = $this->comment($author, $article, CommentStatus::Approved, $content)
+            ->setCreatedAt(new DateTimeImmutable('2036-02-01 10:00:00'));
+        $this->entityManager->flush();
+        $since = new DateTimeImmutable('2036-02-01 09:30:00');
+
+        $probe = (new Comment())
+            ->setAuthor($author)
+            ->setArticle($article)
+            ->setContent((string) $existing->getContent());
+        $emptyProbe = (new Comment())
+            ->setAuthor($author)
+            ->setArticle($article)
+            ->setContent('   ');
+
+        self::assertTrue($this->repository()->hasRecentDuplicate($probe, $since));
+        self::assertFalse($this->repository()->hasRecentDuplicate($probe, $since, $existing));
+        self::assertFalse($this->repository()->hasRecentDuplicate($emptyProbe, $since));
+    }
+
     private function article(User $author): Article
     {
         $article = (new Article())
@@ -123,6 +212,24 @@ final class CommentRepositoryTest extends IntegrationTestCase
         return $this->comment($author, $article, $status, $content, $parent);
     }
 
+    private function report(Comment $comment, User $reporter, CommentReportStatus $status, DateTimeImmutable $reviewedAt): CommentReport
+    {
+        $report = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($reporter)
+            ->setReason(CommentReportReason::Spam)
+            ->setStatus($status);
+
+        if ($status !== CommentReportStatus::Pending) {
+            $report->setReviewedAt($reviewedAt);
+        }
+
+        $this->entityManager->persist($reporter);
+        $this->entityManager->persist($report);
+
+        return $report;
+    }
+
     private function repository(): CommentRepository
     {
         $repository = $this->entityManager->getRepository(Comment::class);
@@ -143,6 +250,26 @@ final class CommentRepositoryTest extends IntegrationTestCase
         self::assertInstanceOf(Article::class, $article);
 
         return $article;
+    }
+
+    private function id(Comment $comment): int
+    {
+        $id = $comment->getId();
+        self::assertNotNull($id);
+
+        return $id;
+    }
+
+    /**
+     * @param list<Comment> $comments
+     * @return list<int>
+     */
+    private function resultIds(array $comments): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (Comment $comment): ?int => $comment->getId(), $comments),
+            static fn (?int $id): bool => $id !== null,
+        ));
     }
 
     private function flushAndClear(): void

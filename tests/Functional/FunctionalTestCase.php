@@ -31,8 +31,11 @@ use App\Enum\MediaType;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
 abstract class FunctionalTestCase extends WebTestCase
@@ -385,6 +388,26 @@ abstract class FunctionalTestCase extends WebTestCase
         self::assertInstanceOf(CsrfTokenManagerInterface::class, $tokenManager);
 
         return $tokenManager->getToken($tokenId)->getValue();
+    }
+
+    protected function csrfTokenForClient(KernelBrowser $client, string $tokenId): string
+    {
+        $session = $client->getSession();
+        self::assertNotNull($session);
+
+        $request = Request::create('/');
+        $request->setSession($session);
+
+        $requestStack = static::getContainer()->get(RequestStack::class);
+        self::assertInstanceOf(RequestStack::class, $requestStack);
+        $requestStack->push($request);
+
+        try {
+            return $this->csrfTokenFor($tokenId);
+        } finally {
+            $requestStack->pop();
+            $session->save();
+        }
     }
 
     protected function inputValue(Crawler $crawler, string $selector): string

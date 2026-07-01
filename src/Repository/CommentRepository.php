@@ -128,8 +128,9 @@ class CommentRepository extends ServiceEntityRepository
         /** @var list<Comment> $comments */
         $comments = $this->createModerationQueryBuilder()
             ->innerJoin('c.reports', 'dismissed_report', 'WITH', 'dismissed_report.status = :report_status')
+            ->addSelect('dismissed_report.reviewedAt AS HIDDEN dismissed_report_reviewed_at')
             ->setParameter('report_status', CommentReportStatus::Dismissed)
-            ->orderBy('dismissed_report.reviewedAt', 'DESC')
+            ->orderBy('dismissed_report_reviewed_at', 'DESC')
             ->addOrderBy('c.createdAt', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()

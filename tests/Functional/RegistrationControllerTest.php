@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Entity\User;
 use App\Service\AvatarUploadService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\Mailer\Envelope;
@@ -185,6 +186,71 @@ final class RegistrationControllerTest extends FunctionalTestCase
         $this->loginWithPassword($client, $email, $password);
     }
 
+    #[DataProvider('supportedAvatarFormatsProvider')]
+    public function testRegistrationWithSupportedAvatarFormatPersistsWebpAvatar(string $extension): void
+    {
+        $this->requireGdFor($extension);
+
+        $client = static::createClient();
+        $email = sprintf('register-avatar-%s-%s@example.test', $extension, bin2hex(random_bytes(6)));
+        $password = 'Phrase robuste avatar format 2026 9!';
+        $originalFile = $this->createImage($extension, 300, 300);
+
+        try {
+            $crawler = $client->request('GET', '/register');
+            $form = $this->registrationForm($crawler, $email, 'Avatar Format '.$this->uniqueToken('register'), $password);
+            $form['registration_form[avatarFile]']->upload($originalFile);
+
+            $client->submit($form);
+        } finally {
+            if (is_file($originalFile)) {
+                unlink($originalFile);
+            }
+        }
+
+        self::assertResponseRedirects('/login');
+        $user = $this->registeredUser($email);
+        $avatarPath = $user->getAvatarPath();
+        self::assertIsString($avatarPath);
+        $this->uploadedAvatars[] = $avatarPath;
+        self::assertMatchesRegularExpression('#^/uploads/avatars/avatar_[a-f0-9]{32}\.webp$#', $avatarPath);
+        self::assertStringNotContainsString(sprintf('.%s', $extension), basename($avatarPath, '.webp'));
+        self::assertFileExists((string) static::getContainer()->getParameter('kernel.project_dir').'/public'.$avatarPath);
+    }
+
+    public function testRegistrationWithTooSmallAvatarDoesNotCreateAccount(): void
+    {
+        $this->requireGdFor('png');
+
+        $client = static::createClient();
+        $email = sprintf('register-small-avatar-%s@example.test', bin2hex(random_bytes(6)));
+        $avatar = $this->createImage('png', 32, 80);
+
+        try {
+            $crawler = $client->request('GET', '/register');
+            $form = $this->registrationForm(
+                $crawler,
+                $email,
+                'Avatar Trop Petit '.$this->uniqueToken('register'),
+                'Phrase robuste petit avatar 2026 9!',
+            );
+            $form['registration_form[avatarFile]']->upload($avatar);
+
+            $client->submit($form);
+        } finally {
+            if (is_file($avatar)) {
+                unlink($avatar);
+            }
+        }
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString(
+            'L’image de profil doit mesurer au moins 64 px de côté.',
+            $client->getResponse()->getContent() ?: '',
+        );
+        self::assertNull($this->entityManager()->getRepository(User::class)->findOneBy(['email' => $email]));
+    }
+
     public function testShortNumericPasswordIsRejectedWithClearMessage(): void
     {
         $client = static::createClient();
@@ -220,6 +286,15 @@ final class RegistrationControllerTest extends FunctionalTestCase
             || str_contains($content, 'Ce mot de passe est connu dans des fuites de données.'),
             'The registration page should display a clear weak or compromised password error.',
         );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function supportedAvatarFormatsProvider(): iterable
+    {
+        yield 'jpeg' => ['jpg'];
+        yield 'webp' => ['webp'];
     }
 
     private function registrationForm(Crawler $crawler, string $email, string $displayName, string $password): \Symfony\Component\DomCrawler\Form

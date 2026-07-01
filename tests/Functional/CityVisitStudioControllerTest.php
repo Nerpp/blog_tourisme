@@ -12,6 +12,8 @@ use App\Enum\CityVisitPointType;
 use App\Enum\DestinationType;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
+use App\Enum\MediaType;
+use App\Enum\VideoType;
 use App\Tests\Support\TestImageFactory;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
@@ -113,6 +115,94 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
 
         self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
         self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+    }
+
+    public function testCityVisitVideoCanBeAddedToGalleryAndPoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $point = $this->createCityVisitPoint($cityVisit, 43.55, 3.75);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId())),
+            'title' => 'Vidéo galerie visite',
+            'caption' => 'Vue générale visite',
+            'videoType' => VideoType::Youtube->value,
+            'externalUrl' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            'association' => 'gallery',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        $galleryVideo = $this->entityManager()->getRepository(MediaAsset::class)->findOneBy(['title' => 'Vidéo galerie visite']);
+        self::assertInstanceOf(MediaAsset::class, $galleryVideo);
+        self::assertSame(MediaType::Video, $galleryVideo->getMediaType());
+        self::assertSame(VideoType::Youtube, $galleryVideo->getVideoType());
+        self::assertSame('https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg', $galleryVideo->getThumbnailPath());
+        $galleryLink = $this->entityManager()->getRepository(CityVisitDraftMedia::class)->findOneBy([
+            'cityVisitDraft' => $cityVisit,
+            'mediaAsset' => $galleryVideo,
+        ]);
+        self::assertInstanceOf(CityVisitDraftMedia::class, $galleryLink);
+        self::assertSame(MediaRole::Gallery, $galleryLink->getRole());
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId())),
+            'title' => 'Vidéo point visite',
+            'caption' => 'Vidéo rattachée au point visite',
+            'videoType' => VideoType::External->value,
+            'externalUrl' => 'https://example.test/video-point-visite',
+            'association' => 'point:'.$point->getId(),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        $pointVideo = $this->entityManager()->getRepository(MediaAsset::class)->findOneBy(['title' => 'Vidéo point visite']);
+        self::assertInstanceOf(MediaAsset::class, $pointVideo);
+        self::assertSame(VideoType::External, $pointVideo->getVideoType());
+        self::assertInstanceOf(CityVisitPointMedia::class, $this->entityManager()->getRepository(CityVisitPointMedia::class)->findOneBy([
+            'cityVisitPoint' => $point,
+            'mediaAsset' => $pointVideo,
+        ]));
+        self::assertNull($this->entityManager()->getRepository(CityVisitDraftMedia::class)->findOneBy([
+            'cityVisitDraft' => $cityVisit,
+            'mediaAsset' => $pointVideo,
+        ]));
+    }
+
+    public function testCityVisitDeleteRequiresCsrfAndRemovesDraft(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $cityVisitId = $cityVisit->getId();
+        self::assertNotNull($cityVisitId);
+        $this->linkCityVisitMedia($cityVisit, $this->createImageMedia('Photo visite à nettoyer'), MediaRole::Gallery, 0);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/field-tools/city-visits');
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/admin/studio/city-visits/%d/delete', $cityVisitId));
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/delete', $cityVisitId), [
+            '_token' => 'invalid-token',
+        ]);
+
+        self::assertResponseRedirects();
+        self::assertInstanceOf(CityVisitDraft::class, $this->entityManager()->find(CityVisitDraft::class, $cityVisitId));
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/delete', $cityVisitId), [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects();
+        self::assertArrayHasKey('success', $client->getRequest()->getSession()->getFlashBag()->peekAll());
+        $this->entityManager()->clear();
+        self::assertNull($this->entityManager()->find(CityVisitDraft::class, $cityVisitId));
     }
 
     public function testCityVisitPhotoUploadCreatesCoverThroughRealForm(): void

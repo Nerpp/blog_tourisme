@@ -96,6 +96,44 @@ final class CommentControllerTest extends FunctionalTestCase
         self::assertStringContainsString($content, (string) $client->getResponse()->getContent());
     }
 
+    public function testUnverifiedUserCannotPostPlaceComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser(verified: false);
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'Commentaire refusé sur lieu car email non confirmé.',
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comments', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
+    }
+
+    public function testPlaceCommentWithoutSubmittedFormIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'content' => 'Payload de lieu sans nom de formulaire commentaire.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
+    }
+
     public function testUnverifiedUserCannotPostArticleComment(): void
     {
         $client = static::createClient();
@@ -342,6 +380,30 @@ final class CommentControllerTest extends FunctionalTestCase
         self::assertSame($before, $repository->count(['article' => $article]));
     }
 
+    public function testInvalidPlaceCommentIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'court',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
+    }
+
     public function testHoneypotFilledArticleCommentIsRejected(): void
     {
         $client = static::createClient();
@@ -389,6 +451,30 @@ final class CommentControllerTest extends FunctionalTestCase
 
         self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
         self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testPlaceCommentWithTooManyLinksIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'Voici trop de liens https://a.example https://b.example https://c.example sur cette fiche lieu.',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
     }
 
     public function testRecentDuplicateCommentIsRejected(): void
@@ -600,6 +686,51 @@ final class CommentControllerTest extends FunctionalTestCase
         self::assertSame(CommentStatus::Approved, $stored->getStatus());
         self::assertSame($previousContent, $stored->getContent());
         self::assertNull($stored->getEditedAt());
+    }
+
+    public function testInvalidReplyCsrfKeepsParentWithoutReply(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => 'bad-token',
+            'content' => 'Réponse avec jeton invalide qui ne doit pas exister.',
+            'website' => '',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame(0, $repository->count(['parent' => $parent]));
+    }
+
+    public function testUnverifiedUserCannotReplyToApprovedComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser(verified: false);
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Réponse refusée car email non confirmé.',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $parent->getId()));
+        self::assertSame(0, $repository->count(['parent' => $parent]));
     }
 
     public function testAuthorCanDeleteComment(): void
@@ -831,6 +962,49 @@ final class CommentControllerTest extends FunctionalTestCase
         self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
         $comment = $this->refresh($comment);
         self::assertTrue($comment->isPinned());
+    }
+
+    public function testVerifiedAdminCannotHeartHiddenComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article, CommentStatus::HiddenPendingReport);
+        $client->loginUser($admin);
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/admin-heart', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin-heart-comment-'.$comment->getId()),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+        $comment = $this->refresh($comment);
+        self::assertNull($comment->getAdminHeartedAt());
+        self::assertSame(CommentStatus::HiddenPendingReport, $comment->getStatus());
+    }
+
+    public function testVerifiedAdminCannotPinReplyFromPublicAction(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $reply = $this->createReplyComment($this->createUser(), $parent);
+        $client->loginUser($admin);
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/pin', $reply->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'pin-comment-'.$reply->getId()),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $reply->getId()));
+        self::assertFalse($this->refresh($reply)->isPinned());
     }
 
     private function createReplyComment(User $author, Comment $parent, CommentStatus $status = CommentStatus::Approved): Comment

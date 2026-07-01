@@ -22,7 +22,8 @@ final class ContentEditVoter extends Voter
     {
         if ($attribute === self::DELETE) {
             return $subject instanceof Place
-                || $subject instanceof HikeDraft;
+                || $subject instanceof HikeDraft
+                || $subject instanceof CityVisitDraft;
         }
 
         return $attribute === self::EDIT
