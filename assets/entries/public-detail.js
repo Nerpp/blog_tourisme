@@ -1,5 +1,6 @@
 import '../styles/public-detail.css';
 import '../styles/public-detail-gallery.css';
+import '../styles/public-route-map.css';
 
 import { initPublicDetailGallery } from '../js/public-detail-gallery.js';
 

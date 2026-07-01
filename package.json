@@ -5,8 +5,9 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "lighthouse:mobile": "node tools/run-lighthouse.mjs mobile",
-    "lighthouse:desktop": "node tools/run-lighthouse.mjs desktop"
+    "audit:lighthouse": "node tools/run-lighthouse.mjs",
+    "lighthouse:mobile": "node tools/run-lighthouse.mjs --devices=mobile",
+    "lighthouse:desktop": "node tools/run-lighthouse.mjs --devices=desktop"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",

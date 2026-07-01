@@ -219,11 +219,13 @@ final class HikeControllerTest extends FunctionalTestCase
 
         $pointLinks = $crawler->filter('a[data-hike-map-focus]:contains("Voir ce point")');
         self::assertCount(3, $pointLinks);
+        $pointTitles = ['Point randonnée 1', 'Point randonnée 2', 'Point randonnée 3'];
         foreach ($pointLinks as $index => $link) {
             $href = $link->getAttribute('href');
             self::assertSame(sprintf('#hike-gallery-%d-route-map', $hike->getId()), $href);
             self::assertSame((string) $index, $link->getAttribute('data-point-index'));
             self::assertNotSame('', $link->getAttribute('data-point-id'));
+            self::assertSame('Voir ce point sur la carte : '.$pointTitles[$index], $link->getAttribute('aria-label'));
             self::assertStringNotContainsString('google.com/maps', $href);
         }
     }

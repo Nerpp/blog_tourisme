@@ -19,11 +19,15 @@ final class ArticleControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $article = $this->createArticle($this->createUser());
 
-        $client->request('GET', '/articles?q='.rawurlencode((string) $article->getTitle()));
+        $crawler = $client->request('GET', '/articles?q='.rawurlencode((string) $article->getTitle()));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Articles');
         self::assertSelectorTextContains('body', (string) $article->getTitle());
+        self::assertSame(
+            'Article : lire '.$article->getTitle(),
+            $crawler->filter('.article-list-card__visual')->attr('aria-label'),
+        );
     }
 
     public function testArticleIndexDoesNotListDraftArticles(): void

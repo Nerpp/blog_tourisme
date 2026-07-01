@@ -11,11 +11,13 @@ final class PlaceControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $place = $this->createPublishedPlace($this->createDestination(), $this->createCategory());
 
-        $client->request('GET', '/places');
+        $crawler = $client->request('GET', '/places');
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Repérages');
         self::assertSelectorTextContains('body', (string) $place->getName());
+        self::assertCount(1, $crawler->filter('.content-card h2 a:contains("'.$place->getName().'")'));
+        self::assertCount(0, $crawler->filter('.content-card h3'));
     }
 
     public function testPublishedPlaceIsAccessibleWithoutMedia(): void

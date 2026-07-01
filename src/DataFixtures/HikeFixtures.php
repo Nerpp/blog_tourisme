@@ -28,6 +28,8 @@ final class HikeFixtures extends Fixture implements DependentFixtureInterface
     public const START_ONLY_REFERENCE = 'hike.seulement-point-depart';
     public const NO_MEDIA_REFERENCE = 'hike.sans-media';
     public const DRAFT_REFERENCE = 'hike.brouillon-admin';
+    public const LIGHTHOUSE_REFERENCE = self::CANIGOU_REFERENCE;
+    public const LIGHTHOUSE_SLUG = 'boucle-du-canigou-decouverte';
 
     public function load(ObjectManager $manager): void
     {
@@ -36,7 +38,7 @@ final class HikeFixtures extends Fixture implements DependentFixtureInterface
         $hikes = [
             self::CANIGOU_REFERENCE => [
                 'title' => 'Boucle du Canigou découverte',
-                'slug' => 'boucle-du-canigou-decouverte',
+                'slug' => self::LIGHTHOUSE_SLUG,
                 'status' => HikeDraftStatus::Finished,
                 'destination' => DestinationFixtures::PRADES_REFERENCE,
                 'notes' => "Difficulté : moyenne\nDistance : 12.5 km\nDurée : 4h30\nDénivelé : 650 m\nBoucle de test avec plusieurs points GPS et galerie.",

@@ -90,6 +90,14 @@
             "php bin/console doctrine:migrations:migrate --env=test --no-interaction",
             "php bin/console doctrine:fixtures:load --env=test --no-interaction"
         ],
+        "lighthouse:test-db:assert-safe": "php bin/console app:lighthouse:assert-safe-database --env=test",
+        "lighthouse:test-db:reset": [
+            "php bin/console cache:clear --env=test --no-warmup",
+            "@lighthouse:test-db:assert-safe",
+            "@test:db:reset",
+            "php bin/console cache:clear --env=test --no-warmup",
+            "@lighthouse:test-db:assert-safe"
+        ],
         "test:coverage": "XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-text --coverage-html var/coverage",
         "test:coverage:clover": "XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-clover var/coverage/clover.xml",
         "quality": [

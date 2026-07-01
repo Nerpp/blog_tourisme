@@ -32,6 +32,7 @@ final class MediaAssetFixtures extends Fixture implements DependentFixtureInterf
     public const CHATEAU_REFERENCE = 'media.fixture-chateau';
     public const LAC_REFERENCE = 'media.fixture-lac';
     public const FORET_REFERENCE = 'media.fixture-foret';
+    public const LIGHTHOUSE_COVER_REFERENCE = self::COTE_VERMEILLE_180_REFERENCE;
 
     public function __construct(
         private readonly string $projectDir,

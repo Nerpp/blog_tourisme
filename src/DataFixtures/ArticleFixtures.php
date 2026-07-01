@@ -33,6 +33,8 @@ final class ArticleFixtures extends Fixture implements DependentFixtureInterface
     public const ARTICLE_NO_IMAGE_REFERENCE = 'article.sejour-sans-voiture-pyrenees-orientales';
     public const LONG_ARTICLE_REFERENCE = 'article.grand-guide-cote-vermeille';
     public const ARCHIVED_FUTURE_REFERENCE = 'article.fete-ete-cote-vermeille';
+    public const LIGHTHOUSE_REFERENCE = self::LONG_ARTICLE_REFERENCE;
+    public const LIGHTHOUSE_SLUG = 'grand-guide-cote-vermeille-premier-sejour';
 
     public function load(ObjectManager $manager): void
     {
@@ -284,7 +286,7 @@ TEXT,
 
         $longArticle = $this->createArticle(
             title: 'Grand guide de la côte Vermeille pour un premier séjour',
-            slug: 'grand-guide-cote-vermeille-premier-sejour',
+            slug: self::LIGHTHOUSE_SLUG,
             category: $this->getCategory(CategoryFixtures::CONSEIL_VOYAGE_REFERENCE),
             author: $admin,
             excerpt: 'Un contenu long pour tester la typographie, les espacements, les paragraphes et les extraits.',

@@ -27,6 +27,8 @@ final class CityVisitFixtures extends Fixture implements DependentFixtureInterfa
     public const CERET_REFERENCE = 'city_visit.ceret-centre-ancien';
     public const BANYULS_REFERENCE = 'city_visit.banyuls-port-front-mer';
     public const DRAFT_REFERENCE = 'city_visit.brouillon';
+    public const LIGHTHOUSE_REFERENCE = self::COLLIOURE_REFERENCE;
+    public const LIGHTHOUSE_SLUG = 'visiter-collioure-a-pied';
 
     public function load(ObjectManager $manager): void
     {
@@ -35,7 +37,7 @@ final class CityVisitFixtures extends Fixture implements DependentFixtureInterfa
         $visits = [
             self::COLLIOURE_REFERENCE => [
                 'title' => 'Visiter Collioure à pied',
-                'slug' => 'visiter-collioure-a-pied',
+                'slug' => self::LIGHTHOUSE_SLUG,
                 'status' => CityVisitDraftStatus::Finished,
                 'destination' => DestinationFixtures::COLLIOURE_REFERENCE,
                 'notes' => "Durée estimée : 2h30\nIntroduction : boucle pietonne entre port, patrimoine et points de vue.",

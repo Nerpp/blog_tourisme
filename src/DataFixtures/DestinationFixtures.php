@@ -31,6 +31,8 @@ final class DestinationFixtures extends Fixture
     public const CARCASSONNE_REFERENCE = 'destination.carcassonne';
     public const MONTPELLIER_REFERENCE = 'destination.montpellier';
     public const TOULOUSE_REFERENCE = 'destination.toulouse';
+    public const LIGHTHOUSE_REFERENCE = self::PYRENEES_ORIENTALES_REFERENCE;
+    public const LIGHTHOUSE_SLUG = 'pyrenees-orientales';
 
     public function load(ObjectManager $manager): void
     {
@@ -65,7 +67,7 @@ final class DestinationFixtures extends Fixture
 
         $pyreneesOrientales = $this->createDestination(
             name: 'Pyrénées-Orientales',
-            slug: 'pyrenees-orientales',
+            slug: self::LIGHTHOUSE_SLUG,
             type: DestinationType::Department,
             parent: $occitanie,
             code: '66',

@@ -1,0 +1,68 @@
+[
+  {
+    "id": "homepage",
+    "label": "Accueil",
+    "type": "page",
+    "path": "/"
+  },
+  {
+    "id": "articles-index",
+    "label": "Index des articles",
+    "type": "listing",
+    "path": "/articles"
+  },
+  {
+    "id": "destinations-index",
+    "label": "Index des destinations",
+    "type": "listing",
+    "path": "/destinations"
+  },
+  {
+    "id": "hikes-index",
+    "label": "Index des randonnées",
+    "type": "listing",
+    "path": "/randonnees"
+  },
+  {
+    "id": "visits-index",
+    "label": "Index des visites",
+    "type": "listing",
+    "path": "/visites"
+  },
+  {
+    "id": "places-index",
+    "label": "Index des lieux",
+    "type": "listing",
+    "path": "/places"
+  },
+  {
+    "id": "article-fixture",
+    "label": "Grand guide de la côte Vermeille",
+    "type": "article",
+    "path": "/articles/grand-guide-cote-vermeille-premier-sejour"
+  },
+  {
+    "id": "destination-fixture",
+    "label": "Pyrénées-Orientales",
+    "type": "destination",
+    "path": "/destinations/pyrenees-orientales"
+  },
+  {
+    "id": "hike-fixture",
+    "label": "Boucle du Canigou découverte",
+    "type": "hike",
+    "path": "/randonnees/boucle-du-canigou-decouverte"
+  },
+  {
+    "id": "visit-fixture",
+    "label": "Visiter Collioure à pied",
+    "type": "city-visit",
+    "path": "/visites-de-ville/visiter-collioure-a-pied"
+  },
+  {
+    "id": "place-fixture",
+    "label": "Fort Saint-Elme",
+    "type": "place",
+    "path": "/places/fort-saint-elme"
+  }
+]

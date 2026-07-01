@@ -33,6 +33,8 @@ final class PlaceFixtures extends Fixture implements DependentFixtureInterface
     public const LAC_VILLENEUVE_RAHO_REFERENCE = 'place.lac-villeneuve-raho';
     public const CHATEAU_SALSES_REFERENCE = 'place.chateau-salses';
     public const BELVEDERE_ALBERES_REFERENCE = 'place.belvedere-alberes';
+    public const LIGHTHOUSE_REFERENCE = self::FORT_SAINT_ELME_REFERENCE;
+    public const LIGHTHOUSE_SLUG = 'fort-saint-elme';
 
     public function load(ObjectManager $manager): void
     {
@@ -40,7 +42,7 @@ final class PlaceFixtures extends Fixture implements DependentFixtureInterface
 
         $fortSaintElme = $this->createPlace(
             name: 'Fort Saint-Elme',
-            slug: 'fort-saint-elme',
+            slug: self::LIGHTHOUSE_SLUG,
             destination: $this->getDestination(DestinationFixtures::COLLIOURE_REFERENCE),
             category: $this->getCategory(CategoryFixtures::MONUMENT_REFERENCE),
             shortDescription: 'Fort historique dominant Collioure et la cote Vermeille.',

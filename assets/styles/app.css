@@ -216,6 +216,12 @@ button {
   padding: 18px;
 }
 
+.card-body h2,
+.card-body h3 {
+  margin: 0.7rem 0 0.45rem;
+  font-size: 1.17em;
+}
+
 .card-meta {
   display: flex;
   flex-wrap: wrap;

@@ -47,7 +47,7 @@
 {% endif %}
 
 <article class="article-list-card" data-public-list-card data-public-content-type="article">
-    <a class="article-list-card__visual" href="{{ article_url }}" aria-label="Lire {{ article.title }}">
+    <a class="article-list-card__visual" href="{{ article_url }}" aria-label="Article : lire {{ article.title }}">
         {% if cover_media %}
             {% include 'public_detail/_responsive_image.html.twig' with {
                 media: cover_media,

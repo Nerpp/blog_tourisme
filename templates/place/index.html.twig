@@ -45,7 +45,7 @@
 
         <div class="card-grid">
             {% for place in places %}
-                {% include 'partials/_place_card.html.twig' with { place: place } only %}
+                {% include 'partials/_place_card.html.twig' with { place: place, heading_level: 2 } only %}
             {% else %}
                 <p>Aucun repérage ne correspond a ces filtres.</p>
             {% endfor %}

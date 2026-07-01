@@ -1,4 +1,6 @@
 <article class="content-card">
+    {% set title_level = heading_level|default(3) %}
+
     {% include 'partials/_cover_media.html.twig' with {
         featured_media: place.featuredImage,
         media_links: place.mediaLinks,
@@ -9,7 +11,7 @@
             {% if place.destination %}<span>{{ place.destination.name }}</span>{% endif %}
             {% if place.category %}<span>{{ place.category.name }}</span>{% endif %}
         </p>
-        <h3><a href="{{ path('app_place_show', { slug: place.slug }) }}">{{ place.name }}</a></h3>
+        <h{{ title_level }}><a href="{{ path('app_place_show', { slug: place.slug }) }}">{{ place.name }}</a></h{{ title_level }}>
         {% if place.shortDescription %}
             <p>{{ place.shortDescription }}</p>
         {% endif %}

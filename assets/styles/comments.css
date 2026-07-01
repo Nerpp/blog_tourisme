@@ -92,7 +92,7 @@
 }
 
 .comment-handle {
-  color: #8b9994;
+  color: #56635f;
   font-size: 0.84rem;
 }
 
@@ -671,6 +671,18 @@
   padding: 14px 16px;
   border-radius: 8px;
   background: #fff;
+}
+
+.login-callout a {
+  color: #0e4f4b;
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
+.login-callout a:hover,
+.login-callout a:focus-visible {
+  text-decoration-thickness: 0.14em;
 }
 
 @media (max-width: 720px) {
