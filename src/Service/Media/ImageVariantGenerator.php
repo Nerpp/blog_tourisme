@@ -743,7 +743,7 @@ final class ImageVariantGenerator
         $imageSize = @getimagesize($path);
         if (
             !is_array($imageSize)
-            || ($imageSize['mime'] ?? null) !== $mimeType
+            || $imageSize['mime'] !== $mimeType
             || (int) $imageSize[0] !== $width
             || (int) $imageSize[1] !== $height
             || !is_file($path)
