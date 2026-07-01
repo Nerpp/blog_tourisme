@@ -89,6 +89,7 @@ final class ArticleController extends AbstractController
 
         return $this->render('article/show.html.twig', [
             'article' => $article,
+            'return_context' => $this->resolveReturnContext($request, $article),
             'comments' => $comments,
             'comment_form' => $commentForm,
             'comments_sort' => $commentSort,
@@ -96,6 +97,55 @@ final class ArticleController extends AbstractController
             'comment_like_counts' => $reactionContext['like_counts'],
             'liked_comment_ids' => $reactionContext['liked_comment_ids'],
         ]);
+    }
+
+    /** @return array{label: string, url: string}|null */
+    private function resolveReturnContext(Request $request, Article $article): ?array
+    {
+        $query = $request->query->all();
+        $sourceType = $query['from'] ?? null;
+        $sourceSlug = $query['source'] ?? null;
+
+        if (!is_string($sourceType) || !is_string($sourceSlug)) {
+            return null;
+        }
+
+        $sourceSlug = trim(mb_substr($sourceSlug, 0, 180));
+        if ($sourceSlug === '') {
+            return null;
+        }
+
+        if ($sourceType === 'hike') {
+            foreach ($article->getHikeLinks() as $link) {
+                $hike = $link->getHikeDraft();
+                if (
+                    $hike?->getSlug() === $sourceSlug
+                    && in_array($hike->getStatus()->value, ['finished', 'converted'], true)
+                ) {
+                    return [
+                        'label' => sprintf('← Retour à la randonnée : %s', $hike->getTitle()),
+                        'url' => $this->generateUrl('app_hike_show', ['slug' => $sourceSlug]),
+                    ];
+                }
+            }
+        }
+
+        if ($sourceType === 'city_visit') {
+            foreach ($article->getCityVisitLinks() as $link) {
+                $cityVisit = $link->getCityVisitDraft();
+                if (
+                    $cityVisit?->getSlug() === $sourceSlug
+                    && in_array($cityVisit->getStatus()->value, ['finished', 'converted'], true)
+                ) {
+                    return [
+                        'label' => sprintf('← Retour à la visite : %s', $cityVisit->getTitle()),
+                        'url' => $this->generateUrl('app_city_visit_show', ['slug' => $sourceSlug]),
+                    ];
+                }
+            }
+        }
+
+        return null;
     }
 
     private function commentSort(Request $request): string

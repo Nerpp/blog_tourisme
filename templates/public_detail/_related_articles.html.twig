@@ -2,6 +2,8 @@
 {% set section_title = section_title|default('Pour aller plus loin') %}
 {% set modal_id_prefix = modal_id_prefix|default('related-article') %}
 {% set section_id = section_id|default(null) %}
+{% set source_type = source_type|default(null) %}
+{% set source_slug = source_slug|default(null) %}
 {% set role_labels = {
     related: 'Article lié',
     history: 'Histoire',
@@ -33,6 +35,10 @@
             {% for article_link in published_article_links %}
                 {% set article = article_link.article %}
                 {% set modal_id = modal_id_prefix ~ '-' ~ article.id %}
+                {% set direct_article_url = source_type and source_slug
+                    ? path('app_article_show', { slug: article.slug, from: source_type, source: source_slug })
+                    : null
+                %}
                 {% set role = article_link.role is defined ? article_link.role : 'related' %}
                 {% set article_image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
                 {% set article_cover_links = article_image_links|filter(link => link.role.value == 'cover') %}
@@ -76,24 +82,31 @@
                         {% endif %}
                     </div>
 
-                    <button
-                        type="button"
-                        class="related-article-card__button js-related-article-open"
-                        data-related-article-target="#{{ modal_id }}"
-                    >
-                        Lire l’article
-                    </button>
+                    {% if direct_article_url %}
+                        <a class="related-article-card__button" href="{{ direct_article_url }}">
+                            Lire l’article
+                        </a>
+                    {% else %}
+                        <button
+                            type="button"
+                            class="related-article-card__button js-related-article-open"
+                            data-related-article-target="#{{ modal_id }}"
+                        >
+                            Lire l’article
+                        </button>
+                    {% endif %}
                 </article>
 
-                <div
-                    id="{{ modal_id }}"
-                    class="related-article-modal js-related-article-modal"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-hidden="true"
-                    aria-labelledby="{{ modal_id }}-title"
-                    hidden
-                >
+                {% if not direct_article_url %}
+                    <div
+                        id="{{ modal_id }}"
+                        class="related-article-modal js-related-article-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-hidden="true"
+                        aria-labelledby="{{ modal_id }}-title"
+                        hidden
+                    >
                     <div class="related-article-modal__dialog" role="document">
                         <header class="related-article-modal__header">
                             <div>
@@ -147,7 +160,8 @@
                             </a>
                         </footer>
                     </div>
-                </div>
+                    </div>
+                {% endif %}
             {% endfor %}
         </div>
     </section>

@@ -3,6 +3,8 @@
 namespace App\Tests\Functional;
 
 use App\Entity\Article;
+use App\Entity\ArticleCityVisit;
+use App\Entity\ArticleHike;
 use App\Entity\ArticleMedia;
 use App\Entity\Category;
 use App\Entity\User;
@@ -14,6 +16,72 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class ArticleControllerTest extends FunctionalTestCase
 {
+    public function testArticleReturnContextIsShownOnlyForTheLinkedPublicSource(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createPublishedHike($admin);
+        $hike->setTitle('Boucle liée de test');
+        $cityVisit = $this->createPublishedCityVisit($admin);
+        $cityVisit->setTitle('Visite liée de test');
+        $unrelatedHike = $this->createPublishedHike($admin);
+        $draftHike = $this->createHikeDraft($admin);
+        $this->persistAndFlush(
+            $hike,
+            $cityVisit,
+            (new ArticleHike())->setArticle($article)->setHikeDraft($hike),
+            (new ArticleCityVisit())->setArticle($article)->setCityVisitDraft($cityVisit),
+            (new ArticleHike())->setArticle($article)->setHikeDraft($draftHike),
+        );
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('.article-show-context-return'));
+
+        $crawler = $client->request('GET', sprintf(
+            '/articles/%s?from=hike&source=%s',
+            $article->getSlug(),
+            $hike->getSlug(),
+        ));
+        self::assertResponseIsSuccessful();
+        $returnLink = $crawler->filter('.article-show-context-return');
+        self::assertCount(1, $returnLink);
+        self::assertSame('← Retour à la randonnée : Boucle liée de test', trim($returnLink->text()));
+        self::assertSame('/randonnees/'.$hike->getSlug(), $returnLink->attr('href'));
+        self::assertNull($returnLink->attr('target'));
+        self::assertStringNotContainsString('from=', (string) $crawler->filter('link[rel="canonical"]')->attr('href'));
+
+        $crawler = $client->request('GET', sprintf(
+            '/articles/%s?from=city_visit&source=%s',
+            $article->getSlug(),
+            $cityVisit->getSlug(),
+        ));
+        self::assertResponseIsSuccessful();
+        $returnLink = $crawler->filter('.article-show-context-return');
+        self::assertCount(1, $returnLink);
+        self::assertSame('← Retour à la visite : Visite liée de test', trim($returnLink->text()));
+        self::assertSame('/visites-de-ville/'.$cityVisit->getSlug(), $returnLink->attr('href'));
+
+        foreach ([$unrelatedHike->getSlug(), $draftHike->getSlug(), 'source-inconnue'] as $invalidSource) {
+            $crawler = $client->request('GET', sprintf(
+                '/articles/%s?from=hike&source=%s',
+                $article->getSlug(),
+                $invalidSource,
+            ));
+            self::assertResponseIsSuccessful();
+            self::assertCount(0, $crawler->filter('.article-show-context-return'));
+        }
+
+        $crawler = $client->request('GET', sprintf(
+            '/articles/%s?from=https%%3A%%2F%%2Fexample.test&source=%s',
+            $article->getSlug(),
+            $hike->getSlug(),
+        ));
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('.article-show-context-return'));
+    }
+
     public function testArticleIndexListsPublishedArticles(): void
     {
         $client = static::createClient();

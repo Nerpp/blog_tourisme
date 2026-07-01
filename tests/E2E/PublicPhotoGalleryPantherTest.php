@@ -22,65 +22,69 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
     {
         $this->skipIfFrontendBuildIsMissing();
         $this->ensureFixtureStandardGalleryVariants();
-        $this->ensureHomepageUsesStandardFixturePhoto();
+        $fixtureState = $this->prepareHomepageStandardFixturePhoto();
 
-        $mobileClient = self::createBrowser();
-        $mobileDriver = $mobileClient->getWebDriver();
-        $this->disableBrowserCache($mobileDriver);
-        (new ChromeDevToolsDriver($mobileDriver))->execute('Emulation.setDeviceMetricsOverride', [
-            'width' => 390,
-            'height' => 844,
-            'deviceScaleFactor' => 2,
-            'mobile' => true,
-        ]);
-        $mobileClient->request('GET', '/');
-        $mobileClient->waitFor('.home-destination-card img.home-destination-card__img');
-        $destinationMobile = $this->responsiveImageData(
-            $mobileDriver,
-            '.home-destination-card img.home-destination-card__img',
-        );
-        $latestMobile = $this->responsiveImageData(
-            $mobileDriver,
-            '.home-latest-card img.home-latest-card__image',
-        );
+        try {
+            $mobileClient = self::createBrowser();
+            $mobileDriver = $mobileClient->getWebDriver();
+            $this->disableBrowserCache($mobileDriver);
+            (new ChromeDevToolsDriver($mobileDriver))->execute('Emulation.setDeviceMetricsOverride', [
+                'width' => 390,
+                'height' => 844,
+                'deviceScaleFactor' => 2,
+                'mobile' => true,
+            ]);
+            $mobileClient->request('GET', '/');
+            $mobileClient->waitFor('.home-destination-card img.home-destination-card__img');
+            $destinationMobile = $this->responsiveImageData(
+                $mobileDriver,
+                '.home-destination-card img.home-destination-card__img',
+            );
+            $latestMobile = $this->responsiveImageData(
+                $mobileDriver,
+                '.home-latest-card img.home-latest-card__image',
+            );
 
-        self::assertStringContainsString('_thumb.webp', $destinationMobile['currentSrc']);
-        self::assertStringNotContainsString('_mobile.webp', $destinationMobile['currentSrc']);
-        self::assertStringNotContainsString('_medium.webp', $destinationMobile['currentSrc']);
-        self::assertStringNotContainsString('_large.webp', $destinationMobile['currentSrc']);
-        self::assertSame('', $destinationMobile['srcset']);
-        self::assertSame('', $destinationMobile['sizes']);
-        self::assertSame('lazy', $destinationMobile['loading']);
+            self::assertStringContainsString('_thumb.webp', $destinationMobile['currentSrc']);
+            self::assertStringNotContainsString('_mobile.webp', $destinationMobile['currentSrc']);
+            self::assertStringNotContainsString('_medium.webp', $destinationMobile['currentSrc']);
+            self::assertStringNotContainsString('_large.webp', $destinationMobile['currentSrc']);
+            self::assertSame('', $destinationMobile['srcset']);
+            self::assertSame('', $destinationMobile['sizes']);
+            self::assertSame('lazy', $destinationMobile['loading']);
 
-        self::assertStringContainsString('_thumb.webp', $latestMobile['currentSrc']);
-        self::assertStringNotContainsString('_mobile.webp', $latestMobile['currentSrc']);
-        self::assertStringNotContainsString('_medium.webp', $latestMobile['currentSrc']);
-        self::assertStringNotContainsString('_large.webp', $latestMobile['currentSrc']);
-        self::assertSame('', $latestMobile['srcset']);
-        self::assertSame('', $latestMobile['sizes']);
-        self::assertSame('eager', $latestMobile['loading']);
+            self::assertStringContainsString('_thumb.webp', $latestMobile['currentSrc']);
+            self::assertStringNotContainsString('_mobile.webp', $latestMobile['currentSrc']);
+            self::assertStringNotContainsString('_medium.webp', $latestMobile['currentSrc']);
+            self::assertStringNotContainsString('_large.webp', $latestMobile['currentSrc']);
+            self::assertSame('', $latestMobile['srcset']);
+            self::assertSame('', $latestMobile['sizes']);
+            self::assertSame('eager', $latestMobile['loading']);
 
-        $desktopClient = self::createBrowser();
-        $desktopDriver = $desktopClient->getWebDriver();
-        $this->disableBrowserCache($desktopDriver);
-        $desktopDriver->manage()->window()->setSize(new WebDriverDimension(1440, 1000));
-        $desktopClient->request('GET', '/');
-        $desktopClient->waitFor('.home-destination-card img.home-destination-card__img');
-        $destinationDesktop = $this->responsiveImageData(
-            $desktopDriver,
-            '.home-destination-card img.home-destination-card__img',
-        );
-        $latestDesktop = $this->responsiveImageData(
-            $desktopDriver,
-            '.home-latest-card img.home-latest-card__image',
-        );
+            $desktopClient = self::createBrowser();
+            $desktopDriver = $desktopClient->getWebDriver();
+            $this->disableBrowserCache($desktopDriver);
+            $desktopDriver->manage()->window()->setSize(new WebDriverDimension(1440, 1000));
+            $desktopClient->request('GET', '/');
+            $desktopClient->waitFor('.home-destination-card img.home-destination-card__img');
+            $destinationDesktop = $this->responsiveImageData(
+                $desktopDriver,
+                '.home-destination-card img.home-destination-card__img',
+            );
+            $latestDesktop = $this->responsiveImageData(
+                $desktopDriver,
+                '.home-latest-card img.home-latest-card__image',
+            );
 
-        self::assertStringContainsString('_thumb.webp', $destinationDesktop['currentSrc']);
-        self::assertStringContainsString('_thumb.webp', $latestDesktop['currentSrc']);
-        self::assertGreaterThan(0, $destinationDesktop['width']);
-        self::assertGreaterThan(0, $destinationDesktop['height']);
-        self::assertGreaterThan(0, $latestDesktop['width']);
-        self::assertGreaterThan(0, $latestDesktop['height']);
+            self::assertStringContainsString('_thumb.webp', $destinationDesktop['currentSrc']);
+            self::assertStringContainsString('_thumb.webp', $latestDesktop['currentSrc']);
+            self::assertGreaterThan(0, $destinationDesktop['width']);
+            self::assertGreaterThan(0, $destinationDesktop['height']);
+            self::assertGreaterThan(0, $latestDesktop['width']);
+            self::assertGreaterThan(0, $latestDesktop['height']);
+        } finally {
+            $this->restoreHomepageStandardFixturePhoto($fixtureState);
+        }
     }
 
     public function testGallerySelectsTheNewCompactDisplayVariants(): void
@@ -451,36 +455,96 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         self::ensureKernelShutdown();
     }
 
-    private function ensureHomepageUsesStandardFixturePhoto(): void
+    /**
+     * @return array{finished_at: ?\DateTimeImmutable, media_roles: array<int, MediaRole>}
+     */
+    private function prepareHomepageStandardFixturePhoto(): array
     {
         self::bootKernel();
         $entityManager = static::getContainer()->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
 
-        $cityVisit = $entityManager->getRepository(CityVisitDraft::class)->findOneBy([
-            'slug' => 'visiter-collioure-a-pied',
-        ]);
-        self::assertInstanceOf(CityVisitDraft::class, $cityVisit);
+        try {
+            $cityVisit = $entityManager->getRepository(CityVisitDraft::class)->findOneBy([
+                'slug' => 'visiter-collioure-a-pied',
+            ]);
+            self::assertInstanceOf(CityVisitDraft::class, $cityVisit);
 
-        $standardCover = null;
-        foreach ($cityVisit->getMediaLinks() as $link) {
-            $media = $link->getMediaAsset();
-            $link->setRole(MediaRole::Gallery);
-            if (
-                $standardCover === null
-                && $media instanceof MediaAsset
-                && $media->getMediaType() === MediaType::Image
-                && $media->getImageType() === ImageType::Standard
-            ) {
-                $standardCover = $link;
+            $standardCover = null;
+            $mediaRoles = [];
+            foreach ($cityVisit->getMediaLinks() as $link) {
+                $linkId = $link->getId();
+                self::assertIsInt($linkId);
+                $mediaRoles[$linkId] = $link->getRole();
+
+                $media = $link->getMediaAsset();
+                if (
+                    $standardCover === null
+                    && $media instanceof MediaAsset
+                    && $media->getMediaType() === MediaType::Image
+                    && $media->getImageType() === ImageType::Standard
+                ) {
+                    $standardCover = $link;
+                }
             }
-        }
 
-        self::assertNotNull($standardCover);
-        $standardCover->setRole(MediaRole::Cover);
-        $cityVisit->setFinishedAt(new \DateTimeImmutable('+1 day'));
-        $entityManager->flush();
-        self::ensureKernelShutdown();
+            self::assertNotNull($standardCover);
+            foreach ($cityVisit->getMediaLinks() as $link) {
+                $link->setRole($link === $standardCover ? MediaRole::Cover : MediaRole::Gallery);
+            }
+
+            $fixtureState = [
+                'finished_at' => $cityVisit->getFinishedAt(),
+                'media_roles' => $mediaRoles,
+            ];
+            $cityVisit->setFinishedAt(new \DateTimeImmutable('+1 day'));
+            $entityManager->flush();
+
+            return $fixtureState;
+        } finally {
+            self::ensureKernelShutdown();
+        }
+    }
+
+    /** @param array{finished_at: ?\DateTimeImmutable, media_roles: array<int, MediaRole>} $fixtureState */
+    private function restoreHomepageStandardFixturePhoto(array $fixtureState): void
+    {
+        self::bootKernel();
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        try {
+            $cityVisit = $entityManager->getRepository(CityVisitDraft::class)->findOneBy([
+                'slug' => 'visiter-collioure-a-pied',
+            ]);
+            self::assertInstanceOf(CityVisitDraft::class, $cityVisit);
+
+            $cityVisit->setFinishedAt($fixtureState['finished_at']);
+            foreach ($cityVisit->getMediaLinks() as $link) {
+                $linkId = $link->getId();
+                self::assertIsInt($linkId);
+                self::assertArrayHasKey($linkId, $fixtureState['media_roles']);
+                $link->setRole($fixtureState['media_roles'][$linkId]);
+            }
+            $entityManager->flush();
+            $entityManager->clear();
+
+            $restoredVisit = $entityManager->getRepository(CityVisitDraft::class)->findOneBy([
+                'slug' => 'visiter-collioure-a-pied',
+            ]);
+            self::assertInstanceOf(CityVisitDraft::class, $restoredVisit);
+            self::assertSame(
+                $fixtureState['finished_at']?->format(DATE_ATOM),
+                $restoredVisit->getFinishedAt()?->format(DATE_ATOM),
+            );
+            foreach ($restoredVisit->getMediaLinks() as $link) {
+                $linkId = $link->getId();
+                self::assertIsInt($linkId);
+                self::assertSame($fixtureState['media_roles'][$linkId], $link->getRole());
+            }
+        } finally {
+            self::ensureKernelShutdown();
+        }
     }
 
     private function blockExternalMediaRequests(

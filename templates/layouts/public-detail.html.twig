@@ -15,7 +15,4 @@
 
 {% block layout_javascripts %}
     {{ vite_entry_script_tags('assets/entries/public-detail.js') }}
-    {% if public_detail_has_related_articles %}
-        {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
-    {% endif %}
 {% endblock %}

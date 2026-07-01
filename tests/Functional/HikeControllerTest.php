@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\ArticleHike;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
@@ -12,6 +13,33 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class HikeControllerTest extends FunctionalTestCase
 {
+    public function testRelatedArticleLinkGoesDirectlyToTheFullArticleWithHikeContext(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin());
+        $article = $this->createArticle($this->createUser());
+        $articleLink = (new ArticleHike())->setArticle($article)->setHikeDraft($hike);
+        $hike->getArticleLinks()->add($articleLink);
+        $this->persistAndFlush($articleLink);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('.related-article-card')->first();
+        self::assertStringContainsString((string) $article->getTitle(), $card->text());
+        self::assertStringContainsString((string) $article->getExcerpt(), $card->text());
+        $link = $crawler->filter('.related-article-card > a.related-article-card__button');
+        self::assertCount(1, $link);
+        self::assertSame('Lire l’article', trim($link->text()));
+        self::assertNull($link->attr('target'));
+        self::assertSame(
+            sprintf('/articles/%s?from=hike&source=%s', $article->getSlug(), $hike->getSlug()),
+            $link->attr('href'),
+        );
+        self::assertCount(0, $crawler->filter('.related-article-modal, .js-related-article-open'));
+        self::assertSelectorTextNotContains('body', 'Lire la page complète');
+    }
+
     public function testPublishedHikeIsAccessibleWithoutMedia(): void
     {
         $client = static::createClient();

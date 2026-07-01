@@ -24,12 +24,14 @@ final class PublicHikeMapPantherTest extends PantherTestCase
         self::assertFalse((bool) $webDriver->executeScript(
             'return performance.getEntriesByType("resource").some((entry) => entry.name.includes("public-hike-map-") || entry.name.includes("marker-shadow-"));',
         ));
-        $this->assertPageHasBuiltAssets(
+        $this->assertPageHasBuiltStyles(
             $client,
             'assets/app.js',
             'assets/entries/public-detail.js',
             'assets/entries/related-articles.js',
         );
+        $this->assertPageHasBuiltScripts($client, 'assets/app.js', 'assets/entries/public-detail.js');
+        $this->assertPageDoesNotHaveBuiltScripts($client, 'assets/entries/related-articles.js');
         $this->assertPageDoesNotHaveBuiltAssets($client, 'assets/entries/public-listing.js', 'assets/entries/comments.js');
 
         $trigger = $webDriver->findElement(WebDriverBy::cssSelector('[data-hike-map-focus][data-point-index="2"]'));

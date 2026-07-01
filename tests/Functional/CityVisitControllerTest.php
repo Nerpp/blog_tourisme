@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\ArticleCityVisit;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\DestinationType;
 use App\Enum\ImageType;
@@ -10,6 +11,33 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class CityVisitControllerTest extends FunctionalTestCase
 {
+    public function testRelatedArticleLinkGoesDirectlyToTheFullArticleWithVisitContext(): void
+    {
+        $client = static::createClient();
+        $cityVisit = $this->createPublishedCityVisit($this->createVerifiedAdmin());
+        $article = $this->createArticle($this->createUser());
+        $articleLink = (new ArticleCityVisit())->setArticle($article)->setCityVisitDraft($cityVisit);
+        $cityVisit->getArticleLinks()->add($articleLink);
+        $this->persistAndFlush($articleLink);
+
+        $crawler = $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('.related-article-card')->first();
+        self::assertStringContainsString((string) $article->getTitle(), $card->text());
+        self::assertStringContainsString((string) $article->getExcerpt(), $card->text());
+        $link = $crawler->filter('.related-article-card > a.related-article-card__button');
+        self::assertCount(1, $link);
+        self::assertSame('Lire l’article', trim($link->text()));
+        self::assertNull($link->attr('target'));
+        self::assertSame(
+            sprintf('/articles/%s?from=city_visit&source=%s', $article->getSlug(), $cityVisit->getSlug()),
+            $link->attr('href'),
+        );
+        self::assertCount(0, $crawler->filter('.related-article-modal, .js-related-article-open'));
+        self::assertSelectorTextNotContains('body', 'Lire la page complète');
+    }
+
     public function testPublishedCityVisitIsAccessibleWithoutMedia(): void
     {
         $client = static::createClient();

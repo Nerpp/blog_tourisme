@@ -25,6 +25,23 @@
   --public-cover-image: none;
 }
 
+.article-show-context-return {
+  display: inline-flex;
+  max-width: 100%;
+  margin-bottom: 22px;
+  color: #b8f0d0;
+  font-weight: 850;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.article-show-context-return:hover,
+.article-show-context-return:focus-visible {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 0.22em;
+}
+
 .article-show-title {
   max-width: 760px;
   font-size: clamp(3rem, 5.5vw, 5.4rem);

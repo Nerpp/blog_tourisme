@@ -1,5 +1,6 @@
 {% extends 'layouts/comments.html.twig' %}
 
+{% set return_context = return_context|default(null) %}
 {% set article_cover_media = null %}
 {% set article_fallback_cover_media = null %}
 
@@ -64,7 +65,7 @@
 {% block meta_description %}
 	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
 {% endblock %}
-{% block canonical %}<link rel="canonical" href="{{ article.canonicalUrl ?: app.request.uri }}">
+{% block canonical %}<link rel="canonical" href="{{ article.canonicalUrl ?: url('app_article_show', { slug: article.slug }) }}">
 {% endblock %}
 {% block open_graph_title %}
 	{{ article.seoTitle ?: article.title }}
@@ -115,6 +116,12 @@
 		<section class="public-detail-hero">
 			<div class="public-detail-container public-detail-hero-grid">
 				<div>
+					{% if return_context %}
+						<a class="article-show-context-return" href="{{ return_context.url }}">
+							{{ return_context.label }}
+						</a>
+					{% endif %}
+
 					<p class="public-detail-kicker">
 						{% if article.category %}
 							{{ article.category.name }}{% else %}Article

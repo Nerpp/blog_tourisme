@@ -116,8 +116,9 @@
                         {% include 'public_detail/_related_articles.html.twig' with {
                             article_links: hike.articleLinks,
                             section_title: 'Autour de cette balade',
-                            modal_id_prefix: 'hike-related-article-' ~ hike.id,
-                            section_id: 'hike-related-articles-' ~ hike.id
+                            section_id: 'hike-related-articles-' ~ hike.id,
+                            source_type: 'hike',
+                            source_slug: hike.slug
                         } only %}
                     </div>
                 </div>
