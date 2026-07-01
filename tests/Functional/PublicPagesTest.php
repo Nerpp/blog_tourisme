@@ -26,6 +26,11 @@ final class PublicPagesTest extends FunctionalTestCase
             'title' => 'Vue de Collioure',
         ]);
         self::assertInstanceOf(MediaAsset::class, $media);
+        $variants = $media->getVariants();
+        self::assertIsArray($variants);
+        self::assertIsArray($variants['thumb'] ?? null);
+        unset($variants['thumb']['width'], $variants['thumb']['height']);
+        $media->setVariants($variants);
         $this->persistAndFlush($hike);
         $this->linkHikeMedia($hike, $media, MediaRole::Cover);
 

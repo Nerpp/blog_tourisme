@@ -208,6 +208,46 @@ final class MediaImageExtensionTest extends TestCase
         self::assertNull($extension->imageSrcset($media, 'avif'));
     }
 
+    public function testStandardImageDimensionsInferRequestedVariantWhenStoredDimensionsAreMissing(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/source.webp')
+            ->setWidth(1600)
+            ->setHeight(900)
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/source_thumb.webp'],
+                'medium' => ['webp' => '/uploads/media/source_medium.webp'],
+                'large' => ['webp' => '/uploads/media/source_large.webp'],
+            ]);
+        $extension = $this->extension();
+
+        self::assertSame('/uploads/media/source_thumb.webp', $extension->imageUrl($media, 'thumb'));
+        self::assertSame(['width' => 600, 'height' => 338], $extension->imageDimensions($media, 'thumb'));
+        self::assertSame(['width' => 1600, 'height' => 900], $extension->imageDimensions($media, 'medium'));
+        self::assertSame(['width' => 1600, 'height' => 900], $extension->imageDimensions($media, 'large'));
+    }
+
+    public function testArticleResponsiveImageDimensionsInferLongSideWhenStoredDimensionsAreMissing(): void
+    {
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/media/article-source.webp')
+            ->setWidth(1600)
+            ->setHeight(900)
+            ->setVariants([
+                'thumb' => ['webp' => '/uploads/media/article-inline.webp'],
+                'medium' => ['webp' => '/uploads/media/article-cover.webp'],
+            ])
+            ->setMetadata(['articleResponsiveWebp' => true]);
+        $extension = $this->extension();
+
+        self::assertSame(['width' => 640, 'height' => 360], $extension->imageDimensions($media, 'thumb'));
+        self::assertSame(['width' => 1280, 'height' => 720], $extension->imageDimensions($media, 'medium'));
+    }
+
     public function testStandardSecondaryProfilesPreferCompactVariantsAndKeepHighDensityCandidates(): void
     {
         $media = (new MediaAsset())

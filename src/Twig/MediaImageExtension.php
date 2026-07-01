@@ -15,6 +15,29 @@ final class MediaImageExtension extends AbstractExtension
     private const STANDARD_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium', 'large'];
     private const LEGACY_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium', 'large'];
     private const COVER_RESPONSIVE_SIZES = ['thumb', 'mobile', 'medium'];
+    private const STANDARD_VARIANT_WIDTHS = [
+        'thumb' => 600,
+        'mobile' => 960,
+        'medium' => 1600,
+        'large' => 1920,
+        'thumbnail320' => 320,
+        'thumbnail480' => 480,
+        'content640' => 640,
+        'content768' => 768,
+        'content960' => 960,
+    ];
+    private const LEGACY_VARIANT_WIDTHS = [
+        'thumb' => 640,
+        'mobile' => 960,
+        'medium' => 1280,
+        'large' => 2560,
+    ];
+    private const ARTICLE_RESPONSIVE_LONG_SIDES = [
+        'thumb' => ['metadata' => 'articleInlineMaxLongSide', 'default' => 640],
+        'mobile' => ['metadata' => 'articleDisplayMaxLongSide', 'default' => 960],
+        'medium' => ['metadata' => 'articleCoverMaxLongSide', 'default' => 1280],
+        'large' => ['metadata' => 'articleSourceMaxLongSide', 'default' => 1600],
+    ];
     private const DISPLAY_RESPONSIVE_SIZES = [
         'content' => ['content640', 'content768', 'content960', 'medium', 'large'],
         'thumbnail' => ['thumbnail320', 'thumbnail480', 'thumb', 'mobile'],
@@ -241,9 +264,9 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         foreach ($this->coverCandidateSizes($size) as $candidateSize) {
-            $variant = $this->variant($media->getVariants(), $candidateSize);
-            if (isset($variant['width'], $variant['height']) && is_numeric($variant['width']) && is_numeric($variant['height'])) {
-                return ['width' => (int) $variant['width'], 'height' => (int) $variant['height']];
+            $dimensions = $this->variantDimensions($media, $candidateSize);
+            if ($dimensions !== null) {
+                return $dimensions;
             }
         }
 
@@ -325,9 +348,9 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         foreach ($this->displayPreferredSizes($profile) as $size) {
-            $variant = $this->variant($media->getVariants(), $size);
-            if (isset($variant['width'], $variant['height']) && is_numeric($variant['width']) && is_numeric($variant['height'])) {
-                return ['width' => (int) $variant['width'], 'height' => (int) $variant['height']];
+            $dimensions = $this->variantDimensions($media, $size);
+            if ($dimensions !== null) {
+                return $dimensions;
             }
         }
 
@@ -341,12 +364,9 @@ final class MediaImageExtension extends AbstractExtension
             return null;
         }
 
-        $variant = $this->variant($media->getVariants(), $size);
-        if (isset($variant['width'], $variant['height']) && is_numeric($variant['width']) && is_numeric($variant['height'])) {
-            return [
-                'width' => (int) $variant['width'],
-                'height' => (int) $variant['height'],
-            ];
+        $dimensions = $this->variantDimensions($media, $size);
+        if ($dimensions !== null) {
+            return $dimensions;
         }
 
         $metadata = $media->getMetadata();
@@ -362,6 +382,24 @@ final class MediaImageExtension extends AbstractExtension
                 'width' => $media->getWidth(),
                 'height' => $media->getHeight(),
             ];
+        }
+
+        return null;
+    }
+
+    /** @return array{width: int, height: int}|null */
+    private function variantDimensions(MediaAsset $media, string $size): ?array
+    {
+        $variant = $this->variant($media->getVariants(), $size);
+        if (isset($variant['width'], $variant['height']) && is_numeric($variant['width']) && is_numeric($variant['height'])) {
+            return [
+                'width' => (int) $variant['width'],
+                'height' => (int) $variant['height'],
+            ];
+        }
+
+        if ($this->variantHasRenderablePath($variant)) {
+            return $this->inferVariantDimensions($media, $size);
         }
 
         return null;
@@ -391,6 +429,80 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         return $variants[$size];
+    }
+
+    /** @param array<array-key, mixed> $variant */
+    private function variantHasRenderablePath(array $variant): bool
+    {
+        foreach (['webp', 'fallback', 'avif'] as $format) {
+            $path = $variant[$format] ?? null;
+            if (is_string($path) && trim($path) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return array{width: int, height: int}|null */
+    private function inferVariantDimensions(MediaAsset $media, string $size): ?array
+    {
+        $sourceWidth = $media->getWidth();
+        $sourceHeight = $media->getHeight();
+        if ($sourceWidth === null || $sourceHeight === null || $sourceWidth < 1 || $sourceHeight < 1) {
+            return null;
+        }
+
+        if ($this->isArticleResponsiveImage($media)) {
+            $longSide = $this->articleResponsiveLongSide($media, $size);
+            if ($longSide === null) {
+                return null;
+            }
+
+            $scale = min(1.0, $longSide / max($sourceWidth, $sourceHeight));
+
+            return [
+                'width' => max(1, (int) round($sourceWidth * $scale)),
+                'height' => max(1, (int) round($sourceHeight * $scale)),
+            ];
+        }
+
+        $targetWidth = $this->targetVariantWidth($media, $size);
+        if ($targetWidth === null) {
+            return null;
+        }
+
+        $width = min($sourceWidth, $targetWidth);
+
+        return [
+            'width' => $width,
+            'height' => max(1, (int) round($sourceHeight * ($width / $sourceWidth))),
+        ];
+    }
+
+    private function articleResponsiveLongSide(MediaAsset $media, string $size): ?int
+    {
+        $configuration = self::ARTICLE_RESPONSIVE_LONG_SIDES[$size] ?? null;
+        if ($configuration === null) {
+            return null;
+        }
+
+        $metadata = $media->getMetadata();
+        $metadataValue = is_array($metadata) ? ($metadata[$configuration['metadata']] ?? null) : null;
+        if (is_numeric($metadataValue) && (int) $metadataValue > 0) {
+            return (int) $metadataValue;
+        }
+
+        return $configuration['default'];
+    }
+
+    private function targetVariantWidth(MediaAsset $media, string $size): ?int
+    {
+        if ($this->isStandardImage($media)) {
+            return self::STANDARD_VARIANT_WIDTHS[$size] ?? null;
+        }
+
+        return self::LEGACY_VARIANT_WIDTHS[$size] ?? null;
     }
 
     /** @return list<string> */
