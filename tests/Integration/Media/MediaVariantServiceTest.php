@@ -412,6 +412,63 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertFileExists($legacyJpeg);
     }
 
+    public function testLegacyCleanupReportsInvalidActiveAndLegacyVariantPaths(): void
+    {
+        $cleanup = $this->standardLegacyVariantCleanupService();
+        $withoutVariants = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard);
+        self::assertSame(
+            'variante WebP active thumb absente',
+            $cleanup->cleanup($withoutVariants)['reason'],
+        );
+
+        $invalidWebpPath = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setVariants(['thumb' => ['webp' => '/uploads/media/variants/thumb.jpg']]);
+        self::assertSame(
+            'chemin WebP actif thumb absent',
+            $cleanup->cleanup($invalidWebpPath)['reason'],
+        );
+
+        $missingActiveFile = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setVariants(['thumb' => ['webp' => '/uploads/media/variants/missing-active.webp']]);
+        self::assertSame(
+            'fichier WebP actif thumb absent ou illisible',
+            $cleanup->cleanup($missingActiveFile)['reason'],
+        );
+
+        $activeWebp = TestImageFactory::createWebp($this->publicVariantDirectory(), 40, 20, 'cleanup-active.webp');
+        $this->files[] = $activeWebp;
+        $activePath = $this->publicVariantPath($activeWebp);
+        $media = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setVariants([
+                'thumb' => ['webp' => $activePath, 'width' => new \stdClass(), 'height' => 20],
+                'mobile' => ['webp' => $activePath, 'width' => 40, 'height' => 20],
+                'medium' => ['webp' => $activePath, 'width' => 40, 'height' => 20],
+                'large' => ['webp' => $activePath, 'width' => 40, 'height' => 20],
+            ]);
+
+        $result = $cleanup->cleanup($media, dryRun: true, legacyVariants: [
+            'unsafe' => ['fallback' => '/uploads/media/variants/unsafe\\legacy.jpg'],
+            'missing' => ['fallback' => '/uploads/media/variants/missing-legacy.jpg'],
+            'nested' => ['fallback' => '/uploads/media/variants/nested/legacy.jpg'],
+        ], pruneMetadata: true);
+
+        self::assertFalse($result['skipped']);
+        self::assertSame('certains fichiers n’ont pas pu être supprimés', $result['reason']);
+        self::assertTrue($result['metadataChanged']);
+        self::assertCount(2, $result['files']);
+        self::assertSame('chemin ignoré', $result['files'][0]['reason']);
+        self::assertTrue($result['files'][1]['missing']);
+        self::assertSame('fichier absent', $result['files'][1]['reason']);
+    }
+
     public function testMissingLocalVideoPosterIsSkippedWithDiagnostic(): void
     {
         $media = (new MediaAsset())
@@ -706,6 +763,41 @@ final class MediaVariantServiceTest extends IntegrationTestCase
 
         $validation = $this->publicMediaMasterCleanupService()->validateCriticalVariants($media);
         self::assertSame(['valid' => false, 'reason' => 'WebP thumb absent ou illisible'], $validation);
+    }
+
+    public function testMasterCleanupRejectsNonMediaAndMalformedVariantPaths(): void
+    {
+        $cleanup = $this->publicMediaMasterCleanupService();
+        $outsideMediaDirectory = (new MediaAsset())
+            ->setMediaType(MediaType::Image)
+            ->setImageType(ImageType::Standard)
+            ->setFilePath('/uploads/other/master.jpg');
+        self::assertSame(
+            'chemin maître absent ou non supprimable',
+            $cleanup->cleanupIfSafe($outsideMediaDirectory)['reason'],
+        );
+
+        $nonStringVariant = (new MediaAsset())->setVariants([
+            'thumb' => ['webp' => 42],
+            'mobile' => ['webp' => '/uploads/media/variants/mobile.webp'],
+            'medium' => ['webp' => '/uploads/media/variants/medium.webp'],
+            'large' => ['webp' => '/uploads/media/variants/large.webp'],
+        ]);
+        self::assertSame(
+            'WebP thumb absent ou illisible',
+            $cleanup->validateCriticalVariants($nonStringVariant)['reason'],
+        );
+
+        $externalVariant = (new MediaAsset())->setVariants([
+            'thumb' => ['webp' => 'https://example.test/thumb.webp'],
+            'mobile' => ['webp' => '/uploads/media/variants/mobile.webp'],
+            'medium' => ['webp' => '/uploads/media/variants/medium.webp'],
+            'large' => ['webp' => '/uploads/media/variants/large.webp'],
+        ]);
+        self::assertSame(
+            'WebP thumb absent ou illisible',
+            $cleanup->validateCriticalVariants($externalVariant)['reason'],
+        );
     }
 
     /** @param array<string, mixed>|null $variants */

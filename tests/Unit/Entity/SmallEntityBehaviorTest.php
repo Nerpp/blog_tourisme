@@ -4,6 +4,7 @@ namespace App\Tests\Unit\Entity;
 
 use App\Entity\Comment;
 use App\Entity\CommentLike;
+use App\Entity\CommentReplyNotification;
 use App\Entity\ModerationActionLog;
 use App\Entity\PublicationNotificationLog;
 use App\Entity\ResetPasswordRequest;
@@ -30,6 +31,26 @@ final class SmallEntityBehaviorTest extends TestCase
         $like->initializeTimestamps();
         self::assertInstanceOf(DateTimeImmutable::class, $like->getCreatedAt());
         self::assertInstanceOf(DateTimeImmutable::class, $like->getUpdatedAt());
+    }
+
+    public function testReplyNotificationNormalizesKindAndReadState(): void
+    {
+        $notification = new CommentReplyNotification();
+
+        $notification->setKind('unsupported');
+        self::assertSame(CommentReplyNotification::KIND_REPLY, $notification->getKind());
+        self::assertFalse($notification->isRead());
+
+        $notification->markRead();
+        $firstReadAt = $notification->getReadAt();
+        self::assertInstanceOf(DateTimeImmutable::class, $firstReadAt);
+
+        $notification->markRead();
+        self::assertSame($firstReadAt, $notification->getReadAt());
+
+        $notification->setReadAt(null)->setKind(CommentReplyNotification::KIND_MENTION);
+        self::assertFalse($notification->isRead());
+        self::assertSame(CommentReplyNotification::KIND_MENTION, $notification->getKind());
     }
 
     public function testResetPasswordRequestStoresTokenDataAndRequiresUser(): void

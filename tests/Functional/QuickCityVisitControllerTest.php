@@ -84,6 +84,37 @@ final class QuickCityVisitControllerTest extends FunctionalTestCase
         self::assertNull($this->entityManager()->getRepository(CityVisitDraft::class)->findOneBy(['title' => 'Quick city csrf invalide']));
     }
 
+    public function testQuickCityVisitUsesDefaultTitleWhenNoneIsProvided(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $client->loginUser($admin);
+
+        $client->request('POST', '/admin/quick-city-visit/start', [
+            '_token' => $this->csrfTokenForClient($client, 'quick_city_visit_start'),
+            'title' => '   ',
+        ]);
+
+        $cityVisit = $this->entityManager()->getRepository(CityVisitDraft::class)->findOneBy(['createdBy' => $admin], ['id' => 'DESC']);
+        self::assertInstanceOf(CityVisitDraft::class, $cityVisit);
+        self::assertStringStartsWith('Visite de ville du ', (string) $cityVisit->getTitle());
+        self::assertResponseRedirects(sprintf('/admin/quick-city-visit/%d', $cityVisit->getId()));
+    }
+
+    public function testQuickCityVisitClearDestinationRequiresCsrfAndAcceptsValidToken(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $client->request('POST', '/admin/quick-city-visit/destination/clear', ['_token' => 'bad-token']);
+        self::assertResponseRedirects('/admin/quick-city-visit');
+
+        $client->request('POST', '/admin/quick-city-visit/destination/clear', [
+            '_token' => $this->csrfTokenForClient($client, 'quick_city_visit_clear_destination'),
+        ]);
+        self::assertResponseRedirects('/admin/quick-city-visit');
+    }
+
     public function testQuickCityVisitPointRejectsInvalidCoordinates(): void
     {
         $client = static::createClient();
@@ -226,6 +257,31 @@ final class QuickCityVisitControllerTest extends FunctionalTestCase
         $stored = $this->refresh($cityVisit);
         self::assertInstanceOf(CityVisitDraft::class, $stored);
         self::assertNull($stored->getGoogleMapsUrl());
+    }
+
+    public function testQuickCityVisitPointReturnsStructuredJsonSuccess(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/quick-city-visit/%d/point', $cityVisit->getId()), [
+            'quick_city_visit_point' => [
+                '_token' => $this->csrfTokenForClient($client, 'quick_city_visit_point_'.$cityVisit->getId()),
+                'latitude' => '43.6001',
+                'longitude' => '3.8801',
+                'type' => CityVisitPointType::Start->value,
+            ],
+        ], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame([
+            'ok' => true,
+            'message' => 'Point GPS enregistré.',
+            'redirect' => sprintf('/admin/quick-city-visit/%d', $cityVisit->getId()),
+        ], json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+        self::assertSame(1, $this->entityManager()->getRepository(CityVisitPoint::class)->count(['cityVisitDraft' => $cityVisit]));
     }
 
     public function testQuickCityVisitPointCreatesInterestPointAfterStart(): void

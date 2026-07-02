@@ -120,6 +120,49 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testHikeBulkPhotoUploadReturnsJsonForExpiredAndOversizedRequests(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $url = sprintf('/admin/studio/hikes/%d/media/photos/bulk-upload', $hike->getId());
+
+        $client->request('POST', $url, ['_token' => 'bad-token'], [], ['HTTP_ACCEPT' => 'application/json']);
+        self::assertResponseStatusCodeSame(419);
+        $expiredPayload = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertFalse($expiredPayload['success']);
+        self::assertSame(1, $expiredPayload['failed']);
+        self::assertSame(1, $expiredPayload['total']);
+
+        $paths = [];
+        try {
+            $files = [];
+            for ($index = 0; $index <= 50; ++$index) {
+                $path = sprintf('%s/hike-bulk-limit-%s-%02d.png', sys_get_temp_dir(), bin2hex(random_bytes(5)), $index);
+                file_put_contents($path, 'selection limit fixture');
+                $paths[] = $path;
+                $files[] = new UploadedFile($path, sprintf('photo-%02d.png', $index), 'image/png', null, true);
+            }
+
+            $client->request('POST', $url, [
+                '_token' => $this->csrfTokenForClient($client, 'studio_hike_photos_'.$hike->getId()),
+            ], ['photos' => $files], ['HTTP_ACCEPT' => 'application/json']);
+        } finally {
+            foreach ($paths as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+
+        self::assertResponseStatusCodeSame(413);
+        $limitPayload = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertFalse($limitPayload['success']);
+        self::assertStringContainsString('Sélection limitée', (string) $limitPayload['error']);
+        self::assertSame(0, $this->entityManager()->getRepository(HikeDraftMedia::class)->count(['hikeDraft' => $hike]));
+    }
+
     public function testHikePhotoUploadRejectsForeignPointBeforeCreatingAnything(): void
     {
         $client = static::createClient();
@@ -283,6 +326,12 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         $hikeId = $hike->getId();
         self::assertNotNull($hikeId);
         $this->linkHikeMedia($hike, $this->createImageMedia('Photo randonnée à nettoyer'), MediaRole::Gallery, 0);
+        $point = $this->createHikePoint($hike);
+        $pointMedia = $this->createImageMedia('Photo de point randonnée à nettoyer');
+        $pointMediaId = $pointMedia->getId();
+        $pointLink = (new HikePointMedia())->setHikePoint($point)->setMediaAsset($pointMedia);
+        $point->addMediaLink($pointLink);
+        $this->persistAndFlush($pointLink);
         $client->loginUser($admin);
 
         $crawler = $client->request('GET', '/admin/field-tools/hikes');
@@ -303,6 +352,7 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseRedirects();
         $this->entityManager()->clear();
         self::assertNull($this->entityManager()->find(HikeDraft::class, $hikeId));
+        self::assertNull($this->entityManager()->find(MediaAsset::class, $pointMediaId));
     }
 
     public function testHikeMediaUpdatePromotesCoverAndDemotesPreviousCover(): void
@@ -330,6 +380,42 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         $newCover = $this->refresh($newCover);
         self::assertSame(MediaRole::Gallery, $oldCover->getRole());
         self::assertSame(MediaRole::Cover, $newCover->getRole());
+    }
+
+    public function testHikeVideoMediaUpdateRefreshesMetadataAndThumbnail(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $video = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setVideoType(VideoType::Youtube)
+            ->setTitle('Ancienne vidéo randonnée')
+            ->setExternalUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+            ->setThumbnailPath('https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+        $this->persistAndFlush($video);
+        $link = $this->linkHikeMedia($hike, $video, MediaRole::Gallery, 0);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hike-media/%d/update', $link->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-media/%d/update', $link->getId())),
+            'title' => 'Nouvelle vidéo randonnée',
+            'caption' => 'Légende vidéo actualisée',
+            'videoType' => VideoType::Youtube->value,
+            'externalUrl' => 'https://www.youtube.com/watch?v=9bZkp7q19f0',
+            'association' => 'gallery',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        $storedVideo = $this->refresh($video);
+        self::assertSame('Nouvelle vidéo randonnée', $storedVideo->getTitle());
+        self::assertSame('Légende vidéo actualisée', $storedVideo->getCaption());
+        self::assertSame(VideoType::Youtube, $storedVideo->getVideoType());
+        self::assertSame('https://www.youtube.com/watch?v=9bZkp7q19f0', $storedVideo->getExternalUrl());
+        self::assertSame('https://img.youtube.com/vi/9bZkp7q19f0/hqdefault.jpg', $storedVideo->getThumbnailPath());
+        self::assertSame(MediaRole::Gallery, $this->refresh($link)->getRole());
     }
 
     public function testHikeMediaDeletionRequiresCsrfAndKeepsOtherLink(): void
@@ -475,6 +561,38 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $foreignLink->getId()));
         self::assertNotNull($this->entityManager()->find(MediaAsset::class, $foreignMedia->getId()));
         self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $localLink->getId()));
+    }
+
+    public function testHikePointMediaCanUpdateItsMediaMetadata(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike);
+        $media = $this->createImageMedia('Ancien titre du média de point');
+        $pointMedia = (new HikePointMedia())
+            ->setHikePoint($point)
+            ->setMediaAsset($media);
+        $point->addMediaLink($pointMedia);
+        $this->persistAndFlush($pointMedia);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/studio/hike-point-media/%d/update', $pointMedia->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/studio/hike-point-media/%d/update', $pointMedia->getId())),
+            'title' => 'Nouveau titre du média de point',
+            'altText' => 'Vue accessible depuis le point',
+            'caption' => 'Légende actualisée du point',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
+        $storedMedia = $this->refresh($media);
+        self::assertSame('Nouveau titre du média de point', $storedMedia->getTitle());
+        self::assertSame('Vue accessible depuis le point', $storedMedia->getAltText());
+        self::assertSame('Légende actualisée du point', $storedMedia->getCaption());
+        self::assertSame(ImageType::Standard, $storedMedia->getImageType());
+        self::assertNotNull($this->entityManager()->find(HikePointMedia::class, $pointMedia->getId()));
     }
 
     public function testDeletingHikePointMediaKeepsMediaAssetAndOtherPointLinks(): void
@@ -880,6 +998,39 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertSame(2.71, $point->getLongitude());
         self::assertSame(9.0, $point->getAccuracy());
         self::assertSame('Eau potable', $point->getNote());
+    }
+
+    public function testHikePointUpdateRejectsInvalidCoordinatesAndAccuracyWithoutMutation(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $point = $this->createHikePoint($hike, 42.51, 2.71, 4);
+        $point->setAccuracy(9.0);
+        $this->persistAndFlush($point);
+        $client->loginUser($admin);
+        $token = $this->csrfTokenForClient($client, 'studio_hike_point_update_'.$point->getId());
+
+        $client->request('POST', sprintf('/admin/studio/hike-points/%d/update', $point->getId()), [
+            '_token' => $token,
+            'latitude' => '91',
+            'longitude' => '2.8',
+            'accuracy' => '5',
+        ]);
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
+        self::assertSame(42.51, $this->refresh($point)->getLatitude());
+
+        $client->request('POST', sprintf('/admin/studio/hike-points/%d/update', $point->getId()), [
+            '_token' => $token,
+            'latitude' => '42.6',
+            'longitude' => '2.8',
+            'accuracy' => '-1',
+        ]);
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
+        $storedPoint = $this->refresh($point);
+        self::assertSame(42.51, $storedPoint->getLatitude());
+        self::assertSame(2.71, $storedPoint->getLongitude());
+        self::assertSame(9.0, $storedPoint->getAccuracy());
     }
 
     public function testStudioHikeLocationPickerCanUpdatePrimaryPointWithoutEditorialDestination(): void

@@ -94,6 +94,29 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertSame($before, $mediaRepository->count([]));
     }
 
+    public function testCityVisitBulkPhotoUploadReturnsJsonForExpiredForm(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $client->loginUser($admin);
+
+        $client->request(
+            'POST',
+            sprintf('/admin/studio/city-visits/%d/media/photos/bulk-upload', $cityVisit->getId()),
+            ['_token' => 'bad-token'],
+            [],
+            ['HTTP_ACCEPT' => 'application/json'],
+        );
+
+        self::assertResponseStatusCodeSame(419);
+        $payload = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertFalse($payload['success']);
+        self::assertSame(1, $payload['failed']);
+        self::assertSame(1, $payload['total']);
+        self::assertSame(0, $this->entityManager()->getRepository(CityVisitDraftMedia::class)->count(['cityVisitDraft' => $cityVisit]));
+    }
+
     public function testCityVisitVideoRejectsForeignPointBeforeCreatingMedia(): void
     {
         $client = static::createClient();
@@ -182,6 +205,12 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         $cityVisitId = $cityVisit->getId();
         self::assertNotNull($cityVisitId);
         $this->linkCityVisitMedia($cityVisit, $this->createImageMedia('Photo visite à nettoyer'), MediaRole::Gallery, 0);
+        $point = $this->createCityVisitPoint($cityVisit);
+        $pointMedia = $this->createImageMedia('Photo de point visite à nettoyer');
+        $pointMediaId = $pointMedia->getId();
+        $pointLink = (new CityVisitPointMedia())->setCityVisitPoint($point)->setMediaAsset($pointMedia);
+        $point->addMediaLink($pointLink);
+        $this->persistAndFlush($pointLink);
         $client->loginUser($admin);
 
         $crawler = $client->request('GET', '/admin/field-tools/city-visits');
@@ -203,6 +232,7 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertArrayHasKey('success', $client->getRequest()->getSession()->getFlashBag()->peekAll());
         $this->entityManager()->clear();
         self::assertNull($this->entityManager()->find(CityVisitDraft::class, $cityVisitId));
+        self::assertNull($this->entityManager()->find(MediaAsset::class, $pointMediaId));
     }
 
     public function testCityVisitPhotoUploadCreatesCoverThroughRealForm(): void

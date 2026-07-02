@@ -1007,6 +1007,199 @@ final class CommentControllerTest extends FunctionalTestCase
         self::assertFalse($this->refresh($reply)->isPinned());
     }
 
+    public function testAnonymousVisitorCannotReplyLikeEditOrDeleteComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $comment = $this->createComment($author, $this->createArticle());
+
+        foreach (['reply', 'like', 'edit', 'delete'] as $action) {
+            $client->request('POST', sprintf('/comments/%d/%s', $comment->getId(), $action));
+
+            self::assertResponseRedirects('/login');
+        }
+    }
+
+    public function testBannedUserCannotCommentOnArticlePlaceOrReply(): void
+    {
+        $client = static::createClient();
+        $bannedUser = $this->createUser(banned: true);
+        $article = $this->createArticle();
+        $place = $this->createPublishedPlace();
+        $parent = $this->createComment($this->createUser(), $article);
+        $client->loginUser($bannedUser);
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => ['content' => 'Commentaire article refusé pour compte suspendu.'],
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => ['content' => 'Commentaire lieu refusé pour compte suspendu.'],
+        ]);
+        self::assertResponseRedirects(sprintf('/places/%s#comments', $place->getSlug()));
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Réponse refusée pour compte suspendu.',
+            'website' => '',
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $parent->getId()));
+
+        self::assertSame(0, $this->entityManager()->getRepository(Comment::class)->count(['author' => $bannedUser]));
+    }
+
+    public function testCommentSocialActionsRequireValidCsrfTokens(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $user = $this->createUser();
+        $admin = $this->createVerifiedAdmin();
+        $comment = $this->createComment($author, $this->createArticle());
+        $commentId = $comment->getId();
+        self::assertNotNull($commentId);
+        $client->loginUser($user);
+
+        foreach (['like', 'report'] as $action) {
+            $client->request('POST', sprintf('/comments/%d/%s', $commentId, $action), ['_token' => 'bad-token']);
+
+            self::assertResponseStatusCodeSame(403);
+        }
+
+        $client->loginUser($admin);
+        foreach (['admin-heart', 'pin'] as $action) {
+            $client->request('POST', sprintf('/comments/%d/%s', $commentId, $action), ['_token' => 'bad-token']);
+
+            self::assertResponseStatusCodeSame(403);
+        }
+
+        $stored = $this->refresh($comment);
+        self::assertNull($stored->getAdminHeartedAt());
+        self::assertFalse($stored->isPinned());
+        self::assertSame(0, $stored->getReportedCount());
+        self::assertSame(0, $this->entityManager()->getRepository(\App\Entity\CommentLike::class)->count(['comment' => $comment]));
+    }
+
+    public function testArticleCommentRateLimitRejectsSixthAttempt(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+
+        for ($attempt = 1; $attempt <= 6; ++$attempt) {
+            $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()));
+        }
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+        self::assertSame(0, $this->entityManager()->getRepository(Comment::class)->count([
+            'article' => $article,
+            'author' => $author,
+        ]));
+    }
+
+    public function testSpamArticleAndPlaceCommentsArePersistedButNotPublished(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+
+        $articleCrawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'Casino viagra dans un commentaire article à modérer.',
+                '_token' => $this->inputValue($articleCrawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+
+        $placeCrawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'Casino viagra dans un commentaire lieu à modérer.',
+                '_token' => $this->inputValue($placeCrawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+
+        self::assertSame(2, $this->entityManager()->getRepository(Comment::class)->count([
+            'author' => $author,
+            'status' => CommentStatus::Spam,
+        ]));
+    }
+
+    public function testSpamReplyIsStoredWithoutNotificationOrPublicFragment(): void
+    {
+        $client = static::createClient();
+        $parent = $this->createComment($this->createUser(), $this->createArticle());
+        $replyAuthor = $this->createUser();
+        $client->loginUser($replyAuthor);
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Casino viagra dans une réponse à modérer.',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $parent->getArticle()?->getSlug(), $parent->getId()));
+        $reply = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'parent' => $parent,
+            'author' => $replyAuthor,
+        ]);
+        self::assertInstanceOf(Comment::class, $reply);
+        self::assertSame(CommentStatus::Spam, $reply->getStatus());
+        self::assertSame(0, $this->entityManager()->getRepository(\App\Entity\CommentReplyNotification::class)->count(['comment' => $reply]));
+    }
+
+    public function testSpamGuardRejectsEditedContentAndRestoresPreviousValue(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $previousContent = $comment->getContent();
+        $client->loginUser($author);
+
+        $client->request('POST', sprintf('/comments/%d/edit', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'edit-comment-'.$comment->getId()),
+            'content' => 'Contenu avec https://one.example https://two.example https://three.example refusé.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        $stored = $this->refresh($comment);
+        self::assertSame($previousContent, $stored->getContent());
+        self::assertNull($stored->getEditedAt());
+    }
+
+    public function testAuthorCanDeletePlaceCommentAndReturnToPlace(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $comment = (new Comment())
+            ->setAuthor($author)
+            ->setPlace($place)
+            ->setContent('Commentaire de lieu à supprimer définitivement.')
+            ->setStatus(CommentStatus::Approved)
+            ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
+            ->setApprovedAt(new \DateTimeImmutable('-1 hour'));
+        $this->persistAndFlush($comment);
+        $commentId = $comment->getId();
+        self::assertNotNull($commentId);
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/comments/%d/delete', $commentId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/delete', $commentId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comments', $place->getSlug()));
+        self::assertNull($this->entityManager()->find(Comment::class, $commentId));
+    }
+
     private function createReplyComment(User $author, Comment $parent, CommentStatus $status = CommentStatus::Approved): Comment
     {
         $now = new \DateTimeImmutable('-1 hour');

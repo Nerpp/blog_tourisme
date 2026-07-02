@@ -112,6 +112,84 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         self::assertSame(800, $result['source']['height']);
     }
 
+    public function testSmallArticleImageReusesOnePhysicalWebpWithoutUpscaling(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+
+        $result = $this->generator()->generateArticleResponsiveWebps(
+            TestImageFactory::publicPathFor($source),
+            'small-article-responsive-webp',
+        );
+
+        $paths = array_map(
+            static fn (string $size): string => $result[$size]['webp'],
+            ['thumb', 'mobile', 'medium', 'large'],
+        );
+        self::assertCount(1, array_unique($paths));
+        self::assertSame(120, $result['source']['width']);
+        self::assertSame(60, $result['source']['height']);
+        $this->assertPublicImage($paths[0], 'image/webp', 120, 60);
+    }
+
+    public function testArticleResponsiveGenerationRejectsInvalidSizesAndUnreadableSource(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $corrupt = TestImageFactory::createTextFile(TestImageFactory::publicMediaDirectory(), 'jpg', 'not an image');
+        array_push($this->files, $source, $corrupt);
+        $generator = $this->generator();
+
+        try {
+            $generator->generateArticleResponsiveWebps(
+                TestImageFactory::publicPathFor($source),
+                'invalid-sizes',
+                inlineMaxLongSide: 960,
+                displayMaxLongSide: 640,
+            );
+            self::fail('Invalid article variant sizes should be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('Les tailles de variantes Article sont invalides.', $exception->getMessage());
+        }
+
+        try {
+            $generator->generateArticleResponsiveWebps(TestImageFactory::publicPathFor($corrupt), 'corrupt-article');
+            self::fail('Unreadable article image should be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('L’image source est illisible.', $exception->getMessage());
+        }
+
+        try {
+            $generator->generateStandardSecondary(TestImageFactory::publicPathFor($corrupt), 'corrupt-secondary');
+            self::fail('Unreadable secondary source should be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('L’image source secondaire est illisible.', $exception->getMessage());
+        }
+    }
+
+    public function testVariantGenerationReportsUnavailableTargetDirectory(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 120, 60);
+        $this->files[] = $source;
+        $targetPublicDirectory = '/uploads/media/blocked-variants-'.bin2hex(random_bytes(5));
+        $blockedTarget = TestImageFactory::projectDir().'/public'.$targetPublicDirectory;
+        file_put_contents($blockedTarget, 'not a directory');
+        $this->files[] = $blockedTarget;
+
+        set_error_handler(static fn (): bool => true);
+        try {
+            $this->generator()->generateStandard(
+                TestImageFactory::publicPathFor($source),
+                'blocked-variant-directory',
+                $targetPublicDirectory,
+            );
+            self::fail('Unavailable variant directory should be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertSame('Le dossier de variantes ne peut pas être créé.', $exception->getMessage());
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     public function testStandardVariantsDoNotUpscaleAndReuseOnePhysicalFilePerDimension(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 1242, 621);

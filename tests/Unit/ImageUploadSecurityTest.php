@@ -89,6 +89,38 @@ final class ImageUploadSecurityTest extends TestCase
         (new ImageUploadSecurity())->inspect($this->uploadedFile($path, 'empty.png'));
     }
 
+    public function testIncompleteUploadIsRejected(): void
+    {
+        $path = $this->workspace.'/partial.png';
+        file_put_contents($path, 'partial upload');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('transfert est incomplet');
+
+        (new ImageUploadSecurity())->inspect(new UploadedFile($path, 'partial.png', null, UPLOAD_ERR_PARTIAL, true));
+    }
+
+    public function testPngSignatureWithoutReadableImageIsRejected(): void
+    {
+        $path = $this->workspace.'/truncated.png';
+        file_put_contents($path, "\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR");
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('contenu du fichier n’est pas une image lisible');
+
+        (new ImageUploadSecurity())->inspect($this->uploadedFile($path, 'truncated.png'));
+    }
+
+    public function testExcessiveImageDimensionsAreRejectedWithLightweightFixture(): void
+    {
+        $path = TestImageFactory::createPng($this->workspace, 10_001, 1, 'too-wide.png');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('dimensions de l’image sont invalides ou trop grandes');
+
+        (new ImageUploadSecurity())->inspect($this->uploadedFile($path, 'too-wide.png'));
+    }
+
     private function uploadedFile(string $path, string $clientName): UploadedFile
     {
         return new UploadedFile($path, $clientName, null, null, true);

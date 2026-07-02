@@ -86,6 +86,61 @@ final class QuickHikeControllerTest extends FunctionalTestCase
         self::assertNull($this->entityManager()->getRepository(HikeDraft::class)->findOneBy(['title' => 'Quick hike csrf invalide']));
     }
 
+    public function testQuickHikeCanStartRemoteDraftWithDefaultTitle(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', '/admin/quick?type=hike&mode=distance');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', '/admin/quick-hike/start', [
+            '_token' => $this->csrfTokenForClient($client, 'quick_hike_start'),
+            'title' => '   ',
+            'creation_mode' => 'remote',
+        ]);
+
+        $hike = $this->entityManager()->getRepository(HikeDraft::class)->findOneBy(['createdBy' => $admin], ['id' => 'DESC']);
+        self::assertInstanceOf(HikeDraft::class, $hike);
+        self::assertStringStartsWith('Randonnée du ', (string) $hike->getTitle());
+        self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+        self::assertFalse($client->getRequest()->getSession()->has('quick_hike_active_field_draft_id'));
+    }
+
+    public function testQuickHikeClearDestinationRequiresCsrfAndAcceptsValidToken(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+
+        $client->request('POST', '/admin/quick-hike/destination/clear', ['_token' => 'bad-token']);
+        self::assertResponseRedirects('/admin/quick-hike');
+
+        $client->request('POST', '/admin/quick-hike/destination/clear', [
+            '_token' => $this->csrfTokenForClient($client, 'quick_hike_clear_destination'),
+        ]);
+        self::assertResponseRedirects('/admin/quick-hike');
+    }
+
+    public function testVerifiedAdminCanAbandonActiveFieldHike(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $client->request('GET', sprintf('/admin/quick-hike/%d', $hike->getId()));
+        $session = $client->getRequest()->getSession();
+        $session->set('quick_hike_active_field_draft_id', $hike->getId());
+        $session->save();
+
+        $client->request('POST', sprintf('/admin/quick-hike/%d/abandon', $hike->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'quick_hike_abandon_'.$hike->getId()),
+        ]);
+
+        self::assertResponseRedirects('/admin/quick-hike');
+        self::assertFalse($client->getRequest()->getSession()->has('quick_hike_active_field_draft_id'));
+        self::assertInstanceOf(HikeDraft::class, $this->entityManager()->find(HikeDraft::class, $hike->getId()));
+    }
+
     public function testQuickHikePointRejectsInvalidCoordinates(): void
     {
         $client = static::createClient();
@@ -198,6 +253,53 @@ final class QuickHikeControllerTest extends FunctionalTestCase
         self::assertSame(1, $points[0]->getPosition());
     }
 
+    public function testQuickHikePointReturnsStructuredJsonSuccess(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+        $token = $this->csrfTokenForClient($client, 'quick_hike_point_'.$hike->getId());
+
+        $client->request('POST', sprintf('/admin/quick-hike/%d/point', $hike->getId()), [
+            'quick_hike_point' => [
+                '_token' => $token,
+                'latitude' => '42.7001',
+                'longitude' => '2.9001',
+                'type' => HikePointType::Start->value,
+            ],
+        ], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame([
+            'ok' => true,
+            'message' => 'Point GPS enregistré.',
+            'redirect' => sprintf('/admin/quick-hike/%d', $hike->getId()),
+        ], json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+        self::assertSame(1, $this->entityManager()->getRepository(HikePoint::class)->count(['hikeDraft' => $hike]));
+    }
+
+    public function testQuickHikePointReturnsStructuredJsonError(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/quick-hike/%d/point', $hike->getId()), [
+            'quick_hike_point' => [
+                '_token' => $this->csrfTokenForClient($client, 'quick_hike_point_'.$hike->getId()),
+                'type' => HikePointType::Start->value,
+            ],
+        ], [], ['HTTP_ACCEPT' => 'application/json']);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame([
+            'ok' => false,
+            'message' => 'La position GPS est obligatoire.',
+        ], json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
     public function testQuickHikePointCreatesInterestPointAfterStart(): void
     {
         $client = static::createClient();
@@ -267,5 +369,20 @@ final class QuickHikeControllerTest extends FunctionalTestCase
         self::assertFalse($client->getRequest()->getSession()->has('quick_hike_active_field_draft_id'));
         self::assertFalse($client->getRequest()->getSession()->has('quick_hike_destination_id'));
         self::assertFalse($client->getRequest()->getSession()->has('quick_hike_commune'));
+    }
+
+    public function testQuickHikeCannotFinishWithoutStartPoint(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/quick-hike/%d/finish', $hike->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'quick_hike_finish_'.$hike->getId()),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/quick-hike/%d', $hike->getId()));
+        self::assertNull($this->refresh($hike)->getFinishedAt());
     }
 }

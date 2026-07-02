@@ -43,6 +43,32 @@ final class CommentLikeRepositoryTest extends IntegrationTestCase
         self::assertSame([$commentIds[0]], $repository->findLikedCommentIdsForUser($viewer, $commentIds));
     }
 
+    public function testEmptyProjectionsAndBulkDeletionAreSafeAndScoped(): void
+    {
+        $author = $this->createUser();
+        $viewer = $this->createUser();
+        $this->entityManager->persist($viewer);
+        $article = $this->article($author);
+        $firstComment = $this->comment($author, $article, 'Premier commentaire à nettoyer.');
+        $secondComment = $this->comment($author, $article, 'Second commentaire à conserver.');
+        $firstLike = (new CommentLike())->setComment($firstComment)->setUser($viewer);
+        $secondLike = (new CommentLike())->setComment($secondComment)->setUser($viewer);
+        $this->entityManager->persist($firstLike);
+        $this->entityManager->persist($secondLike);
+        $this->entityManager->flush();
+        $repository = $this->repository();
+
+        self::assertSame([], $repository->countByCommentIds([]));
+        self::assertSame([], $repository->findLikedCommentIdsForUser($viewer, []));
+
+        $repository->deleteForComments([]);
+        self::assertSame(2, $repository->count(['user' => $viewer]));
+
+        $repository->deleteForComments([$firstComment]);
+        self::assertSame(0, $repository->count(['comment' => $firstComment]));
+        self::assertSame(1, $repository->count(['comment' => $secondComment]));
+    }
+
     private function article(User $author): Article
     {
         $token = $this->uniqueToken('comment-like-repository');

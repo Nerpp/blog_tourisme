@@ -5,6 +5,7 @@ namespace App\Tests\Unit;
 use App\Service\AvatarUploadService;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class AvatarUploadServiceTest extends TestCase
@@ -73,6 +74,35 @@ final class AvatarUploadServiceTest extends TestCase
         $this->expectExceptionMessage('L’image de profil ne doit pas dépasser 5 Mo.');
 
         $this->service()->upload(new UploadedFile($path, 'avatar.jpg', null, null, true));
+    }
+
+    public function testIncompleteUploadIsRejectedBeforeInspection(): void
+    {
+        $path = $this->workspace.'/partial.png';
+        file_put_contents($path, 'partial upload');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le transfert de l’image est incomplet.');
+
+        $this->service()->upload(new UploadedFile($path, 'partial.png', null, UPLOAD_ERR_PARTIAL, true));
+    }
+
+    public function testUnavailableStorageDirectoryIsReported(): void
+    {
+        $this->requireGd(['imagepng']);
+        $path = $this->createImage('storage.png', 'png', 80, 80);
+        $blockedProjectDir = $this->workspace.'/blocked-project';
+        file_put_contents($blockedProjectDir, 'not a directory');
+
+        set_error_handler(static fn (): bool => true);
+        try {
+            (new AvatarUploadService($blockedProjectDir))->upload(new UploadedFile($path, 'storage.png', null, null, true));
+            self::fail('The unavailable avatar storage directory should be rejected.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Le dossier de stockage des avatars est indisponible.', $exception->getMessage());
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function testValidPngAvatarIsAcceptedAndConvertedToWebp(): void
@@ -151,6 +181,16 @@ final class AvatarUploadServiceTest extends TestCase
 
         self::assertFileDoesNotExist($avatar);
         self::assertFileExists($outside);
+    }
+
+    public function testDeleteIsSafeWhenAvatarDirectoryDoesNotExist(): void
+    {
+        $projectDir = $this->workspace.'/missing-project';
+        mkdir($projectDir, 0775, true);
+
+        (new AvatarUploadService($projectDir))->delete('/uploads/avatars/avatar_missing.webp');
+
+        self::assertDirectoryDoesNotExist($projectDir.'/public/uploads/avatars');
     }
 
     private function service(): AvatarUploadService
