@@ -10,6 +10,7 @@ use App\Tests\Support\TestImageFactory;
 use InvalidArgumentException;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\String\Slugger\AsciiSlugger;
 
 final class DronePanoramaUploadServiceTest extends IntegrationTestCase
@@ -73,6 +74,23 @@ final class DronePanoramaUploadServiceTest extends IntegrationTestCase
         $this->assertPublicImage($result['metadata']['originalPath'], 'image/png', 400, 200);
     }
 
+    public function testValidEquirectangularWebpUsesWebpPipeline(): void
+    {
+        $source = TestImageFactory::createWebp(TestImageFactory::testMediaDirectory(), 400, 200, 'panorama-test.webp');
+        $this->files[] = $source;
+        $upload = TestImageFactory::createUploadedFile($source, 'Panorama Drone.webp', 'image/webp');
+
+        $result = $this->panoramaUploadService()->upload($upload);
+
+        self::assertSame('Panorama Drone', $result['title']);
+        self::assertSame('image/webp', $result['mimeType']);
+        self::assertSame(400, $result['width']);
+        self::assertSame(200, $result['height']);
+        $this->assertPublicImage($result['path'], 'image/webp', 400, 200);
+        $this->assertPublicImage($result['thumbnailPath'], 'image/webp', 400, 200);
+        $this->assertPublicImage($result['metadata']['originalPath'], 'image/webp', 400, 200);
+    }
+
     public function testLargePanoramaCreatesMobileVariantUsingSafeSeededName(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 4200, 2100, 'large-panorama.jpg');
@@ -127,6 +145,24 @@ final class DronePanoramaUploadServiceTest extends IntegrationTestCase
         }
 
         self::assertSame([], glob(TestImageFactory::projectDir().'/public/uploads/media/360/empty-panorama-*') ?: []);
+    }
+
+    public function testRejectsIncompletePhpUploadBeforeProcessing(): void
+    {
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 400, 200, 'partial-panorama.jpg');
+        $this->files[] = $source;
+        $upload = new UploadedFile(
+            $source,
+            'partial-panorama.jpg',
+            'image/jpeg',
+            \UPLOAD_ERR_PARTIAL,
+            true,
+        );
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('le transfert est incomplet ou refusé par PHP.');
+
+        $this->panoramaUploadService()->upload($upload);
     }
 
     public function testRejectsPanoramaLargerThanBusinessLimitBeforeImageProcessing(): void

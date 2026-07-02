@@ -6,6 +6,7 @@ use App\Service\Weather\QnhProvider;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\Adapter\ArrayAdapter;
+use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -174,6 +175,94 @@ final class QnhProviderTest extends TestCase
 
         self::assertFalse($result['ok']);
         self::assertSame('QNH indisponible pour cette position. Réessayez plus tard ou utilisez une source météo locale.', $result['message']);
+    }
+
+    public function testItFallsBackAfterMetarHttpErrorAndReturnsUnavailableAfterWeatherHttpError(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse('server error', ['http_code' => 503]),
+            new MockResponse('server error', ['http_code' => 502]),
+        ]), new ArrayAdapter());
+
+        self::assertFalse($provider->provide(42.70, 2.80)['ok']);
+    }
+
+    public function testItHandlesInvalidJsonFromBothProviders(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse('{invalid'),
+            new MockResponse('{invalid'),
+        ]), new ArrayAdapter());
+
+        self::assertFalse($provider->provide(42.70, 2.80)['ok']);
+    }
+
+    public function testItHandlesTransportFailuresFromBothProviders(): void
+    {
+        $requests = 0;
+        $client = new MockHttpClient(static function () use (&$requests): never {
+            ++$requests;
+
+            throw new TransportException('network unavailable');
+        });
+
+        self::assertFalse((new QnhProvider($client, new ArrayAdapter()))->provide(42.70, 2.80)['ok']);
+        self::assertSame(2, $requests);
+    }
+
+    public function testItAcceptsHectopascalAltimeterAndMissingObservationTime(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse('[{"altim":1021.6}]'),
+        ]), new ArrayAdapter());
+
+        $result = $provider->provide(42.70, 2.80);
+
+        self::assertTrue($result['ok']);
+        self::assertSame(1022, $result['qnhHpa']);
+        self::assertNull($result['observedAt']);
+        self::assertStringEndsWith('heure inconnue', $result['summary']);
+    }
+
+    public function testItFallsBackFromMalformedMetarReportToWeatherWithoutObservationTime(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse('[null]'),
+            new MockResponse('{"current":{"pressure_msl":1014.4}}'),
+        ]), new ArrayAdapter());
+
+        $result = $provider->provide(42.70, 2.80);
+
+        self::assertTrue($result['ok']);
+        self::assertSame('open_meteo', $result['source']);
+        self::assertSame(1014, $result['qnhHpa']);
+        self::assertNull($result['observedAt']);
+        self::assertStringEndsWith('heure inconnue', $result['summary']);
+    }
+
+    public function testItRejectsOutOfRangeAltimeterWithoutCrashing(): void
+    {
+        $provider = new QnhProvider(new MockHttpClient([
+            new MockResponse('[{"altim":1200}]'),
+            new MockResponse('{"current":{"pressure_msl":"invalid"}}'),
+        ]), new ArrayAdapter());
+
+        self::assertFalse($provider->provide(42.70, 2.80)['ok']);
+    }
+
+    public function testItReusesFreshCachedMetar(): void
+    {
+        $requests = 0;
+        $client = new MockHttpClient(static function () use (&$requests): MockResponse {
+            ++$requests;
+
+            return new MockResponse('[{"rawOb":"METAR LFMP Q1018"}]');
+        });
+        $provider = new QnhProvider($client, new ArrayAdapter());
+
+        self::assertSame(1018, $provider->provide(42.70, 2.80)['qnhHpa']);
+        self::assertSame(1018, $provider->provide(42.70, 2.80)['qnhHpa']);
+        self::assertSame(1, $requests);
     }
 
     public function testItRejectsInvalidCoordinates(): void

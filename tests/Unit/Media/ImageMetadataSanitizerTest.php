@@ -168,6 +168,31 @@ final class ImageMetadataSanitizerTest extends TestCase
         self::assertSame(8, $orientationMethod->invoke($service, ['Orientation' => 8]));
     }
 
+    public function testJpegExifOrientationIsAppliedBeforeMetadataRemoval(): void
+    {
+        if (!function_exists('imagejpeg') || !function_exists('exif_read_data')) {
+            self::markTestSkipped('GD JPEG and EXIF support are required.');
+        }
+
+        $rotatedPath = $this->createJpeg('oriented-6.jpg', 120, 80);
+        $this->insertJpegExifOrientation($rotatedPath, 6);
+        $flippedPath = $this->createJpeg('oriented-2.jpg', 90, 60);
+        $this->insertJpegExifOrientation($flippedPath, 2);
+        $service = $this->service();
+
+        $rotated = $service->sanitizePublicPath('/uploads/oriented-6.jpg');
+        $flipped = $service->sanitizePublicPath('/uploads/oriented-2.jpg');
+
+        self::assertSame([80, 120], [$rotated['width'], $rotated['height']]);
+        self::assertSame([90, 60], [$flipped['width'], $flipped['height']]);
+        self::assertContains('EXIF', $rotated['markersBefore']);
+        self::assertContains('EXIF', $flipped['markersBefore']);
+        self::assertSame([], $rotated['markersAfter']);
+        self::assertSame([], $flipped['markersAfter']);
+        self::assertIsArray(getimagesize($rotatedPath));
+        self::assertIsArray(getimagesize($flippedPath));
+    }
+
     private function service(): ImageMetadataSanitizer
     {
         $parameters = $this->createStub(ParameterBagInterface::class);
@@ -215,6 +240,23 @@ final class ImageMetadataSanitizerTest extends TestCase
             ."\x1A\x00\x00\x00"
             ."\x00\x00\x00\x00"
             .$value;
+        $payload = "Exif\0\0".$tiff;
+        $segment = "\xFF\xE1".pack('n', strlen($payload) + 2).$payload;
+
+        file_put_contents($path, substr($contents, 0, 2).$segment.substr($contents, 2));
+    }
+
+    private function insertJpegExifOrientation(string $path, int $orientation): void
+    {
+        $contents = (string) file_get_contents($path);
+        self::assertStringStartsWith("\xFF\xD8", $contents);
+
+        $tiff = "II\x2A\x00\x08\x00\x00\x00"
+            ."\x01\x00"
+            ."\x12\x01\x03\x00"
+            ."\x01\x00\x00\x00"
+            .pack('v', $orientation)."\x00\x00"
+            ."\x00\x00\x00\x00";
         $payload = "Exif\0\0".$tiff;
         $segment = "\xFF\xE1".pack('n', strlen($payload) + 2).$payload;
 

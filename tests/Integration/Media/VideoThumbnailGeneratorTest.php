@@ -12,12 +12,16 @@ use App\Tests\Integration\IntegrationTestCase;
 use App\Tests\Support\TestImageFactory;
 use Psr\Log\NullLogger;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\String\Slugger\AsciiSlugger;
 
 final class VideoThumbnailGeneratorTest extends IntegrationTestCase
 {
     /** @var list<string> */
     private array $files = [];
+
+    /** @var list<string> */
+    private array $directories = [];
 
     protected function tearDown(): void
     {
@@ -26,6 +30,8 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
                 @unlink($file);
             }
         }
+
+        (new Filesystem())->remove(array_reverse($this->directories));
 
         parent::tearDown();
     }
@@ -88,6 +94,47 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
             basename($generator->extractionOutputPaths[0]),
         );
         self::assertSame([], $this->temporaryThumbnails());
+    }
+
+    public function testGenerationCreatesMissingThumbnailDirectory(): void
+    {
+        $projectDirectory = TestImageFactory::testMediaDirectory().'/video-thumbnail-project-'.bin2hex(random_bytes(6));
+        $mediaDirectory = $projectDirectory.'/public/uploads/media';
+        self::assertTrue(mkdir($mediaDirectory, 0775, true));
+        $this->directories[] = $projectDirectory;
+        $video = $mediaDirectory.'/local.mp4';
+        file_put_contents($video, 'simulated local video');
+        $generator = $this->simulatedGenerator(SimulatedVideoThumbnailGenerator::SUCCESS, projectDirectory: $projectDirectory);
+
+        $thumbnail = $generator->generateFromPublicPath('/uploads/media/local.mp4', 'Nouvelle miniature');
+
+        self::assertNotNull($thumbnail);
+        self::assertDirectoryExists($projectDirectory.'/public/uploads/media/video-thumbnails');
+        self::assertFileExists($projectDirectory.'/public'.$thumbnail);
+        self::assertSame(1, $generator->extractionAttempts);
+    }
+
+    public function testMissingBasenameSeedFallsBackToVideoFilename(): void
+    {
+        $publicPath = $this->createLocalVideo();
+        $generator = $this->simulatedGenerator(SimulatedVideoThumbnailGenerator::SUCCESS);
+
+        $thumbnail = $generator->generateFromPublicPath($publicPath);
+
+        self::assertNotNull($thumbnail);
+        self::assertStringStartsWith('/uploads/media/video-thumbnails/atomic-video-', $thumbnail);
+        $this->files[] = TestImageFactory::projectDir().'/public'.$thumbnail;
+    }
+
+    public function testMissingAllowedMediaRootReturnsNullWithoutExtraction(): void
+    {
+        $projectDirectory = TestImageFactory::testMediaDirectory().'/video-thumbnail-missing-root-'.bin2hex(random_bytes(6));
+        self::assertTrue(mkdir($projectDirectory.'/public', 0775, true));
+        $this->directories[] = $projectDirectory;
+        $generator = $this->simulatedGenerator(SimulatedVideoThumbnailGenerator::SUCCESS, projectDirectory: $projectDirectory);
+
+        self::assertNull($generator->generateFromPublicPath('/uploads/media/video.mp4'));
+        self::assertSame(0, $generator->extractionAttempts);
     }
 
     public function testFailedLocalGenerationRemovesPartialTemporaryFiles(): void
@@ -204,10 +251,14 @@ final class VideoThumbnailGeneratorTest extends IntegrationTestCase
         return $generator;
     }
 
-    private function simulatedGenerator(string $behavior, bool $promotionSucceeds = true): SimulatedVideoThumbnailGenerator
+    private function simulatedGenerator(
+        string $behavior,
+        bool $promotionSucceeds = true,
+        ?string $projectDirectory = null,
+    ): SimulatedVideoThumbnailGenerator
     {
         $parameterBag = $this->createStub(ParameterBagInterface::class);
-        $parameterBag->method('get')->willReturn(TestImageFactory::projectDir());
+        $parameterBag->method('get')->willReturn($projectDirectory ?? TestImageFactory::projectDir());
 
         $generator = new SimulatedVideoThumbnailGenerator(
             $parameterBag,
