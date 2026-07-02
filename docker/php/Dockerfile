@@ -12,6 +12,7 @@ RUN apt-get update \
         git \
         libasound2 \
         libatk-bridge2.0-0 \
+        libfreetype6-dev \
         libgbm1 \
         libgtk-3-0 \
         libicu-dev \
@@ -22,10 +23,19 @@ RUN apt-get update \
         libwebp-dev \
         libxss1 \
         libzip-dev \
+        pkg-config \
         unzip \
-    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-configure intl \
-    && docker-php-ext-install -j"$(nproc)" gd intl mbstring opcache pdo_mysql zip \
+    && docker-php-ext-install -j"$(nproc)" \
+        exif \
+        gd \
+        intl \
+        mbstring \
+        opcache \
+        pdo_mysql \
+        zip \
+    && php -r '$gd = gd_info(); if (!extension_loaded("exif") || !function_exists("imagejpeg") || !function_exists("imagepng") || !function_exists("imagewebp") || empty($gd["JPEG Support"]) || empty($gd["PNG Support"]) || empty($gd["WebP Support"])) { fwrite(STDERR, "GD must support JPEG, PNG and WebP; EXIF must be enabled.\n"); exit(1); }' \
     && pecl channel-update pecl.php.net \
     && pecl install xdebug \
     && docker-php-ext-enable xdebug \
