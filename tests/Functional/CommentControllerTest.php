@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\Comment;
+use App\Entity\CommentReplyNotification;
 use App\Entity\User;
 use App\Enum\CommentReportReason;
 use App\Enum\CommentStatus;
@@ -226,10 +227,43 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
         self::assertInstanceOf(Comment::class, $reply);
         self::assertSame(CommentStatus::Approved, $reply->getStatus());
+        $notification = $this->entityManager()->getRepository(CommentReplyNotification::class)->findOneBy([
+            'recipient' => $author,
+            'comment' => $reply,
+        ]);
+        self::assertInstanceOf(CommentReplyNotification::class, $notification);
+        self::assertSame(CommentReplyNotification::KIND_REPLY, $notification->getKind());
+        self::assertSame($replyAuthor->getId(), $notification->getTriggeredBy()?->getId());
 
         $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
         self::assertResponseIsSuccessful();
         self::assertStringContainsString($replyContent, (string) $client->getResponse()->getContent());
+    }
+
+    public function testReplyingToOwnCommentDoesNotCreateNotification(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($author);
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Une réponse à mon propre commentaire sans notification.',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects();
+        $reply = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'parent' => $parent,
+            'author' => $author,
+        ]);
+        self::assertInstanceOf(Comment::class, $reply);
+        self::assertSame(CommentStatus::Approved, $reply->getStatus());
+        self::assertSame(0, $this->entityManager()->getRepository(CommentReplyNotification::class)->count([
+            'comment' => $reply,
+        ]));
     }
 
     public function testEmptyReplyIsRejected(): void
@@ -533,6 +567,58 @@ final class CommentControllerTest extends FunctionalTestCase
         $html = (string) $client->getResponse()->getContent();
         self::assertStringNotContainsString('<script>alert(1)</script>', $html);
         self::assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
+    }
+
+    public function testPublicPageOnlyRendersApprovedCommentsAndReplies(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle();
+        $approvedAuthor = $this->createUser();
+        $approvedAuthor->setDisplayName('Auteur visible '.$this->uniqueToken('comment'));
+        $approved = $this->createComment($approvedAuthor, $article);
+        $approved->setContent('Commentaire racine public et approuvé.');
+        $this->persistAndFlush($approved);
+
+        $approvedReply = $this->createReplyComment($this->createUser(), $approved);
+        $approvedReply->setContent('Réponse publique et approuvée.');
+        $this->persistAndFlush($approvedReply);
+
+        $hiddenComments = [];
+        foreach ([
+            CommentStatus::HiddenPendingReport,
+            CommentStatus::HiddenByAdmin,
+            CommentStatus::Deleted,
+        ] as $status) {
+            $author = $this->createUser();
+            $author->setDisplayName('Auteur masqué '.$status->value.' '.$this->uniqueToken('comment'));
+            $comment = $this->createComment($author, $article, $status);
+            $comment->setContent('Contenu racine masqué '.$status->value.'.');
+            $this->persistAndFlush($comment);
+            $hiddenComments[] = $comment;
+        }
+
+        $hiddenReplies = [];
+        foreach ([CommentStatus::HiddenPendingReport, CommentStatus::HiddenByAdmin, CommentStatus::Deleted] as $status) {
+            $reply = $this->createReplyComment($this->createUser(), $approved, $status);
+            $reply->setContent('Réponse masquée '.$status->value.'.');
+            $this->persistAndFlush($reply);
+            $hiddenReplies[] = $reply;
+        }
+
+        $this->entityManager()->clear();
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists(sprintf('#comment-%d', $approved->getId()));
+        self::assertSelectorExists(sprintf('#comment-%d', $approvedReply->getId()));
+        self::assertSelectorTextContains(sprintf('#comment-%d', $approved->getId()), 'Commentaire racine public et approuvé.');
+        self::assertSelectorTextContains(sprintf('#comment-%d', $approvedReply->getId()), 'Réponse publique et approuvée.');
+
+        foreach (array_merge($hiddenComments, $hiddenReplies) as $hiddenComment) {
+            self::assertSelectorNotExists(sprintf('#comment-%d', $hiddenComment->getId()));
+            self::assertStringNotContainsString($hiddenComment->getContent(), (string) $client->getResponse()->getContent());
+            self::assertStringNotContainsString((string) $hiddenComment->getAuthor()?->getDisplayName(), (string) $client->getResponse()->getContent());
+        }
     }
 
     public function testAuthorCanEditApprovedComment(): void
@@ -841,9 +927,30 @@ final class CommentControllerTest extends FunctionalTestCase
         self::assertInstanceOf(CommentLikeRepository::class, $likeRepository);
         self::assertSame(1, $likeRepository->count(['comment' => $comment, 'user' => $liker]));
 
+        $client->followRedirect();
+        self::assertSelectorExists(sprintf('#comment-%d .comment-like-button.is-active[aria-pressed="true"]', $comment->getId()));
+        self::assertSelectorTextContains(sprintf('#comment-%d .comment-like-button', $comment->getId()), '1');
+
         $client->request('POST', sprintf('/comments/%d/like', $comment->getId()), ['_token' => $token]);
         self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
         self::assertSame(0, $likeRepository->count(['comment' => $comment, 'user' => $liker]));
+
+        $client->followRedirect();
+        self::assertSelectorExists(sprintf('#comment-%d .comment-like-button[aria-pressed="false"]', $comment->getId()));
+        self::assertSelectorNotExists(sprintf('#comment-%d .comment-like-button.is-active', $comment->getId()));
+        self::assertSelectorTextContains(sprintf('#comment-%d .comment-like-button', $comment->getId()), '0');
+    }
+
+    public function testActionsOnUnknownCommentReturnNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        foreach (['reply', 'like', 'edit', 'delete', 'report'] as $action) {
+            $client->request('POST', '/comments/2147483647/'.$action, ['_token' => 'unused']);
+
+            self::assertResponseStatusCodeSame(404, sprintf('The %s action should return 404.', $action));
+        }
     }
 
     public function testHiddenCommentCannotBeLiked(): void

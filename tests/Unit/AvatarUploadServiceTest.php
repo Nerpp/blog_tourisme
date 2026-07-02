@@ -65,6 +65,36 @@ final class AvatarUploadServiceTest extends TestCase
         $this->service()->upload(new UploadedFile($path, 'avatar.jpg', null, null, true));
     }
 
+    public function testTruncatedImageWithAllowedMimeTypeIsRejectedAsUnreadable(): void
+    {
+        $path = $this->workspace.'/truncated.png';
+        file_put_contents($path, "\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR");
+        $file = new UploadedFile($path, 'truncated.png', null, null, true);
+        self::assertSame('image/png', $file->getMimeType());
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le fichier envoyé n’est pas une image valide.');
+
+        $this->service()->upload($file);
+    }
+
+    public function testDeclaredAllowedMimeTypeMustMatchImageContents(): void
+    {
+        $this->requireGd(['imagejpeg']);
+        $path = $this->createImage('mismatch.jpg', 'jpeg', 80, 80);
+        $file = new class($path, 'mismatch.jpg', null, null, true) extends UploadedFile {
+            public function getMimeType(): ?string
+            {
+                return 'image/png';
+            }
+        };
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Le contenu réel de l’image ne correspond pas au fichier envoyé.');
+
+        $this->service()->upload($file);
+    }
+
     public function testTooLargeAvatarIsRejected(): void
     {
         $path = $this->workspace.'/avatar.jpg';

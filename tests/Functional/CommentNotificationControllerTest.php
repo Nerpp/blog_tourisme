@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Entity\Comment;
 use App\Entity\CommentReplyNotification;
 use App\Enum\CommentStatus;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -90,6 +91,48 @@ final class CommentNotificationControllerTest extends FunctionalTestCase
         self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
         $notification = $this->refresh($notification);
         self::assertTrue($notification->isRead());
+    }
+
+    public function testOpenNotificationForPlaceCommentRedirectsToItsPublicFragment(): void
+    {
+        $client = static::createClient();
+        $recipient = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $comment = (new Comment())
+            ->setAuthor($this->createUser())
+            ->setPlace($place)
+            ->setContent('Commentaire approuvé sur un lieu pour une notification.')
+            ->setStatus(CommentStatus::Approved)
+            ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
+            ->setApprovedAt(new \DateTimeImmutable('-1 hour'));
+        $this->persistAndFlush($comment);
+        $notification = $this->createCommentReplyNotification($recipient, $comment);
+        $client->loginUser($recipient);
+
+        $client->request('GET', sprintf('/notifications/commentaires/%d', $notification->getId()));
+
+        self::assertResponseRedirects(sprintf('/places/%s#comment-%d', $place->getSlug(), $comment->getId()));
+        self::assertTrue($this->refresh($notification)->isRead());
+    }
+
+    public function testOpenNotificationForApprovedOrphanCommentRedirectsHome(): void
+    {
+        $client = static::createClient();
+        $recipient = $this->createUser();
+        $comment = (new Comment())
+            ->setAuthor($this->createUser())
+            ->setContent('Commentaire approuvé sans cible publique.')
+            ->setStatus(CommentStatus::Approved)
+            ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
+            ->setApprovedAt(new \DateTimeImmutable('-1 hour'));
+        $this->persistAndFlush($comment);
+        $notification = $this->createCommentReplyNotification($recipient, $comment);
+        $client->loginUser($recipient);
+
+        $client->request('GET', sprintf('/notifications/commentaires/%d', $notification->getId()));
+
+        self::assertResponseRedirects('/');
+        self::assertTrue($this->refresh($notification)->isRead());
     }
 
     public function testOpeningAnotherUsersNotificationIsDenied(): void

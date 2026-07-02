@@ -68,6 +68,22 @@ final class ImageUploadSecurityTest extends TestCase
         (new ImageUploadSecurity())->inspect($this->uploadedFile($path, 'photo.jpg'));
     }
 
+    public function testDeclaredAllowedMimeTypeMustMatchImageContents(): void
+    {
+        $path = TestImageFactory::createJpeg($this->workspace, 64, 32, 'photo.jpg');
+        $file = new class($path, 'photo.png', null, null, true) extends UploadedFile {
+            public function getMimeType(): ?string
+            {
+                return 'image/png';
+            }
+        };
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('le type réel de l’image ne correspond pas au fichier envoyé.');
+
+        (new ImageUploadSecurity())->inspect($file);
+    }
+
     public function testNonImageContentIsRejected(): void
     {
         $path = TestImageFactory::createTextFile($this->workspace, 'png', 'not an image');

@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Entity\User;
 use App\Service\AvatarUploadService;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 final class ProfileControllerTest extends FunctionalTestCase
@@ -114,7 +115,21 @@ final class ProfileControllerTest extends FunctionalTestCase
 
         $client = static::createClient();
         $user = $this->createUser();
-        $user->setAvatarPath('/uploads/avatars/previous-avatar.webp');
+        $previousSource = $this->createImage('png', 96, 96);
+        try {
+            $previousAvatarPath = $this->avatarUploadService()->upload(
+                new UploadedFile($previousSource, 'previous-avatar.png', null, null, true),
+            );
+        } finally {
+            if (is_file($previousSource)) {
+                unlink($previousSource);
+            }
+        }
+        $this->uploadedAvatars[] = $previousAvatarPath;
+        $projectDir = (string) static::getContainer()->getParameter('kernel.project_dir');
+        $previousStoredPath = $projectDir.'/public'.$previousAvatarPath;
+        self::assertFileExists($previousStoredPath);
+        $user->setAvatarPath($previousAvatarPath);
         $this->persistAndFlush($user);
         $displayName = 'Avatar Valide '.$this->uniqueToken('profile');
         $avatar = $this->createImage('png', 320, 180);
@@ -143,8 +158,10 @@ final class ProfileControllerTest extends FunctionalTestCase
         self::assertIsString($avatarPath);
         $this->uploadedAvatars[] = $avatarPath;
         self::assertMatchesRegularExpression('#^/uploads/avatars/avatar_[a-f0-9]{32}\.webp$#', $avatarPath);
+        self::assertNotSame($previousAvatarPath, $avatarPath);
+        self::assertFileDoesNotExist($previousStoredPath);
 
-        $storedPath = (string) static::getContainer()->getParameter('kernel.project_dir').'/public'.$avatarPath;
+        $storedPath = $projectDir.'/public'.$avatarPath;
         self::assertFileExists($storedPath);
         $dimensions = getimagesize($storedPath);
         self::assertIsArray($dimensions);
