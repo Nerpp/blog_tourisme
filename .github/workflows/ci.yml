@@ -38,6 +38,7 @@ jobs:
         run: |
           echo "DOCKER_UID=$(id -u)" >> "$GITHUB_ENV"
           echo "DOCKER_GID=$(id -g)" >> "$GITHUB_ENV"
+          echo "COMPOSE_FILE=docker-compose.yml:.github/compose.ci.yml" >> "$GITHUB_ENV"
 
       - name: Start MySQL
         run: docker compose up -d --wait mysql
@@ -51,7 +52,9 @@ jobs:
         run: docker compose up -d --wait php mailpit
 
       - name: Install npm dependencies
-        run: docker compose run --rm node npm ci
+        run: |
+          docker compose run --rm --user root node chown -R "${DOCKER_UID}:${DOCKER_GID}" /var/www/html/node_modules
+          docker compose run --rm node npm ci
 
       - name: Prepare test database
         run: |
@@ -70,7 +73,7 @@ jobs:
 
       - name: Upload failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ci-failure-artifacts
           path: |

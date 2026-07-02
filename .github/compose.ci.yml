@@ -1,0 +1,10 @@
+services:
+  node:
+    environment:
+      HOME: /tmp
+      NPM_CONFIG_CACHE: /tmp/npm-cache
+    volumes:
+      - node_modules_ci:/var/www/html/node_modules
+
+volumes:
+  node_modules_ci:
