@@ -118,4 +118,105 @@ final class AdminDestinationControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
     }
+
+    public function testVerifiedAdminCanEditDestinationWithoutMakingItItsOwnParent(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $destination = $this->createDestination();
+        $crawler = $client->request('GET', sprintf('/admin/destinations/%d/edit', $destination->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/destinations/%d/edit', $destination->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'name' => '',
+            'cityName' => '  Ville administrative modifiee  ',
+            'type' => DestinationType::City->value,
+            'parent' => (string) $destination->getId(),
+            'code' => '  66000  ',
+            'latitude' => '42,701',
+            'longitude' => '2.901',
+            'description' => '  Destination modifiee.  ',
+        ]);
+
+        self::assertResponseRedirects('/admin/destinations');
+        $destination = $this->refresh($destination);
+        self::assertSame('Ville administrative modifiee', $destination->getName());
+        self::assertSame(DestinationType::City, $destination->getType());
+        self::assertNull($destination->getParent());
+        self::assertSame('66000', $destination->getCode());
+        self::assertSame(42.701, $destination->getLatitude());
+        self::assertSame(2.901, $destination->getLongitude());
+        self::assertSame('Destination modifiee.', $destination->getDescription());
+    }
+
+    public function testDestinationEditRequiresValidCsrfAndKeepsPersistedValues(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $destination = $this->createDestination();
+        $originalName = $destination->getName();
+
+        $client->request('POST', sprintf('/admin/destinations/%d/edit', $destination->getId()), [
+            '_token' => 'bad-token',
+            'name' => 'Valeur non autorisee',
+            'type' => DestinationType::Area->value,
+        ]);
+
+        self::assertResponseRedirects('/');
+        self::assertSame($originalName, $this->refresh($destination)->getName());
+    }
+
+    public function testDestinationCreationUsesSpecificNamesAndUniqueSlugs(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $name = 'Ville slug partage '.$this->uniqueToken('destination');
+
+        foreach ([$name, $name] as $index => $cityName) {
+            $crawler = $client->request('GET', '/admin/destinations/new');
+            self::assertResponseIsSuccessful();
+            $client->request('POST', '/admin/destinations/new', [
+                '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+                'name' => '',
+                'cityName' => $cityName,
+                'type' => DestinationType::City->value,
+                'code' => $index === 0 ? '' : '66001',
+            ]);
+            self::assertResponseRedirects('/admin/destinations');
+        }
+
+        $destinations = $this->entityManager()->getRepository(Destination::class)->findBy(['name' => $name], ['id' => 'ASC']);
+        self::assertCount(2, $destinations);
+        self::assertNotSame($destinations[0]->getSlug(), $destinations[1]->getSlug());
+        self::assertStringEndsWith('-2', (string) $destinations[1]->getSlug());
+        self::assertNull($destinations[0]->getCode());
+    }
+
+    public function testDestinationDeletionRemovesOrphanButKeepsParentWithChild(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $orphan = $this->createDestination();
+        $parent = $this->createDestination();
+        $child = $this->createDestination();
+        $child->setParent($parent);
+        $this->persistAndFlush($child);
+        $orphanId = $orphan->getId();
+        $parentId = $parent->getId();
+
+        $client->request('POST', sprintf('/admin/destinations/%d/delete', $parentId), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_destination_delete_'.$parentId),
+        ]);
+        self::assertResponseRedirects('/admin/destinations');
+        self::assertNotNull($this->entityManager()->find(Destination::class, $parentId));
+
+        $client->request('POST', sprintf('/admin/destinations/%d/delete', $orphanId), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_destination_delete_'.$orphanId),
+        ]);
+        self::assertResponseRedirects('/admin/destinations');
+        $this->entityManager()->clear();
+        self::assertNull($this->entityManager()->find(Destination::class, $orphanId));
+        self::assertNotNull($this->entityManager()->find(Destination::class, $parentId));
+    }
 }

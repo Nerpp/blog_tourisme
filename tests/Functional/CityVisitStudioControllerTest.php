@@ -117,6 +117,45 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertSame(0, $this->entityManager()->getRepository(CityVisitDraftMedia::class)->count(['cityVisitDraft' => $cityVisit]));
     }
 
+    public function testCityVisitBulkPhotoUploadRejectsOversizedJsonAndHtmlSelections(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $client->loginUser($admin);
+        $url = sprintf('/admin/studio/city-visits/%d/media/photos/bulk-upload', $cityVisit->getId());
+        $token = $this->csrfTokenForClient($client, 'studio_city_visit_photos_'.$cityVisit->getId());
+        $paths = [];
+
+        try {
+            for ($index = 0; $index <= 50; ++$index) {
+                $path = sprintf('%s/city-bulk-limit-%s-%02d.jpg', sys_get_temp_dir(), bin2hex(random_bytes(4)), $index);
+                file_put_contents($path, 'selection limit fixture');
+                $paths[] = $path;
+            }
+            $uploads = static fn (): array => array_map(
+                static fn (string $path): UploadedFile => new UploadedFile($path, basename($path), 'image/jpeg', null, true),
+                $paths,
+            );
+
+            $client->request('POST', $url, ['_token' => $token], ['photos' => $uploads()], ['HTTP_ACCEPT' => 'application/json']);
+            self::assertResponseStatusCodeSame(413);
+            $payload = json_decode((string) $client->getResponse()->getContent(), true, flags: JSON_THROW_ON_ERROR);
+            self::assertStringContainsString('Sélection limitée', (string) $payload['error']);
+
+            $client->request('POST', $url, ['_token' => $token], ['photos' => $uploads()]);
+            self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        } finally {
+            foreach ($paths as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+        }
+
+        self::assertSame(0, $this->entityManager()->getRepository(CityVisitDraftMedia::class)->count(['cityVisitDraft' => $cityVisit]));
+    }
+
     public function testCityVisitVideoRejectsForeignPointBeforeCreatingMedia(): void
     {
         $client = static::createClient();
@@ -197,6 +236,71 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         ]));
     }
 
+    public function testCityVisitStudioMutationFormsRejectExpiredTokens(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $media = $this->createImageMedia('Média visite inchangé');
+        $link = $this->linkCityVisitMedia($cityVisit, $media, MediaRole::Gallery, 0);
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()), [
+            '_token' => 'bad-token',
+            'title' => 'Titre visite refusé',
+        ]);
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit#section-publication', $cityVisit->getId()));
+
+        $client->request('POST', sprintf('/admin/studio/city-visits/%d/media/video', $cityVisit->getId()), [
+            '_token' => 'bad-token',
+            'externalUrl' => 'https://example.test/refused-city-video',
+        ]);
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+
+        $client->request('POST', sprintf('/admin/studio/city-visit-media/%d/update', $link->getId()), [
+            '_token' => 'bad-token',
+            'title' => 'Média visite refusé',
+        ]);
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertSame('Média visite inchangé', $this->refresh($media)->getTitle());
+    }
+
+    public function testCityVisitVideoMediaUpdateRefreshesMetadataAndThumbnail(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $video = (new MediaAsset())
+            ->setMediaType(MediaType::Video)
+            ->setVideoType(VideoType::External)
+            ->setTitle('Ancienne vidéo visite')
+            ->setExternalUrl('https://example.test/old-city-video');
+        $this->persistAndFlush($video);
+        $link = $this->linkCityVisitMedia($cityVisit, $video, MediaRole::Gallery, 0);
+        $client->loginUser($admin);
+        $url = sprintf('/admin/studio/city-visit-media/%d/update', $link->getId());
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', $url, [
+            '_token' => $this->tokenFromFormAction($crawler, $url),
+            'title' => 'Nouvelle vidéo visite',
+            'caption' => 'Légende vidéo visite actualisée',
+            'videoType' => VideoType::Youtube->value,
+            'externalUrl' => 'https://www.youtube.com/watch?v=9bZkp7q19f0',
+            'association' => 'gallery',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        $video = $this->refresh($video);
+        self::assertSame('Nouvelle vidéo visite', $video->getTitle());
+        self::assertSame('Légende vidéo visite actualisée', $video->getCaption());
+        self::assertSame(VideoType::Youtube, $video->getVideoType());
+        self::assertSame('https://www.youtube.com/watch?v=9bZkp7q19f0', $video->getExternalUrl());
+        self::assertSame('https://img.youtube.com/vi/9bZkp7q19f0/hqdefault.jpg', $video->getThumbnailPath());
+        self::assertSame(MediaRole::Gallery, $this->refresh($link)->getRole());
+    }
+
     public function testCityVisitDeleteRequiresCsrfAndRemovesDraft(): void
     {
         $client = static::createClient();
@@ -271,6 +375,97 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
             self::assertInstanceOf(CityVisitDraftMedia::class, $link);
             self::assertSame(MediaRole::Cover, $link->getRole());
             self::assertSame('Photo principale fonctionnelle', $createdMedia->getCaption());
+        } finally {
+            if ($createdMedia instanceof MediaAsset) {
+                $this->removeGeneratedMediaFiles($createdMedia);
+            }
+            if (is_file($source)) {
+                unlink($source);
+            }
+        }
+    }
+
+    public function testCityVisitPhotoHtmlFlowRejectsExpiredAndForeignPointAssociations(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $foreignPoint = $this->createCityVisitPoint($this->createCityVisitDraft($admin));
+        $client->loginUser($admin);
+        $url = sprintf('/admin/studio/city-visits/%d/media/photos', $cityVisit->getId());
+
+        $client->request('POST', $url, ['_token' => 'bad-token']);
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 96, 48);
+        $mediaCount = $this->entityManager()->getRepository(MediaAsset::class)->count([]);
+
+        try {
+            $client->request('POST', $url, [
+                '_token' => $this->tokenFromFormAction($crawler, $url),
+                'photoAssociations' => ['point:'.$foreignPoint->getId()],
+            ], [
+                'photos' => [new UploadedFile($source, 'foreign-city-point-html.jpg', 'image/jpeg', null, true)],
+            ]);
+
+            self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+            self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+
+            $client->request('POST', $url, [
+                '_token' => $this->csrfTokenForClient($client, 'studio_city_visit_photos_'.$cityVisit->getId()),
+                'photoAssociations' => [['point:'.$foreignPoint->getId()]],
+            ], [
+                'photos' => [new UploadedFile($source, 'structured-city-association.jpg', 'image/jpeg', null, true)],
+            ]);
+            self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+            self::assertSame($mediaCount, $this->entityManager()->getRepository(MediaAsset::class)->count([]));
+        } finally {
+            if (is_file($source)) {
+                unlink($source);
+            }
+        }
+    }
+
+    public function testCityVisitPhotoUploadCreatesPointMediaThroughHtmlFlow(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $point = $this->createCityVisitPoint($cityVisit);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertResponseIsSuccessful();
+        $url = sprintf('/admin/studio/city-visits/%d/media/photos', $cityVisit->getId());
+        $source = TestImageFactory::createJpeg(TestImageFactory::testMediaDirectory(), 96, 48);
+        $createdMedia = null;
+
+        try {
+            $client->request('POST', $url, [
+                '_token' => $this->tokenFromFormAction($crawler, $url),
+                'photoCaptions' => ['Photo de visite rattachée au point'],
+                'photoImageTypes' => [ImageType::Standard->value],
+                'photoAssociations' => ['point:'.$point->getId()],
+            ], [
+                'photos' => [new UploadedFile($source, 'city-point.jpg', 'image/jpeg', null, true)],
+            ]);
+
+            self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+            $createdMedia = $this->entityManager()->getRepository(MediaAsset::class)->findOneBy(
+                ['uploadedBy' => $admin],
+                ['id' => 'DESC'],
+            );
+            self::assertInstanceOf(MediaAsset::class, $createdMedia);
+            self::assertSame('Photo de visite rattachée au point', $createdMedia->getCaption());
+            self::assertInstanceOf(CityVisitPointMedia::class, $this->entityManager()->getRepository(CityVisitPointMedia::class)->findOneBy([
+                'cityVisitPoint' => $point,
+                'mediaAsset' => $createdMedia,
+            ]));
+            self::assertNull($this->entityManager()->getRepository(CityVisitDraftMedia::class)->findOneBy([
+                'cityVisitDraft' => $cityVisit,
+                'mediaAsset' => $createdMedia,
+            ]));
         } finally {
             if ($createdMedia instanceof MediaAsset) {
                 $this->removeGeneratedMediaFiles($createdMedia);
@@ -434,6 +629,41 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
             'cityVisitPoint' => $foreignPoint,
             'mediaAsset' => $foreignAttemptMedia,
         ]));
+    }
+
+    public function testCityVisitMediaReassociationMovesExistingPointLinkWithoutDuplicate(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $firstPoint = $this->createCityVisitPoint($cityVisit, 43.61, 3.91);
+        $secondPoint = $this->createCityVisitPoint($cityVisit, 43.62, 3.92);
+        $media = $this->createImageMedia('Photo visite à réassocier');
+        $draftLink = $this->linkCityVisitMedia($cityVisit, $media, MediaRole::Gallery, 0);
+        $draftLinkId = $draftLink->getId();
+        $firstPointLink = (new CityVisitPointMedia())->setCityVisitPoint($firstPoint)->setMediaAsset($media);
+        $firstPoint->addMediaLink($firstPointLink);
+        $this->persistAndFlush($firstPointLink);
+        $client->loginUser($admin);
+
+        $client->request('POST', sprintf('/admin/studio/city-visit-media/%d/update', $draftLinkId), [
+            '_token' => $this->csrfTokenForClient($client, 'studio_city_visit_media_update_'.$draftLinkId),
+            'title' => 'Photo visite réassociée',
+            'imageType' => ImageType::Standard->value,
+            'association' => 'point:'.$secondPoint->getId(),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+        self::assertNull($this->entityManager()->find(CityVisitDraftMedia::class, $draftLinkId));
+        self::assertNull($this->entityManager()->getRepository(CityVisitPointMedia::class)->findOneBy([
+            'cityVisitPoint' => $firstPoint,
+            'mediaAsset' => $media,
+        ]));
+        self::assertInstanceOf(CityVisitPointMedia::class, $this->entityManager()->getRepository(CityVisitPointMedia::class)->findOneBy([
+            'cityVisitPoint' => $secondPoint,
+            'mediaAsset' => $media,
+        ]));
+        self::assertSame(1, $this->entityManager()->getRepository(CityVisitPointMedia::class)->count(['mediaAsset' => $media]));
     }
 
     public function testCityVisitPointMediaRejectsUpdateAndDeleteTokensFromAnotherDraft(): void

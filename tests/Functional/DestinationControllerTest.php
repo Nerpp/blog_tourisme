@@ -104,6 +104,34 @@ final class DestinationControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testDestinationHierarchyShowsOnlyExpectedNextLevelCounts(): void
+    {
+        $client = static::createClient();
+        $country = $this->createDestination('Pays niveaux attendus', DestinationType::Country);
+        $region = $this->createDestination('Région niveaux attendus', DestinationType::Region, $country);
+        $department = $this->createDestination('Département niveaux attendus', DestinationType::Department, $region, '99');
+        $city = $this->createDestination('Ville niveaux attendus', DestinationType::City, $department, '99001');
+        $area = $this->createDestination('Zone niveaux attendus', DestinationType::Area, $department);
+        $this->createDestination('Zone directement sous région ignorée', DestinationType::Area, $region);
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createPublishedHike($admin, $city)->setGeographicDestination($city);
+        $cityVisit = $this->createPublishedCityVisit($admin, $area)->setGeographicDestination($area);
+        $this->persistAndFlush($hike, $cityVisit);
+        $this->entityManager()->clear();
+
+        $client->request('GET', '/destinations/'.$country->getSlug());
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', '1 région à explorer');
+
+        $client->request('GET', '/destinations/'.$region->getSlug());
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', '1 département à explorer');
+
+        $client->request('GET', '/destinations/'.$department->getSlug());
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', '2 lieux à découvrir');
+    }
+
     public function testDestinationShowKeepsDiscoverCountOnlyInRightSummaryCard(): void
     {
         $client = static::createClient();

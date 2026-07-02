@@ -12,6 +12,7 @@ use App\Repository\PlaceRepository;
 use App\Service\Traffic\TrafficContentResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\HttpFoundation\Request;
@@ -191,6 +192,92 @@ final class TrafficSubscriberTest extends TestCase
         self::assertSame('/missing-page', $events[0]->getPath());
         self::assertSame(404, $events[0]->getStatusCode());
         self::assertSame('error', $events[0]->getContentType());
+    }
+
+    public function testSubscribedEventsAndPrivacyClassificationsCoverCommonClients(): void
+    {
+        self::assertSame([
+            'kernel.request' => ['onRequest', 255],
+            'kernel.terminate' => ['onTerminate', -255],
+        ], TrafficSubscriber::getSubscribedEvents());
+
+        $events = [];
+        $subscriber = $this->subscriber($events, 4);
+        $requests = [
+            Request::create('https://blog.example.test/ipad', server: [
+                'REMOTE_ADDR' => '2001:db8:abcd:12::42',
+                'HTTP_USER_AGENT' => 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Version/17.0 Safari/605.1.15',
+            ]),
+            Request::create('https://blog.example.test/android', server: [
+                'REMOTE_ADDR' => 'not-an-ip',
+                'HTTP_USER_AGENT' => 'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 Chrome/125.0',
+            ]),
+            Request::create('https://blog.example.test/windows', server: [
+                'REMOTE_ADDR' => '198.51.100.42',
+                'HTTP_USER_AGENT' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/125.0',
+            ]),
+            Request::create('https://blog.example.test/anonymous', server: [
+                'REMOTE_ADDR' => '',
+                'HTTP_USER_AGENT' => '',
+            ]),
+        ];
+
+        foreach ($requests as $request) {
+            $request->attributes->set('_route', 'app_home');
+            $subscriber->onTerminate($this->terminateEvent($request, $this->htmlResponse()));
+        }
+
+        self::assertCount(4, $events);
+        self::assertSame('tablet', $events[0]->getDeviceType());
+        self::assertSame('Safari', $events[0]->getBrowserFamily());
+        self::assertSame('Apple', $events[0]->getOsFamily());
+        self::assertMatchesRegularExpression('/^[a-f0-9]{64}$/', (string) $events[0]->getVisitorHash());
+        self::assertSame('mobile', $events[1]->getDeviceType());
+        self::assertSame('Android', $events[1]->getOsFamily());
+        self::assertSame('Edge', $events[2]->getBrowserFamily());
+        self::assertSame('Windows', $events[2]->getOsFamily());
+        self::assertSame('unknown', $events[3]->getDeviceType());
+        self::assertSame('unknown', $events[3]->getBrowserFamily());
+        self::assertSame('unknown', $events[3]->getOsFamily());
+        self::assertNull($events[3]->getVisitorHash());
+    }
+
+    public function testStaticExtensionIsIgnoredAndPersistenceFailureIsLogged(): void
+    {
+        $events = [];
+        $subscriber = $this->subscriber($events, 0);
+        $asset = Request::create('https://blog.example.test/document.pdf');
+        $subscriber->onTerminate($this->terminateEvent($asset, $this->htmlResponse()));
+        self::assertSame([], $events);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('persist');
+        $entityManager->expects(self::once())->method('flush')->willThrowException(new \RuntimeException('storage unavailable'));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger
+            ->expects(self::once())
+            ->method('warning')
+            ->with(
+                'Impossible d’enregistrer un événement trafic.',
+                self::callback(static fn (array $context): bool => $context['exception'] === \RuntimeException::class
+                    && $context['message'] === 'storage unavailable'),
+            );
+        $subscriber = new TrafficSubscriber(
+            $entityManager,
+            new TrafficContentResolver(
+                $this->createStub(ArticleRepository::class),
+                $this->createStub(HikeDraftRepository::class),
+                $this->createStub(CityVisitDraftRepository::class),
+                $this->createStub(DestinationRepository::class),
+                $this->createStub(PlaceRepository::class),
+            ),
+            new ParameterBag(['kernel.secret' => 'unit-test-traffic-secret']),
+            $logger,
+        );
+        $request = Request::create('https://blog.example.test/failure');
+        $request->attributes->set('_route', 'app_home');
+
+        $subscriber->onTerminate($this->terminateEvent($request, $this->htmlResponse()));
     }
 
     /**
