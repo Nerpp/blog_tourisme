@@ -3,6 +3,7 @@
 namespace App\Security;
 
 use App\Entity\User;
+use Symfony\Component\DependencyInjection\Attribute\Target;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
@@ -10,8 +11,11 @@ use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 final class ActionRateLimiter
 {
     public function __construct(
+        #[Target('commentCreateLimiter')]
         private readonly RateLimiterFactoryInterface $commentCreateLimiter,
+        #[Target('commentReportLimiter')]
         private readonly RateLimiterFactoryInterface $commentReportLimiter,
+        #[Target('adminUploadLimiter')]
         private readonly RateLimiterFactoryInterface $adminUploadLimiter,
     ) {
     }
