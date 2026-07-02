@@ -5,8 +5,9 @@ namespace App\Tests\E2E;
 use App\DataFixtures\UserFixtures;
 use App\Entity\HikeDraft;
 use Doctrine\ORM\EntityManagerInterface;
+use Facebook\WebDriver\Chrome\ChromeDevToolsDriver;
+use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\WebDriverBy;
-use Facebook\WebDriver\WebDriverDimension;
 use Facebook\WebDriver\WebDriverKeys;
 use Facebook\WebDriver\WebDriverWait;
 
@@ -19,11 +20,17 @@ final class StudioMobileNavigationPantherTest extends PantherTestCase
 
         $client = self::createBrowser();
         $webDriver = $client->getWebDriver();
-        $webDriver->manage()->window()->setSize(new WebDriverDimension(780, 900));
+        (new ChromeDevToolsDriver($webDriver))->execute('Emulation.setDeviceMetricsOverride', [
+            'width' => 390,
+            'height' => 844,
+            'deviceScaleFactor' => 2,
+            'mobile' => true,
+        ]);
 
         $this->loginAsFixtureAdmin($client);
         $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hikeId));
         $client->waitFor('[data-studio-quick-nav].is-collapsed');
+        $this->assertPageHasNoHorizontalOverflow($webDriver);
 
         self::assertSelectorIsVisible('[data-studio-quick-nav-toggle]');
         self::assertSelectorExists('[data-studio-quick-nav-toggle][aria-expanded="false"]');
@@ -51,6 +58,11 @@ final class StudioMobileNavigationPantherTest extends PantherTestCase
 
         self::assertSelectorNotExists('[data-studio-quick-nav].is-collapsed');
         self::assertTrue($webDriver->findElement(WebDriverBy::cssSelector('[data-studio-quick-nav-panel]'))->isDisplayed());
+        self::assertSelectorTextContains('[data-studio-quick-nav-panel]', 'Retour au site public');
+        self::assertSelectorTextContains('[data-studio-quick-nav-panel]', 'Aperçu indisponible');
+        self::assertSelectorTextContains('[data-studio-quick-nav-panel]', 'Enregistrer');
+        self::assertSelectorExists('.studio-quick-nav__item--disabled[aria-disabled="true"]');
+        $this->assertPageHasNoHorizontalOverflow($webDriver);
 
         $webDriver->findElement(WebDriverBy::tagName('body'))->sendKeys(WebDriverKeys::ESCAPE);
         $client->waitFor('[data-studio-quick-nav].is-collapsed');
@@ -73,6 +85,24 @@ final class StudioMobileNavigationPantherTest extends PantherTestCase
         self::assertSelectorExists('#studio-location');
         self::assertSelectorExists('[data-studio-quick-nav].is-collapsed');
         self::assertFalse($webDriver->findElement(WebDriverBy::cssSelector('[data-studio-quick-nav-panel]'))->isDisplayed());
+        $this->assertPageHasNoHorizontalOverflow($webDriver);
+    }
+
+    private function assertPageHasNoHorizontalOverflow(RemoteWebDriver $webDriver): void
+    {
+        /** @var array{innerWidth: int|float, scrollWidth: int|float} $layout */
+        $layout = $webDriver->executeScript(<<<'JS'
+            return {
+                innerWidth: window.innerWidth,
+                scrollWidth: Math.max(
+                    document.documentElement.scrollWidth,
+                    document.body ? document.body.scrollWidth : 0
+                ),
+            };
+        JS);
+
+        self::assertSame(390, (int) $layout['innerWidth']);
+        self::assertLessThanOrEqual((int) $layout['innerWidth'] + 1, (int) $layout['scrollWidth']);
     }
 
     private function fixtureHikeId(): int
