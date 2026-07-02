@@ -4,7 +4,6 @@ updates:
   # Dépendances PHP : Symfony, Doctrine, PHPUnit, etc.
   - package-ecosystem: "composer"
     directory: "/"
-    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -26,7 +25,6 @@ updates:
   # Dépendances JavaScript : Vite, Leaflet, plugins, etc.
   - package-ecosystem: "npm"
     directory: "/"
-    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -34,13 +32,22 @@ updates:
       timezone: "Europe/Paris"
     open-pull-requests-limit: 2
 
-  # Image de base du Dockerfile.
+  # Image PHP définie dans le Dockerfile racine.
   - package-ecosystem: "docker"
     directory: "/"
-    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "07:30"
       timezone: "Europe/Paris"
     open-pull-requests-limit: 1
+
+  # Actions GitHub utilisées par la CI.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "07:45"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 2

@@ -38,5 +38,13 @@ coverage:
 	$(COMPOSE) exec -e XDEBUG_MODE=coverage php composer test:coverage
 
 test-all:
-	$(COMPOSE) exec php composer quality:e2e
-	$(COMPOSE) exec -e XDEBUG_MODE=coverage php composer test:coverage
+	$(COMPOSE) exec -T php composer validate --strict
+	$(COMPOSE) exec -T php composer audit
+	$(COMPOSE) exec -T php php bin/console lint:container
+	$(COMPOSE) exec -T php php bin/console lint:twig templates
+	$(COMPOSE) exec -T php php bin/console doctrine:migrations:status --env=test
+	$(COMPOSE) exec -T php php bin/console doctrine:schema:validate --env=test
+	$(COMPOSE) run --rm node npm run build
+	$(COMPOSE) exec -T -e XDEBUG_MODE=coverage php composer test:coverage
+	$(COMPOSE) exec -T php composer test:e2e
+	$(COMPOSE) exec -T php php vendor/bin/phpstan analyse
