@@ -94,7 +94,12 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
 
         $client = self::createBrowser();
         $webDriver = $client->getWebDriver();
-        $webDriver->manage()->window()->setSize(new WebDriverDimension(390, 844));
+        (new ChromeDevToolsDriver($webDriver))->execute('Emulation.setDeviceMetricsOverride', [
+            'width' => 390,
+            'height' => 844,
+            'deviceScaleFactor' => 2,
+            'mobile' => true,
+        ]);
         $client->request('GET', '/visites-de-ville/visiter-collioure-a-pied');
         $client->waitFor('.journey-gallery img[srcset]');
 
@@ -121,7 +126,12 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
 
         $desktopClient = self::createBrowser();
         $desktopDriver = $desktopClient->getWebDriver();
-        $desktopDriver->manage()->window()->setSize(new WebDriverDimension(1440, 1000));
+        (new ChromeDevToolsDriver($desktopDriver))->execute('Emulation.setDeviceMetricsOverride', [
+            'width' => 1440,
+            'height' => 1000,
+            'deviceScaleFactor' => 1,
+            'mobile' => false,
+        ]);
         $desktopClient->request('GET', '/visites-de-ville/visiter-collioure-a-pied');
         $desktopClient->waitFor('.journey-gallery img[srcset]');
         $desktopSource = $this->currentSourceForSelector($desktopDriver, '.journey-gallery img[srcset]');

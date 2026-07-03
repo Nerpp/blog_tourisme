@@ -10,7 +10,7 @@
             {% set image_url = media_image_url(media, 'thumb') %}
 
             {% if image_url %}
-                {% set card_sizes = loop.first ? '(min-width: 900px) 50vw, 90vw' : '(min-width: 900px) 25vw, 45vw' %}
+                {% set card_sizes = loop.first ? '(min-width: 900px) 50vw, (max-width: 360px) calc(100vw - 58px), (max-width: 640px) calc(100vw - 70px), 90vw' : '(min-width: 900px) 25vw, 45vw' %}
 
                 <button
                     type="button"
