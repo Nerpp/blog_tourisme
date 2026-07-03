@@ -57,8 +57,15 @@ jobs:
           docker compose run --rm node npm ci
 
       - name: Prepare test database
+        env:
+          TEST_DATABASE: app_test
         run: |
-          docker compose exec -T mysql mysql --user=root --password=root --execute="GRANT ALL PRIVILEGES ON app_test.* TO 'app'@'%';"
+          docker compose exec -T -e TEST_DATABASE="${TEST_DATABASE}" mysql sh -eu -c '
+            MYSQL_PWD="${MYSQL_ROOT_PASSWORD}" mysql --user=root --execute="
+              CREATE DATABASE IF NOT EXISTS \`${TEST_DATABASE}\`;
+              GRANT ALL PRIVILEGES ON \`${TEST_DATABASE}\`.* TO '"'"'${MYSQL_USER}'"'"'@'"'"'%'"'"';
+            "
+          '
           docker compose exec -T php composer lighthouse:test-db:reset
 
       - name: Run merge gate
