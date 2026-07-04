@@ -149,6 +149,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function isAdmin(): bool
+    {
+        return $this->isSuperAdmin() || in_array('ROLE_ADMIN', $this->getRoles(), true);
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return in_array('ROLE_SUPER_ADMIN', $this->getRoles(), true);
+    }
+
     public function getPassword(): ?string
     {
         return $this->password;

@@ -157,6 +157,6 @@ final class CommentModerationAdminService
 
     private function isAdmin(User $user): bool
     {
-        return in_array('ROLE_ADMIN', $user->getRoles(), true);
+        return $user->isAdmin();
     }
 }

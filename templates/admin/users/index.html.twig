@@ -16,7 +16,8 @@
                 <tr>
                     <th>Email</th>
                     <th>Nom affiché</th>
-                    <th>Rôles</th>
+                    <th>Accès</th>
+                    <th>E-mail</th>
                     <th>Trusted</th>
                     <th>Approuvés</th>
                     <th>Refusés</th>
@@ -29,7 +30,20 @@
                     <tr>
                         <td>{{ user.email }}</td>
                         <td>{{ user.displayName ?: '-' }}</td>
-                        <td>{{ user.roles|join(', ') }}</td>
+                        <td>
+                            {% if user.superAdmin %}
+                                <span class="admin-badge admin-badge--info">Super-administrateur</span>
+                            {% elseif user.admin %}
+                                <span class="admin-badge">Administrateur</span>
+                            {% else %}
+                                <span class="admin-badge admin-badge--muted">Utilisateur</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="admin-badge {{ user.verified ? '' : 'admin-badge--warning' }}">
+                                {{ user.verified ? 'Vérifié' : 'Non vérifié' }}
+                            </span>
+                        </td>
                         <td>{{ user.trustedCommenter ? 'Oui' : 'Non' }}</td>
                         <td>{{ user.approvedCommentsCount }}</td>
                         <td>{{ user.rejectedCommentsCount }}</td>
@@ -43,7 +57,7 @@
                         <td><a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_users_show', { id: user.id }) }}">Ouvrir</a></td>
                     </tr>
                 {% else %}
-                    <tr><td colspan="8">Aucun utilisateur.</td></tr>
+                    <tr><td colspan="9">Aucun utilisateur.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

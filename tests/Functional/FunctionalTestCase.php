@@ -81,6 +81,11 @@ abstract class FunctionalTestCase extends WebTestCase
         return $this->createUser(['ROLE_ADMIN', 'ROLE_USER'], false);
     }
 
+    protected function createVerifiedSuperAdmin(): User
+    {
+        return $this->createUser(['ROLE_SUPER_ADMIN']);
+    }
+
     protected function createDestination(
         ?string $name = null,
         DestinationType $type = DestinationType::Area,

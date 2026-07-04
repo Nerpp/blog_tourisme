@@ -68,6 +68,6 @@ class CommentVoter extends Voter
 
     private function isAdmin(User $user): bool
     {
-        return in_array('ROLE_ADMIN', $user->getRoles(), true) && $user->isVerified();
+        return $user->isAdmin() && $user->isVerified();
     }
 }

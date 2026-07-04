@@ -41,7 +41,7 @@ final class ContentEditVoter extends Voter
         $user = $token->getUser();
 
         return $user instanceof User
-            && in_array('ROLE_ADMIN', $user->getRoles(), true)
+            && $user->isAdmin()
             && $user->isVerified();
     }
 }

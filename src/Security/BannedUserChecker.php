@@ -26,7 +26,7 @@ final class BannedUserChecker implements UserCheckerInterface
             return;
         }
 
-        if (!$user->isBanned() || in_array('ROLE_ADMIN', $user->getRoles(), true)) {
+        if (!$user->isBanned() || $user->isAdmin()) {
             return;
         }
 

@@ -19,6 +19,15 @@ final class AdminAccessVoterTest extends TestCase
         self::assertSame(VoterInterface::ACCESS_GRANTED, $vote);
     }
 
+    public function testVerifiedSuperAdminInheritsAdminAccess(): void
+    {
+        $voter = new AdminAccessVoter();
+
+        $vote = $voter->vote($this->tokenFor($this->user(['ROLE_SUPER_ADMIN'], true)), null, [AdminAccessVoter::ACCESS]);
+
+        self::assertSame(VoterInterface::ACCESS_GRANTED, $vote);
+    }
+
     public function testUnverifiedAdminCannotAccessAdmin(): void
     {
         $voter = new AdminAccessVoter();

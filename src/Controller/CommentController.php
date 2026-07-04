@@ -584,7 +584,7 @@ final class CommentController extends AbstractController
 
     private function isBannedCommenter(User $user): bool
     {
-        return $user->isBanned() && !in_array('ROLE_ADMIN', $user->getRoles(), true);
+        return $user->isBanned() && !$user->isAdmin();
     }
 
     private function canUseCommentActions(User $user): bool

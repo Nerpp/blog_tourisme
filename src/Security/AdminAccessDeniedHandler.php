@@ -26,9 +26,13 @@ final class AdminAccessDeniedHandler implements AccessDeniedHandlerInterface
             return null;
         }
 
+        if (preg_match('#^/admin/users/\d+/roles/admin/(?:grant|revoke)$#', $request->getPathInfo()) === 1) {
+            return null;
+        }
+
         $user = $this->security->getUser();
         $message = $user instanceof User
-            && in_array('ROLE_ADMIN', $user->getRoles(), true)
+            && $user->isAdmin()
             && !$user->isVerified()
                 ? 'Veuillez confirmer votre adresse email avant d’accéder à l’administration.'
                 : 'Vous n’avez pas accès à l’administration.';

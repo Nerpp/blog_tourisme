@@ -23,9 +23,21 @@
             <div>
                 <span class="admin-badge {{ user_account.banned ? 'admin-badge--danger' : '' }}">{{ user_account.banned ? 'Utilisateur banni' : 'Compte actif' }}</span>
                 <span class="admin-badge admin-badge--muted">{{ user_account.trustedCommenter ? 'Commentateur fiable' : 'Commentateur standard' }}</span>
+                {% if user_account.superAdmin %}
+                    <span class="admin-badge admin-badge--info">Super-administrateur</span>
+                {% elseif user_account.admin %}
+                    <span class="admin-badge">Administrateur</span>
+                {% else %}
+                    <span class="admin-badge admin-badge--muted">Utilisateur</span>
+                {% endif %}
+                <span class="admin-badge {{ user_account.verified ? '' : 'admin-badge--warning' }}">
+                    {{ user_account.verified ? 'E-mail vérifié' : 'E-mail non vérifié' }}
+                </span>
             </div>
             <div class="admin-row-actions">
-                {% if user_account.banned %}
+                {% if user_account.admin %}
+                    <span class="admin-muted">Un compte administrateur ne peut pas être banni ici.</span>
+                {% elseif user_account.banned %}
                     <form method="post" action="{{ path('admin_users_unban', { id: user_account.id }) }}" onsubmit="return confirm('Débannir cet utilisateur ?');">
                         <input type="hidden" name="_token" value="{{ csrf_token('admin_user_unban_' ~ user_account.id) }}">
                         <button class="admin-button" type="submit">Débannir</button>
@@ -46,6 +58,62 @@
             <div><strong>Date de bannissement</strong><br>{{ user_account.bannedAt ? user_account.bannedAt|date('d/m/Y H:i') : '-' }}</div>
             <div><strong>Raison</strong><br>{{ user_account.banReason ?: '-' }}</div>
         </div>
+    </section>
+
+    <section class="admin-card">
+        <div class="admin-detail-header">
+            <div>
+                <h2>Accès à l’administration</h2>
+                <p class="admin-muted">Un administrateur peut accéder à l’administration habituelle du site.</p>
+            </div>
+            {% if is_granted('USER_ROLE_MANAGE', user_account) and not user_account.superAdmin and app.user.id != user_account.id %}
+                <div class="admin-row-actions">
+                    {% if user_account.admin %}
+                        <form method="post" action="{{ path('admin_users_role_admin_revoke', { id: user_account.id }) }}" onsubmit="return confirm('Retirer l’accès administrateur à cet utilisateur ?');">
+                            <input type="hidden" name="_token" value="{{ csrf_token('admin_user_role_revoke_' ~ user_account.id) }}">
+                            <button class="admin-button admin-button--danger" type="submit">Retirer ROLE_ADMIN</button>
+                        </form>
+                    {% elseif user_account.verified %}
+                        <form method="post" action="{{ path('admin_users_role_admin_grant', { id: user_account.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('admin_user_role_grant_' ~ user_account.id) }}">
+                            <button class="admin-button" type="submit">Promouvoir administrateur</button>
+                        </form>
+                    {% else %}
+                        <span class="admin-badge admin-badge--warning">Promotion impossible : e-mail non vérifié</span>
+                    {% endif %}
+                </div>
+            {% elseif user_account.superAdmin %}
+                <p class="admin-muted">Les rôles d’un super-administrateur ne sont jamais modifiables depuis le web.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="admin-card admin-table-wrap">
+        <h2>Historique récent des accès</h2>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Action</th>
+                    <th>Utilisateur concerné</th>
+                    <th>Effectué par</th>
+                    <th>Source</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for audit in role_audits %}
+                    <tr>
+                        <td>{{ audit.createdAt ? audit.createdAt|date('d/m/Y H:i') : '-' }}</td>
+                        <td>{{ audit.action == 'grant' ? 'Ajout' : 'Retrait' }} · {{ audit.role }}</td>
+                        <td>{{ audit.targetUser ? (audit.targetUser.displayName ?: audit.targetUser.email) : '-' }}</td>
+                        <td>{{ audit.actor ? (audit.actor.displayName ?: audit.actor.email) : 'Commande système' }}</td>
+                        <td>{{ audit.source == 'web' ? 'Interface web' : 'Commande d’amorçage' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">Aucun changement de rôle enregistré.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </section>
 
     <section class="admin-card">

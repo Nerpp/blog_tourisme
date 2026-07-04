@@ -28,3 +28,5 @@ yarn-error.log*
 ### Symfony secrets / vault ###
 /config/secrets/*/*decrypt.private.php
 /config/secrets/*/*.private.php
+/config/production/initial-admins.yaml
+!/config/production/initial-admins.yaml.dist
