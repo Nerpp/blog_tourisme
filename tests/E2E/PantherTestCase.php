@@ -30,7 +30,6 @@ abstract class PantherTestCase extends BasePantherTestCase
                 '--no-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
-                '--disable-features=PartitionAllocSchedulerLoopQuarantineTaskControlledPurge',
                 '--user-data-dir='.$profileDirectory,
                 '--window-size=1400,1000',
             ],

@@ -4,6 +4,7 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
+      target: development
     container_name: blog_tourisme_php
     env_file:
       - .env.docker

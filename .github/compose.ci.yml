@@ -1,9 +1,11 @@
 services:
   php:
+    build:
+      target: ci
     environment:
       CI: "true"
-      PANTHER_CHROME_ARGUMENTS: --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-features=PartitionAllocSchedulerLoopQuarantineTaskControlledPurge
-      PANTHER_CHROME_BINARY: /usr/bin/chromium
+      PANTHER_CHROME_ARGUMENTS: --headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu
+      PANTHER_CHROME_BINARY: /usr/local/bin/chrome-for-testing
       HOME: /tmp/panther-home
       XDG_CACHE_HOME: /tmp/panther-cache
       XDG_CONFIG_HOME: /tmp/panther-config

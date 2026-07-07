@@ -24,7 +24,7 @@
         <env name="PANTHER_ERROR_SCREENSHOT_DIR" value="var/panther/screenshots"/>
         <env name="PANTHER_NO_SANDBOX" value="1"/>
         <env name="PANTHER_CHROME_BINARY" value="/usr/bin/chromium"/>
-        <env name="PANTHER_CHROME_ARGUMENTS" value="--headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-features=PartitionAllocSchedulerLoopQuarantineTaskControlledPurge --window-size=1400,1000"/>
+        <env name="PANTHER_CHROME_ARGUMENTS" value="--headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu --window-size=1400,1000"/>
         <env name="HOME" value="/tmp"/>
         <env name="XDG_CACHE_HOME" value="/tmp/panther-cache"/>
         <env name="XDG_CONFIG_HOME" value="/tmp/panther-config"/>

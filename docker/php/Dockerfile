@@ -1,4 +1,4 @@
-FROM php:8.4-fpm-bookworm
+FROM php:8.4-fpm-bookworm AS development
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -53,3 +53,26 @@ WORKDIR /var/www/html
 
 ENTRYPOINT ["app-entrypoint"]
 CMD ["php-fpm"]
+
+FROM development AS ci
+
+ARG CHROME_FOR_TESTING_VERSION=145.0.7632.117
+ARG CHROME_HEADLESS_SHELL_SHA256=187692424c038e5481495f2475e5fcf1b4125e33df9ae39ba86bd0a3d8569acf
+ARG CHROMEDRIVER_SHA256=7f397fa71614b2d97dcb06a87f3297c91725042803654d6c7fedcd10387a5df8
+
+RUN curl -fsSLo /tmp/chrome-headless-shell-linux64.zip \
+        "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-headless-shell-linux64.zip" \
+    && curl -fsSLo /tmp/chromedriver-linux64.zip \
+        "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chromedriver-linux64.zip" \
+    && echo "${CHROME_HEADLESS_SHELL_SHA256}  /tmp/chrome-headless-shell-linux64.zip" | sha256sum -c - \
+    && echo "${CHROMEDRIVER_SHA256}  /tmp/chromedriver-linux64.zip" | sha256sum -c - \
+    && mkdir -p /opt/chrome-for-testing /opt/chromedriver \
+    && unzip -q /tmp/chrome-headless-shell-linux64.zip -d /opt/chrome-for-testing \
+    && unzip -q /tmp/chromedriver-linux64.zip -d /tmp/chromedriver \
+    && install -m 0755 /tmp/chromedriver/chromedriver-linux64/chromedriver /opt/chromedriver/chromedriver \
+    && ln -s /opt/chromedriver/chromedriver /usr/local/bin/chromedriver \
+    && /opt/chrome-for-testing/chrome-headless-shell-linux64/chrome-headless-shell --version \
+    && /opt/chromedriver/chromedriver --version \
+    && rm -rf /tmp/chrome-headless-shell-linux64.zip /tmp/chromedriver-linux64.zip /tmp/chromedriver
+
+COPY --chmod=0755 docker/php/chrome-for-testing /usr/local/bin/chrome-for-testing
