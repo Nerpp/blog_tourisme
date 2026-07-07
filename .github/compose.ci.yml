@@ -7,6 +7,8 @@ services:
       HOME: /tmp/panther-home
       XDG_CACHE_HOME: /tmp/panther-cache
       XDG_CONFIG_HOME: /tmp/panther-config
+      XDG_DATA_HOME: /tmp/panther-data
+      XDG_RUNTIME_DIR: /tmp/panther-runtime
 
   node:
     environment:
