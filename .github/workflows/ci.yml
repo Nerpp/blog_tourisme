@@ -56,6 +56,19 @@ jobs:
           docker compose run --rm --user root node chown -R "${DOCKER_UID}:${DOCKER_GID}" /var/www/html/node_modules
           docker compose run --rm node npm ci
 
+      - name: Diagnose Panther browser
+        run: |
+          docker compose exec -T php sh -lc 'which chromium || which chromium-browser || which google-chrome || true'
+          docker compose exec -T php sh -lc 'which chromedriver || which chromium-driver || true'
+          docker compose exec -T php sh -lc 'chromium --version || chromium-browser --version || google-chrome --version || true'
+          docker compose exec -T php sh -lc 'chromedriver --version || chromium-driver --version || true'
+          docker compose exec -T php sh -lc 'id && df -h /dev/shm || true'
+
+      - name: Run Panther smoke test
+        run: |
+          make test-db-reset
+          docker compose exec -T -e SKIP_TEST_DB_RESET=1 php php vendor/bin/phpunit tests/E2E/LoginPantherTest.php
+
       - name: Run merge gate
         run: make test-all
 
