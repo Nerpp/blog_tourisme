@@ -20,6 +20,26 @@ class CityVisitDraftRepository extends ServiceEntityRepository
         parent::__construct($registry, CityVisitDraft::class);
     }
 
+    /** @return list<CityVisitDraft> */
+    public function findPublicForSitemap(): array
+    {
+        /** @var list<CityVisitDraft> $cityVisits */
+        $cityVisits = $this->createQueryBuilder('c')
+            ->andWhere('c.status IN (:statuses)')
+            ->andWhere('c.slug IS NOT NULL')
+            ->andWhere('c.slug != :emptySlug')
+            ->setParameter('statuses', [
+                CityVisitDraftStatus::Finished->value,
+                CityVisitDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->setParameter('emptySlug', '')
+            ->orderBy('c.slug', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $cityVisits;
+    }
+
     public function findCurrentDraftForUser(User $user): ?CityVisitDraft
     {
         /** @var CityVisitDraft|null $draft */

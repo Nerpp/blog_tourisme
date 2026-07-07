@@ -63,7 +63,7 @@ final class PublicNavigationPantherTest extends PantherTestCase
         $client = self::createBrowser();
         $client->request('GET', '/');
 
-        self::assertSelectorTextContains('body', 'Blog Tourisme');
+        self::assertSelectorTextContains('footer.site-footer', 'Voyager entre mer, montagne et lumière.');
         $this->assertPageHasBuiltStyles($client, 'assets/app.js', 'assets/entries/home.js');
         $this->assertPageHasBuiltScripts($client, 'assets/app.js');
         $this->assertPageDoesNotHaveBuiltAssets(

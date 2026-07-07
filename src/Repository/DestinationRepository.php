@@ -20,6 +20,21 @@ class DestinationRepository extends ServiceEntityRepository
     }
 
     /** @return list<Destination> */
+    public function findForSitemap(): array
+    {
+        /** @var list<Destination> $destinations */
+        $destinations = $this->createQueryBuilder('d')
+            ->andWhere('d.slug IS NOT NULL')
+            ->andWhere('d.slug != :emptySlug')
+            ->setParameter('emptySlug', '')
+            ->orderBy('d.slug', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $destinations;
+    }
+
+    /** @return list<Destination> */
     public function findRootDestinations(): array
     {
         /** @var list<Destination> $destinations */

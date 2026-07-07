@@ -28,6 +28,23 @@ class ArticleRepository extends ServiceEntityRepository
     }
 
     /** @return list<Article> */
+    public function findPublishedForSitemap(): array
+    {
+        /** @var list<Article> $articles */
+        $articles = $this->createQueryBuilder('a')
+            ->andWhere('a.status = :status')
+            ->andWhere('a.slug IS NOT NULL')
+            ->andWhere('a.slug != :emptySlug')
+            ->setParameter('status', ContentStatus::Published)
+            ->setParameter('emptySlug', '')
+            ->orderBy('a.slug', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $articles;
+    }
+
+    /** @return list<Article> */
     public function findPublishedForListing(?string $query = null, ?int $limit = null, ?string $categorySlug = null): array
     {
         if ($limit !== null && $limit <= 0) {

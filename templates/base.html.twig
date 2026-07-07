@@ -22,6 +22,8 @@
 		{% endblock %}
 	</head>
 	<body>
+		<a class="skip-link" href="#main-content">Aller au contenu principal</a>
+
 		{% block site_header %}
 			{% include 'partials/nav/_navbar.html.twig' %}
 		{% endblock %}
@@ -39,6 +41,7 @@
 			</div>
 		{% endif %}
 
+		<span id="main-content" class="main-content-anchor" tabindex="-1"></span>
 		{% block body %}{% endblock %}
 
 		{% block site_footer %}

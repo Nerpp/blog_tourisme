@@ -21,6 +21,23 @@ class PlaceRepository extends ServiceEntityRepository
     }
 
     /** @return list<Place> */
+    public function findPublishedForSitemap(): array
+    {
+        /** @var list<Place> $places */
+        $places = $this->createQueryBuilder('p')
+            ->andWhere('p.status = :status')
+            ->andWhere('p.slug IS NOT NULL')
+            ->andWhere('p.slug != :emptySlug')
+            ->setParameter('status', ContentStatus::Published)
+            ->setParameter('emptySlug', '')
+            ->orderBy('p.slug', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $places;
+    }
+
+    /** @return list<Place> */
     public function findPublished(?Destination $destination = null, ?Category $category = null, ?Tag $tag = null, int $limit = 24): array
     {
         $qb = $this->createPublishedQueryBuilder();

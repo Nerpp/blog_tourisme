@@ -1,0 +1,36 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Plan du site - Estela{% endblock %}
+{% block meta_description %}Retrouvez les principales rubriques publiques d’Estela : destinations, randonnées, visites, articles et lieux.{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ url('app_sitemap_html') }}">{% endblock %}
+
+{% block body %}
+    <main class="page-shell site-map-page">
+        <header class="page-header">
+            <p class="eyebrow">Navigation</p>
+            <h1>Plan du site</h1>
+            <p>Retrouvez les principales rubriques publiques pour explorer Estela.</p>
+        </header>
+
+        <div class="site-map-grid">
+            <section class="site-map-section" aria-labelledby="site-map-discover-title">
+                <h2 id="site-map-discover-title">Découvrir Estela</h2>
+                <ul>
+                    <li><a href="{{ path('app_home') }}">Accueil</a></li>
+                    <li><a href="{{ path('app_destination_index') }}">Destinations</a></li>
+                    <li><a href="{{ path('app_hike_index') }}">Randonnées</a></li>
+                    <li><a href="{{ path('app_city_visit_index') }}">Visites</a></li>
+                    <li><a href="{{ path('app_article_index') }}">Articles</a></li>
+                    <li><a href="{{ path('app_place_index') }}">Lieux</a></li>
+                </ul>
+            </section>
+
+            <section class="site-map-section" aria-labelledby="site-map-information-title">
+                <h2 id="site-map-information-title">Informations</h2>
+                <ul>
+                    <li><a href="{{ path('app_sitemap_html') }}" aria-current="page">Plan du site</a></li>
+                </ul>
+            </section>
+        </div>
+    </main>
+{% endblock %}

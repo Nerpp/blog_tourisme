@@ -20,6 +20,26 @@ class HikeDraftRepository extends ServiceEntityRepository
         parent::__construct($registry, HikeDraft::class);
     }
 
+    /** @return list<HikeDraft> */
+    public function findPublicForSitemap(): array
+    {
+        /** @var list<HikeDraft> $hikes */
+        $hikes = $this->createQueryBuilder('h')
+            ->andWhere('h.status IN (:statuses)')
+            ->andWhere('h.slug IS NOT NULL')
+            ->andWhere('h.slug != :emptySlug')
+            ->setParameter('statuses', [
+                HikeDraftStatus::Finished->value,
+                HikeDraftStatus::Converted->value,
+            ], ArrayParameterType::STRING)
+            ->setParameter('emptySlug', '')
+            ->orderBy('h.slug', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $hikes;
+    }
+
     public function findCurrentDraftForUser(User $user): ?HikeDraft
     {
         /** @var HikeDraft|null $draft */
