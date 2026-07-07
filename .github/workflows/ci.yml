@@ -138,6 +138,12 @@ jobs:
             exit "${chromium_status}"
           '
 
+      - name: Diagnose Symfony login route
+        run: |
+          docker compose exec -T php sh -lc 'php bin/console debug:router | grep -E "login|logout" || true'
+          docker compose exec -T php php bin/console about --env=test
+          docker compose exec -T php sh -lc 'find var/log -maxdepth 2 -type f -print 2>/dev/null || true'
+
       - name: Run Panther smoke test
         run: |
           make test-db-reset
@@ -164,6 +170,8 @@ jobs:
           docker compose cp php:/tmp/panther-chromedriver.log tmp/ci-artifacts/panther-chromedriver.log || true
           docker compose cp php:/tmp/panther-chrome.log tmp/ci-artifacts/panther-chrome.log || true
           docker compose cp php:/tmp/panther-chromium-direct.log tmp/ci-artifacts/panther-chromium-direct.log || true
+          docker compose cp php:/tmp/panther-login-failure.html tmp/ci-artifacts/panther-login-failure.html || true
+          docker compose cp php:/tmp/panther-login-failure.png tmp/ci-artifacts/panther-login-failure.png || true
 
       - name: Upload failure artifacts
         if: failure()
