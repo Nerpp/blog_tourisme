@@ -121,10 +121,10 @@ final class LighthouseCatalogTest extends FunctionalTestCase
         $kernel = self::$kernel;
         self::assertNotNull($kernel);
         $application = new Application($kernel);
-        $tester = new CommandTester($application->find('app:lighthouse:assert-safe-database'));
+        $tester = new CommandTester($application->find('app:test-database:assert-safe'));
 
         self::assertSame(0, $tester->execute([]));
-        self::assertStringContainsString('Base Lighthouse sûre confirmée', $tester->getDisplay());
+        self::assertStringContainsString('Base de test sûre confirmée', $tester->getDisplay());
         self::assertStringContainsString(AssertLighthouseDatabaseCommand::EXPECTED_ENVIRONMENT, $tester->getDisplay());
         self::assertStringContainsString('app_test', $tester->getDisplay());
     }

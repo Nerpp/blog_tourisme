@@ -11,11 +11,14 @@ use App\Entity\User;
 use App\Enum\CommentStatus;
 use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class CommentFixtures extends Fixture implements DependentFixtureInterface
+final class CommentFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const ARTICLE_APPROVED_REFERENCE = 'comment.article.approved';
     public const ARTICLE_APPROVED_REPLY_REFERENCE = 'comment.article.approved-reply';
     public const ARTICLE_PENDING_REFERENCE = 'comment.article.pending';

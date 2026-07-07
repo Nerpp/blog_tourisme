@@ -10,11 +10,14 @@ use App\Entity\User;
 use App\Enum\CommentReportReason;
 use App\Enum\CommentReportStatus;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class CommentReportFixtures extends Fixture implements DependentFixtureInterface
+final class CommentReportFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public function load(ObjectManager $manager): void
     {
         $trusted = $this->getUser(UserFixtures::TRUSTED_REFERENCE);

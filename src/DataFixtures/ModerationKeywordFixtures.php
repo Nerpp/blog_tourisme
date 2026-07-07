@@ -7,10 +7,13 @@ namespace App\DataFixtures;
 use App\Entity\ModerationKeyword;
 use App\Enum\ModerationKeywordType;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class ModerationKeywordFixtures extends Fixture
+final class ModerationKeywordFixtures extends Fixture implements FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public function load(ObjectManager $manager): void
     {
         $keywords = [

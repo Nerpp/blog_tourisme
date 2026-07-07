@@ -7,10 +7,13 @@ namespace App\DataFixtures;
 use App\Entity\Category;
 use App\Enum\CategoryType;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class CategoryFixtures extends Fixture
+final class CategoryFixtures extends Fixture implements FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const MONUMENT_REFERENCE = 'category.monument';
     public const PLAGE_REFERENCE = 'category.plage';
     public const RANDONNEE_REFERENCE = 'category.randonnee';

@@ -17,11 +17,14 @@ use App\Enum\HikePointType;
 use App\Enum\MediaRole;
 use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class HikeFixtures extends Fixture implements DependentFixtureInterface
+final class HikeFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const CANIGOU_REFERENCE = 'hike.canigou-decouverte';
     public const COLLIOURE_BANYULS_REFERENCE = 'hike.sentier-cotier-collioure-banyuls';
     public const MONTNER_REFERENCE = 'hike.petite-boucle-montner';

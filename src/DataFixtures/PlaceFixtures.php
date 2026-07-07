@@ -17,11 +17,14 @@ use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
 use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class PlaceFixtures extends Fixture implements DependentFixtureInterface
+final class PlaceFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const FORT_SAINT_ELME_REFERENCE = 'place.fort-saint-elme';
     public const CHATEAU_ROYAL_COLLIOURE_REFERENCE = 'place.chateau-royal-collioure';
     public const PLAGE_BORAMAR_REFERENCE = 'place.plage-boramar';

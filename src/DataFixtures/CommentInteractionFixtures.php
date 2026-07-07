@@ -10,11 +10,14 @@ use App\Entity\CommentReplyNotification;
 use App\Entity\User;
 use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class CommentInteractionFixtures extends Fixture implements DependentFixtureInterface
+final class CommentInteractionFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public function load(ObjectManager $manager): void
     {
         $admin = $this->getUser(UserFixtures::ADMIN_REFERENCE);

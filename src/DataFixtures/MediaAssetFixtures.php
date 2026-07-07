@@ -12,12 +12,15 @@ use App\Enum\VideoType;
 use App\Service\Media\MediaVariantService;
 use App\Service\Media\PublicMediaMasterCleanupService;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 use GdImage;
 
-final class MediaAssetFixtures extends Fixture implements DependentFixtureInterface
+final class MediaAssetFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const COLLIOURE_STANDARD_REFERENCE = 'media.collioure-standard';
     public const COLLIOURE_PANORAMA_REFERENCE = 'media.collioure-panorama';
     public const FORT_SAINT_ELME_360_REFERENCE = 'media.fort-saint-elme-360';

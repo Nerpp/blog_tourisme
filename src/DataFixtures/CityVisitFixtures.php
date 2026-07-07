@@ -17,11 +17,14 @@ use App\Enum\CityVisitPointType;
 use App\Enum\MediaRole;
 use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class CityVisitFixtures extends Fixture implements DependentFixtureInterface
+final class CityVisitFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const COLLIOURE_REFERENCE = 'city_visit.collioure-a-pied';
     public const PERPIGNAN_REFERENCE = 'city_visit.perpignan-historique';
     public const CERET_REFERENCE = 'city_visit.ceret-centre-ancien';

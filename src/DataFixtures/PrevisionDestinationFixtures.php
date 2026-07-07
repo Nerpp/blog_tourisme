@@ -7,10 +7,13 @@ namespace App\DataFixtures;
 use App\Entity\PrevisionDestination;
 use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class PrevisionDestinationFixtures extends Fixture
+final class PrevisionDestinationFixtures extends Fixture implements FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public function load(ObjectManager $manager): void
     {
         $base = new DateTimeImmutable('2026-01-10 09:00:00');

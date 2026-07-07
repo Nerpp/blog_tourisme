@@ -7,10 +7,13 @@ namespace App\DataFixtures;
 use App\Entity\Destination;
 use App\Enum\DestinationType;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class DestinationFixtures extends Fixture
+final class DestinationFixtures extends Fixture implements FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const FRANCE_REFERENCE = 'destination.france';
     public const OCCITANIE_REFERENCE = 'destination.occitanie';
     public const PYRENEES_ORIENTALES_REFERENCE = 'destination.pyrenees-orientales';

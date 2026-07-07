@@ -19,11 +19,14 @@ use App\Enum\ContentStatus;
 use App\Enum\MediaRole;
 use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class ArticleFixtures extends Fixture implements DependentFixtureInterface
+final class ArticleFixtures extends Fixture implements DependentFixtureInterface, FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const COLLIOURE_ONE_DAY_REFERENCE = 'article.que-faire-a-collioure-en-une-journee';
     public const BEST_PO_REFERENCE = 'article.plus-beaux-lieux-pyrenees-orientales';
     public const FORT_SAINT_ELME_REFERENCE = 'article.visiter-fort-saint-elme';

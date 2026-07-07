@@ -6,10 +6,13 @@ namespace App\DataFixtures;
 
 use App\Entity\Tag;
 use Doctrine\Bundle\FixturesBundle\Fixture;
+use Doctrine\Bundle\FixturesBundle\FixtureGroupInterface;
 use Doctrine\Persistence\ObjectManager;
 
-final class TagFixtures extends Fixture
+final class TagFixtures extends Fixture implements FixtureGroupInterface
 {
+    use TestFixtureGroup;
+
     public const FAMILLE_REFERENCE = 'tag.famille';
     public const GRATUIT_REFERENCE = 'tag.gratuit';
     public const BORD_DE_MER_REFERENCE = 'tag.bord-de-mer';
