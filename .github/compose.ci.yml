@@ -1,4 +1,10 @@
 services:
+  php:
+    environment:
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/panther-cache
+      XDG_CONFIG_HOME: /tmp/panther-config
+
   node:
     environment:
       HOME: /tmp
