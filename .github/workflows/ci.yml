@@ -58,16 +58,46 @@ jobs:
 
       - name: Diagnose Panther browser
         run: |
-          docker compose exec -T php sh -lc 'which chromium || which chromium-browser || which google-chrome || true'
-          docker compose exec -T php sh -lc 'which chromedriver || which chromium-driver || true'
-          docker compose exec -T php sh -lc 'chromium --version || chromium-browser --version || google-chrome --version || true'
-          docker compose exec -T php sh -lc 'chromedriver --version || chromium-driver --version || true'
-          docker compose exec -T php sh -lc 'id && df -h /dev/shm || true'
+          docker compose exec -T php sh -lc 'set -eu; id; pwd; umask; env | sort | grep -E "^(PANTHER|HOME|XDG_|TMP|CI=)" || true'
+          docker compose exec -T php sh -lc 'set -eu; command -v chromium || command -v chromium-browser || command -v google-chrome || true'
+          docker compose exec -T php sh -lc 'set -eu; command -v chromedriver || command -v chromium-driver || true'
+          docker compose exec -T php sh -lc 'set -eu; chromium --version || chromium-browser --version || google-chrome --version || true'
+          docker compose exec -T php sh -lc 'set -eu; chromedriver --version || chromium-driver --version || true'
+          docker compose exec -T php sh -lc 'set -eu; ls -ld /tmp "$HOME" "${XDG_CACHE_HOME:-/missing}" "${XDG_CONFIG_HOME:-/missing}" 2>/dev/null || true'
+          docker compose exec -T php sh -lc 'set -eu; df -h /dev/shm /tmp || true'
+          docker compose exec -T php sh -lc 'set -eu; find /tmp -maxdepth 2 \( -type d -name "panther*" -o -name "chrome*" \) 2>/dev/null | head -100 || true'
+
+      - name: Launch Chromium directly
+        run: |
+          docker compose exec -T \
+            -e HOME=/tmp/panther-home \
+            -e XDG_CACHE_HOME=/tmp/panther-cache \
+            -e XDG_CONFIG_HOME=/tmp/panther-config \
+            php sh -lc '
+              set -eu
+              mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
+              rm -rf /tmp/panther-chrome-profile
+              chromium \
+                --headless=new \
+                --no-sandbox \
+                --disable-dev-shm-usage \
+                --disable-gpu \
+                --user-data-dir=/tmp/panther-chrome-profile \
+                --dump-dom about:blank
+            '
 
       - name: Run Panther smoke test
         run: |
           make test-db-reset
-          docker compose exec -T -e SKIP_TEST_DB_RESET=1 php php vendor/bin/phpunit tests/E2E/LoginPantherTest.php
+          docker compose exec -T \
+            -e SKIP_TEST_DB_RESET=1 \
+            -e PANTHER_CHROME_BINARY=/usr/bin/chromium \
+            -e PANTHER_CHROME_ARGUMENTS="--headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu" \
+            -e HOME=/tmp/panther-home \
+            -e XDG_CACHE_HOME=/tmp/panther-cache \
+            -e XDG_CONFIG_HOME=/tmp/panther-config \
+            -e CHROME_LOG_FILE=/tmp/panther-chrome.log \
+            php sh -lc 'mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && php vendor/bin/phpunit tests/E2E/LoginPantherTest.php'
 
       - name: Run merge gate
         run: make test-all
@@ -78,6 +108,9 @@ jobs:
           mkdir -p tmp/ci-artifacts
           docker compose ps > tmp/ci-artifacts/docker-compose-ps.txt || true
           docker compose logs --no-color > tmp/ci-artifacts/docker-compose.log || true
+          docker compose exec -T php sh -lc 'find /tmp -maxdepth 3 \( -name "*chrome*" -o -name "*panther*" \) -ls 2>/dev/null' > tmp/ci-artifacts/panther-tmp-files.txt || true
+          docker compose cp php:/tmp/panther-chromedriver.log tmp/ci-artifacts/panther-chromedriver.log || true
+          docker compose cp php:/tmp/panther-chrome.log tmp/ci-artifacts/panther-chrome.log || true
 
       - name: Upload failure artifacts
         if: failure()

@@ -38,19 +38,26 @@ abstract class PantherTestCase extends BasePantherTestCase
                 'APP_DEBUG' => '1',
                 'DATABASE_URL_TEST' => $_SERVER['DATABASE_URL_TEST'] ?? 'mysql://app:app@mysql:3306/app_test?serverVersion=8.0&charset=utf8mb4',
             ],
+        ], [], [
+            'chromedriver_arguments' => [
+                '--verbose',
+                '--log-path=/tmp/panther-chromedriver.log',
+            ],
         ]);
     }
 
     private static function configureBrowserEnvironment(): void
     {
-        $environment = [
+        $defaults = [
             'HOME' => '/tmp',
             'XDG_CACHE_HOME' => '/tmp/panther-cache',
             'XDG_CONFIG_HOME' => '/tmp/panther-config',
             'PANTHER_CHROME_BINARY' => '/usr/bin/chromium',
         ];
 
-        foreach ($environment as $name => $value) {
+        foreach ($defaults as $name => $default) {
+            $value = getenv($name);
+            $value = $value === false || $value === '' ? $default : $value;
             putenv($name.'='.$value);
             $_ENV[$name] = $value;
             $_SERVER[$name] = $value;
