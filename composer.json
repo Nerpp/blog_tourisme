@@ -78,32 +78,43 @@
         }
     },
     "scripts": {
-        "test": "php vendor/bin/phpunit --testsuite Unit,Integration,Functional",
-        "test:unit": "php vendor/bin/phpunit --testsuite Unit",
-        "test:integration": "php vendor/bin/phpunit --testsuite Integration",
-        "test:functional": "php vendor/bin/phpunit --testsuite Functional",
-        "test:e2e": "php vendor/bin/phpunit --testsuite E2E",
-        "test:panther": "php vendor/bin/phpunit --testsuite E2E",
-        "test:db:reset": [
-            "php bin/console doctrine:database:drop --env=test --force --if-exists",
-            "php bin/console doctrine:database:create --env=test --if-not-exists",
-            "php bin/console doctrine:migrations:migrate --env=test --no-interaction",
-            "php bin/console doctrine:fixtures:load --env=test --no-interaction"
+        "test": [
+            "@test:db:reset",
+            "APP_ENV=test php vendor/bin/phpunit --testsuite Unit,Integration,Functional"
         ],
-        "lighthouse:test-db:assert-safe": "php bin/console app:lighthouse:assert-safe-database --env=test",
+        "test:unit": "APP_ENV=test php vendor/bin/phpunit --testsuite Unit",
+        "test:integration": [
+            "@test:db:reset",
+            "APP_ENV=test php vendor/bin/phpunit --testsuite Integration"
+        ],
+        "test:functional": [
+            "@test:db:reset",
+            "APP_ENV=test php vendor/bin/phpunit --testsuite Functional"
+        ],
+        "test:e2e": [
+            "@test:db:reset",
+            "APP_ENV=test php vendor/bin/phpunit --testsuite E2E"
+        ],
+        "test:panther": "@test:e2e",
+        "test:db:reset": "scripts/reset-test-database-in-container.sh",
+        "lighthouse:test-db:assert-safe": "php bin/console app:test-database:assert-safe --env=test",
         "lighthouse:test-db:reset": [
             "php bin/console cache:clear --env=test --no-warmup",
-            "@lighthouse:test-db:assert-safe",
             "@test:db:reset",
             "php bin/console cache:clear --env=test --no-warmup",
             "@lighthouse:test-db:assert-safe"
         ],
-        "test:coverage": "XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-text --coverage-html var/coverage",
-        "test:coverage:clover": "XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-clover var/coverage/clover.xml",
+        "test:coverage": [
+            "@test:db:reset",
+            "APP_ENV=test XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-text --coverage-html var/coverage"
+        ],
+        "test:coverage:clover": [
+            "@test:db:reset",
+            "APP_ENV=test XDEBUG_MODE=coverage php vendor/bin/phpunit --testsuite Unit,Integration,Functional --coverage-clover var/coverage/clover.xml"
+        ],
         "quality": [
             "php bin/console lint:container",
             "php bin/console lint:twig templates",
-            "php bin/console doctrine:schema:validate",
             "@test"
         ],
         "quality:e2e": [

@@ -10,8 +10,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpKernel\KernelInterface;
 
 #[AsCommand(
-    name: 'app:lighthouse:assert-safe-database',
-    description: 'Refuse toute préparation Lighthouse hors de la base de test app_test.',
+    name: 'app:test-database:assert-safe',
+    description: 'Refuse toute préparation de tests hors de la base app_test.',
+    aliases: ['app:lighthouse:assert-safe-database'],
 )]
 final class AssertLighthouseDatabaseCommand extends Command
 {
@@ -28,27 +29,49 @@ final class AssertLighthouseDatabaseCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $environment = $this->kernel->getEnvironment();
-        $database = $this->connection->getDatabase();
+        $database = $this->databaseNameFromConnection();
 
         if ($environment !== self::EXPECTED_ENVIRONMENT || $database !== self::EXPECTED_DATABASE) {
             $output->writeln(sprintf(
-                '<error>Refus de préparer Lighthouse : environnement "%s", base "%s". Attendu : environnement "%s", base "%s".</error>',
+                '<error>Refus de préparer les tests : environnement "%s", base "%s". Attendu : environnement "%s", base "%s".</error>',
                 $environment,
                 $database ?? '(inconnue)',
                 self::EXPECTED_ENVIRONMENT,
                 self::EXPECTED_DATABASE,
             ));
-            $output->writeln('<error>La base de développement ne doit jamais être préparée par Lighthouse.</error>');
+            $output->writeln('<error>La base de développement ne doit jamais être préparée par les outils de test.</error>');
 
             return Command::FAILURE;
         }
 
         $output->writeln(sprintf(
-            '<info>Base Lighthouse sûre confirmée : environnement %s, base %s.</info>',
+            '<info>Base de test sûre confirmée : environnement %s, base %s.</info>',
             self::EXPECTED_ENVIRONMENT,
             self::EXPECTED_DATABASE,
         ));
 
         return Command::SUCCESS;
+    }
+
+    private function databaseNameFromConnection(): ?string
+    {
+        $params = $this->connection->getParams();
+
+        if (isset($params['dbname']) && is_string($params['dbname']) && $params['dbname'] !== '') {
+            return $params['dbname'];
+        }
+
+        if (!isset($params['url']) || !is_string($params['url']) || $params['url'] === '') {
+            return null;
+        }
+
+        $path = parse_url($params['url'], PHP_URL_PATH);
+        if (!is_string($path)) {
+            return null;
+        }
+
+        $database = ltrim($path, '/');
+
+        return $database !== '' ? $database : null;
     }
 }

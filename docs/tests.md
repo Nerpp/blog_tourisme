@@ -33,12 +33,16 @@ Les tests utilisent uniquement la base `app_test`, configuree par `.env.test`, `
 Preparation :
 
 ```bash
-docker compose exec php php bin/console doctrine:database:create --env=test --if-not-exists
-docker compose exec php php bin/console doctrine:migrations:migrate --env=test --no-interaction
-docker compose exec php php bin/console doctrine:schema:validate --env=test
+make test-db-reset
 ```
 
+`make test-db-reset` cree `app_test` si necessaire, accorde les droits au user applicatif sur cette base uniquement, applique les migrations en environnement `test`, puis charge seulement les fixtures du groupe Doctrine `test`.
+
+Les commandes Composer dependantes de la base (`composer test`, `composer test:coverage`, `composer test:e2e`) relancent aussi ce reset dans le conteneur PHP lorsque `app_test` est deja creee et accessible. Depuis l'hote, preferer les cibles Makefile, car elles savent aussi initialiser les droits MySQL apres une recreation du volume.
+
 Ne pas utiliser la base de developpement pour les tests et ne pas lancer `schema:update --force`.
+
+Les fixtures de production futures ne doivent pas rejoindre le groupe Doctrine `test`. Elles devront utiliser un groupe ou un namespace separe et ne jamais etre appelees par `make test-db-reset`.
 
 ## Couverture
 
