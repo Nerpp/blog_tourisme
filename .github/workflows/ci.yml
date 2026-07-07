@@ -125,6 +125,7 @@ jobs:
               --no-sandbox \
               --disable-dev-shm-usage \
               --disable-gpu \
+              --disable-features=PartitionAllocSchedulerLoopQuarantineTaskControlledPurge \
               --disable-breakpad \
               --disable-crash-reporter \
               --no-first-run \
@@ -147,7 +148,7 @@ jobs:
           docker compose exec -T \
             -e SKIP_TEST_DB_RESET=1 \
             -e PANTHER_CHROME_BINARY=/usr/bin/chromium \
-            -e PANTHER_CHROME_ARGUMENTS="--headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu" \
+            -e PANTHER_CHROME_ARGUMENTS="--headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-features=PartitionAllocSchedulerLoopQuarantineTaskControlledPurge" \
             -e HOME=/tmp/panther-home \
             -e XDG_CACHE_HOME=/tmp/panther-cache \
             -e XDG_CONFIG_HOME=/tmp/panther-config \
