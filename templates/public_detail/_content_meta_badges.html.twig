@@ -54,7 +54,7 @@
         <span>Commune : {{ public_commune_label }}</span>
     {% endif %}
 
-    {% if public_destination_label is not empty %}
+    {% if (show_destination_badge is not defined or show_destination_badge) and public_destination_label is not empty %}
         <span>Destination : {{ public_destination_label }}</span>
     {% endif %}
 

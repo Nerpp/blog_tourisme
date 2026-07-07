@@ -183,6 +183,19 @@
   backdrop-filter: blur(14px);
 }
 
+.public-detail-page--hike .public-detail-hero {
+  background: #10271f;
+}
+
+.public-detail-page--hike .public-detail-meta {
+  gap: 8px;
+}
+
+.public-detail-page--hike .public-detail-meta span {
+  padding-inline: 12px;
+  font-size: 0.86rem;
+}
+
 .public-detail-cover {
   min-height: 520px;
   overflow: hidden;
@@ -322,6 +335,10 @@
 
   .public-detail-hero {
     padding: 62px 0 42px;
+  }
+
+  .public-detail-page--hike .public-detail-hero {
+    padding-bottom: 54px;
   }
 
   .public-detail-cover {

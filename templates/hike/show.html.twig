@@ -48,7 +48,7 @@
 {% endblock %}
 
 {% block body %}
-    <main class="public-detail-page">
+    <main class="public-detail-page public-detail-page--hike">
         <section class="public-detail-hero">
             <div class="public-detail-container public-detail-hero-grid">
                 <div>
@@ -65,7 +65,8 @@
                         detected_commune_name: hike.detectedCommuneName,
                         detected_department_name: hike.detectedDepartmentName,
                         detected_region_name: hike.detectedRegionName,
-                        points_count: hike.points|length
+                        points_count: hike.points|length,
+                        show_destination_badge: false
                     } only %}
                 </div>
 

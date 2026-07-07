@@ -258,6 +258,17 @@ a {
     transform: translateY(-50%);
 }
 
+@media (min-width: 821px) {
+    .studio-quick-nav {
+        position: fixed;
+        right: 24px;
+        left: auto;
+        inset-inline-start: auto;
+        margin-left: 0;
+        transform: translateY(-50%);
+    }
+}
+
 .studio-quick-nav__toggle {
     display: none;
     width: 100%;
