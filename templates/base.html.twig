@@ -1,17 +1,57 @@
 <!doctype html>
 <html lang="fr">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{% block title %}Blog Tourisme{% endblock %}</title>
-        {% block stylesheets %}
-            {{ vite_entry_link_tags('app') }}
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="icon" type="image/webp" sizes="32x32" href="{{ asset('images/brand/estela-favicon-32.webp') }}">
+		<link rel="icon" type="image/webp" sizes="48x48" href="{{ asset('images/brand/estela-favicon-48.webp') }}">
+		<title>
+			{% block title %}Estela Explorations
+			{% endblock %}
+		</title>
+		<meta name="description" content="{% block meta_description %}Articles, itineraires et conseils pour decouvrir les plus belles destinations touristiques.{% endblock %}">
+		{% block canonical %}<link rel="canonical" href="{{ app.request.uri }}">
+		{% endblock %}
+		<meta property="og:title" content="{% block open_graph_title %}{{ block('title') }}{% endblock %}">
+		<meta property="og:description" content="{% block open_graph_description %}{{ block('meta_description') }}{% endblock %}"> {% block open_graph_image %}{% endblock %}
+		{% block preloads %}{% endblock %}
+		{% block stylesheets %}
+			{{ vite_entry_link_tags('app') }}
+			{% block layout_stylesheets %}{% endblock %}
+			{% block page_stylesheets %}{% endblock %}
+		{% endblock %}
+	</head>
+	<body>
+		<a class="skip-link" href="#main-content">Aller au contenu principal</a>
+
+		{% block site_header %}
+			{% include 'partials/nav/_navbar.html.twig' %}
+		{% endblock %}
+
+		{% for label, messages in app.flashes %}
+			{% for message in messages %}
+				<div class="flash flash-{{ label }}">{{ message }}</div>
+			{% endfor %}
+		{% endfor %}
+
+		{% if app.user and app.user.verified is defined and not app.user.verified %}
+			<div class="flash flash-warning">
+				Votre email n’est pas encore confirmé. Certaines actions comme commenter seront limitées.
+				<a href="{{ path('app_verify_email_resend') }}">Renvoyer l’email de confirmation</a>
+			</div>
+		{% endif %}
+
+		<span id="main-content" class="main-content-anchor" tabindex="-1"></span>
+		{% block body %}{% endblock %}
+
+		{% block site_footer %}
+            {% include 'partials/footer/_footer.html.twig' %}
         {% endblock %}
-    </head>
-    <body>
-        {% block body %}{% endblock %}
-        {% block javascripts %}
-            {{ vite_entry_script_tags('app') }}
-        {% endblock %}
-    </body>
+
+		{% block javascripts %}
+			{{ vite_entry_script_tags('app') }}
+			{% block layout_javascripts %}{% endblock %}
+			{% block page_javascripts %}{% endblock %}
+		{% endblock %}
+	</body>
 </html>

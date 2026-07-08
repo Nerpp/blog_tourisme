@@ -1,0 +1,182 @@
+{% extends 'layouts/profile.html.twig' %}
+
+{% set profile_user = app.user %}
+{% set profile_name = profile_user.displayName ?: profile_user.userIdentifier %}
+{% set profile_initial = profile_name|first|upper %}
+{% set avatar_version = profile_user.updatedAt ? profile_user.updatedAt|date('U') : profile_user.id %}
+{% set avatar_src = profile_user.avatarPath ? asset(profile_user.avatarPath) ~ '?v=' ~ avatar_version : '' %}
+
+{% block title %}Profil - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main class="profile-page">
+        <div class="profile-shell">
+            <section class="profile-hero" aria-labelledby="profile-title">
+                <div class="profile-hero__avatar" data-avatar-preview-root>
+                    <img
+                        class="profile-avatar profile-avatar--large {{ profile_user.avatarPath ? '' : 'is-hidden' }}"
+                        src="{{ avatar_src }}"
+                        alt=""
+                        data-avatar-preview-image
+                    >
+
+                    <span
+                        class="profile-avatar profile-avatar--large profile-avatar--initials {{ profile_user.avatarPath ? 'is-hidden' : '' }}"
+                        aria-hidden="true"
+                        data-avatar-preview-initials
+                    >
+                        {{ profile_initial }}
+                    </span>
+                </div>
+
+                <div class="profile-hero__content">
+                    <p class="profile-kicker">Espace personnel</p>
+                    <h1 id="profile-title">{{ profile_name }}</h1>
+                    <p>{{ profile_user.userIdentifier }}</p>
+                </div>
+
+                <a class="profile-hero__link" href="#profile-form">Modifier</a>
+            </section>
+
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="profile-alert profile-alert--{{ label }}">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+
+            {{ form_start(profile_form, { attr: { id: 'profile-form', class: 'profile-form', novalidate: 'novalidate' } }) }}
+                {{ form_errors(profile_form) }}
+
+                <div class="profile-layout">
+                    <div class="profile-main">
+                        <section class="profile-card" aria-labelledby="profile-identity-title">
+                            <div class="profile-section-heading">
+                                <p class="profile-kicker">Mon identité</p>
+                                <h2 id="profile-identity-title">Informations personnelles</h2>
+                            </div>
+
+                            <div class="profile-field">
+                                {{ form_label(profile_form.displayName, 'Nom affiché') }}
+                                {{ form_widget(profile_form.displayName, { attr: { class: 'profile-input', autocomplete: 'name', placeholder: 'Votre nom public' } }) }}
+                                {{ form_errors(profile_form.displayName) }}
+                            </div>
+
+                            <div class="profile-readonly-grid">
+                                <div>
+                                    <span>Email</span>
+                                    <strong>{{ profile_user.userIdentifier }}</strong>
+                                </div>
+                                <div>
+                                    <span>Avatar</span>
+                                    <strong>{{ profile_user.avatarPath ? 'Personnalisé' : 'Initiale par défaut' }}</strong>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="profile-card" aria-labelledby="profile-avatar-title">
+                            <div class="profile-section-heading">
+                                <p class="profile-kicker">Avatar</p>
+                                <h2 id="profile-avatar-title">Image de profil</h2>
+                            </div>
+
+                            <div class="profile-avatar-editor" data-avatar-preview-root>
+                                <img
+                                    class="profile-avatar profile-avatar--editor {{ profile_user.avatarPath ? '' : 'is-hidden' }}"
+                                    src="{{ avatar_src }}"
+                                    alt=""
+                                    data-avatar-preview-image
+                                >
+
+                                <span
+                                    class="profile-avatar profile-avatar--editor profile-avatar--initials {{ profile_user.avatarPath ? 'is-hidden' : '' }}"
+                                    aria-hidden="true"
+                                    data-avatar-preview-initials
+                                >
+                                    {{ profile_initial }}
+                                </span>
+
+                                <div class="profile-avatar-editor__field">
+                                    {{ form_label(profile_form.avatarFile, 'Changer l’avatar') }}
+                                    {{ form_widget(profile_form.avatarFile, {
+                                        attr: {
+                                            class: 'profile-file-input',
+                                            accept: 'image/jpeg,image/png,image/webp',
+                                            'data-avatar-preview-input': 'true'
+                                        }
+                                    }) }}
+
+                                    <p>Formats acceptés : JPG, PNG, WebP. Taille maximum : 5 Mo. L’image sera automatiquement recadrée en avatar léger.</p>
+
+                                    <p class="profile-avatar-preview-message is-hidden" role="status" data-avatar-preview-message>
+                                        Nouvelle image sélectionnée. Pensez à enregistrer les modifications.
+                                    </p>
+
+                                    {{ form_errors(profile_form.avatarFile) }}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="profile-card" aria-labelledby="profile-email-title">
+                            <div class="profile-section-heading">
+                                <p class="profile-kicker">Préférences email</p>
+                                <h2 id="profile-email-title">Nouvelles publications</h2>
+                            </div>
+
+                            <label class="profile-toggle">
+                                {{ form_widget(profile_form.receivePublicationEmails) }}
+                                <span>
+                                    <strong>Recevoir un email lors des nouvelles publications</strong>
+                                    <small>Recevoir un email lorsqu’un nouvel article, une randonnée ou une visite est publié.</small>
+                                </span>
+                            </label>
+                            <p class="profile-help">Vous pouvez désactiver cette option à tout moment depuis votre profil.</p>
+                            {{ form_errors(profile_form.receivePublicationEmails) }}
+                        </section>
+
+                        <div class="profile-actions">
+                            <button class="profile-button" type="submit">Enregistrer les modifications</button>
+                        </div>
+                    </div>
+
+                    <aside class="profile-aside" aria-label="Résumé du compte">
+                        <section class="profile-card profile-card--compact">
+                            <p class="profile-kicker">Activité</p>
+                            <dl class="profile-stats">
+                                <div>
+                                    <dt>Commentaires approuvés</dt>
+                                    <dd>{{ profile_user.approvedCommentsCount }}</dd>
+                                </div>
+                                <div>
+                                    <dt>Compte créé</dt>
+                                    <dd>{{ profile_user.createdAt ? profile_user.createdAt|date('d/m/Y') : 'Non disponible' }}</dd>
+                                </div>
+                                <div>
+                                    <dt>Emails publication</dt>
+                                    <dd>{{ profile_user.receivePublicationEmails ? 'Activés' : 'Désactivés' }}</dd>
+                                </div>
+                            </dl>
+                        </section>
+
+                        {% if profile_user.avatarPath %}
+                            <section class="profile-card profile-card--compact">
+                                <p class="profile-kicker">Avatar</p>
+                                <h2>Supprimer l’image</h2>
+                                <p class="profile-help">Votre profil utilisera de nouveau l’initiale de votre nom affiché.</p>
+                                <button class="profile-danger-button" type="submit" form="profile-avatar-delete-form">Supprimer l’avatar</button>
+                            </section>
+                        {% endif %}
+                    </aside>
+                </div>
+
+                {{ form_rest(profile_form) }}
+            {{ form_end(profile_form, { render_rest: false }) }}
+
+            {% if profile_user.avatarPath %}
+                <form id="profile-avatar-delete-form" method="post" action="{{ path('app_profile') }}" class="profile-delete-form">
+                    <input type="hidden" name="_profile_action" value="delete_avatar">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delete_avatar') }}">
+                </form>
+            {% endif %}
+        </div>
+    </main>
+{% endblock %}

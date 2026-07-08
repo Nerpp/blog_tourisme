@@ -1,0 +1,267 @@
+{% extends 'admin/studio/hike_edit.html.twig' %}
+
+{% block admin_title %}Studio visite de ville rapide{% endblock %}
+
+{% set main_form_id = 'studio-city-visit-main-form' %}
+{% set hike = city_visit %}
+
+{% block body %}
+    {% set main_form_id = 'studio-city-visit-main-form' %}
+    <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}"></form>
+    <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_edit_' ~ city_visit.id) }}">
+    <input form="{{ main_form_id }}" type="hidden" name="_redirect_anchor" value="section-publication">
+
+    {% include 'admin/studio/_studio_quick_nav.html.twig' with {
+        nav_id: 'studio-city-visit-quick-nav',
+        action_links: [
+            { label: 'Retour au site public', href: path('app_home') },
+            city_visit.slug is not empty and city_visit.status.value in ['finished', 'converted']
+                ? { label: 'Aperçu public', href: path('app_city_visit_show', { slug: city_visit.slug }), target: '_blank', rel: 'noopener noreferrer' }
+                : { label: 'Aperçu public', disabled_label: 'Aperçu indisponible' }
+        ],
+        items: [
+            { label: 'Général', anchor: 'studio-general' },
+            { label: 'Publication', anchor: 'studio-publication' },
+            { label: 'Localisation', anchor: 'studio-location' },
+            { label: 'Étapes', anchor: 'studio-points' },
+            { label: 'Photos', anchor: 'studio-photos' },
+            { label: 'Vidéos', anchor: 'studio-videos' }
+        ],
+        submit_form_id: main_form_id
+    } only %}
+
+    <div class="studio-page studio-page--with-quick-nav">
+        <section id="studio-general" class="studio-hero">
+            <div>
+                <p class="studio-eyebrow">Studio visite de ville rapide</p>
+                <h1 class="studio-title">{{ city_visit.title }}</h1>
+                <div class="studio-meta">
+                    <span class="studio-badge">{{ status_options[city_visit.status.value] ?? city_visit.status.value }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ city_visit.detectedCommuneName ?: 'Commune non détectée' }}</span>
+                    {% if city_visit.geographicDestination %}
+                        <span class="studio-badge studio-badge--muted">Hiérarchie : {{ city_visit.geographicDestination.name }}</span>
+                    {% endif %}
+                    <span class="studio-badge studio-badge--muted">{{ city_visit.destination ? city_visit.destination.name : 'Destination non associée' }}</span>
+                </div>
+            </div>
+            <div class="studio-actions">
+                {% if city_visit.slug is not empty and city_visit.status.value in ['finished', 'converted'] %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('app_city_visit_show', { slug: city_visit.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
+                {% endif %}
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_field_tools_city_visits') }}">Retour aux visites</a>
+                <button class="admin-button" form="{{ main_form_id }}" type="submit">Enregistrer</button>
+            </div>
+        </section>
+
+        <span id="section-publication" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-publication" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Préparation visite</h2>
+                    <p>Les points terrain servent à construire ensuite le parcours publié.</p>
+                </div>
+            </div>
+            <div class="studio-grid">
+                <div class="studio-field">
+                    <label for="city-visit-title">Titre</label>
+                    <input form="{{ main_form_id }}" id="city-visit-title" name="title" value="{{ city_visit.title }}" required>
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-status">Statut</label>
+                    <select form="{{ main_form_id }}" id="city-visit-status" name="status">
+                        {% for value, label in status_options %}
+                            <option value="{{ value }}" {% if city_visit.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field">
+                    <label for="city-visit-destination">Destination associée</label>
+                    <select form="{{ main_form_id }}" id="city-visit-destination" name="destination">
+                        <option value="">Non associée</option>
+                        {% for destination in destinations %}
+                            <option value="{{ destination.id }}" {% if city_visit.destination and city_visit.destination.id == destination.id %}selected{% endif %}>{{ destination.name }} · {{ destination.type.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field studio-field--full">
+                    <label for="city-visit-notes">Introduction publique</label>
+                    <textarea form="{{ main_form_id }}" id="city-visit-notes" name="notes" rows="8">{{ city_visit.notes }}</textarea>
+                    <span class="studio-help">Ce texte est affiché publiquement sous le titre de la visite et sur la carte de la destination associée.</span>
+                </div>
+            </div>
+            <div id="studio-location" class="studio-scroll-target">
+            {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
+                picker_id: 'studio-city-visit-location-' ~ city_visit.id,
+                ui_context: 'studio',
+                mode: 'studio_edit',
+                form_id: main_form_id,
+                row_class: 'studio-field',
+                input_class: '',
+                commune_title: 'Commune géographique',
+                point_title: 'Point GPS principal optionnel',
+                search_help: 'Recherchez une commune française. La région, le département, le code INSEE et la destination éditoriale seront mis à jour à la validation.',
+                validate_button_label: 'Valider la commune et le point GPS',
+                validate_submit_form_id: main_form_id,
+                require_commune_for_validation: true,
+                fields: {
+                    country: { name: 'locationCountry', value: location_picker_data.country },
+                    region: { id: 'city-visit-region', name: 'detectedRegionName', value: location_picker_data.region, label: 'Région' },
+                    department: { id: 'city-visit-department', name: 'detectedDepartmentName', value: location_picker_data.department, label: 'Département' },
+                    departmentCode: { name: 'locationDepartmentCode', value: location_picker_data.departmentCode },
+                    commune: { id: 'city-visit-commune', name: 'detectedCommuneName', value: location_picker_data.commune, label: 'Commune' },
+                    insee: { id: 'city-visit-commune-code', name: 'detectedCommuneCode', value: location_picker_data.insee, label: 'Code INSEE' },
+                    postal: { name: 'locationPostalCode', value: location_picker_data.postalCode },
+                    latitude: { id: 'city-visit-location-latitude', name: 'locationLatitude', value: location_picker_data.latitude, label: 'Latitude du point' },
+                    longitude: { id: 'city-visit-location-longitude', name: 'locationLongitude', value: location_picker_data.longitude, label: 'Longitude du point' },
+                    accuracy: { id: 'city-visit-location-accuracy', name: 'locationAccuracy', value: location_picker_data.accuracy, label: 'Précision GPS' },
+                    communeCenterLatitude: { name: 'communeCenterLatitude', value: location_picker_data.communeCenterLatitude },
+                    communeCenterLongitude: { name: 'communeCenterLongitude', value: location_picker_data.communeCenterLongitude }
+                },
+                location_field_keys: ['commune', 'insee', 'department', 'region'],
+                coordinate_field_keys: ['latitude', 'longitude', 'accuracy'],
+                initial_commune: location_picker_data.commune,
+                initial_department: location_picker_data.department,
+                initial_department_code: location_picker_data.departmentCode,
+                initial_region: location_picker_data.region,
+                initial_insee: location_picker_data.insee,
+                initial_postal_code: location_picker_data.postalCode,
+                initial_latitude: location_picker_data.latitude,
+                initial_longitude: location_picker_data.longitude,
+                commune_center_latitude: location_picker_data.communeCenterLatitude,
+                commune_center_longitude: location_picker_data.communeCenterLongitude
+            } only %}
+            </div>
+            {% include 'admin/_quick_destination_form.html.twig' with {
+                ui_context: 'studio',
+                current_destination: city_visit.destination,
+                destination_quick_create: destination_quick_create,
+                destination_type_options: destination_type_options,
+                destination_parent_options: destination_parent_options
+            } only %}
+        </section>
+
+        <span id="section-points" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-points" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Points à visiter</h2>
+                    <p>{{ city_visit.points|length }} point{{ city_visit.points|length > 1 ? 's' : '' }} dans le parcours.</p>
+                </div>
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Ouvrir avec étapes</a>
+                {% endif %}
+            </div>
+            <div class="studio-media-grid">
+                {% for point in city_visit.points %}
+                    <article id="city-visit-point-{{ point.id }}" class="studio-point">
+                        <strong>{{ point_labels[point.id] ?? (point.title ?: 'Point à visiter') }}</strong>
+                        <span>{{ point.latitude }}, {{ point.longitude }}</span>
+                        <span class="admin-muted">{{ point.detectedCommuneName ?: city_visit.detectedCommuneName ?: 'Commune non détectée' }}</span>
+                        {% if point.note %}<p>{{ point.note }}</p>{% endif %}
+                        {% include 'admin/studio/_point_media_cards.html.twig' with {
+                            point: point,
+                            point_label: point_labels[point.id] ?? 'Point à visiter',
+                            point_anchor: 'city-visit-point-' ~ point.id,
+                            point_anchor_prefix: 'city-visit',
+                            point_media_enabled: point_media_enabled,
+                            update_route: 'admin_studio_city_visit_point_media_update',
+                            delete_route: 'admin_studio_city_visit_point_media_delete',
+                            update_token_prefix: 'studio_city_visit_point_media_update_',
+                            delete_token_prefix: 'studio_city_visit_point_media_delete_',
+                            video_type_options: video_type_options
+                        } only %}
+                    </article>
+                {% else %}
+                    <p class="admin-muted">Aucun point à visiter.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <span id="section-photos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-photos" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Photos</h2>
+                    <p>Associez chaque image à la couverture, à la galerie générale ou à un point à visiter.</p>
+                </div>
+            </div>
+            {% include 'admin/studio/_photo_upload_form.html.twig' with {
+                action: path('admin_studio_city_visit_media_photos', { id: city_visit.id }),
+                bulk_action: path('admin_studio_city_visit_media_photos_bulk', { id: city_visit.id }),
+                csrf_token_id: 'studio_city_visit_photos_' ~ city_visit.id,
+                input_id: 'studio-city-visit-photo-input',
+                image_type_options: image_type_options,
+                association_options: photo_association_options,
+                point_target_options: point_target_options,
+                upload_policy: bulk_upload_policy
+            } only %}
+            <h3 class="studio-subtitle">Image principale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: city_visit,
+                subject_label: city_visit.title,
+                media_links: cover_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_city_visit_media_update',
+                delete_route: 'admin_studio_city_visit_media_delete',
+                update_token_prefix: 'studio_city_visit_media_update_',
+                delete_token_prefix: 'studio_city_visit_media_delete_',
+                empty_label: 'Aucune image principale pour le moment.'
+            } only %}
+            <h3 class="studio-subtitle">Galerie générale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: city_visit,
+                subject_label: city_visit.title,
+                media_links: gallery_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_city_visit_media_update',
+                delete_route: 'admin_studio_city_visit_media_delete',
+                update_token_prefix: 'studio_city_visit_media_update_',
+                delete_token_prefix: 'studio_city_visit_media_delete_',
+                empty_label: 'Aucune photo liée pour le moment.'
+            } only %}
+        </section>
+
+        <span id="section-videos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-videos" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Galerie générale - vidéos</h2>
+                    <p>Vidéos non associées à un point à visiter.</p>
+                </div>
+                <button class="admin-button" type="button" data-video-toggle>Ajouter une vidéo</button>
+            </div>
+            <form class="studio-video-form studio-hidden" method="post" action="{{ path('admin_studio_city_visit_media_video', { id: city_visit.id }) }}" data-video-form>
+                <input type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_video_' ~ city_visit.id) }}">
+                {% include 'admin/studio/_video_form_fields.html.twig' with { video_type_options: video_type_options, association_options: video_association_options } only %}
+            </form>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: city_visit,
+                subject_label: city_visit.title,
+                media_links: video_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: video_association_options,
+                media_point_targets: media_point_targets,
+                update_route: 'admin_studio_city_visit_media_update',
+                delete_route: 'admin_studio_city_visit_media_delete',
+                update_token_prefix: 'studio_city_visit_media_update_',
+                delete_token_prefix: 'studio_city_visit_media_delete_',
+                empty_label: 'Aucune vidéo liée pour le moment.'
+            } only %}
+        </section>
+
+        <section class="studio-section">
+            <h2>Images 360° / 180°</h2>
+            {% include 'admin/studio/_immersive_cards.html.twig' with { media_links: immersive_links, image_type_options: image_type_options, subject_label: city_visit.title } only %}
+        </section>
+    </div>
+{% endblock %}

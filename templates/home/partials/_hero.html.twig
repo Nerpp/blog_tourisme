@@ -1,0 +1,106 @@
+<section class="home-hero">
+	<picture class="home-hero__media">
+		<source
+			media="(max-width: 960px)"
+			srcset="{{ asset('images/home/hero-sea-mountain-mobile.webp') }}"
+			type="image/webp"
+			width="864"
+			height="1151"
+		>
+		<source
+			media="(min-width: 961px)"
+			srcset="{{ asset('images/home/hero-sea-mountain-desktop.webp') }}"
+			type="image/webp"
+			width="1920"
+			height="1080"
+		>
+		<img
+			class="home-hero__image"
+			src="{{ asset('images/home/hero-sea-mountain-desktop.webp') }}"
+			alt="Littoral turquoise au pied de montagnes ensoleillées"
+			width="1920"
+			height="1080"
+			fetchpriority="high"
+		>
+	</picture>
+	<div class="home-hero__overlay"></div>
+
+	<div class="home-container home-hero__container">
+		<div class="home-hero__content">
+			<p class="home-kicker">Carnet d’exploration</p>
+
+			<h1>
+				Voyager entre mer, montagne et lumière.
+			</h1>
+
+			<p class="home-hero__text">
+				Découvrez des randonnées, villages et paysages
+				                à travers une approche immersive mêlant drone, photographie
+				                et exploration.
+			</p>
+
+			<div class="home-hero__actions">
+				<a class="home-primary-btn" href="#derniers-articles">
+					Voir les 3 dernieres destinations
+				</a>
+			</div>
+
+		</div>
+
+		{% if latest_homepage_item %}
+			<article class="home-latest-card">
+				{% if latest_homepage_item.media %}
+					{% include 'public_detail/_responsive_image.html.twig' with {
+						media: latest_homepage_item.media,
+						alt: media_public_alt(latest_homepage_item.media, null, latest_homepage_item.title),
+						image_mode: 'card_thumbnail',
+						img_class: 'home-latest-card__image',
+						loading: 'eager'
+					} only %}
+				{% elseif latest_homepage_item.image %}
+					<img
+						class="home-latest-card__image"
+						src="{{ asset(latest_homepage_item.image) }}"
+						alt=""
+						loading="eager"
+						decoding="async"
+					>
+				{% endif %}
+
+				<div class="home-latest-card__overlay">
+					<p>{{ latest_homepage_item.label }}</p>
+
+					<h2>{{ latest_homepage_item.title }}</h2>
+
+					{% if latest_homepage_item.secondary_title is defined %}
+						<span class="home-latest-card__secondary-label">
+							{{ latest_homepage_item.secondary_title }}
+						</span>
+					{% endif %}
+
+					<div class="home-latest-card__actions">
+						<a class="home-latest-card__cta" href="{{ latest_homepage_item.url }}">
+							{{ latest_homepage_item.primary_cta|default('Découvrir') }}
+						</a>
+
+						{% if latest_homepage_item.secondary_url is defined and latest_homepage_item.secondary_cta is defined %}
+							<a class="home-latest-card__secondary-cta" href="{{ latest_homepage_item.secondary_url }}">
+								{{ latest_homepage_item.secondary_cta }}
+							</a>
+						{% endif %}
+					</div>
+				</div>
+			</article>
+		{% else %}
+			<aside class="home-latest-card">
+				<div class="home-latest-card__overlay">
+					<p>Dernière publication</p>
+
+					<h2>Exploration à venir</h2>
+
+					<span>Mer, montagne et lumière</span>
+				</div>
+			</aside>
+		{% endif %}
+	</div>
+</section>

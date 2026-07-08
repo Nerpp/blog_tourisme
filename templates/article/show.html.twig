@@ -1,0 +1,327 @@
+{% extends 'layouts/comments.html.twig' %}
+
+{% set return_context = return_context|default(null) %}
+{% set article_cover_media = null %}
+{% set article_fallback_cover_media = null %}
+
+{% for mediaLink in article.mediaLinks %}
+	{% set media = mediaLink.mediaAsset %}
+	{% if media and media.mediaType.value == 'image' %}
+		{% if article_fallback_cover_media is null %}
+			{% set article_fallback_cover_media = media %}
+		{% endif %}
+
+		{% if article_cover_media is null and mediaLink.role.value == 'cover' %}
+			{% set article_cover_media = media %}
+		{% endif %}
+	{% endif %}
+{% endfor %}
+
+{% if article_cover_media is null and article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
+	{% set article_cover_media = article.featuredImage %}
+{% endif %}
+
+{% set article_cover_media = article_cover_media ?: article_fallback_cover_media %}
+
+{# Keep the non-responsive fallback below the 1280 px candidate. Modern browsers
+   still select the best candidate from srcset, including 1280 px on dense screens. #}
+{% set article_cover_image_size = article_cover_media ? 'mobile' : null %}
+{% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, article_cover_image_size) : null %}
+{% set article_cover_srcset = article_cover_media ? media_image_srcset(article_cover_media, 'webp') : null %}
+{% set article_cover_sizes = '(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
+{% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
+
+{% set related_article_links = [] %}
+{% set related_article_ids = [article.id] %}
+
+{% for hikeLink in article.hikeLinks %}
+	{% if hikeLink.hikeDraft and hikeLink.hikeDraft.status.value in ['finished', 'converted'] %}
+		{% for relatedLink in hikeLink.hikeDraft.articleLinks %}
+			{% set relatedArticle = relatedLink.article %}
+			{% if relatedArticle and relatedArticle.status.value == 'published' and relatedArticle.id not in related_article_ids %}
+				{% set related_article_links = related_article_links|merge([relatedLink]) %}
+				{% set related_article_ids = related_article_ids|merge([relatedArticle.id]) %}
+			{% endif %}
+		{% endfor %}
+	{% endif %}
+{% endfor %}
+
+{% for cityVisitLink in article.cityVisitLinks %}
+	{% if cityVisitLink.cityVisitDraft and cityVisitLink.cityVisitDraft.status.value in ['finished', 'converted'] %}
+		{% for relatedLink in cityVisitLink.cityVisitDraft.articleLinks %}
+			{% set relatedArticle = relatedLink.article %}
+			{% if relatedArticle and relatedArticle.status.value == 'published' and relatedArticle.id not in related_article_ids %}
+				{% set related_article_links = related_article_links|merge([relatedLink]) %}
+				{% set related_article_ids = related_article_ids|merge([relatedArticle.id]) %}
+			{% endif %}
+		{% endfor %}
+	{% endif %}
+{% endfor %}
+
+{% block title %}
+	{{ article.seoTitle ?: article.title }}
+	- Blog Tourisme
+{% endblock %}
+{% block meta_description %}
+	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
+{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ article.canonicalUrl ?: url('app_article_show', { slug: article.slug }) }}">
+{% endblock %}
+{% block open_graph_title %}
+	{{ article.seoTitle ?: article.title }}
+{% endblock %}
+{% block open_graph_description %}
+	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
+{% endblock %}
+
+{% block page_stylesheets %}
+	{{ vite_entry_link_tags('assets/entries/article-show.js') }}
+	{% if gallery_media_links|length > 0 %}
+		{{ vite_entry_deferred_style_tags('assets/entries/article-gallery.js') }}
+	{% endif %}
+{% endblock %}
+
+{% block layout_stylesheets %}
+	{{ vite_entry_deferred_style_tags('assets/entries/comments.js') }}
+{% endblock %}
+
+{% block page_javascripts %}
+	{% set comment_thread_items = comments|default([]) %}
+	{% set has_comment_reply_forms = app.user and app.user.verified is defined and app.user.verified and comment_thread_items|filter(comment => comment.parent is null and comment.status.value == 'approved')|length > 0 %}
+	{% set has_comment_replies = comment_thread_items|filter(comment => comment.parent is null and (comment.children|filter(child => child.status.value == 'approved' or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected']))|length) > 0)|length > 0 %}
+
+	{{ vite_entry_script_tags('assets/entries/article-show.js') }}
+	{% if gallery_media_links|length > 0 %}
+		{{ vite_entry_script_tags('assets/entries/article-gallery.js') }}
+	{% endif %}
+	{% if has_comment_reply_forms or has_comment_replies %}
+		{{ vite_entry_script_tags('assets/entries/comments.js') }}
+	{% endif %}
+{% endblock %}
+
+{% block preloads %}
+	{% if article_cover_image %}
+		<link
+			rel="preload"
+			as="image"
+			href="{{ article_cover_image }}"
+			{% if article_cover_srcset %}imagesrcset="{{ article_cover_srcset }}" imagesizes="{{ article_cover_sizes }}"{% endif %}
+			fetchpriority="high"
+		>
+	{% endif %}
+{% endblock %}
+
+{% block body %}
+	<main class="public-detail-page article-show-page">
+		<section class="public-detail-hero">
+			<div class="public-detail-container public-detail-hero-grid">
+				<div>
+					{% if return_context %}
+						<a class="article-show-context-return" href="{{ return_context.url }}">
+							{{ return_context.label }}
+						</a>
+					{% endif %}
+
+					<p class="public-detail-kicker">
+						{% if article.category %}
+							{{ article.category.name }}{% else %}Article
+						{% endif %}
+						{% if article.publishedAt %}
+							·
+							{{ article.publishedAt|date('d/m/Y') }}
+						{% endif %}
+					</p>
+
+					<h1 class="public-detail-title article-show-title">{{ article.title }}</h1>
+
+					<div class="public-detail-meta article-show-meta">
+						<span>Article</span>
+
+						{% if article.category %}
+							<span>{{ article.category.name }}</span>
+						{% endif %}
+
+						{% for hikeLink in article.hikeLinks|slice(0, 1) %}
+							{% set hike = hikeLink.hikeDraft %}
+
+							{% if hike and hike.status.value in ['finished', 'converted'] %}
+								{% if hike.destination %}
+									<span>{{ hike.destination.name }}</span>
+								{% endif %}
+
+								<span>{{ hike.title }}</span>
+							{% endif %}
+						{% endfor %}
+
+						{% for cityVisitLink in article.cityVisitLinks|slice(0, 1) %}
+							{% set visit = cityVisitLink.cityVisitDraft %}
+
+							{% if visit and visit.status.value in ['finished', 'converted'] %}
+								{% if visit.destination %}
+									<span>{{ visit.destination.name }}</span>
+								{% endif %}
+
+								<span>{{ visit.title }}</span>
+							{% endif %}
+						{% endfor %}
+					</div>
+
+					{% if is_granted('EDIT', article) %}
+						<div class="article-show-admin">
+							<a href="{{ path('admin_articles_edit', { id: article.id }) }}" class="show-admin-edit-link">
+								Modifier
+							</a>
+						</div>
+					{% endif %}
+				</div>
+
+				<div class="public-detail-cover article-show-cover {{ article_cover_media ? 'article-show-cover--image' : '' }}">
+					{% if article_cover_media %}
+						{% include 'public_detail/_responsive_image.html.twig' with {
+							media: article_cover_media,
+							alt: media_public_alt(article_cover_media, article, article.title),
+							image_size: article_cover_image_size,
+							sizes: article_cover_sizes,
+							picture_class: 'article-show-cover__picture',
+							img_class: 'article-show-cover__image',
+							loading: 'eager',
+							fetchpriority: 'high'
+						} only %}
+					{% endif %}
+				</div>
+			</div>
+		</section>
+
+		<section class="public-detail-content">
+			<div class="public-detail-container">
+				<div class="article-show-layout">
+					<article class="article-show-main">
+						<div class="prose article-content">
+							{{ article_content_html(article) }}
+						</div>
+
+						{% if gallery_media_links|length > 0 %}
+							<section class="section-block article-gallery-section">
+								{% set article_gallery_id = 'article-gallery-' ~ article.id %}
+								<div class="media-header article-gallery-header">
+									<div>
+										<p class="media-kicker">Article</p>
+										<h2 class="article-gallery-title">Galerie</h2>
+									</div>
+
+									<div class="media-actions">
+										<span class="media-count">{{ gallery_media_links|length }}</span>
+
+										<button
+											type="button"
+											class="media-visualize-btn"
+											data-gallery-target="#{{ article_gallery_id }}"
+											data-gallery-index="0"
+										>
+											Visualiser
+										</button>
+									</div>
+								</div>
+
+								{% include 'public_detail/_image_gallery.html.twig' with {
+									media_links: gallery_media_links,
+									gallery_id: article_gallery_id,
+									modal_title: 'Galerie',
+									gallery_context: article,
+									gallery_context_title: article.title,
+									gallery_preload_neighbors: false
+								} only %}
+							</section>
+						{% endif %}
+					</article>
+
+					<aside class="article-show-sidebar">
+						{% if article.hikeLinks|length > 0 or article.cityVisitLinks|length > 0 or article.placeLinks|length > 0 %}
+							<section class="article-show-side-card article-show-side-card--highlight">
+								<p class="article-show-side-card__kicker">À découvrir pendant la balade</p>
+
+								{% for hikeLink in article.hikeLinks %}
+									{% if hikeLink.hikeDraft.status.value in ['finished', 'converted'] %}
+										<h2>{{ hikeLink.hikeDraft.title }}</h2>
+										<a class="article-show-side-card__button" href="{{ path('app_hike_show', { slug: hikeLink.hikeDraft.slug }) }}">
+											Voir la balade
+										</a>
+									{% endif %}
+								{% endfor %}
+
+								{% for cityVisitLink in article.cityVisitLinks %}
+									{% if cityVisitLink.cityVisitDraft.status.value in ['finished', 'converted'] %}
+										<h2>{{ cityVisitLink.cityVisitDraft.title }}</h2>
+										<a class="article-show-side-card__button" href="{{ path('app_city_visit_show', { slug: cityVisitLink.cityVisitDraft.slug }) }}">
+											Voir la visite
+										</a>
+									{% endif %}
+								{% endfor %}
+
+								{% for placeLink in article.placeLinks %}
+									{% if placeLink.place.status.value == 'published' %}
+										<h2>{{ placeLink.place.name }}</h2>
+										<a class="article-show-side-card__button" href="{{ path('app_place_show', { slug: placeLink.place.slug }) }}">
+											Voir le lieu
+										</a>
+									{% endif %}
+								{% endfor %}
+							</section>
+						{% endif %}
+
+						{% if related_article_links|length > 0 %}
+							<section class="article-show-side-card">
+								<p class="article-show-side-card__kicker">Pour aller plus loin</p>
+
+								<div class="article-show-side-links">
+									{% for relatedLink in related_article_links|slice(0, 4) %}
+										<a href="{{ path('app_article_show', { slug: relatedLink.article.slug }) }}">
+											{{ relatedLink.article.title }}
+										</a>
+									{% endfor %}
+								</div>
+							</section>
+						{% endif %}
+
+						{% if article.destinationLinks|length > 0 %}
+							<section class="article-show-side-card">
+								<p class="article-show-side-card__kicker">À proximité</p>
+
+								<div class="article-show-side-links">
+									{% for destinationLink in article.destinationLinks %}
+										<a href="{{ path('app_destination_show', { slug: destinationLink.destination.slug }) }}">
+											{{ destinationLink.destination.name }}
+										</a>
+									{% endfor %}
+								</div>
+							</section>
+						{% endif %}
+
+						{% if article.tagLinks|length > 0 %}
+							<section class="article-show-side-card">
+								<p class="article-show-side-card__kicker">Tags</p>
+
+								<div class="badges">
+									{% for tagLink in article.tagLinks %}
+										<span class="badge">{{ tagLink.tag.name }}</span>
+									{% endfor %}
+								</div>
+							</section>
+						{% endif %}
+					</aside>
+				</div>
+
+				<div class="article-show-comments">
+					{% include 'partials/_comments.html.twig' with {
+						comments: comments,
+						comment_form: comment_form,
+						comments_count: comments_count,
+						comments_sort: comments_sort,
+						comment_like_counts: comment_like_counts,
+						liked_comment_ids: liked_comment_ids
+					} %}
+				</div>
+			</div>
+		</section>
+	</main>
+{% endblock %}

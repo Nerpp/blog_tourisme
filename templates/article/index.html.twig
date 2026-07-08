@@ -1,0 +1,52 @@
+{% extends 'layouts/listing.html.twig' %}
+
+{% block title %}Articles tourisme - Blog Tourisme{% endblock %}
+{% block meta_description %}Tous les articles publiés : itinéraires, conseils voyage et idées de découverte pour préparer vos visites.{% endblock %}
+
+{% block body %}
+    {% set current_query_params = app.request.query.all %}
+    {% set query_params_without_category = current_query_params|filter((value, key) => key != 'category') %}
+    {% set query_params_without_search = current_query_params|filter((value, key) => key != 'q') %}
+    {% set quick_filters = [
+        {
+            label: 'Tous',
+            href: path('app_article_index', query_params_without_category),
+            active: selected_category_slug is empty
+        }
+    ] %}
+    {% for category in categories %}
+        {% set quick_filters = quick_filters|merge([
+            {
+                label: category.name,
+                href: path('app_article_index', current_query_params|merge({ category: category.slug })),
+                active: selected_category_slug == category.slug
+            }
+        ]) %}
+    {% endfor %}
+
+    {% include 'public_listing/_content_list.html.twig' with {
+        content_type: 'articles',
+        page_modifier: 'article-index-page--articles',
+        hero_kicker: 'Articles',
+        hero_title: 'Itinéraires et conseils voyage',
+        hero_intro: 'Retrouvez les derniers contenus publiés, leurs destinations associées et les conseils pour préparer vos visites.',
+        search_action: path('app_article_index'),
+        suggestions_url: path('app_article_suggestions'),
+        search_id: 'article-search-input',
+        suggestions_id: 'article-search-suggestions',
+        search_label: 'Rechercher dans les articles',
+        search_placeholder: 'Rechercher un article, une balade, une ville…',
+        search_hidden_params: query_params_without_search,
+        search_reset_url: path('app_article_index', query_params_without_search),
+        quick_filters: quick_filters,
+        results_kicker: 'Dernières publications',
+        results_title: 'Guides, récits et histoires locales',
+        count_singular: 'article',
+        count_plural: 'articles',
+        empty_search_message: 'Aucun article ne correspond à cette recherche.',
+        empty_initial_message: 'Aucun article publié pour le moment.',
+        items: articles,
+        search_query: search_query,
+        card_template: 'public_listing/_article_card.html.twig'
+    } only %}
+{% endblock %}

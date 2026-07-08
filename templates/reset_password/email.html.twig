@@ -1,0 +1,43 @@
+{% extends 'emails/base.html.twig' %}
+
+{% set resetLink = url('app_reset_password', { token: reset_token.token }) %}
+
+{% block subject %}Réinitialisation de votre mot de passe - Estela Explorations{% endblock %}
+{% block preheader %}Votre lien sécurisé de réinitialisation est disponible.{% endblock %}
+{% block email_title %}Réinitialisation de votre mot de passe{% endblock %}
+
+{% block content %}
+    <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
+        Vous avez demandé à réinitialiser votre mot de passe sur Estela Explorations.
+    </p>
+    <p style="margin:0 0 22px;color:#66756d;font-size:15px;line-height:1.7;">
+        Votre accès reste protégé, comme une étape tranquille avant de reprendre la route.
+    </p>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:24px auto;">
+        <tr>
+            <td style="border-radius:999px;background:#243b36;">
+                <a href="{{ resetLink }}" style="display:inline-block;padding:12px 20px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;border-radius:999px;">
+                    Choisir un nouveau mot de passe
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <p style="margin:0 0 16px;color:#66756d;font-size:14px;line-height:1.65;">
+        Ce lien expire dans {{ token_lifetime_minutes }} minute{{ token_lifetime_minutes > 1 ? 's' : '' }}.
+    </p>
+
+    <div style="margin:22px 0;padding:16px;border:1px solid #e7dfcf;border-left:4px solid #45aeb0;border-radius:10px;background:#f4fbfa;">
+        <p style="margin:0;color:#243b36;font-size:14px;line-height:1.65;">
+            Si vous n’êtes pas à l’origine de cette demande, vous pouvez ignorer cet email.
+        </p>
+    </div>
+
+    <p style="margin:0 0 8px;color:#66756d;font-size:13px;line-height:1.6;">
+        Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :
+    </p>
+    <p style="margin:0;color:#66756d;font-size:12px;line-height:1.6;word-break:break-all;">
+        <a href="{{ resetLink }}" style="color:#243b36;text-decoration:underline;">{{ resetLink }}</a>
+    </p>
+{% endblock %}

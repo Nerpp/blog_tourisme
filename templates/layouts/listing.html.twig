@@ -1,0 +1,9 @@
+{% extends 'base.html.twig' %}
+
+{% block layout_stylesheets %}
+    {{ vite_entry_link_tags('assets/entries/public-listing.js') }}
+{% endblock %}
+
+{% block layout_javascripts %}
+    {{ vite_entry_script_tags('assets/entries/public-listing.js') }}
+{% endblock %}

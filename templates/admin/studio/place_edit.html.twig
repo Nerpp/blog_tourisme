@@ -1,0 +1,969 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Studio repérage{% endblock %}
+
+{% set main_form_id = 'studio-place-main-form' %}
+{% set public_url = place.slug is not empty ? path('app_place_show', { slug: place.slug }) : null %}
+{% set google_maps_url = place.latitude is not null and place.longitude is not null ? 'https://www.google.com/maps/search/?api=1&query=' ~ place.latitude ~ ',' ~ place.longitude : null %}
+
+{% block stylesheets %}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
+    <style>
+        .studio-page {
+            display: grid;
+            gap: 18px;
+            max-width: 1320px;
+            width: 100%;
+        }
+
+        .studio-hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 16px;
+            align-items: start;
+            padding: 18px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: var(--admin-surface);
+        }
+
+        .studio-eyebrow {
+            margin: 0 0 4px;
+            color: var(--admin-muted);
+            font-size: 0.82rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .studio-title {
+            margin: 0;
+            font-size: clamp(1.7rem, 4vw, 2.6rem);
+            line-height: 1.1;
+        }
+
+        .studio-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .studio-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            background: var(--admin-primary-soft);
+            color: var(--admin-primary);
+            font-size: 0.85rem;
+            font-weight: 800;
+        }
+
+        .studio-badge--muted {
+            background: #eef0ee;
+            color: var(--admin-muted);
+        }
+
+        .studio-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .studio-section {
+            display: grid;
+            gap: 14px;
+            padding: 18px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: var(--admin-surface);
+        }
+
+        .studio-section__header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: end;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .studio-section h2 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+
+        .studio-section p {
+            margin: 4px 0 0;
+            color: var(--admin-muted);
+        }
+
+        .studio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 14px;
+        }
+
+        .studio-grid--wide {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        }
+
+        .studio-field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .studio-field--full {
+            grid-column: 1 / -1;
+        }
+
+        .studio-field label,
+        .studio-label {
+            color: #2d352f;
+            font-weight: 800;
+        }
+
+        .studio-field input,
+        .studio-field select,
+        .studio-field textarea,
+        .studio-preview input,
+        .studio-preview select,
+        .studio-preview textarea,
+        .studio-media-card input,
+        .studio-media-card select,
+        .studio-media-card textarea,
+        .studio-video-form input,
+        .studio-video-form select,
+        .studio-video-form textarea {
+            width: 100%;
+            min-height: 42px;
+            padding: 9px 10px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fff;
+            color: var(--admin-text);
+            font: inherit;
+        }
+
+        .studio-field textarea,
+        .studio-preview textarea,
+        .studio-media-card textarea,
+        .studio-video-form textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .studio-help {
+            color: var(--admin-muted);
+            font-size: 0.9rem;
+        }
+
+        .studio-technical {
+            padding: 12px;
+            border: 1px dashed var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fbfcfb;
+        }
+
+        .studio-upload {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .studio-upload-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .studio-file-input {
+            position: absolute;
+            inline-size: 1px;
+            block-size: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+        }
+
+        .studio-preview-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 10px;
+        }
+
+        .studio-preview {
+            display: grid;
+            gap: 6px;
+            padding: 8px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fbfcfb;
+            color: var(--admin-muted);
+            font-size: 0.85rem;
+        }
+
+        .studio-preview__name {
+            color: var(--admin-text);
+            font-weight: 800;
+            word-break: break-word;
+        }
+
+        .studio-preview__meta {
+            color: var(--admin-muted);
+            font-size: 0.86rem;
+            font-weight: 750;
+        }
+
+        .studio-preview__status {
+            justify-self: start;
+            min-height: 26px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #eef0ee;
+            color: var(--admin-muted);
+            font-size: 0.8rem;
+            font-weight: 800;
+        }
+
+        .studio-preview__status--done {
+            background: #e6f5ec;
+            color: #16703b;
+        }
+
+        .studio-preview__status--error {
+            background: var(--admin-warning-soft);
+            color: var(--admin-warning);
+        }
+
+        .studio-progress {
+            overflow: hidden;
+            height: 7px;
+            border-radius: 999px;
+            background: #e3e8e3;
+        }
+
+        .studio-progress span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--admin-primary);
+            transition: width 0.18s ease;
+        }
+
+        .studio-upload-form.is-drag-over {
+            outline: 2px dashed var(--admin-primary);
+            outline-offset: 6px;
+        }
+
+        .studio-upload-summary {
+            padding: 10px 12px;
+            border-radius: var(--admin-radius);
+            background: var(--admin-info-soft);
+            color: var(--admin-info);
+            font-weight: 800;
+        }
+
+        .studio-upload-summary--success {
+            background: #e6f5ec;
+            color: #16703b;
+        }
+
+        .studio-upload-summary--warning {
+            background: var(--admin-warning-soft);
+            color: var(--admin-warning);
+        }
+
+        .studio-preview__notice {
+            margin: 0;
+            padding: 10px 12px;
+            border-radius: var(--admin-radius);
+            background: var(--admin-info-soft);
+            color: var(--admin-info);
+            font-size: 0.9rem;
+            font-weight: 750;
+        }
+
+        .studio-preview__notice.is-warning {
+            background: var(--admin-warning-soft);
+            color: var(--admin-warning);
+        }
+
+        .studio-preview img,
+        .studio-media-thumb {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+            border-radius: var(--admin-radius);
+            background: #eef0ee;
+        }
+
+        .studio-media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 14px;
+        }
+
+        .studio-media-card {
+            display: grid;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fbfcfb;
+        }
+
+        .studio-video-card__thumbnail {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            border-radius: var(--admin-radius);
+            background: #eef3ee;
+        }
+
+        .studio-video-card__thumbnail img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .studio-video-card__thumbnail-placeholder {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            place-items: center;
+            color: #5f6f64;
+            font-weight: 800;
+        }
+
+        .studio-media-card__body,
+        .studio-video-form {
+            display: grid;
+            gap: 10px;
+        }
+
+        .studio-media-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .studio-inline-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .studio-link {
+            color: var(--admin-primary);
+            font-weight: 800;
+        }
+
+        .studio-google-preview {
+            display: grid;
+            gap: 5px;
+            padding: 14px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fff;
+        }
+
+        .studio-google-url {
+            color: #246b49;
+            font-size: 0.9rem;
+        }
+
+        .studio-google-title {
+            color: #1a0dab;
+            font-size: 1.15rem;
+        }
+
+        .studio-google-description {
+            color: #4d5156;
+        }
+
+        .studio-hidden {
+            display: none;
+        }
+
+        .studio-button-danger {
+            border: 1px solid #dba0a0;
+            background: #fff5f5;
+            color: #8c1d18;
+        }
+
+        .quick-destination {
+            display: grid;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fbfcfb;
+        }
+
+        .quick-destination__title {
+            margin: 0;
+            font-size: 1.05rem;
+        }
+
+        .quick-destination__text {
+            margin: 4px 0 0;
+            color: var(--admin-muted);
+        }
+
+        .quick-destination__actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .quick-destination__form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .quick-destination__form[hidden],
+        .quick-destination__actions[hidden],
+        .quick-destination__status[hidden] {
+            display: none;
+        }
+
+        .quick-destination__status {
+            min-height: 22px;
+            margin: 0;
+            color: var(--admin-muted);
+            font-weight: 700;
+        }
+
+        .quick-destination__grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 10px;
+        }
+
+        .quick-destination__panel,
+        .quick-destination__search,
+        .quick-destination__selection,
+        .quick-destination__advanced,
+        .quick-destination__results {
+            display: grid;
+            gap: 10px;
+        }
+
+        .quick-destination__panel[hidden],
+        .quick-destination__results[hidden],
+        .quick-destination__selection[hidden] {
+            display: none;
+        }
+
+        .quick-destination__mode-switch {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .quick-destination__mode-button,
+        .quick-destination__result {
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            padding: 10px 12px;
+            background: #fff;
+            color: #2d352f;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .quick-destination__mode-button.is-active {
+            border-color: var(--admin-primary);
+            background: #e6f5ec;
+            color: var(--admin-primary);
+        }
+
+        .quick-destination__result {
+            width: 100%;
+            text-align: left;
+        }
+
+        .quick-destination__result:hover,
+        .quick-destination__result:focus {
+            border-color: var(--admin-primary);
+            outline: none;
+        }
+
+        .quick-destination__result-message {
+            margin: 0;
+            color: var(--admin-muted);
+        }
+
+        .quick-destination__selection {
+            padding: 12px;
+            border: 1px solid #b8ddc4;
+            border-radius: var(--admin-radius);
+            background: #f2fbf5;
+        }
+
+        .quick-destination__selection-label {
+            color: var(--admin-muted);
+            font-weight: 800;
+        }
+
+        .quick-destination__advanced {
+            padding: 10px 12px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fff;
+        }
+
+        .quick-destination__advanced summary {
+            cursor: pointer;
+            font-weight: 800;
+            color: #2d352f;
+        }
+
+        @media (max-width: 760px) {
+            .studio-hero {
+                grid-template-columns: 1fr;
+            }
+
+            .studio-actions {
+                justify-content: flex-start;
+            }
+
+            .studio-media-row {
+                grid-template-columns: 1fr;
+            }
+
+            .admin-button,
+            .studio-upload label {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_place_edit', { id: place.id }) }}"></form>
+    <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_place_edit_' ~ place.id) }}">
+
+    <div class="studio-page">
+        <section class="studio-hero" aria-labelledby="studio-title">
+            <div>
+                <p class="studio-eyebrow">Studio repérage</p>
+                <h1 id="studio-title" class="studio-title">{{ place.name }}</h1>
+                <div class="studio-meta">
+                    <span class="studio-badge">{{ status_options[place.status.value] ?? place.status.value }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ place.destination ? place.destination.name : 'Destination non renseignée' }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ photo_links|length }} photo{{ photo_links|length > 1 ? 's' : '' }}</span>
+                    <span class="studio-badge studio-badge--muted">{{ video_links|length }} vidéo{{ video_links|length > 1 ? 's' : '' }}</span>
+                </div>
+            </div>
+            <div class="studio-actions">
+                {% if place.slug is not empty and place.status.value == 'published' %}
+                    <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
+                <a class="admin-button admin-button--secondary" href="{{ path('admin') }}">Retour au tableau de bord</a>
+                <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="save">Enregistrer</button>
+            </div>
+        </section>
+
+        <section class="studio-section" aria-labelledby="main-info-title">
+            <div class="studio-section__header">
+                <div>
+                    <h2 id="main-info-title">Informations principales</h2>
+                    <p>Les éléments utiles au repérage et à la préparation des contenus publics.</p>
+                </div>
+            </div>
+
+            <div class="studio-grid">
+                <div class="studio-field">
+                    <label for="place-name">Nom</label>
+                    <input form="{{ main_form_id }}" id="place-name" name="name" value="{{ place.name }}" required>
+                </div>
+                <div class="studio-field">
+                    <label for="place-slug">URL</label>
+                    <input form="{{ main_form_id }}" id="place-slug" name="slug" value="{{ place.slug }}" required>
+                    <span class="studio-help">Segment utilisé dans l’adresse de la fiche privée.</span>
+                </div>
+                <div class="studio-field">
+                    <label for="place-category">Catégorie</label>
+                    <select form="{{ main_form_id }}" id="place-category" name="category">
+                        <option value="">Non renseignée</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}" {% if place.category and place.category.id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field">
+                    <label for="place-status">Statut</label>
+                    <select form="{{ main_form_id }}" id="place-status" name="status">
+                        {% for value, label in status_options %}
+                            <option value="{{ value }}" {% if place.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field studio-field--full">
+                    <label for="place-short-description">Note courte</label>
+                    <textarea form="{{ main_form_id }}" id="place-short-description" name="shortDescription" rows="3">{{ place.shortDescription }}</textarea>
+                </div>
+                <div class="studio-field studio-field--full">
+                    <label for="place-description">Notes terrain</label>
+                    <textarea form="{{ main_form_id }}" id="place-description" name="description" rows="10">{{ place.description }}</textarea>
+                </div>
+                <div class="studio-field">
+                    <label for="place-duration">Temps estimé sur place</label>
+                    <input form="{{ main_form_id }}" id="place-duration" name="visitDurationMinutes" type="number" min="0" step="5" value="{{ place.visitDurationMinutes }}">
+                    <span class="studio-help">En minutes.</span>
+                </div>
+                <div class="studio-field">
+                    <label for="place-difficulty">Accès / difficulté terrain</label>
+                    <select form="{{ main_form_id }}" id="place-difficulty" name="difficulty">
+                        {% for value, label in difficulty_options %}
+                            <option value="{{ value }}" {% if place.difficulty and place.difficulty.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field">
+                    <label for="place-price-type">Coût éventuel</label>
+                    <select form="{{ main_form_id }}" id="place-price-type" name="priceType">
+                        {% for value, label in price_type_options %}
+                            <option value="{{ value }}" {% if place.priceType.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="studio-section" aria-labelledby="location-title" data-high-precision-gps>
+            <div class="studio-section__header">
+                <div>
+                    <h2 id="location-title">Localisation</h2>
+                    <p>La destination reste le repère principal. Les coordonnées servent aux cartes et aux usages terrain.</p>
+                </div>
+                <button class="admin-button admin-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
+            </div>
+
+            <div class="studio-grid">
+                <div class="studio-field">
+                    <label for="place-destination">Destination</label>
+                    <select form="{{ main_form_id }}" id="place-destination" name="destination">
+                        {% for destination in destinations %}
+                            <option value="{{ destination.id }}" {% if place.destination and place.destination.id == destination.id %}selected{% endif %}>{{ destination.name }} · {{ destination.type.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field">
+                    <label for="place-address">Adresse</label>
+                    <input form="{{ main_form_id }}" id="place-address" name="address" value="{{ place.address }}">
+                </div>
+                <div class="studio-field studio-technical">
+                    <label for="place-latitude">Latitude</label>
+                    <input form="{{ main_form_id }}" id="place-latitude" name="latitude" type="number" step="any" value="{{ place.latitude }}" data-gps-latitude>
+                </div>
+                <div class="studio-field studio-technical">
+                    <label for="place-longitude">Longitude</label>
+                    <input form="{{ main_form_id }}" id="place-longitude" name="longitude" type="number" step="any" value="{{ place.longitude }}" data-gps-longitude>
+                </div>
+            </div>
+            {% include 'admin/_quick_destination_form.html.twig' with {
+                ui_context: 'studio',
+                current_destination: place.destination,
+                destination_quick_create: destination_quick_create,
+                destination_type_options: destination_type_options,
+                destination_parent_options: destination_parent_options
+            } only %}
+            <div class="studio-inline-actions">
+                {% if google_maps_url %}
+                    <a class="studio-link" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Voir sur Google Maps</a>
+                {% endif %}
+                <span class="studio-help" data-gps-status></span>
+                <span class="studio-help" data-gps-coordinates></span>
+                <button class="admin-button admin-button--secondary" type="button" data-gps-stop hidden>Arrêter la recherche</button>
+                <button class="admin-button admin-button--secondary" type="button" data-gps-copy hidden>Copier les coordonnées</button>
+            </div>
+        </section>
+
+        <section class="studio-section" aria-labelledby="photos-title">
+            <div class="studio-section__header">
+                <div>
+                    <h2 id="photos-title">Photos</h2>
+                    <p>Ajoutez les images puis choisissez leur utilisation dans la fiche de repérage.</p>
+                </div>
+            </div>
+
+            {% include 'admin/studio/_photo_upload_form.html.twig' with {
+                action: path('admin_studio_place_media_photos', { id: place.id }),
+                bulk_action: path('admin_studio_place_media_photos_bulk', { id: place.id }),
+                csrf_token_id: 'studio_place_photos_' ~ place.id,
+                input_id: 'studio-photo-input',
+                image_type_options: image_type_options,
+                association_options: photo_usage_options,
+                upload_policy: bulk_upload_policy
+            } only %}
+
+            {% if photo_links %}
+                <div class="studio-media-grid">
+                    {% for media_link in photo_links %}
+                        {% set media = media_link.mediaAsset %}
+                        {% set image_src = media_image_url(media, 'thumb') %}
+                        {% set current_usage = media_link.role.value == 'cover' ? 'main' : 'gallery' %}
+                        {% set is_main_image = current_usage == 'main' %}
+                        <article
+                            class="studio-media-card {{ is_main_image ? 'is-main-media' : '' }}"
+                            data-main-media-card
+                            data-main-media-state="{{ is_main_image ? 'main' : 'gallery' }}"
+                        >
+                            {% if image_src %}
+                                <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: place.name }}">
+                            {% endif %}
+                            <span class="studio-media-role-badge" data-main-media-badge>
+                                {{ is_main_image ? 'Image principale' : 'Galerie générale' }}
+                            </span>
+                            <form class="studio-media-card__body" method="post" action="{{ path('admin_studio_place_media_update', { id: media_link.id }) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('studio_place_media_update_' ~ media_link.id) }}">
+                                <div class="studio-field">
+                                    <label for="photo-title-{{ media_link.id }}">Titre</label>
+                                    <input id="photo-title-{{ media_link.id }}" name="title" value="{{ media.title }}">
+                                </div>
+                                <div class="studio-field">
+                                    <label for="photo-alt-{{ media_link.id }}">Texte alternatif</label>
+                                    <input id="photo-alt-{{ media_link.id }}" name="altText" value="{{ media.altText }}">
+                                </div>
+                                <div class="studio-field">
+                                    <label for="photo-caption-{{ media_link.id }}">Légende</label>
+                                    <textarea id="photo-caption-{{ media_link.id }}" name="caption" rows="3">{{ media.caption }}</textarea>
+                                    <span class="studio-help">Cette légende pourra être affichée sous la photo.</span>
+                                </div>
+                                <div class="studio-media-row">
+                                    <div class="studio-field">
+                                        <label for="photo-type-{{ media_link.id }}">Type d’image</label>
+                                        <select id="photo-type-{{ media_link.id }}" name="imageType">
+                                            {% for value, label in image_type_options %}
+                                                <option value="{{ value }}" {% if media.imageType and media.imageType.value == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="studio-field">
+                                        <label for="photo-usage-{{ media_link.id }}">Associer à</label>
+                                        <select id="photo-usage-{{ media_link.id }}" name="usage" data-main-media-select>
+                                            {% for value, label in photo_usage_options %}
+                                                <option value="{{ value }}" {% if current_usage == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="studio-inline-actions">
+                                    <button class="admin-button" type="submit">Mettre à jour</button>
+                                </div>
+                            </form>
+                            <form method="post" action="{{ path('admin_studio_place_media_delete', { id: media_link.id }) }}" onsubmit="return confirm('Retirer ce média du repérage ?');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('studio_place_media_delete_' ~ media_link.id) }}">
+                                <button class="admin-button admin-button--secondary studio-button-danger" type="submit">Retirer de cette fiche</button>
+                            </form>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="admin-muted">Aucune photo liée pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section class="studio-section" aria-labelledby="videos-title">
+            <div class="studio-section__header">
+                <div>
+                    <h2 id="videos-title">Vidéos</h2>
+                    <p>Ajoutez une vidéo externe sans gérer d’upload local.</p>
+                </div>
+                <button class="admin-button" type="button" data-video-toggle>Ajouter une vidéo</button>
+            </div>
+
+            <form class="studio-video-form studio-hidden" method="post" action="{{ path('admin_studio_place_media_video', { id: place.id }) }}" data-video-form>
+                <input type="hidden" name="_token" value="{{ csrf_token('studio_place_video_' ~ place.id) }}">
+                <div class="studio-grid">
+                    <div class="studio-field">
+                        <label for="video-title">Titre</label>
+                        <input id="video-title" name="title">
+                    </div>
+                    <div class="studio-field">
+                        <label for="video-url">URL vidéo</label>
+                        <input id="video-url" name="externalUrl" type="url" required>
+                    </div>
+                    <div class="studio-field">
+                        <label for="video-type">Type</label>
+                        <select id="video-type" name="videoType">
+                            {% for value, label in video_type_options %}
+                                <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="studio-field">
+                        <label for="video-usage">Utilisation</label>
+                        <select id="video-usage" name="usage">
+                            {% for value, label in video_usage_options %}
+                                <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="studio-field studio-field--full">
+                        <label for="video-caption">Légende</label>
+                        <textarea id="video-caption" name="caption" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="studio-inline-actions">
+                    <button class="admin-button" type="submit">Enregistrer la vidéo</button>
+                </div>
+            </form>
+
+            {% if video_links %}
+                <div class="studio-media-grid">
+                    {% for media_link in video_links %}
+                        {% set media = media_link.mediaAsset %}
+                        <article class="studio-media-card studio-video-card" data-video-card>
+                            <div>
+                                {% include 'admin/studio/_video_thumbnail.html.twig' with { media: media, subject_label: place.name } only %}
+                                <span class="studio-badge">{{ media.videoType ? video_type_options[media.videoType.value] ?? media.videoType.value : 'Vidéo' }}</span>
+                                {% if media.externalUrl %}
+                                    <a class="studio-link" href="{{ media.externalUrl }}" target="_blank" rel="noopener noreferrer">Ouvrir la vidéo</a>
+                                {% endif %}
+                            </div>
+                            <form class="studio-media-card__body" method="post" action="{{ path('admin_studio_place_media_update', { id: media_link.id }) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('studio_place_media_update_' ~ media_link.id) }}">
+                                <div class="studio-field">
+                                    <label for="video-card-title-{{ media_link.id }}">Titre</label>
+                                    <input id="video-card-title-{{ media_link.id }}" name="title" value="{{ media.title }}">
+                                </div>
+                                <div class="studio-field">
+                                    <label for="video-card-url-{{ media_link.id }}">URL vidéo</label>
+                                    <input id="video-card-url-{{ media_link.id }}" name="externalUrl" type="url" value="{{ media.externalUrl }}" data-video-url-input>
+                                </div>
+                                <div class="studio-media-row">
+                                    <div class="studio-field">
+                                        <label for="video-card-type-{{ media_link.id }}">Type</label>
+                                        <select id="video-card-type-{{ media_link.id }}" name="videoType">
+                                            {% for value, label in video_type_options %}
+                                                <option value="{{ value }}" {% if media.videoType and media.videoType.value == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="studio-field">
+                                        <label for="video-card-usage-{{ media_link.id }}">Utilisation</label>
+                                        <select id="video-card-usage-{{ media_link.id }}" name="usage">
+                                            {% for value, label in video_usage_options %}
+                                                <option value="{{ value }}" selected>{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="studio-field">
+                                    <label for="video-card-caption-{{ media_link.id }}">Légende</label>
+                                    <textarea id="video-card-caption-{{ media_link.id }}" name="caption" rows="3">{{ media.caption }}</textarea>
+                                </div>
+                                <div class="studio-inline-actions">
+                                    <button class="admin-button" type="submit">Mettre à jour</button>
+                                </div>
+                            </form>
+                            <form method="post" action="{{ path('admin_studio_place_media_delete', { id: media_link.id }) }}" onsubmit="return confirm('Retirer cette vidéo du repérage ?');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('studio_place_media_delete_' ~ media_link.id) }}">
+                                <button class="admin-button admin-button--secondary studio-button-danger" type="submit">Retirer de cette fiche</button>
+                            </form>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="admin-muted">Aucune vidéo liée pour le moment.</p>
+            {% endif %}
+        </section>
+
+        <section class="studio-section" aria-labelledby="immersive-title">
+            <div class="studio-section__header">
+                <div>
+                    <h2 id="immersive-title">Images 360° / 180°</h2>
+                    <p>Ces images sont déduites automatiquement depuis le type d’image.</p>
+                </div>
+            </div>
+
+            {% if immersive_links %}
+                <div class="studio-media-grid">
+                    {% for media_link in immersive_links %}
+                        {% set media = media_link.mediaAsset %}
+                        {% set image_src = media_image_url(media, 'thumb') %}
+                        <article class="studio-media-card">
+                            {% if image_src %}
+                                <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: place.name }}">
+                            {% endif %}
+                            <div class="studio-meta">
+                                {% if media.imageType %}
+                                    <span class="studio-badge">{{ image_type_options[media.imageType.value] ?? media.imageType.value }}</span>
+                                {% endif %}
+                            </div>
+                            <strong>{{ media.title ?: 'Média sans titre' }}</strong>
+                            {% if media.caption %}
+                                <span class="admin-muted">{{ media.caption }}</span>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="admin-muted">Aucune image 360° ou 180° n’est encore configurée.</p>
+            {% endif %}
+        </section>
+
+        <section class="studio-section" aria-labelledby="seo-title">
+            <div class="studio-section__header">
+                <div>
+                    <h2 id="seo-title">Référencement</h2>
+                    <p>Préparez l’affichage dans les résultats de recherche.</p>
+                </div>
+            </div>
+
+            <div class="studio-grid studio-grid--wide">
+                <div class="studio-field">
+                    <label for="place-seo-title">Titre pour Google</label>
+                    <input form="{{ main_form_id }}" id="place-seo-title" name="seoTitle" value="{{ place.seoTitle }}">
+                </div>
+                <div class="studio-field studio-field--full">
+                    <label for="place-seo-description">Description pour Google</label>
+                    <textarea form="{{ main_form_id }}" id="place-seo-description" name="seoDescription" rows="4">{{ place.seoDescription }}</textarea>
+                </div>
+                <div class="studio-field studio-field--full">
+                    <span class="studio-label">Aperçu Google simplifié</span>
+                    <div class="studio-google-preview">
+                        <span class="studio-google-url">{{ public_url ? app.request.schemeAndHttpHost ~ public_url : 'URL à compléter après enregistrement du slug.' }}</span>
+                        <span class="studio-google-title">{{ place.seoTitle ?: place.name }}</span>
+                        <span class="studio-google-description">{{ place.seoDescription ?: place.shortDescription ?: 'Description à compléter.' }}</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="studio-section" aria-labelledby="actions-title">
+            <div class="studio-section__header">
+                <div>
+                    <h2 id="actions-title">Actions</h2>
+                    <p>Enregistrez la fiche privée ou changez son état.</p>
+                </div>
+            </div>
+            <div class="studio-actions">
+                <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="save">Enregistrer</button>
+                <button class="admin-button" form="{{ main_form_id }}" type="submit" name="action" value="publish">Publier</button>
+                <button class="admin-button admin-button--secondary" form="{{ main_form_id }}" type="submit" name="action" value="draft">Repasser en brouillon</button>
+                {% if place.slug is not empty and place.status.value == 'published' %}
+                    <a class="admin-button admin-button--secondary" href="{{ public_url }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
+                <a class="admin-button admin-button--secondary" href="{{ path('admin') }}">Retour au tableau de bord</a>
+            </div>
+        </section>
+    </div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
+    {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
+    {% include 'admin/studio/_studio_media_javascript.html.twig' %}
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Signalements{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Signalements</h1>
+            <p class="admin-subtitle">Signalements de commentaires à traiter.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Commentaire</th>
+                    <th>Raison</th>
+                    <th>Statut</th>
+                    <th>Message</th>
+                    <th>Création</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reports %}
+                    <tr>
+                        <td>{{ report.comment }}</td>
+                        <td>{{ report.reason.value }}</td>
+                        <td>{{ report.status.value }}</td>
+                        <td>{{ report.message ?: '-' }}</td>
+                        <td>{{ report.createdAt ? report.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">Aucun signalement.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

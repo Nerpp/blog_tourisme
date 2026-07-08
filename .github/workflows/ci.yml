@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+          docker compose version
+
+      - name: Configure Docker user
+        run: |
+          echo "DOCKER_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "DOCKER_GID=$(id -g)" >> "$GITHUB_ENV"
+          echo "COMPOSE_FILE=docker-compose.yml:.github/compose.ci.yml" >> "$GITHUB_ENV"
+
+      - name: Start MySQL
+        run: docker compose up -d --wait mysql
+
+      - name: Install Composer dependencies
+        run: |
+          docker compose build php
+          docker compose run --rm -e SKIP_COMPOSER_INSTALL=1 php composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Start PHP and Mailpit
+        run: docker compose up -d --wait php mailpit
+
+      - name: Install npm dependencies
+        run: |
+          docker compose run --rm --user root node chown -R "${DOCKER_UID}:${DOCKER_GID}" /var/www/html/node_modules
+          docker compose run --rm node npm ci
+
+      - name: Build Vite assets
+        run: make node-build
+
+      - name: Diagnose Panther browser
+        run: |
+          docker compose exec -T php sh -lc 'set -eu; id; pwd; umask; env | sort | grep -E "^(PANTHER|HOME|XDG_|TMP|CI=)" || true'
+          docker compose exec -T php sh -lc 'set -eu; test -x "$PANTHER_CHROME_BINARY"; printf "%s\n" "$PANTHER_CHROME_BINARY"'
+          docker compose exec -T php sh -lc 'set -eu; command -v chromedriver; test "$(command -v chromedriver)" = /usr/local/bin/chromedriver'
+          docker compose exec -T php sh -lc 'set -eu; "$PANTHER_CHROME_BINARY" --version'
+          docker compose exec -T php sh -lc 'set -eu; chromedriver --version'
+          docker compose exec -T php sh -lc 'set -eu; ls -ld /tmp "$HOME" "${XDG_CACHE_HOME:-/missing}" "${XDG_CONFIG_HOME:-/missing}" 2>/dev/null || true'
+          docker compose exec -T php sh -lc 'set -eu; df -h /dev/shm /tmp || true'
+          docker compose exec -T php sh -lc 'set -eu; find /tmp -maxdepth 2 \( -type d -name "panther*" -o -name "chrome*" \) 2>/dev/null | head -100 || true'
+
+      - name: Check Chromium directories
+        run: |
+          docker compose exec -T php sh -lc '
+            set -eux
+
+            echo "--- Identité du processus ---"
+            id
+            getent passwd "$(id -u)" || true
+
+            runtime_home="$(getent passwd "$(id -u)" | cut -d: -f6 || true)"
+            echo "HOME env: ${HOME:-<absent>}"
+            echo "Home passwd: ${runtime_home:-<inconnu>}"
+
+            echo "--- Répertoires Chromium temporaires ---"
+            rm -rf /tmp/panther-profile
+            install -d -m 700 \
+              "$HOME" \
+              "$XDG_CONFIG_HOME" \
+              "$XDG_CACHE_HOME" \
+              "$XDG_DATA_HOME" \
+              "$XDG_RUNTIME_DIR" \
+              /tmp/panther-profile
+
+            for directory in \
+              "$HOME" \
+              "$XDG_CONFIG_HOME" \
+              "$XDG_CACHE_HOME" \
+              "$XDG_DATA_HOME" \
+              "$XDG_RUNTIME_DIR" \
+              /tmp/panther-profile
+            do
+              ls -ld "$directory"
+              touch "$directory/.write-check"
+              rm "$directory/.write-check"
+            done
+
+            echo "--- Répertoire personnel système ---"
+            if [ -n "$runtime_home" ]; then
+              ls -ld "$runtime_home" || true
+              test -w "$runtime_home" && echo "Le home système est accessible en écriture." || echo "Le home système n est pas accessible en écriture."
+            fi
+
+            echo "--- Limites conteneur ---"
+            df -h /tmp /dev/shm || true
+            cat /sys/fs/cgroup/memory.events 2>/dev/null || true
+            cat /sys/fs/cgroup/pids.current 2>/dev/null || true
+            cat /sys/fs/cgroup/pids.max 2>/dev/null || true
+          '
+
+      - name: Launch Chromium directly
+        run: |
+          docker compose exec -T php bash -lc '
+            set -u
+
+            /opt/chrome-for-testing/chrome-headless-shell-linux64/chrome-headless-shell \
+              --headless=new \
+              --no-sandbox \
+              --disable-dev-shm-usage \
+              --disable-gpu \
+              --no-first-run \
+              --no-default-browser-check \
+              --user-data-dir=/tmp/panther-profile \
+              --dump-dom about:blank \
+              2>&1 | tee /tmp/panther-chromium-direct.log
+
+            chromium_status=${PIPESTATUS[0]}
+            echo "Chromium direct exit code: ${chromium_status}"
+
+            exit "${chromium_status}"
+          '
+
+      - name: Diagnose Symfony login route
+        run: |
+          docker compose exec -T php sh -lc 'php bin/console debug:router | grep -E "login|logout" || true'
+          docker compose exec -T php php bin/console about --env=test
+          docker compose exec -T php sh -lc 'find var/log -maxdepth 2 -type f -print 2>/dev/null || true'
+
+      - name: Verify Vite manifest
+        run: |
+          docker compose exec -T php test -f public/build/manifest.json
+          docker compose exec -T php ls -lh public/build/manifest.json
+
+      - name: Run Panther smoke test
+        run: |
+          make test-db-reset
+          docker compose exec -T \
+            -e SKIP_TEST_DB_RESET=1 \
+            -e PANTHER_CHROME_BINARY=/usr/local/bin/chrome-for-testing \
+            -e PANTHER_CHROME_ARGUMENTS="--headless=new --no-sandbox --disable-dev-shm-usage --disable-gpu" \
+            -e HOME=/tmp/panther-home \
+            -e XDG_CACHE_HOME=/tmp/panther-cache \
+            -e XDG_CONFIG_HOME=/tmp/panther-config \
+            -e CHROME_LOG_FILE=/tmp/panther-chrome.log \
+            php sh -lc 'mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && php vendor/bin/phpunit tests/E2E/LoginPantherTest.php'
+
+      - name: Run merge gate
+        run: make test-all
+
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          mkdir -p tmp/ci-artifacts
+          docker compose ps > tmp/ci-artifacts/docker-compose-ps.txt || true
+          docker compose logs --no-color > tmp/ci-artifacts/docker-compose.log || true
+          docker compose exec -T php sh -lc 'find /tmp -maxdepth 3 \( -name "*chrome*" -o -name "*panther*" \) -ls 2>/dev/null' > tmp/ci-artifacts/panther-tmp-files.txt || true
+          docker compose cp php:/tmp/panther-chromedriver.log tmp/ci-artifacts/panther-chromedriver.log || true
+          docker compose cp php:/tmp/panther-chrome.log tmp/ci-artifacts/panther-chrome.log || true
+          docker compose cp php:/tmp/panther-chromium-direct.log tmp/ci-artifacts/panther-chromium-direct.log || true
+          docker compose cp php:/tmp/panther-login-failure.html tmp/ci-artifacts/panther-login-failure.html || true
+          docker compose cp php:/tmp/panther-login-failure.png tmp/ci-artifacts/panther-login-failure.png || true
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-failure-artifacts
+          path: |
+            tmp/ci-artifacts/
+            var/log/test.log
+            var/log/test.deprecations.log
+            var/panther/
+            var/coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop test services
+        if: always()
+        run: docker compose down -v --remove-orphans

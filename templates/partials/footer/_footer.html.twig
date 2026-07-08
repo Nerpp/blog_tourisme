@@ -1,0 +1,43 @@
+<footer class="site-footer">
+    <div class="site-footer__container">
+        <div class="site-footer__brand">
+            <a class="site-footer__brand-link" href="{{ path('app_home') }}">Estela</a>
+            <p>Voyager entre mer, montagne et lumière.</p>
+        </div>
+
+        <nav class="site-footer__navigation" aria-label="Navigation de pied de page">
+            <section class="site-footer__section" aria-labelledby="footer-explorer-title">
+                <h2 id="footer-explorer-title">Explorer</h2>
+                <ul>
+                    <li><a href="{{ path('app_destination_index') }}">Destinations</a></li>
+                    <li><a href="{{ path('app_hike_index') }}">Randonnées</a></li>
+                    <li><a href="{{ path('app_city_visit_index') }}">Visites</a></li>
+                    <li><a href="{{ path('app_article_index') }}">Articles</a></li>
+                    <li><a href="{{ path('app_place_index') }}">Lieux</a></li>
+                </ul>
+            </section>
+
+            <section class="site-footer__section" aria-labelledby="footer-information-title">
+                <h2 id="footer-information-title">Informations</h2>
+                <ul>
+                    <li><a href="{{ path('app_sitemap_html') }}">Plan du site</a></li>
+                </ul>
+            </section>
+
+            <section class="site-footer__section" aria-labelledby="footer-follow-title">
+                <h2 id="footer-follow-title">Suivre Estela</h2>
+                <ul>
+                    <li>
+                        <a href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">
+                            YouTube <span aria-hidden="true">↗</span>
+                        </a>
+                    </li>
+                </ul>
+            </section>
+        </nav>
+    </div>
+
+    <div class="site-footer__legal">
+        <p>© {{ 'now'|date('Y') }} Estela — Voyager entre mer, montagne et lumière.</p>
+    </div>
+</footer>

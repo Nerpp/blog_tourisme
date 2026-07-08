@@ -1,0 +1,39 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}{{ title }}{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ title }}</h1>
+            <p class="admin-subtitle">Cette catégorie sera proposée uniquement aux articles.</p>
+        </div>
+        <a class="admin-button admin-button--secondary" href="{{ path('admin_article_categories_index') }}">Retour</a>
+    </header>
+
+    <section class="admin-card">
+        <form class="admin-form" method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token(category.id ? 'admin_article_category_' ~ category.id : 'admin_article_category_form') }}">
+
+            <div class="admin-form-grid">
+                <div class="admin-field">
+                    <label for="article-category-name">Nom</label>
+                    <input id="article-category-name" name="name" maxlength="120" value="{{ category.name }}" required>
+                </div>
+                <div class="admin-field">
+                    <label for="article-category-slug">Slug</label>
+                    <input id="article-category-slug" name="slug" maxlength="180" value="{{ category.slug }}" placeholder="Généré depuis le nom si vide">
+                </div>
+                <div class="admin-field admin-field--full">
+                    <label for="article-category-description">Description</label>
+                    <textarea id="article-category-description" name="description" rows="5">{{ category.description }}</textarea>
+                </div>
+            </div>
+
+            <div class="admin-actions">
+                <button class="admin-button" type="submit">{{ submit_label }}</button>
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_article_categories_index') }}">Annuler</a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

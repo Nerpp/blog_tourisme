@@ -1,0 +1,37 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Mots-clés de modération{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Mots-clés de modération</h1>
+            <p class="admin-subtitle">Liste de consultation des mots-clés automatiques.</p>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Mot-clé</th>
+                    <th>Type</th>
+                    <th>Actif</th>
+                    <th>Mise à jour</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for keyword in keywords %}
+                    <tr>
+                        <td>{{ keyword.keyword }}</td>
+                        <td>{{ keyword.type.value }}</td>
+                        <td>{{ keyword.enabled ? 'Oui' : 'Non' }}</td>
+                        <td>{{ keyword.updatedAt ? keyword.updatedAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="4">Aucun mot-clé.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

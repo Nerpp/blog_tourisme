@@ -1,0 +1,98 @@
+{% set unread_comment_notifications = app.user ? comment_unread_notification_count(app.user) : 0 %}
+
+<header class="site-header">
+    <nav class="navbar" aria-label="Navigation principale">
+        <div class="navbar-container">
+            <a class="navbar-brand" href="{{ path('app_home') }}" aria-label="Accueil Estela Explorations">
+                <img
+                    src="{{ asset('images/brand/estela-star-navbar-44.webp') }}"
+                    alt="Estela Explorations"
+                    class="navbar-brand__logo"
+                    width="44"
+                    height="44"
+                >
+                <span class="navbar-brand__text">Estela</span>
+            </a>
+
+            <div class="navbar-mobile-account">
+                {% if app.user %}
+                    <a class="navbar-notification-link" href="{{ path('app_comment_notifications') }}" aria-label="Notifications commentaires">
+                        <svg class="navbar-notification-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 22a2.6 2.6 0 0 0 2.45-1.75h-4.9A2.6 2.6 0 0 0 12 22Zm7-6.4-1.4-1.8V10a5.6 5.6 0 0 0-4.35-5.45V3.7a1.25 1.25 0 0 0-2.5 0v.85A5.6 5.6 0 0 0 6.4 10v3.8L5 15.6a1.3 1.3 0 0 0 1.03 2.1h11.94A1.3 1.3 0 0 0 19 15.6ZM8.2 15.9l.8-1.05V10a3 3 0 0 1 6 0v4.85l.8 1.05H8.2Z" />
+                        </svg>
+                        {% if unread_comment_notifications > 0 %}
+                            <span class="navbar-notification-badge">{{ unread_comment_notifications > 99 ? '99+' : unread_comment_notifications }}</span>
+                        {% endif %}
+                    </a>
+                    <a class="navbar-avatar-link" href="{{ path('app_profile') }}" aria-label="Voir mon profil">
+                        {% if app.user.avatarPath %}
+                            <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
+                        {% else %}
+                            <span class="avatar avatar--header avatar--initials" aria-hidden="true">
+                                {{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}
+                            </span>
+                        {% endif %}
+                    </a>
+                {% else %}
+                    <a class="nav-auth-link nav-auth-link--login" href="{{ path('app_login') }}">Connexion</a>
+                    <a class="nav-auth-link nav-auth-link--register" href="{{ path('app_register') }}">Inscription</a>
+                {% endif %}
+            </div>
+
+            <button
+                class="navbar-toggler js-navbar-toggler"
+                type="button"
+                aria-controls="main-navbar"
+                aria-expanded="false"
+                aria-label="Ouvrir le menu"
+            >
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div id="main-navbar" class="navbar-collapse js-navbar-collapse">
+                <div class="navbar-nav">
+                    <a class="nav-link" href="{{ path('app_home') }}">Accueil</a>
+                    <a class="nav-link" href="{{ path('app_article_index') }}">Articles</a>
+                    <a class="nav-link" href="{{ path('app_destination_index') }}">Destinations</a>
+                </div>
+
+                {% if app.user %}
+                    <div class="navbar-account">
+                        <a class="navbar-notification-link" href="{{ path('app_comment_notifications') }}" aria-label="Notifications commentaires">
+                            <svg class="navbar-notification-icon" aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+                                <path d="M12 22a2.6 2.6 0 0 0 2.45-1.75h-4.9A2.6 2.6 0 0 0 12 22Zm7-6.4-1.4-1.8V10a5.6 5.6 0 0 0-4.35-5.45V3.7a1.25 1.25 0 0 0-2.5 0v.85A5.6 5.6 0 0 0 6.4 10v3.8L5 15.6a1.3 1.3 0 0 0 1.03 2.1h11.94A1.3 1.3 0 0 0 19 15.6ZM8.2 15.9l.8-1.05V10a3 3 0 0 1 6 0v4.85l.8 1.05H8.2Z" />
+                            </svg>
+                            {% if unread_comment_notifications > 0 %}
+                                <span class="navbar-notification-badge">{{ unread_comment_notifications > 99 ? '99+' : unread_comment_notifications }}</span>
+                            {% endif %}
+                        </a>
+                       <a
+    class="navbar-profile-chip"
+    href="{{ path('app_profile') }}"
+    aria-label="Voir mon profil"
+    title="{{ app.user.displayName ?: app.user.userIdentifier }}"
+>
+    {% if app.user.avatarPath %}
+        <img class="avatar avatar--header" src="{{ asset(app.user.avatarPath) }}" alt="">
+    {% else %}
+        <span class="avatar avatar--header avatar--initials" aria-hidden="true">
+            {{ (app.user.displayName ?: app.user.userIdentifier)|first|upper }}
+        </span>
+    {% endif %}
+</a>
+
+                        {% if app.user.verified and is_granted('ROLE_ADMIN') %}
+                            <a class="nav-link" href="{{ path('admin') }}">Administration</a>
+                        {% endif %}
+
+                        <a class="nav-link" href="{{ path('app_profile') }}">Profil</a>
+                        <form method="post" action="{{ path('app_logout') }}" class="logout-form">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+                            <button type="submit" class="nav-link logout-button">Déconnexion</button>
+                        </form>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+</header>

@@ -1,0 +1,1338 @@
+<?php
+
+namespace App\Tests\Functional;
+
+use App\Entity\Comment;
+use App\Entity\CommentReplyNotification;
+use App\Entity\User;
+use App\Enum\CommentReportReason;
+use App\Enum\CommentStatus;
+use App\Repository\CommentLikeRepository;
+use App\Repository\CommentReportRepository;
+use App\Repository\CommentRepository;
+
+final class CommentControllerTest extends FunctionalTestCase
+{
+    public function testAnonymousVisitorCannotPostArticleComment(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => ['content' => 'Commentaire anonyme assez long.'],
+        ]);
+
+        self::assertResponseRedirects('/login');
+    }
+
+    public function testVerifiedUserCanPostValidArticleComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $content = 'Un commentaire fonctionnel valide et suffisamment long.';
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => $content,
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects();
+        self::assertStringStartsWith(
+            sprintf('/articles/%s#comment-', $article->getSlug()),
+            $client->getResponse()->headers->get('Location') ?? '',
+        );
+
+        $comment = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'article' => $article,
+            'author' => $author,
+        ]);
+        self::assertInstanceOf(Comment::class, $comment);
+        self::assertSame(CommentStatus::Approved, $comment->getStatus());
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($content, (string) $client->getResponse()->getContent());
+    }
+
+    public function testVerifiedUserCanPostValidPlaceComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $content = 'Un commentaire fonctionnel valide sur un lieu publié.';
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => $content,
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects();
+        self::assertStringStartsWith(
+            sprintf('/places/%s#comment-', $place->getSlug()),
+            $client->getResponse()->headers->get('Location') ?? '',
+        );
+
+        $comment = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'place' => $place,
+            'author' => $author,
+        ]);
+        self::assertInstanceOf(Comment::class, $comment);
+        self::assertSame(CommentStatus::Approved, $comment->getStatus());
+
+        $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($content, (string) $client->getResponse()->getContent());
+    }
+
+    public function testUnverifiedUserCannotPostPlaceComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser(verified: false);
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'Commentaire refusé sur lieu car email non confirmé.',
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comments', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
+    }
+
+    public function testPlaceCommentWithoutSubmittedFormIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'content' => 'Payload de lieu sans nom de formulaire commentaire.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
+    }
+
+    public function testUnverifiedUserCannotPostArticleComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser(verified: false);
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['article' => $article]);
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'Commentaire refusé car email non confirmé.',
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+        self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testArticleCommentWithoutSubmittedFormIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['article' => $article]);
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'content' => 'Payload sans nom de formulaire commentaire.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testCommentingUnknownArticleReturnsNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $client->request('POST', '/articles/article-inexistant/comments', [
+            'comment' => [
+                'content' => 'Commentaire sur article inexistant.',
+            ],
+        ]);
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testCommentingUnknownPlaceReturnsNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $client->request('POST', '/places/lieu-inexistant/comments', [
+            'comment' => [
+                'content' => 'Commentaire sur lieu inexistant.',
+            ],
+        ]);
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testVerifiedUserCanPostReplyPublishedByDefault(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $replyContent = 'Une réponse publiée immédiatement et suffisamment longue.';
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/reply', $parent->getId())),
+            'content' => $replyContent,
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects();
+        $reply = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'parent' => $parent,
+            'author' => $replyAuthor,
+        ]);
+        self::assertInstanceOf(Comment::class, $reply);
+        self::assertSame(CommentStatus::Approved, $reply->getStatus());
+        $notification = $this->entityManager()->getRepository(CommentReplyNotification::class)->findOneBy([
+            'recipient' => $author,
+            'comment' => $reply,
+        ]);
+        self::assertInstanceOf(CommentReplyNotification::class, $notification);
+        self::assertSame(CommentReplyNotification::KIND_REPLY, $notification->getKind());
+        self::assertSame($replyAuthor->getId(), $notification->getTriggeredBy()?->getId());
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($replyContent, (string) $client->getResponse()->getContent());
+    }
+
+    public function testReplyingToOwnCommentDoesNotCreateNotification(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($author);
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Une réponse à mon propre commentaire sans notification.',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects();
+        $reply = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'parent' => $parent,
+            'author' => $author,
+        ]);
+        self::assertInstanceOf(Comment::class, $reply);
+        self::assertSame(CommentStatus::Approved, $reply->getStatus());
+        self::assertSame(0, $this->entityManager()->getRepository(CommentReplyNotification::class)->count([
+            'comment' => $reply,
+        ]));
+    }
+
+    public function testEmptyReplyIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['parent' => $parent]);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/reply', $parent->getId())),
+            'content' => '',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $parent->getId()));
+        self::assertSame($before, $repository->count(['parent' => $parent]));
+    }
+
+    public function testReplyHoneypotIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['parent' => $parent]);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/reply', $parent->getId())),
+            'content' => 'Réponse piégée avec honeypot mais contenu assez long.',
+            'website' => 'https://spam.example',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $parent->getId()));
+        self::assertSame($before, $repository->count(['parent' => $parent]));
+    }
+
+    public function testReplyToNonPublicParentIsRejectedWithoutCreatingReply(): void
+    {
+        $client = static::createClient();
+        $parentAuthor = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $parents = [];
+        foreach ([
+            CommentStatus::Pending,
+            CommentStatus::Rejected,
+            CommentStatus::Spam,
+            CommentStatus::HiddenPendingReport,
+            CommentStatus::HiddenByAdmin,
+            CommentStatus::Deleted,
+        ] as $status) {
+            $parents[] = [$status, $this->createComment($parentAuthor, $article)->getId()];
+        }
+        $client->loginUser($replyAuthor);
+
+        foreach ($parents as [$status, $parentId]) {
+            self::assertIsInt($parentId);
+            $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+            self::assertResponseIsSuccessful();
+            $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/reply', $parentId));
+            $parent = $this->entityManager()->find(Comment::class, $parentId);
+            self::assertInstanceOf(Comment::class, $parent);
+            $parent->setStatus($status);
+            $this->persistAndFlush($parent);
+
+            $client->request('POST', sprintf('/comments/%d/reply', $parentId), [
+                '_token' => $token,
+                'content' => 'Réponse qui ne doit jamais être créée.',
+                'website' => '',
+            ]);
+
+            self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+            self::assertSame(0, $repository->count(['parent' => $parent]));
+            self::assertSame($status, $this->refresh($parent)->getStatus());
+        }
+    }
+
+    public function testReplyToReplyIsRejectedWithoutCreatingNestedReply(): void
+    {
+        $client = static::createClient();
+        $parentAuthor = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $nestedAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($parentAuthor, $article);
+        $reply = $this->createComment($replyAuthor, $article);
+        $client->loginUser($nestedAuthor);
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/reply', $reply->getId()));
+        $storedReply = $this->entityManager()->find(Comment::class, $reply->getId());
+        $storedParent = $this->entityManager()->find(Comment::class, $parent->getId());
+        self::assertInstanceOf(Comment::class, $storedReply);
+        self::assertInstanceOf(Comment::class, $storedParent);
+        $storedReply->setParent($storedParent);
+        $this->persistAndFlush($storedReply);
+
+        $client->request('POST', sprintf('/comments/%d/reply', $reply->getId()), [
+            '_token' => $token,
+            'content' => 'Réponse imbriquée qui doit être refusée.',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $reply->getId()));
+        self::assertSame(0, $this->entityManager()->getRepository(Comment::class)->count(['parent' => $reply]));
+        self::assertSame($parent->getId(), $this->refresh($reply)->getParent()?->getId());
+    }
+
+    public function testInvalidArticleCommentIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['article' => $article]);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'court',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testInvalidPlaceCommentIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'court',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
+    }
+
+    public function testHoneypotFilledArticleCommentIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['article' => $article]);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'Commentaire avec honeypot rempli côté robot.',
+                'website' => 'https://spam.example',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testCommentWithTooManyLinksIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['article' => $article]);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'Voici trop de liens https://a.example https://b.example https://c.example dans ce commentaire.',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame($before, $repository->count(['article' => $article]));
+    }
+
+    public function testPlaceCommentWithTooManyLinksIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $before = $repository->count(['place' => $place]);
+
+        $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'Voici trop de liens https://a.example https://b.example https://c.example sur cette fiche lieu.',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+        self::assertSame($before, $repository->count(['place' => $place]));
+    }
+
+    public function testRecentDuplicateCommentIsRejected(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+        $content = 'Commentaire doublon exact suffisamment long.';
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => $content,
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects();
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => $content,
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+        self::assertSame(1, $repository->count(['article' => $article, 'author' => $author]));
+    }
+
+    public function testCommentContentIsEscapedOnPublicPage(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => '<script>alert(1)</script> commentaire suffisamment long.',
+                '_token' => $this->inputValue($crawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects();
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $html = (string) $client->getResponse()->getContent();
+        self::assertStringNotContainsString('<script>alert(1)</script>', $html);
+        self::assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
+    }
+
+    public function testPublicPageOnlyRendersApprovedCommentsAndReplies(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle();
+        $approvedAuthor = $this->createUser();
+        $approvedAuthor->setDisplayName('Auteur visible '.$this->uniqueToken('comment'));
+        $approved = $this->createComment($approvedAuthor, $article);
+        $approved->setContent('Commentaire racine public et approuvé.');
+        $this->persistAndFlush($approved);
+
+        $approvedReply = $this->createReplyComment($this->createUser(), $approved);
+        $approvedReply->setContent('Réponse publique et approuvée.');
+        $this->persistAndFlush($approvedReply);
+
+        $hiddenComments = [];
+        foreach ([
+            CommentStatus::HiddenPendingReport,
+            CommentStatus::HiddenByAdmin,
+            CommentStatus::Deleted,
+        ] as $status) {
+            $author = $this->createUser();
+            $author->setDisplayName('Auteur masqué '.$status->value.' '.$this->uniqueToken('comment'));
+            $comment = $this->createComment($author, $article, $status);
+            $comment->setContent('Contenu racine masqué '.$status->value.'.');
+            $this->persistAndFlush($comment);
+            $hiddenComments[] = $comment;
+        }
+
+        $hiddenReplies = [];
+        foreach ([CommentStatus::HiddenPendingReport, CommentStatus::HiddenByAdmin, CommentStatus::Deleted] as $status) {
+            $reply = $this->createReplyComment($this->createUser(), $approved, $status);
+            $reply->setContent('Réponse masquée '.$status->value.'.');
+            $this->persistAndFlush($reply);
+            $hiddenReplies[] = $reply;
+        }
+
+        $this->entityManager()->clear();
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists(sprintf('#comment-%d', $approved->getId()));
+        self::assertSelectorExists(sprintf('#comment-%d', $approvedReply->getId()));
+        self::assertSelectorTextContains(sprintf('#comment-%d', $approved->getId()), 'Commentaire racine public et approuvé.');
+        self::assertSelectorTextContains(sprintf('#comment-%d', $approvedReply->getId()), 'Réponse publique et approuvée.');
+
+        foreach (array_merge($hiddenComments, $hiddenReplies) as $hiddenComment) {
+            self::assertSelectorNotExists(sprintf('#comment-%d', $hiddenComment->getId()));
+            self::assertStringNotContainsString($hiddenComment->getContent(), (string) $client->getResponse()->getContent());
+            self::assertStringNotContainsString((string) $hiddenComment->getAuthor()?->getDisplayName(), (string) $client->getResponse()->getContent());
+        }
+    }
+
+    public function testAuthorCanEditApprovedComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $updatedContent = 'Commentaire modifié proprement avec assez de contenu.';
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/edit', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/edit', $comment->getId())),
+            'content' => $updatedContent,
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        $comment = $this->refresh($comment);
+        self::assertSame($updatedContent, $comment->getContent());
+        self::assertSame(CommentStatus::Approved, $comment->getStatus());
+        self::assertNotNull($comment->getEditedAt());
+    }
+
+    public function testInvalidEditKeepsPreviousContent(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $previousContent = $comment->getContent();
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/edit', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/edit', $comment->getId())),
+            'content' => 'court',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        $comment = $this->refresh($comment);
+        self::assertSame($previousContent, $comment->getContent());
+        self::assertNull($comment->getEditedAt());
+    }
+
+    public function testOtherUserCannotEditComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $otherUser = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $previousContent = $comment->getContent();
+        $client->loginUser($author);
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/edit', $comment->getId()));
+
+        $client->loginUser($otherUser);
+
+        $client->request('POST', sprintf('/comments/%d/edit', $comment->getId()), [
+            '_token' => $token,
+            'content' => 'Tentative de modification par un autre utilisateur.',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        $comment = $this->refresh($comment);
+        self::assertSame($previousContent, $comment->getContent());
+    }
+
+    public function testHiddenCommentCannotBeReactivatedByAuthorEdit(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article, CommentStatus::HiddenPendingReport);
+        $client->loginUser($author);
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString(
+            sprintf('/comments/%d/edit', $comment->getId()),
+            (string) $client->getResponse()->getContent(),
+        );
+        $comment = $this->refresh($comment);
+        self::assertSame(CommentStatus::HiddenPendingReport, $comment->getStatus());
+    }
+
+    public function testAuthorCannotDirectlyEditModeratedOrDeletedComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comments = [];
+        foreach ([
+            CommentStatus::Pending,
+            CommentStatus::Rejected,
+            CommentStatus::Spam,
+            CommentStatus::HiddenPendingReport,
+            CommentStatus::HiddenByAdmin,
+            CommentStatus::Deleted,
+        ] as $status) {
+            $comment = $this->createComment($author, $article);
+            $comments[] = [$status, $comment->getId(), $comment->getContent()];
+        }
+        $client->loginUser($author);
+
+        foreach ($comments as [$status, $commentId, $previousContent]) {
+            self::assertIsInt($commentId);
+            $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+            self::assertResponseIsSuccessful();
+            $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/edit', $commentId));
+            $comment = $this->entityManager()->find(Comment::class, $commentId);
+            self::assertInstanceOf(Comment::class, $comment);
+            $comment->setStatus($status);
+            $this->persistAndFlush($comment);
+
+            $client->request('POST', sprintf('/comments/%d/edit', $commentId), [
+                '_token' => $token,
+                'content' => 'Tentative de réactivation par modification directe.',
+            ]);
+
+            self::assertResponseStatusCodeSame(403);
+            $stored = $this->refresh($comment);
+            self::assertSame($status, $stored->getStatus());
+            self::assertSame($previousContent, $stored->getContent());
+            self::assertNull($stored->getEditedAt());
+        }
+    }
+
+    public function testInvalidEditCsrfKeepsApprovedCommentUnchanged(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $previousContent = $comment->getContent();
+        $client->loginUser($author);
+
+        $client->request('POST', sprintf('/comments/%d/edit', $comment->getId()), [
+            '_token' => 'bad-token',
+            'content' => 'Modification qui ne doit pas être persistée.',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        $stored = $this->refresh($comment);
+        self::assertSame(CommentStatus::Approved, $stored->getStatus());
+        self::assertSame($previousContent, $stored->getContent());
+        self::assertNull($stored->getEditedAt());
+    }
+
+    public function testInvalidReplyCsrfKeepsParentWithoutReply(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => 'bad-token',
+            'content' => 'Réponse avec jeton invalide qui ne doit pas exister.',
+            'website' => '',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertSame(0, $repository->count(['parent' => $parent]));
+    }
+
+    public function testUnverifiedUserCannotReplyToApprovedComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $replyAuthor = $this->createUser(verified: false);
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $client->loginUser($replyAuthor);
+        $repository = $this->entityManager()->getRepository(Comment::class);
+        self::assertInstanceOf(CommentRepository::class, $repository);
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Réponse refusée car email non confirmé.',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $parent->getId()));
+        self::assertSame(0, $repository->count(['parent' => $parent]));
+    }
+
+    public function testAuthorCanDeleteComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $commentId = $comment->getId();
+        self::assertNotNull($commentId);
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/delete', $commentId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/delete', $commentId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+        self::assertNull($this->entityManager()->getRepository(Comment::class)->find($commentId));
+    }
+
+    public function testAuthorCanDeleteReplyAndReturnToParent(): void
+    {
+        $client = static::createClient();
+        $parentAuthor = $this->createUser();
+        $replyAuthor = $this->createUser();
+        $article = $this->createArticle();
+        $parent = $this->createComment($parentAuthor, $article);
+        $reply = $this->createReplyComment($replyAuthor, $parent);
+        $replyId = $reply->getId();
+        self::assertNotNull($replyId);
+        $client->loginUser($replyAuthor);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/delete', $replyId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/delete', $replyId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $parent->getId()));
+        self::assertNull($this->entityManager()->getRepository(Comment::class)->find($replyId));
+    }
+
+    public function testOtherUserCannotDeleteComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $otherUser = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $commentId = $comment->getId();
+        self::assertNotNull($commentId);
+        $client->loginUser($author);
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/delete', $commentId));
+
+        $client->loginUser($otherUser);
+
+        $client->request('POST', sprintf('/comments/%d/delete', $commentId), [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertInstanceOf(Comment::class, $this->entityManager()->getRepository(Comment::class)->find($commentId));
+    }
+
+    public function testInvalidDeleteCsrfKeepsCommentPersisted(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $commentId = $comment->getId();
+        self::assertNotNull($commentId);
+        $client->loginUser($author);
+
+        $client->request('POST', sprintf('/comments/%d/delete', $commentId), [
+            '_token' => 'bad-token',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        $stored = $this->entityManager()->getRepository(Comment::class)->find($commentId);
+        self::assertInstanceOf(Comment::class, $stored);
+        self::assertSame(CommentStatus::Approved, $stored->getStatus());
+    }
+
+    public function testLikeToggleCreatesAndRemovesLike(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $liker = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $client->loginUser($liker);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/like', $comment->getId()));
+
+        $client->request('POST', sprintf('/comments/%d/like', $comment->getId()), ['_token' => $token]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+
+        $likeRepository = $this->entityManager()->getRepository(\App\Entity\CommentLike::class);
+        self::assertInstanceOf(CommentLikeRepository::class, $likeRepository);
+        self::assertSame(1, $likeRepository->count(['comment' => $comment, 'user' => $liker]));
+
+        $client->followRedirect();
+        self::assertSelectorExists(sprintf('#comment-%d .comment-like-button.is-active[aria-pressed="true"]', $comment->getId()));
+        self::assertSelectorTextContains(sprintf('#comment-%d .comment-like-button', $comment->getId()), '1');
+
+        $client->request('POST', sprintf('/comments/%d/like', $comment->getId()), ['_token' => $token]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        self::assertSame(0, $likeRepository->count(['comment' => $comment, 'user' => $liker]));
+
+        $client->followRedirect();
+        self::assertSelectorExists(sprintf('#comment-%d .comment-like-button[aria-pressed="false"]', $comment->getId()));
+        self::assertSelectorNotExists(sprintf('#comment-%d .comment-like-button.is-active', $comment->getId()));
+        self::assertSelectorTextContains(sprintf('#comment-%d .comment-like-button', $comment->getId()), '0');
+    }
+
+    public function testActionsOnUnknownCommentReturnNotFound(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        foreach (['reply', 'like', 'edit', 'delete', 'report'] as $action) {
+            $client->request('POST', '/comments/2147483647/'.$action, ['_token' => 'unused']);
+
+            self::assertResponseStatusCodeSame(404, sprintf('The %s action should return 404.', $action));
+        }
+    }
+
+    public function testHiddenCommentCannotBeLiked(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $liker = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $client->loginUser($liker);
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/like', $comment->getId()));
+        $storedComment = $this->entityManager()->find(Comment::class, $comment->getId());
+        self::assertInstanceOf(Comment::class, $storedComment);
+        $storedComment->setStatus(CommentStatus::HiddenPendingReport);
+        $this->persistAndFlush($storedComment);
+
+        $client->request('POST', sprintf('/comments/%d/like', $comment->getId()), [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+        $likeRepository = $this->entityManager()->getRepository(\App\Entity\CommentLike::class);
+        self::assertInstanceOf(CommentLikeRepository::class, $likeRepository);
+        self::assertSame(0, $likeRepository->count(['comment' => $comment, 'user' => $liker]));
+        self::assertSame(CommentStatus::HiddenPendingReport, $this->refresh($comment)->getStatus());
+    }
+
+    public function testAuthorCannotReportOwnComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $otherUser = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $client->loginUser($otherUser);
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/report', $comment->getId()));
+        $client->loginUser($author);
+
+        $client->request('POST', sprintf('/comments/%d/report', $comment->getId()), [
+            '_token' => $token,
+            'reason' => CommentReportReason::Other->value,
+            'message' => 'Auto-signalement interdit.',
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        $reportRepository = $this->entityManager()->getRepository(\App\Entity\CommentReport::class);
+        self::assertInstanceOf(CommentReportRepository::class, $reportRepository);
+        self::assertSame(0, $reportRepository->count(['comment' => $comment, 'reporter' => $author]));
+        $stored = $this->refresh($comment);
+        self::assertSame(CommentStatus::Approved, $stored->getStatus());
+        self::assertSame(0, $stored->getReportedCount());
+    }
+
+    public function testVerifiedUserCanReportCommentOnlyOnce(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $reporter = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $client->loginUser($reporter);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        $token = $this->tokenFromFormAction($crawler, sprintf('/comments/%d/report', $comment->getId()));
+
+        $payload = [
+            '_token' => $token,
+            'reason' => CommentReportReason::Spam->value,
+            'message' => 'Signalement de test.',
+        ];
+        $client->request('POST', sprintf('/comments/%d/report', $comment->getId()), $payload);
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+
+        $client->request('POST', sprintf('/comments/%d/report', $comment->getId()), $payload);
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+
+        $reportRepository = $this->entityManager()->getRepository(\App\Entity\CommentReport::class);
+        self::assertInstanceOf(CommentReportRepository::class, $reportRepository);
+        self::assertSame(1, $reportRepository->count(['comment' => $comment, 'reporter' => $reporter]));
+        $comment = $this->refresh($comment);
+        self::assertSame(1, $comment->getReportedCount());
+        self::assertSame(CommentStatus::HiddenPendingReport, $comment->getStatus());
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString('Commentaire fonctionnel assez long.', (string) $client->getResponse()->getContent());
+    }
+
+    public function testVerifiedAdminCanHeartAndPinApprovedComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/admin-heart', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/admin-heart', $comment->getId())),
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        $comment = $this->refresh($comment);
+        self::assertNotNull($comment->getAdminHeartedAt());
+
+        $client->request('POST', sprintf('/comments/%d/pin', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/pin', $comment->getId())),
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        $comment = $this->refresh($comment);
+        self::assertTrue($comment->isPinned());
+    }
+
+    public function testVerifiedAdminCannotHeartHiddenComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article, CommentStatus::HiddenPendingReport);
+        $client->loginUser($admin);
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/admin-heart', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin-heart-comment-'.$comment->getId()),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+        $comment = $this->refresh($comment);
+        self::assertNull($comment->getAdminHeartedAt());
+        self::assertSame(CommentStatus::HiddenPendingReport, $comment->getStatus());
+    }
+
+    public function testVerifiedAdminCannotPinReplyFromPublicAction(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $article = $this->createArticle();
+        $parent = $this->createComment($author, $article);
+        $reply = $this->createReplyComment($this->createUser(), $parent);
+        $client->loginUser($admin);
+
+        $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/comments/%d/pin', $reply->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'pin-comment-'.$reply->getId()),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $reply->getId()));
+        self::assertFalse($this->refresh($reply)->isPinned());
+    }
+
+    public function testAnonymousVisitorCannotReplyLikeEditOrDeleteComment(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $comment = $this->createComment($author, $this->createArticle());
+
+        foreach (['reply', 'like', 'edit', 'delete'] as $action) {
+            $client->request('POST', sprintf('/comments/%d/%s', $comment->getId(), $action));
+
+            self::assertResponseRedirects('/login');
+        }
+    }
+
+    public function testBannedUserCannotCommentOnArticlePlaceOrReply(): void
+    {
+        $client = static::createClient();
+        $bannedUser = $this->createUser(banned: true);
+        $article = $this->createArticle();
+        $place = $this->createPublishedPlace();
+        $parent = $this->createComment($this->createUser(), $article);
+        $client->loginUser($bannedUser);
+
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => ['content' => 'Commentaire article refusé pour compte suspendu.'],
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => ['content' => 'Commentaire lieu refusé pour compte suspendu.'],
+        ]);
+        self::assertResponseRedirects(sprintf('/places/%s#comments', $place->getSlug()));
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Réponse refusée pour compte suspendu.',
+            'website' => '',
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $parent->getId()));
+
+        self::assertSame(0, $this->entityManager()->getRepository(Comment::class)->count(['author' => $bannedUser]));
+    }
+
+    public function testCommentSocialActionsRequireValidCsrfTokens(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $user = $this->createUser();
+        $admin = $this->createVerifiedAdmin();
+        $comment = $this->createComment($author, $this->createArticle());
+        $commentId = $comment->getId();
+        self::assertNotNull($commentId);
+        $client->loginUser($user);
+
+        foreach (['like', 'report'] as $action) {
+            $client->request('POST', sprintf('/comments/%d/%s', $commentId, $action), ['_token' => 'bad-token']);
+
+            self::assertResponseStatusCodeSame(403);
+        }
+
+        $client->loginUser($admin);
+        foreach (['admin-heart', 'pin'] as $action) {
+            $client->request('POST', sprintf('/comments/%d/%s', $commentId, $action), ['_token' => 'bad-token']);
+
+            self::assertResponseStatusCodeSame(403);
+        }
+
+        $stored = $this->refresh($comment);
+        self::assertNull($stored->getAdminHeartedAt());
+        self::assertFalse($stored->isPinned());
+        self::assertSame(0, $stored->getReportedCount());
+        self::assertSame(0, $this->entityManager()->getRepository(\App\Entity\CommentLike::class)->count(['comment' => $comment]));
+    }
+
+    public function testArticleCommentRateLimitRejectsSixthAttempt(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $client->loginUser($author);
+
+        for ($attempt = 1; $attempt <= 6; ++$attempt) {
+            $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()));
+        }
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
+        self::assertSame(0, $this->entityManager()->getRepository(Comment::class)->count([
+            'article' => $article,
+            'author' => $author,
+        ]));
+    }
+
+    public function testSpamArticleAndPlaceCommentsArePersistedButNotPublished(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $place = $this->createPublishedPlace();
+        $client->loginUser($author);
+
+        $articleCrawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
+        $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
+            'comment' => [
+                'content' => 'Casino viagra dans un commentaire article à modérer.',
+                '_token' => $this->inputValue($articleCrawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
+
+        $placeCrawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
+            'comment' => [
+                'content' => 'Casino viagra dans un commentaire lieu à modérer.',
+                '_token' => $this->inputValue($placeCrawler, 'input[name="comment[_token]"]'),
+            ],
+        ]);
+        self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
+
+        self::assertSame(2, $this->entityManager()->getRepository(Comment::class)->count([
+            'author' => $author,
+            'status' => CommentStatus::Spam,
+        ]));
+    }
+
+    public function testSpamReplyIsStoredWithoutNotificationOrPublicFragment(): void
+    {
+        $client = static::createClient();
+        $parent = $this->createComment($this->createUser(), $this->createArticle());
+        $replyAuthor = $this->createUser();
+        $client->loginUser($replyAuthor);
+
+        $client->request('POST', sprintf('/comments/%d/reply', $parent->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'reply-comment-'.$parent->getId()),
+            'content' => 'Casino viagra dans une réponse à modérer.',
+            'website' => '',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $parent->getArticle()?->getSlug(), $parent->getId()));
+        $reply = $this->entityManager()->getRepository(Comment::class)->findOneBy([
+            'parent' => $parent,
+            'author' => $replyAuthor,
+        ]);
+        self::assertInstanceOf(Comment::class, $reply);
+        self::assertSame(CommentStatus::Spam, $reply->getStatus());
+        self::assertSame(0, $this->entityManager()->getRepository(\App\Entity\CommentReplyNotification::class)->count(['comment' => $reply]));
+    }
+
+    public function testSpamGuardRejectsEditedContentAndRestoresPreviousValue(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $article = $this->createArticle();
+        $comment = $this->createComment($author, $article);
+        $previousContent = $comment->getContent();
+        $client->loginUser($author);
+
+        $client->request('POST', sprintf('/comments/%d/edit', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'edit-comment-'.$comment->getId()),
+            'content' => 'Contenu avec https://one.example https://two.example https://three.example refusé.',
+        ]);
+
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $article->getSlug(), $comment->getId()));
+        $stored = $this->refresh($comment);
+        self::assertSame($previousContent, $stored->getContent());
+        self::assertNull($stored->getEditedAt());
+    }
+
+    public function testAuthorCanDeletePlaceCommentAndReturnToPlace(): void
+    {
+        $client = static::createClient();
+        $author = $this->createUser();
+        $place = $this->createPublishedPlace();
+        $comment = (new Comment())
+            ->setAuthor($author)
+            ->setPlace($place)
+            ->setContent('Commentaire de lieu à supprimer définitivement.')
+            ->setStatus(CommentStatus::Approved)
+            ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
+            ->setApprovedAt(new \DateTimeImmutable('-1 hour'));
+        $this->persistAndFlush($comment);
+        $commentId = $comment->getId();
+        self::assertNotNull($commentId);
+        $client->loginUser($author);
+
+        $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
+        self::assertResponseIsSuccessful();
+        $client->request('POST', sprintf('/comments/%d/delete', $commentId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/comments/%d/delete', $commentId)),
+        ]);
+
+        self::assertResponseRedirects(sprintf('/places/%s#comments', $place->getSlug()));
+        self::assertNull($this->entityManager()->find(Comment::class, $commentId));
+    }
+
+    private function createReplyComment(User $author, Comment $parent, CommentStatus $status = CommentStatus::Approved): Comment
+    {
+        $now = new \DateTimeImmutable('-1 hour');
+        $reply = (new Comment())
+            ->setAuthor($author)
+            ->setParent($parent)
+            ->setContent('Réponse fonctionnelle assez longue.')
+            ->setStatus($status);
+        $parent->getChildren()->add($reply);
+
+        if ($parent->getArticle() !== null) {
+            $reply->setArticle($parent->getArticle());
+        }
+
+        if ($parent->getPlace() !== null) {
+            $reply->setPlace($parent->getPlace());
+        }
+
+        if ($status === CommentStatus::Approved) {
+            $reply
+                ->setPublishedAt($now)
+                ->setApprovedAt($now);
+        }
+
+        $this->persistAndFlush($reply);
+
+        return $reply;
+    }
+}

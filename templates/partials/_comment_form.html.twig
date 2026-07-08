@@ -1,0 +1,32 @@
+{% if app.user and app.user.verified is defined and not app.user.verified %}
+    <p class="login-callout">
+        Votre email doit être confirmé pour laisser un commentaire.
+        <a href="{{ path('app_verify_email_resend') }}">Renvoyer l’email de confirmation</a>
+    </p>
+{% elseif comment_form %}
+    <section class="comment-form-panel comment-composer" id="comment-form">
+        <div class="comment-composer__avatar">
+            {% set composer_name = app.user.displayName ?: app.user.userIdentifier %}
+            {% if app.user.avatarPath %}
+                <img class="avatar avatar--comment" src="{{ asset(app.user.avatarPath) }}" alt="">
+            {% else %}
+                <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ composer_name|first|upper }}</span>
+            {% endif %}
+        </div>
+
+        {{ form_start(comment_form, { attr: { class: 'comment-form comment-composer__form' } }) }}
+            {{ form_errors(comment_form) }}
+            <div class="comment-composer__field">
+                {{ form_label(comment_form.content) }}
+                {{ form_widget(comment_form.content, { attr: { rows: 1 } }) }}
+            </div>
+            <div class="comment-composer__actions">
+                <button type="reset" class="comment-button comment-button--ghost">Annuler</button>
+                {{ form_widget(comment_form.submit, { label: 'Envoyer', attr: { class: 'comment-button comment-button--primary' } }) }}
+            </div>
+            {{ form_rest(comment_form) }}
+        {{ form_end(comment_form, { render_rest: false }) }}
+    </section>
+{% else %}
+    <p class="login-callout"><a href="{{ path('app_login') }}">Connectez-vous</a> pour laisser un commentaire.</p>
+{% endif %}

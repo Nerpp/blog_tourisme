@@ -1,0 +1,62 @@
+{% set type = media.mediaType.value %}
+{% set image_type = media.imageType ? media.imageType.value : null %}
+{% set badge = type == 'video'
+    ? 'Vidéo'
+    : ({
+        'standard': 'Standard',
+        '360': '360°',
+        '180': '180°',
+        'panorama': 'Panorama',
+        'wide_angle': 'Grand angle'
+    }[image_type]|default('Image'))
+%}
+{% set image_path = media_image_url(media, 'thumb') %}
+{% set public_media_title = media_public_title(media, null, 'Média touristique') %}
+{% set public_media_alt = media_public_alt(media, null, public_media_title ?: 'Média touristique') %}
+{% if image_type != 'standard' and not media.thumbnailPath and not media.variants %}
+    {% set image_path = null %}
+{% endif %}
+{% set is_demo_image = image_path and image_path starts with '/uploads/demo/' %}
+
+<article class="media-card" data-media-type="{{ type }}" {% if image_type %}data-image-type="{{ image_type }}"{% endif %}>
+    <div class="media-visual">
+        <span class="badge media-badge">{{ badge }}</span>
+
+        {% if type == 'image' %}
+            {% if image_path and not is_demo_image %}
+                {% include 'public_detail/_responsive_image.html.twig' with {
+                    media: media,
+                    alt: public_media_alt,
+                    image_size: 'thumb',
+                    sizes: '(min-width: 900px) 280px, 100vw'
+                } only %}
+            {% else %}
+                <div class="media-placeholder" role="img" aria-label="{{ public_media_alt ?: 'Image de demonstration' }}">
+                    <span>{{ badge }}</span>
+                </div>
+            {% endif %}
+    {% elseif type == 'video' %}
+        {% set poster_url = media_poster_url(media, 'thumb') ?: video_thumbnail_url(media.externalUrl) %}
+
+        {% if poster_url and not (poster_url starts with '/uploads/demo/') %}
+            <img src="{{ poster_url }}" alt="{{ public_media_alt ?: 'Video touristique' }}" loading="lazy" decoding="async">
+        {% else %}
+            <div class="media-placeholder media-placeholder-video" role="img" aria-label="{{ public_media_alt ?: 'Vidéo de demonstration' }}">
+                <span>Vidéo</span>
+            </div>
+        {% endif %}
+    {% endif %}
+    </div>
+
+    <div class="media-body">
+        {% if public_media_title %}
+            <h3>{{ public_media_title }}</h3>
+        {% endif %}
+        {% if media.caption %}
+            <p>{{ media.caption }}</p>
+        {% endif %}
+        {% if type == 'video' and media.externalUrl %}
+            <a href="{{ media.externalUrl }}" rel="noopener noreferrer" target="_blank">Voir la video</a>
+        {% endif %}
+    </div>
+</article>

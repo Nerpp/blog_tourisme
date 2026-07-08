@@ -1,0 +1,413 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Trafic du site{% endblock %}
+
+{% set type_labels = {
+    home: 'Accueil',
+    article_index: 'Liste articles',
+    article: 'Article',
+    hike: 'Randonnée',
+    city_visit: 'Visite de ville',
+    destination_index: 'Liste destinations',
+    destination: 'Destination',
+    place_index: 'Liste lieux',
+    place: 'Lieu',
+    error: 'Erreur',
+    other: 'Autre'
+} %}
+
+{% block stylesheets %}
+    <style>
+        .traffic-layout {
+            display: grid;
+            gap: 18px;
+        }
+
+        .traffic-filters,
+        .traffic-kpis,
+        .traffic-columns {
+            display: grid;
+            gap: 14px;
+        }
+
+        .traffic-filters {
+            grid-template-columns: 1fr auto;
+            align-items: end;
+        }
+
+        .traffic-periods,
+        .traffic-custom-range,
+        .traffic-checkbox {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .traffic-periods a,
+        .traffic-pill {
+            display: inline-flex;
+            min-height: 34px;
+            align-items: center;
+            padding: 0 11px;
+            border: 1px solid var(--admin-line);
+            border-radius: 999px;
+            color: var(--admin-text);
+            font-weight: 750;
+            text-decoration: none;
+        }
+
+        .traffic-periods a.is-active,
+        .traffic-pill {
+            border-color: var(--admin-primary);
+            background: var(--admin-primary-soft);
+            color: var(--admin-primary);
+        }
+
+        .traffic-custom-range input {
+            min-height: 38px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            padding: 0 8px;
+            font: inherit;
+        }
+
+        .traffic-kpis {
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+
+        .traffic-kpi {
+            display: grid;
+            gap: 6px;
+            padding: 16px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: var(--admin-surface);
+        }
+
+        .traffic-kpi span {
+            color: var(--admin-muted);
+            font-size: 0.85rem;
+            font-weight: 800;
+        }
+
+        .traffic-kpi strong {
+            color: var(--admin-primary);
+            font-size: 1.8rem;
+        }
+
+        .traffic-columns {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .traffic-chart {
+            display: grid;
+            gap: 8px;
+        }
+
+        .traffic-bar {
+            display: grid;
+            grid-template-columns: 120px 1fr 56px;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .traffic-bar__track {
+            height: 12px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: #e7ece8;
+        }
+
+        .traffic-bar__fill {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--admin-primary);
+        }
+
+        .traffic-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .traffic-table th,
+        .traffic-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--admin-line);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .traffic-table th {
+            color: var(--admin-muted);
+            font-size: 0.84rem;
+        }
+
+        .traffic-muted {
+            color: var(--admin-muted);
+        }
+
+        @media (max-width: 980px) {
+            .traffic-filters,
+            .traffic-columns {
+                grid-template-columns: 1fr;
+            }
+
+            .traffic-bar {
+                grid-template-columns: 90px 1fr 48px;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <div class="traffic-layout">
+        <header class="admin-header">
+            <div>
+                <h1 class="admin-title">Trafic du site</h1>
+                <p class="admin-subtitle">Suivi anonymisé des visites publiques.</p>
+            </div>
+            <span class="traffic-pill">
+                {{ from|date('d/m/Y') }} - {{ to|date_modify('-1 day')|date('d/m/Y') }}
+            </span>
+        </header>
+
+        <section class="admin-card traffic-filters">
+            <div>
+                <div class="traffic-periods" aria-label="Périodes">
+                    {% for value, label in period_options %}
+                        <a
+                            href="{{ path('admin_traffic_index', app.request.query.all|merge({ period: value })) }}"
+                            class="{{ period == value ? 'is-active' : '' }}"
+                        >
+                            {{ label }}
+                        </a>
+                    {% endfor %}
+                </div>
+                <form class="traffic-custom-range" method="get">
+                    <input type="hidden" name="period" value="custom">
+                    <label>
+                        Du
+                        <input type="date" name="from" value="{{ app.request.query.get('from') ?: from|date('Y-m-d') }}">
+                    </label>
+                    <label>
+                        Au
+                        <input type="date" name="to" value="{{ app.request.query.get('to') ?: to|date_modify('-1 day')|date('Y-m-d') }}">
+                    </label>
+                    {% if include_bots %}
+                        <input type="hidden" name="include_bots" value="1">
+                    {% endif %}
+                    <button class="admin-button admin-button--secondary" type="submit">Appliquer</button>
+                </form>
+            </div>
+            <form method="get">
+                <input type="hidden" name="period" value="{{ period }}">
+                {% if period == 'custom' %}
+                    <input type="hidden" name="from" value="{{ app.request.query.get('from') }}">
+                    <input type="hidden" name="to" value="{{ app.request.query.get('to') }}">
+                {% endif %}
+                <label class="traffic-checkbox">
+                    <input type="checkbox" name="include_bots" value="1" {{ include_bots ? 'checked' : '' }} onchange="this.form.submit()">
+                    Inclure les bots
+                </label>
+            </form>
+        </section>
+
+        <section class="traffic-kpis" aria-label="Indicateurs trafic">
+            <div class="traffic-kpi"><span>Pages vues</span><strong>{{ kpis.page_views|number_format(0, ',', ' ') }}</strong></div>
+            <div class="traffic-kpi"><span>Visiteurs approx.</span><strong>{{ kpis.visitors|number_format(0, ',', ' ') }}</strong></div>
+            <div class="traffic-kpi"><span>Pages vues aujourd’hui</span><strong>{{ kpis.today|number_format(0, ',', ' ') }}</strong></div>
+            <div class="traffic-kpi"><span>Taux 404</span><strong>{{ kpis.error_404_rate }}%</strong></div>
+            <div class="traffic-kpi"><span>Contenu le plus consulté</span><strong>{{ kpis.top_content }}</strong></div>
+        </section>
+
+        <section class="traffic-columns">
+            <div class="admin-card">
+                <h2>Évolution par jour</h2>
+                <div class="traffic-chart">
+                    {% for row in traffic_by_day %}
+                        <div class="traffic-bar">
+                            <span>{{ row.period|date('d/m') }}</span>
+                            <span class="traffic-bar__track">
+                                <span class="traffic-bar__fill" style="width: {{ kpis.page_views > 0 ? ((row.views / kpis.page_views) * 100)|round(1) : 0 }}%"></span>
+                            </span>
+                            <strong>{{ row.views }}</strong>
+                        </div>
+                    {% else %}
+                        <p class="traffic-muted">Aucune visite sur la période.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="admin-card">
+                <h2>Appareils</h2>
+                <div class="traffic-chart">
+                    {% for row in devices %}
+                        <div class="traffic-bar">
+                            <span>{{ row.deviceType }}</span>
+                            <span class="traffic-bar__track">
+                                <span class="traffic-bar__fill" style="width: {{ kpis.page_views > 0 ? ((row.views / kpis.page_views) * 100)|round(1) : 0 }}%"></span>
+                            </span>
+                            <strong>{{ row.views }}</strong>
+                        </div>
+                    {% else %}
+                        <p class="traffic-muted">Aucune donnée appareil.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+
+        {% if traffic_by_hour %}
+            <section class="admin-card">
+                <h2>Trafic par heure</h2>
+                <div class="traffic-chart">
+                    {% for row in traffic_by_hour %}
+                        <div class="traffic-bar">
+                            <span>{{ row.period|date('H:i') }}</span>
+                            <span class="traffic-bar__track">
+                                <span class="traffic-bar__fill" style="width: {{ kpis.page_views > 0 ? ((row.views / kpis.page_views) * 100)|round(1) : 0 }}%"></span>
+                            </span>
+                            <strong>{{ row.views }}</strong>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="admin-card">
+            <h2>Pages les plus vues</h2>
+            <table class="traffic-table">
+                <thead><tr><th>Page</th><th>Type</th><th>Vues</th><th>Visiteurs approx.</th><th>Lien</th></tr></thead>
+                <tbody>
+                    {% for row in top_pages %}
+                        <tr>
+                            <td>{{ row.contentTitle ?: row.path }}</td>
+                            <td>{{ type_labels[row.contentType]|default(row.contentType ?: 'Autre') }}</td>
+                            <td>{{ row.views }}</td>
+                            <td>{{ row.visitors }}</td>
+                            <td><a href="{{ row.path }}" target="_blank" rel="noopener noreferrer">Ouvrir</a></td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5">Aucune page vue.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="traffic-columns">
+            {% for title, rows in {
+                'Articles les plus consultés': top_articles,
+                'Randonnées les plus consultées': top_hikes,
+                'Visites de ville les plus consultées': top_city_visits,
+                'Destinations populaires': top_destinations
+            } %}
+                <div class="admin-card">
+                    <h2>{{ title }}</h2>
+                    <table class="traffic-table">
+                        <thead><tr><th>Titre</th><th>Vues</th><th>Visiteurs</th><th>Lien</th></tr></thead>
+                        <tbody>
+                            {% for row in rows %}
+                                <tr>
+                                    <td>{{ row.contentTitle ?: row.path }}</td>
+                                    <td>{{ row.views }}</td>
+                                    <td>{{ row.visitors }}</td>
+                                    <td><a href="{{ row.path }}" target="_blank" rel="noopener noreferrer">Ouvrir</a></td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="4">Aucune donnée.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endfor %}
+        </section>
+
+        <section class="traffic-columns">
+            <div class="admin-card">
+                <h2>Sources de trafic</h2>
+                <table class="traffic-table">
+                    <thead><tr><th>Source</th><th>Vues</th></tr></thead>
+                    <tbody>
+                        {% for row in referrers %}
+                            <tr><td>{{ row.source }}</td><td>{{ row.views }}</td></tr>
+                        {% else %}
+                            <tr><td colspan="2">Aucune source.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="admin-card">
+                <h2>Navigateurs / statuts</h2>
+                <table class="traffic-table">
+                    <thead><tr><th>Famille</th><th>Vues</th></tr></thead>
+                    <tbody>
+                        {% for row in browsers %}
+                            <tr><td>{{ row.browserFamily }}</td><td>{{ row.views }}</td></tr>
+                        {% else %}
+                            <tr><td colspan="2">Aucune donnée navigateur.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <table class="traffic-table">
+                    <thead><tr><th>Statut HTTP</th><th>Vues</th></tr></thead>
+                    <tbody>
+                        {% for row in status_codes %}
+                            <tr><td>{{ row.statusCode }}</td><td>{{ row.views }}</td></tr>
+                        {% else %}
+                            <tr><td colspan="2">Aucun statut.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="admin-card">
+            <h2>Erreurs 404</h2>
+            <table class="traffic-table">
+                <thead><tr><th>URL</th><th>Nombre</th><th>Dernière occurrence</th></tr></thead>
+                <tbody>
+                    {% for row in errors_404 %}
+                        <tr>
+                            <td>{{ row.path }}</td>
+                            <td>{{ row.hits }}</td>
+                            <td>{{ row.lastSeen|date('d/m/Y H:i') }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="3">Aucune 404 sur la période.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="admin-card">
+            <h2>Dernières visites publiques</h2>
+            <table class="traffic-table">
+                <thead><tr><th>Heure</th><th>Page</th><th>Type</th><th>Statut</th><th>Appareil</th><th>Source</th></tr></thead>
+                <tbody>
+                    {% for event in latest_events %}
+                        <tr>
+                            <td>{{ event.occurredAt|date('d/m H:i') }}</td>
+                            <td>{{ event.contentTitle ?: event.path }}</td>
+                            <td>{{ type_labels[event.contentType]|default(event.contentType ?: 'Autre') }}{{ event.bot ? ' · bot' : '' }}</td>
+                            <td>{{ event.statusCode }}</td>
+                            <td>{{ event.deviceType ?: 'unknown' }}</td>
+                            <td>{{ event.referrerHost ?: 'Direct' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6">Aucune visite enregistrée.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="admin-card">
+            <h2>Confidentialité</h2>
+            <p class="traffic-muted">
+                Aucune IP brute ni user-agent complet n’est stocké. Les visiteurs sont estimés avec un hash journalier,
+                les pages admin et les fichiers statiques sont exclus, et les bots sont exclus des statistiques par défaut.
+            </p>
+        </section>
+    </div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% set thumbnail_src = media_image_url(media, 'thumb') %}
+{% set thumbnail_dimensions = media_image_dimensions(media, 'thumb') %}
+
+{% if thumbnail_src %}
+    <img
+        src="{{ thumbnail_src }}"
+        alt="{{ alt|default('') }}"
+        class="{{ img_class|default('article-admin-media-item__image') }}"
+        loading="lazy"
+        decoding="async"
+        {% if thumbnail_dimensions %}
+            width="{{ thumbnail_dimensions.width }}"
+            height="{{ thumbnail_dimensions.height }}"
+        {% endif %}
+    >
+{% endif %}

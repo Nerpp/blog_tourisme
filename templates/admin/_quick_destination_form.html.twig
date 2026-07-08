@@ -1,0 +1,409 @@
+{% set ui_context = ui_context|default('studio') %}
+{% set is_field = ui_context == 'field' %}
+{% set container_class = is_field ? 'field-card quick-destination' : 'quick-destination' %}
+{% set row_class = is_field ? 'field-row' : 'studio-field' %}
+{% set full_row_class = row_class ~ (is_field ? '' : ' studio-field--full') %}
+{% set input_class = is_field ? 'field-input' : '' %}
+{% set select_class = is_field ? 'field-select' : '' %}
+{% set primary_button = is_field ? 'field-button' : 'admin-button' %}
+{% set secondary_button = is_field ? 'field-button field-button--secondary' : 'admin-button admin-button--secondary' %}
+{% set neutral_button = is_field ? 'field-button field-button--neutral' : 'admin-button admin-button--secondary' %}
+{% set destination_quick_create = destination_quick_create|default({}) %}
+{% set current_destination_edit = current_destination_edit|default({}) %}
+{% set current_destination_update_action = current_destination_update_action|default(null) %}
+{% set current_destination_update_token = current_destination_update_token|default(null) %}
+{% set destination_type_options = destination_type_options|default({}) %}
+{% set current_destination = current_destination|default(null) %}
+{% set context_type = destination_quick_create.contextType|default(destination_quick_create.targetType|default('')) %}
+{% set context_id = destination_quick_create.contextId|default(destination_quick_create.targetId|default('')) %}
+{% set is_preparation_flow = context_type in ['quick_hike', 'quick_city_visit'] %}
+{% set prepared_destination_postal_code = prepared_destination_postal_code|default(null) %}
+{% set quick_destination_title = quick_destination_title|default(is_preparation_flow ? 'Destination préparée' : 'Où se situe cette visite ?') %}
+{% set quick_destination_prepared_text = quick_destination_prepared_text|default(is_preparation_flow ? 'Cette destination sera associée au brouillon au moment de sa création.' : null) %}
+{% set quick_destination_skip_action = quick_destination_skip_action|default(null) %}
+{% set quick_destination_skip_token_id = quick_destination_skip_token_id|default(null) %}
+{% set quick_destination_allow_skip = quick_destination_allow_skip|default(true) %}
+{% set quick_destination_skip_label = quick_destination_skip_label|default('Continuer sans destination') %}
+{% set quick_destination_submit_label = quick_destination_submit_label|default(null) %}
+{% set quick_destination_france_text = quick_destination_france_text|default('Recherchez une commune française. La région, le département, le code INSEE et les coordonnées seront complétés automatiquement.') %}
+{% set quick_destination_france_only = quick_destination_france_only|default(false) %}
+{% set redirect_anchor = redirect_anchor|default(null) %}
+
+<section class="{{ container_class }}" data-quick-destination>
+    <div class="quick-destination__header">
+        <div>
+            <h2 class="quick-destination__title">{{ quick_destination_title }}</h2>
+            {% if current_destination %}
+                {% set destination_department = current_destination.parent and current_destination.parent.type.value == 'department' ? current_destination.parent : null %}
+                {% set destination_region = destination_department and destination_department.parent and destination_department.parent.type.value == 'region' ? destination_department.parent : null %}
+                <p class="quick-destination__text">
+                    <strong>{{ current_destination.name }}</strong>
+                    {% if destination_department or destination_region %}
+                        —
+                        {% if destination_department %}
+                            {{ current_destination.code ? current_destination.code|slice(0, 2) ~ ' ' : '' }}{{ destination_department.name }}
+                        {% endif %}
+                        {% if destination_region %}
+                            — {{ destination_region.name }}
+                        {% endif %}
+                    {% endif %}
+                </p>
+                {% if current_destination.code %}
+                    <p class="quick-destination__text">Code INSEE : {{ current_destination.code }}</p>
+                {% endif %}
+                {% if prepared_destination_postal_code %}
+                    <p class="quick-destination__text">Code postal : {{ prepared_destination_postal_code }}</p>
+                {% endif %}
+                {% if quick_destination_prepared_text %}
+                    <p class="quick-destination__text">{{ quick_destination_prepared_text }}</p>
+                {% else %}
+                    <p class="quick-destination__text">Destination associée.</p>
+                {% endif %}
+            {% else %}
+                <p class="quick-destination__text">Aucune destination associée</p>
+                <p class="quick-destination__text">{{ quick_destination_france_text }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="quick-destination__actions" data-quick-destination-actions {% if not current_destination %}hidden{% endif %}>
+        {% if current_destination and current_destination_update_action %}
+            <button class="{{ primary_button }}" type="button" data-current-destination-toggle>Modifier la destination associée</button>
+            <button class="{{ secondary_button }}" type="button" data-quick-destination-toggle>Changer ou créer une autre destination</button>
+        {% else %}
+            <button class="{{ primary_button }}" type="button" data-quick-destination-toggle>{{ current_destination ? 'Modifier la destination' : (quick_destination_submit_label ?: 'Créer et utiliser cette destination') }}</button>
+        {% endif %}
+        {% if current_destination and quick_destination_skip_action %}
+            <form method="post" action="{{ quick_destination_skip_action }}">
+                <input type="hidden" name="_token" value="{{ csrf_token(quick_destination_skip_token_id) }}">
+                <button class="{{ neutral_button }}" type="submit">Retirer la destination</button>
+            </form>
+        {% elseif not current_destination and quick_destination_allow_skip %}
+            <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>{{ quick_destination_skip_label }}</button>
+        {% endif %}
+    </div>
+
+    {% if current_destination and current_destination_update_action %}
+        <form class="quick-destination__form" method="post" action="{{ current_destination_update_action }}" data-current-destination-form hidden>
+            <input type="hidden" name="_token" value="{{ current_destination_update_token }}">
+            {% if redirect_anchor %}
+                <input type="hidden" name="_redirect_anchor" value="{{ redirect_anchor }}">
+            {% endif %}
+
+            <div class="quick-destination__grid">
+                <div class="{{ row_class }}">
+                    <label for="current-destination-country-{{ current_destination.id }}">Pays</label>
+                    <input class="{{ input_class }}" id="current-destination-country-{{ current_destination.id }}" name="countryName" value="{{ current_destination_edit.countryName|default('') }}" autocomplete="country-name">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-region-{{ current_destination.id }}">Région / zone</label>
+                    <input class="{{ input_class }}" id="current-destination-region-{{ current_destination.id }}" name="regionName" value="{{ current_destination_edit.regionName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-department-{{ current_destination.id }}">Département / province</label>
+                    <input class="{{ input_class }}" id="current-destination-department-{{ current_destination.id }}" name="departmentName" value="{{ current_destination_edit.departmentName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-city-{{ current_destination.id }}">Ville / lieu</label>
+                    <input class="{{ input_class }}" id="current-destination-city-{{ current_destination.id }}" name="cityName" value="{{ current_destination_edit.cityName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-area-{{ current_destination.id }}">Zone / lieu précis</label>
+                    <input class="{{ input_class }}" id="current-destination-area-{{ current_destination.id }}" name="areaName" value="{{ current_destination_edit.areaName|default('') }}">
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-type-{{ current_destination.id }}">Type de destination</label>
+                    <select class="{{ select_class }}" id="current-destination-type-{{ current_destination.id }}" name="type">
+                        {% for value, label in destination_type_options %}
+                            <option value="{{ value }}" {% if current_destination_edit.type|default(current_destination.type.value) == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="{{ row_class }}">
+                    <label for="current-destination-code-{{ current_destination.id }}">Code INSEE</label>
+                    <input class="{{ input_class }}" id="current-destination-code-{{ current_destination.id }}" name="code" value="{{ current_destination_edit.code is defined ? current_destination_edit.code : '' }}">
+                    <span class="studio-help">Le code INSEE identifie officiellement la commune.</span>
+                </div>
+
+                <details class="{{ full_row_class }} quick-destination__advanced">
+                    <summary>Coordonnées GPS optionnelles</summary>
+                    <p class="quick-destination__text">Elles servent à placer précisément le lieu sur la carte. Vous pouvez les laisser vides.</p>
+
+                    <div class="quick-destination__grid">
+                        <div class="{{ row_class }}">
+                            <label for="current-destination-latitude-{{ current_destination.id }}">Latitude</label>
+                            <input class="{{ input_class }}" id="current-destination-latitude-{{ current_destination.id }}" name="latitude" type="text" inputmode="decimal" value="{{ current_destination_edit.latitude is defined ? current_destination_edit.latitude : '' }}">
+                        </div>
+
+                        <div class="{{ row_class }}">
+                            <label for="current-destination-longitude-{{ current_destination.id }}">Longitude</label>
+                            <input class="{{ input_class }}" id="current-destination-longitude-{{ current_destination.id }}" name="longitude" type="text" inputmode="decimal" value="{{ current_destination_edit.longitude is defined ? current_destination_edit.longitude : '' }}">
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <div class="quick-destination__actions">
+                <button class="{{ primary_button }}" type="submit">Enregistrer la destination</button>
+            </div>
+        </form>
+    {% endif %}
+
+    <form class="quick-destination__form" method="post" action="{{ path('admin_studio_destination_quick_create') }}" data-quick-destination-form {% if current_destination %}hidden{% endif %}>
+        <input type="hidden" name="_token" value="{{ csrf_token('studio_destination_quick_create') }}">
+        <input type="hidden" name="contextType" value="{{ context_type }}">
+        <input type="hidden" name="contextId" value="{{ context_id }}">
+        <input type="hidden" name="targetType" value="{{ context_type }}">
+        <input type="hidden" name="targetId" value="{{ context_id }}">
+        <input type="hidden" name="parent" value="{{ destination_quick_create.parent|default('') }}">
+        <input type="hidden" name="returnUrl" value="{{ app.request.requestUri }}{{ redirect_anchor ? '#' ~ redirect_anchor : '' }}">
+        {% if redirect_anchor %}
+            <input type="hidden" name="_redirect_anchor" value="{{ redirect_anchor }}">
+        {% endif %}
+
+        {% if current_destination %}
+            <h3 class="quick-destination__title">Changer ou créer une autre destination</h3>
+        {% endif %}
+
+        {% if not quick_destination_france_only %}
+            <div class="quick-destination__mode-switch" role="group" aria-label="Type de destination">
+                <button class="quick-destination__mode-button is-active" type="button" data-destination-mode="france" aria-pressed="true">Destination en France</button>
+                <button class="quick-destination__mode-button" type="button" data-destination-mode="foreign" aria-pressed="false">Destination hors France</button>
+            </div>
+        {% endif %}
+
+        <section class="quick-destination__panel" data-destination-panel="france">
+            {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
+                picker_id: 'quick-destination-location-' ~ (context_type ?: 'generic') ~ '-' ~ (context_id ?: 'new'),
+                ui_context: ui_context,
+                mode: is_preparation_flow ? 'creation_distance' : 'destination_quick_create',
+                row_class: row_class,
+                input_class: input_class,
+                primary_button: primary_button,
+                secondary_button: secondary_button,
+                commune_title: quick_destination_title,
+                point_title: 'Coordonnées GPS optionnelles',
+                search_help: quick_destination_france_text,
+                fields: {
+                    type: { name: 'type', value: 'city', attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'type' } },
+                    name: { name: 'name', value: destination_quick_create.name|default(destination_quick_create.cityName|default('')), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'name' } },
+                    country: { name: 'countryName', value: destination_quick_create.countryName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'countryName' } },
+                    region: { name: 'regionName', value: destination_quick_create.regionName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'regionName' } },
+                    department: { name: 'departmentName', value: destination_quick_create.departmentName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'departmentName' } },
+                    departmentCode: { name: 'departmentCode', value: destination_quick_create.departmentCode|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'departmentCode' } },
+                    commune: { name: 'cityName', value: destination_quick_create.cityName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'cityName' } },
+                    area: { name: 'areaName', value: destination_quick_create.areaName|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'areaName' } },
+                    insee: { name: 'code', value: destination_quick_create.code|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'code' } },
+                    postal: { name: 'postalCode', value: prepared_destination_postal_code|default(destination_quick_create.postalCode|default('')), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'postalCode' } },
+                    latitude: { name: 'latitude', value: destination_quick_create.latitude|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'latitude', 'data-quick-destination-latitude': true } },
+                    longitude: { name: 'longitude', value: destination_quick_create.longitude|default(''), attr: { 'data-destination-mode-field': 'france', 'data-france-field': 'longitude', 'data-quick-destination-longitude': true } },
+                    communeCenterLatitude: { name: 'communeCenterLatitude', value: destination_quick_create.communeCenterLatitude|default(''), attr: { 'data-destination-mode-field': 'france' } },
+                    communeCenterLongitude: { name: 'communeCenterLongitude', value: destination_quick_create.communeCenterLongitude|default(''), attr: { 'data-destination-mode-field': 'france' } }
+                },
+                initial_commune: destination_quick_create.cityName|default(''),
+                initial_department: destination_quick_create.departmentName|default(''),
+                initial_department_code: destination_quick_create.departmentCode|default(''),
+                initial_region: destination_quick_create.regionName|default(''),
+                initial_insee: destination_quick_create.code|default(''),
+                initial_postal_code: prepared_destination_postal_code|default(destination_quick_create.postalCode|default('')),
+                initial_latitude: destination_quick_create.latitude|default(''),
+                initial_longitude: destination_quick_create.longitude|default(''),
+                commune_center_latitude: destination_quick_create.communeCenterLatitude|default(''),
+                commune_center_longitude: destination_quick_create.communeCenterLongitude|default(''),
+                show_osm_link: quick_destination_show_osm_link is defined ? quick_destination_show_osm_link : true
+            } only %}
+        </section>
+
+        {% if not quick_destination_france_only %}
+        <section class="quick-destination__panel" data-destination-panel="foreign" hidden>
+            <p class="quick-destination__text">Pour une destination hors France, renseignez les informations principales manuellement.</p>
+            <input type="hidden" name="type" value="area" data-destination-mode-field="foreign" disabled>
+            <div class="{{ row_class }}">
+                <label for="quick-destination-foreign-country">Pays</label>
+                <input class="{{ input_class }}" id="quick-destination-foreign-country" name="countryName" value="" autocomplete="country-name" data-destination-mode-field="foreign" disabled>
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-foreign-region">Région / zone</label>
+                <input class="{{ input_class }}" id="quick-destination-foreign-region" name="regionName" value="" data-destination-mode-field="foreign" disabled>
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-foreign-city">Ville / lieu</label>
+                <input class="{{ input_class }}" id="quick-destination-foreign-city" name="cityName" value="" data-destination-mode-field="foreign" disabled>
+            </div>
+
+            <div class="{{ row_class }}">
+                <label for="quick-destination-foreign-area">Nom précis du lieu si pertinent</label>
+                <input class="{{ input_class }}" id="quick-destination-foreign-area" name="areaName" value="" data-destination-mode-field="foreign" disabled>
+            </div>
+
+            <details class="quick-destination__advanced">
+                <summary>Coordonnées GPS optionnelles</summary>
+                <p class="quick-destination__text">Elles servent à placer précisément le lieu sur la carte. Vous pouvez les laisser vides.</p>
+                <div class="quick-destination__grid">
+                    <div class="{{ row_class }}">
+                        <label for="quick-destination-foreign-latitude">Latitude</label>
+                        <input class="{{ input_class }}" id="quick-destination-foreign-latitude" name="latitude" type="number" step="any" value="" data-destination-mode-field="foreign" disabled>
+                    </div>
+                    <div class="{{ row_class }}">
+                        <label for="quick-destination-foreign-longitude">Longitude</label>
+                        <input class="{{ input_class }}" id="quick-destination-foreign-longitude" name="longitude" type="number" step="any" value="" data-destination-mode-field="foreign" disabled>
+                    </div>
+                </div>
+            </details>
+        </section>
+        {% endif %}
+
+        <p class="quick-destination__status" data-quick-destination-status aria-live="polite"></p>
+        <div class="quick-destination__actions">
+            {% if not current_destination and quick_destination_allow_skip %}
+                <button class="{{ neutral_button }}" type="button" data-quick-destination-skip>{{ quick_destination_skip_label }}</button>
+            {% endif %}
+            <button class="{{ primary_button }}" type="submit" data-quick-destination-submit>{{ quick_destination_submit_label ?: (is_preparation_flow ? 'Créer et utiliser cette destination' : (context_type and context_id ? 'Associer cette destination' : 'Créer la destination')) }}</button>
+        </div>
+    </form>
+
+    <p class="quick-destination__status" data-quick-destination-skip-status hidden>Destination à compléter plus tard.</p>
+</section>
+
+<script>
+    (() => {
+        document.querySelectorAll('[data-quick-destination]').forEach((container) => {
+            const toggle = container.querySelector('[data-quick-destination-toggle]');
+            const currentToggle = container.querySelector('[data-current-destination-toggle]');
+            const skipButton = container.querySelector('[data-quick-destination-skip]');
+            const actions = container.querySelector('[data-quick-destination-actions]');
+            const form = container.querySelector('[data-quick-destination-form]');
+            const currentForm = container.querySelector('[data-current-destination-form]');
+            const status = container.querySelector('[data-quick-destination-status]');
+            const skipStatus = container.querySelector('[data-quick-destination-skip-status]');
+            const modeButtons = Array.from(container.querySelectorAll('[data-destination-mode]'));
+            const panels = Array.from(container.querySelectorAll('[data-destination-panel]'));
+            const modeFields = Array.from(container.querySelectorAll('[data-destination-mode-field]'));
+            const datasetValue = (value) => String(value || '').trim().replace(/^['"]|['"]$/g, '');
+            const franceFields = Object.fromEntries(Array.from(container.querySelectorAll('[data-france-field]')).map((field) => [datasetValue(field.dataset.franceField), field]));
+            const submitButton = container.querySelector('[data-quick-destination-submit]');
+
+            let activeMode = 'france';
+
+            const setStatus = (message = '') => {
+                if (status) {
+                    status.textContent = message;
+                }
+            };
+
+            const setMode = (mode) => {
+                activeMode = mode;
+                modeButtons.forEach((button) => {
+                    const isActive = button.dataset.destinationMode === mode;
+                    button.classList.toggle('is-active', isActive);
+                    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+                panels.forEach((panel) => {
+                    panel.hidden = panel.dataset.destinationPanel !== mode;
+                });
+                modeFields.forEach((field) => {
+                    field.disabled = datasetValue(field.dataset.destinationModeField) !== mode;
+                });
+                setStatus('');
+                syncSubmitState();
+            };
+
+            const selectedCommune = () => (franceFields.cityName?.value || '').trim() !== '' && (franceFields.code?.value || '').trim() !== '';
+
+            const syncSubmitState = () => {
+                if (!submitButton) {
+                    return;
+                }
+
+                submitButton.disabled = activeMode === 'france' && !selectedCommune();
+            };
+
+            if (toggle && form) {
+                toggle.addEventListener('click', () => {
+                    form.hidden = false;
+                    if (currentForm) {
+                        currentForm.hidden = true;
+                    }
+                    toggle.hidden = true;
+                    if (skipStatus) {
+                        skipStatus.hidden = true;
+                    }
+                });
+            }
+
+            if (currentToggle && currentForm) {
+                currentToggle.addEventListener('click', () => {
+                    currentForm.hidden = false;
+                    if (form) {
+                        form.hidden = true;
+                    }
+                    currentToggle.hidden = true;
+                    if (skipStatus) {
+                        skipStatus.hidden = true;
+                    }
+                });
+            }
+
+            if (skipButton) {
+                container.querySelectorAll('[data-quick-destination-skip]').forEach((button) => button.addEventListener('click', () => {
+                    if (form) {
+                        form.hidden = true;
+                    }
+
+                    if (actions) {
+                        actions.hidden = true;
+                    }
+
+                    if (skipStatus) {
+                        skipStatus.hidden = false;
+                    }
+                }));
+            }
+
+            modeButtons.forEach((button) => {
+                button.addEventListener('click', () => setMode(datasetValue(button.dataset.destinationMode) || 'france'));
+            });
+
+            if (form) {
+                form.addEventListener('submit', (event) => {
+                    if (activeMode === 'france' && !selectedCommune()) {
+                        event.preventDefault();
+                        setStatus('Sélectionnez une commune française dans la liste.');
+                    }
+                });
+            }
+
+            Object.values(franceFields).forEach((field) => {
+                field.addEventListener('input', () => {
+                    if (selectedCommune()) {
+                        setStatus('');
+                    }
+
+                    syncSubmitState();
+                });
+                field.addEventListener('change', () => {
+                    if (selectedCommune()) {
+                        setStatus('');
+                    }
+
+                    syncSubmitState();
+                });
+            });
+
+            if ((franceFields.countryName?.value || '').trim() === '' && (franceFields.cityName?.value || '').trim() !== '') {
+                franceFields.countryName.value = 'France';
+            }
+
+            setMode('france');
+            syncSubmitState();
+        });
+    })();
+</script>

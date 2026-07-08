@@ -1,0 +1,276 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Prévisions destinations{% endblock %}
+
+{% block stylesheets %}
+    <style>
+        .prevision-actions,
+        .prevision-search-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .prevision-search {
+            position: relative;
+            display: grid;
+            gap: 10px;
+        }
+
+        .prevision-search-row {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) auto auto;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .prevision-search input {
+            width: 100%;
+            min-height: 42px;
+            padding: 9px 10px;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            font: inherit;
+        }
+
+        .prevision-suggestions {
+            display: grid;
+            overflow: hidden;
+            border: 1px solid var(--admin-line);
+            border-radius: var(--admin-radius);
+            background: #fff;
+            box-shadow: 0 14px 30px rgba(27, 33, 29, 0.08);
+        }
+
+        .prevision-suggestion {
+            padding: 10px;
+            border: 0;
+            border-bottom: 1px solid var(--admin-line);
+            background: #fff;
+            color: var(--admin-text);
+            cursor: pointer;
+            font: inherit;
+            text-align: left;
+        }
+
+        .prevision-suggestion:hover,
+        .prevision-suggestion:focus-visible {
+            background: var(--admin-primary-soft);
+            color: var(--admin-primary);
+        }
+
+        .prevision-location,
+        .prevision-notes {
+            display: grid;
+            gap: 4px;
+        }
+
+        .prevision-notes {
+            max-width: 420px;
+        }
+
+        .prevision-notes p {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 820px) {
+            .prevision-search-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Prévisions destination</h1>
+            <p class="admin-subtitle">Retrouvez vos idées de randonnées, visites et lieux à explorer plus tard.</p>
+        </div>
+        <div class="prevision-actions">
+            <a class="admin-button" href="{{ path('admin_prevision_destinations_new') }}">Ajouter une destination</a>
+        </div>
+    </header>
+
+    <section class="admin-card">
+        <form class="prevision-search" method="get" action="{{ path('admin_prevision_destinations_index') }}" data-prevision-index-search data-autocomplete-url="{{ path('admin_prevision_destinations_autocomplete') }}">
+            <label class="admin-label" for="prevision-search-query">Rechercher dans les destinations enregistrées</label>
+            <div class="prevision-search-row">
+                <input id="prevision-search-query" name="q" type="search" value="{{ search_query }}" autocomplete="off" placeholder="Commune, type, notes, période, statut..." data-prevision-index-search-input>
+                <button class="admin-button" type="submit">Rechercher</button>
+                {% if search_query %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('admin_prevision_destinations_index') }}">Réinitialiser</a>
+                {% endif %}
+            </div>
+            <div class="prevision-suggestions" hidden data-prevision-index-suggestions></div>
+        </form>
+    </section>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Commune / département / région</th>
+                    <th>Coordonnées GPS</th>
+                    <th>Statut</th>
+                    <th>Source</th>
+                    <th>Priorité</th>
+                    <th>Période</th>
+                    <th>Notes</th>
+                    <th>Dernière modification</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in prevision_destination_rows %}
+                    {% set prevision_destination = row.item %}
+                    <tr>
+                        <td><strong>{{ prevision_destination.title }}</strong></td>
+                        <td>
+                            <span class="prevision-location">
+                                <span>{{ prevision_destination.commune ?: 'Commune non renseignée' }}</span>
+                                <span class="admin-muted">
+                                    {{ prevision_destination.department ?: 'Département non renseigné' }}
+                                    {% if prevision_destination.region %} / {{ prevision_destination.region }}{% endif %}
+                                </span>
+                            </span>
+                        </td>
+                        <td>
+                            {% if prevision_destination.latitude is not null and prevision_destination.longitude is not null %}
+                                {{ prevision_destination.latitude|number_format(6, '.', '') }}, {{ prevision_destination.longitude|number_format(6, '.', '') }}
+                                {% if prevision_destination.gpsAccuracy is not null %}
+                                    <div class="admin-muted">± {{ prevision_destination.gpsAccuracy|number_format(0, '.', ' ') }} m</div>
+                                {% endif %}
+                            {% else %}
+                                <span class="admin-badge admin-badge--muted">Non renseignées</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="admin-badge admin-badge--info">{{ status_labels[prevision_destination.status] ?? prevision_destination.status }}</span></td>
+                        <td>
+                            <span class="admin-badge {{ prevision_destination.source == 'search' ? 'admin-badge--warning' : 'admin-badge--info' }}">{{ row.source_badge }}</span>
+                            {% if prevision_destination.source and row.source_badge != (source_labels[prevision_destination.source] ?? prevision_destination.source) %}
+                                <div class="admin-muted">{{ source_labels[prevision_destination.source] ?? prevision_destination.source }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ prevision_destination.priority ? (priority_labels[prevision_destination.priority] ?? prevision_destination.priority) : 'Non renseignée' }}</td>
+                        <td>{{ prevision_destination.plannedPeriod ?: 'Non renseignée' }}</td>
+                        <td>
+                            <span class="prevision-notes">
+                                {% if prevision_destination.notes %}
+                                    {% set note_text = prevision_destination.notes|trim %}
+                                    {% set note_words = note_text|split(' ')|filter(word => word is not empty) %}
+                                    {% set note_preview = note_words|slice(0, 5)|join(' ') %}
+                                    <p title="{{ note_text }}">{{ note_preview }}{% if note_words|length > 5 %}…{% endif %}</p>
+                                {% else %}
+                                    <span class="admin-muted">Aucune note renseignée.</span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>{{ prevision_destination.updatedAt ? prevision_destination.updatedAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                        <td>
+                            <div class="admin-row-actions">
+                                {% if row.maps_url %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ row.maps_url }}" target="_blank" rel="noopener noreferrer">Ouvrir dans Maps</a>
+                                {% else %}
+                                    <span class="admin-button admin-button--small admin-button--secondary" aria-disabled="true">Maps indisponible</span>
+                                {% endif %}
+                                {% if row.openstreetmap_url %}
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ row.openstreetmap_url }}" target="_blank" rel="noopener noreferrer">Ouvrir dans OpenStreetMap</a>
+                                {% endif %}
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_prevision_destinations_edit', { id: prevision_destination.id }) }}">Modifier</a>
+                                <form method="post" action="{{ path('admin_prevision_destinations_delete', { id: prevision_destination.id }) }}" onsubmit="return confirm('Supprimer cette destination prévue ?');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('prevision_destination_delete_' ~ prevision_destination.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger-soft" type="submit">Supprimer</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="10">{{ search_query ? 'Aucune destination prévue ne correspond à cette recherche.' : 'Aucune destination prévue pour le moment.' }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}
+
+{% block javascripts %}
+    <script>
+        (() => {
+            const form = document.querySelector('[data-prevision-index-search]');
+            if (!form) {
+                return;
+            }
+
+            const input = form.querySelector('[data-prevision-index-search-input]');
+            const suggestions = form.querySelector('[data-prevision-index-suggestions]');
+            const endpoint = form.dataset.autocompleteUrl;
+            let abortController = null;
+
+            const closeSuggestions = () => {
+                suggestions.hidden = true;
+                suggestions.innerHTML = '';
+            };
+
+            input.addEventListener('input', () => {
+                const query = input.value.trim();
+                closeSuggestions();
+
+                if (abortController) {
+                    abortController.abort();
+                }
+
+                if (query.length < 2) {
+                    return;
+                }
+
+                abortController = new AbortController();
+                fetch(`${endpoint}?q=${encodeURIComponent(query)}`, { signal: abortController.signal })
+                    .then((response) => response.ok ? response.json() : Promise.reject())
+                    .then((items) => {
+                        if (!Array.isArray(items) || items.length === 0) {
+                            closeSuggestions();
+                            return;
+                        }
+
+                        suggestions.innerHTML = '';
+                        items.forEach((item) => {
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = 'prevision-suggestion';
+                            const label = document.createElement('strong');
+                            label.textContent = item.label;
+                            const detail = document.createElement('span');
+                            detail.textContent = item.detail;
+                            button.append(label, document.createElement('br'), detail);
+                            button.addEventListener('click', () => {
+                                input.value = item.value;
+                                closeSuggestions();
+                                form.submit();
+                            });
+                            suggestions.append(button);
+                        });
+                        suggestions.hidden = false;
+                    })
+                    .catch((error) => {
+                        if (error.name !== 'AbortError') {
+                            closeSuggestions();
+                        }
+                    });
+            });
+
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    closeSuggestions();
+                }
+            });
+
+            document.addEventListener('click', (event) => {
+                if (!form.contains(event.target)) {
+                    closeSuggestions();
+                }
+            });
+        })();
+    </script>
+{% endblock %}

@@ -1,0 +1,141 @@
+{% extends 'admin/field_tool/base.html.twig' %}
+
+{% block admin_title %}Création rapide — {{ city_visit.title }}{% endblock %}
+
+{% block topbar_action %}
+    <a class="field-back" href="{{ admin_back_url }}">Retour création rapide</a>
+{% endblock %}
+
+{% block body %}
+    <section class="field-card">
+        <h1 class="field-title">{{ city_visit.title }}</h1>
+        <dl class="field-meta">
+            <dt>Commune</dt>
+            <dd>
+                {% if city_visit.detectedCommuneName %}
+                    {{ city_visit.detectedCommuneName }}{% if city_visit.detectedCommuneCode %} ({{ city_visit.detectedCommuneCode }}){% endif %}
+                {% else %}
+                    Non détectée
+                {% endif %}
+            </dd>
+            <dt>Destination</dt>
+            <dd>
+                {% if city_visit.destination %}
+                    {{ city_visit.destination.name }}
+                {% elseif city_visit.detectedCommuneName %}
+                    Commune détectée : {{ city_visit.detectedCommuneName }}, destination non trouvée dans la base.
+                {% else %}
+                    Non déterminée
+                {% endif %}
+            </dd>
+            <dt>Statut</dt>
+            <dd>{{ city_visit.status.value }}</dd>
+        </dl>
+
+        {% if city_visit.googleMapsUrl and point_count >= 2 %}
+            <a class="field-button field-button--secondary" href="{{ city_visit.googleMapsUrl }}" target="_blank" rel="noopener noreferrer">
+                Ouvrir dans Google Maps
+            </a>
+        {% endif %}
+    </section>
+
+    {% include 'admin/_quick_destination_form.html.twig' with {
+        ui_context: 'field',
+        current_destination: city_visit.destination,
+        destination_quick_create: destination_quick_create,
+        destination_type_options: destination_type_options,
+        destination_parent_options: destination_parent_options
+    } only %}
+
+    {% if errors is not empty %}
+        <div class="field-alert">
+            {% for error in errors %}
+                <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if city_visit.status.value == 'draft' and city_visit.finishedAt is null %}
+        <section class="field-card">
+            <form class="field-stack" method="post" action="{{ path('admin_quick_city_visit_point', { id: city_visit.id }) }}" data-gps-form data-high-precision-gps>
+                <input type="hidden" name="quick_city_visit_point[_token]" value="{{ csrf_token('quick_city_visit_point_' ~ city_visit.id) }}">
+                <input type="hidden" name="quick_city_visit_point[latitude]" data-gps-latitude>
+                <input type="hidden" name="quick_city_visit_point[longitude]" data-gps-longitude>
+                <input type="hidden" name="quick_city_visit_point[accuracy]" data-gps-accuracy>
+
+                <div class="field-row">
+                    <label class="field-label" for="quick_city_visit_point_type">Type de point</label>
+                    <select id="quick_city_visit_point_type" class="field-select field-select--point-type" name="quick_city_visit_point[type]" size="6" data-gps-type>
+                        {% for value, label in point_types %}
+                            <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="field-row">
+                    <label class="field-label" for="quick_city_visit_point_title">Nom du point</label>
+                    <input id="quick_city_visit_point_title" class="field-input" type="text" name="quick_city_visit_point[titlePoint]" placeholder="Optionnel">
+                </div>
+
+                <div class="field-row">
+                    <label class="field-label" for="quick_city_visit_point_note">Note rapide</label>
+                    <textarea id="quick_city_visit_point_note" class="field-textarea" name="quick_city_visit_point[note]" placeholder="Optionnel"></textarea>
+                </div>
+
+                <p class="field-status" data-gps-status aria-live="polite"></p>
+                <p class="field-gps__coordinates" data-gps-coordinates></p>
+                <div class="field-actions">
+                    <button class="field-button field-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
+                    <button class="field-button field-button--neutral" type="button" data-gps-stop hidden>Arrêter la recherche</button>
+                    <button class="field-button field-button--neutral" type="button" data-gps-copy hidden>Copier les coordonnées</button>
+                </div>
+                <button class="field-button" type="submit">Ajouter ma position actuelle</button>
+            </form>
+        </section>
+
+        <form method="post" action="{{ path('admin_quick_city_visit_finish', { id: city_visit.id }) }}" onsubmit="return confirm('Terminer cette visite terrain ?');">
+            <input type="hidden" name="_token" value="{{ csrf_token('quick_city_visit_finish_' ~ city_visit.id) }}">
+            <button class="field-button field-button--danger" type="submit">Terminer la sortie terrain</button>
+        </form>
+    {% endif %}
+
+    {% if city_visit.status.value == 'draft' and city_visit.finishedAt is not null %}
+    <section class="field-card">
+        <h2 class="field-subtitle">Sortie terrain terminée</h2>
+        <p>La visite est conservée en brouillon. Vous pouvez maintenant ajouter les photos, médias et contenus dans le studio.</p>
+        <a class="field-button" href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}">Ouvrir le studio visite</a>
+    </section>
+{% endif %}
+
+    <section class="field-card">
+        <h2 class="field-subtitle">Points ajoutés</h2>
+        {% if city_visit.points is empty %}
+            <p class="field-subtitle">Aucun point GPS enregistré.</p>
+        {% else %}
+            <ol class="field-points">
+                {% for point in city_visit.points %}
+                    <li class="field-point">
+                        <div class="field-point__header">
+                            <span>{{ point.position }}. {{ point.title ?: point.type.value }}</span>
+                            <span>{{ point.type.value }}</span>
+                        </div>
+                        <div class="field-point__meta">
+                            {{ point.latitude|number_format(6, '.', '') }}, {{ point.longitude|number_format(6, '.', '') }}
+                            {% if point.accuracy is not null %}
+                                · précision {{ point.accuracy|round }} m
+                            {% endif %}
+                        </div>
+                        {% if point.detectedCommuneName %}
+                            <div class="field-point__meta">
+                                {{ point.detectedCommuneName }}{% if point.detectedDepartmentName %} · {{ point.detectedDepartmentName }}{% endif %}{% if point.detectedRegionName %} · {{ point.detectedRegionName }}{% endif %}
+                            </div>
+                        {% endif %}
+                        {% if point.note %}
+                            <div>{{ point.note|nl2br }}</div>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ol>
+        {% endif %}
+    </section>
+{% endblock %}

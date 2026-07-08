@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="icon" type="image/webp" sizes="32x32" href="{{ asset('images/brand/estela-favicon-32.webp') }}">
+        <link rel="icon" type="image/webp" sizes="48x48" href="{{ asset('images/brand/estela-favicon-48.webp') }}">
+        <title>{% block title %}Admin — {% block admin_title %}Outil terrain{% endblock %} — Estela{% endblock %}</title>
+        <style>
+            :root {
+                color-scheme: light;
+                --field-bg: #f7f5ef;
+                --field-surface: #ffffff;
+                --field-text: #18201b;
+                --field-muted: #69746d;
+                --field-line: #d8ddd8;
+                --field-primary: #146c43;
+                --field-primary-strong: #0f5132;
+                --field-secondary: #2f5f98;
+                --field-danger: #9f2f2f;
+                --field-radius: 8px;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                min-height: 100vh;
+                color: var(--field-text);
+                background: var(--field-bg);
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                line-height: 1.4;
+            }
+
+            a {
+                color: inherit;
+            }
+
+            .field-shell {
+                display: grid;
+                gap: 18px;
+                width: min(100%, 760px);
+                min-height: 100vh;
+                margin: 0 auto;
+                padding: 16px;
+            }
+
+            .field-topbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+
+            .field-back {
+                color: var(--field-muted);
+                font-size: 0.9rem;
+                text-decoration: none;
+            }
+
+            .field-card {
+                display: grid;
+                gap: 14px;
+                padding: 16px;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                background: var(--field-surface);
+            }
+
+            .field-title {
+                margin: 0;
+                font-size: clamp(1.5rem, 7vw, 2.4rem);
+                line-height: 1.05;
+            }
+
+            .field-subtitle {
+                margin: 0;
+                color: var(--field-muted);
+            }
+
+            .field-meta {
+                display: grid;
+                grid-template-columns: max-content minmax(0, 1fr);
+                gap: 8px 12px;
+                margin: 0;
+                font-size: 0.95rem;
+            }
+
+            .field-meta dd {
+                margin: 0;
+                color: var(--field-muted);
+            }
+
+            .field-stack {
+                display: grid;
+                gap: 10px;
+            }
+
+            .field-stack--terrain-gps {
+                gap: 12px;
+            }
+
+            .field-row {
+                display: grid;
+                gap: 6px;
+            }
+
+            .field-label {
+                font-weight: 700;
+            }
+
+            .field-input,
+            .field-select,
+            .field-textarea {
+                width: 100%;
+                min-height: 46px;
+                padding: 10px 12px;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                background: #fff;
+                color: var(--field-text);
+                font: inherit;
+            }
+
+            .field-select--point-type {
+                display: block;
+                height: auto;
+                min-height: 0;
+                max-height: 220px;
+                overflow-y: auto;
+                padding: 6px;
+                line-height: 1.35;
+            }
+
+            .field-select--point-type option {
+                min-height: 34px;
+                padding: 8px 10px;
+                background-color: #fff;
+                color: var(--field-text);
+                font: inherit;
+            }
+
+            .field-select--point-type:focus {
+                outline: 3px solid rgba(46, 125, 50, 0.25);
+                outline-offset: 2px;
+            }
+
+            .field-textarea {
+                min-height: 86px;
+                resize: vertical;
+            }
+
+            .field-actions {
+                display: grid;
+                gap: 10px;
+            }
+
+            .field-gps__coordinates {
+                min-height: 22px;
+                margin: 0;
+                color: var(--field-muted);
+                font-size: 0.9rem;
+                font-weight: 800;
+                overflow-wrap: anywhere;
+            }
+
+            .field-button {
+                width: 100%;
+                min-height: 54px;
+                padding: 12px 16px;
+                border: 0;
+                border-radius: var(--field-radius);
+                background: var(--field-primary);
+                color: #fff;
+                font: inherit;
+                font-weight: 800;
+                cursor: pointer;
+                text-align: center;
+                text-decoration: none;
+            }
+
+            .field-button:disabled {
+                opacity: 0.65;
+                cursor: wait;
+            }
+
+            .field-button--secondary {
+                background: var(--field-secondary);
+            }
+
+            .field-button--neutral {
+                border: 1px solid var(--field-line);
+                background: #fff;
+                color: var(--field-text);
+            }
+
+            .field-button--danger {
+                background: var(--field-danger);
+            }
+
+            .field-button--primary-action {
+                min-height: 60px;
+                font-size: 1.05rem;
+            }
+
+            .field-status {
+                min-height: 24px;
+                margin: 0;
+                color: var(--field-muted);
+                font-weight: 700;
+            }
+
+            .field-status.is-error {
+                color: var(--field-danger);
+            }
+
+            .field-status.is-success {
+                color: var(--field-primary-strong);
+            }
+
+            .field-status.is-warning {
+                color: #664d03;
+            }
+
+            .field-alert {
+                padding: 12px;
+                border-radius: var(--field-radius);
+                background: #fff3cd;
+                color: #664d03;
+            }
+
+            .field-points {
+                display: grid;
+                gap: 10px;
+                padding: 0;
+                margin: 0;
+                list-style: none;
+            }
+
+            .field-point {
+                display: grid;
+                gap: 6px;
+                padding: 12px;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                background: var(--field-surface);
+            }
+
+            .field-point__header {
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+                font-weight: 800;
+            }
+
+            .field-point__meta {
+                color: var(--field-muted);
+                font-size: 0.9rem;
+            }
+
+            .quick-destination {
+                gap: 12px;
+            }
+
+            .quick-destination__title {
+                margin: 0;
+                font-size: 1.15rem;
+            }
+
+            .quick-destination__text {
+                margin: 4px 0 0;
+                color: var(--field-muted);
+            }
+
+            .quick-destination__actions {
+                display: grid;
+                gap: 10px;
+            }
+
+            .quick-destination__form {
+                display: grid;
+                gap: 12px;
+            }
+
+            .quick-destination__form[hidden],
+            .quick-destination__actions[hidden],
+            .quick-destination__status[hidden] {
+                display: none;
+            }
+
+            .quick-destination__status {
+                min-height: 22px;
+                margin: 0;
+                color: var(--field-muted);
+                font-weight: 700;
+            }
+
+            .quick-destination__grid {
+                display: grid;
+                gap: 10px;
+            }
+
+            .quick-destination__panel,
+            .quick-destination__search,
+            .quick-destination__selection,
+            .quick-destination__advanced,
+            .quick-destination__results {
+                display: grid;
+                gap: 10px;
+            }
+
+            .quick-destination__panel[hidden],
+            .quick-destination__results[hidden],
+            .quick-destination__selection[hidden] {
+                display: none;
+            }
+
+            .quick-destination__mode-switch {
+                display: grid;
+                gap: 10px;
+            }
+
+            .quick-destination__mode-button,
+            .quick-destination__result {
+                width: 100%;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                padding: 12px;
+                background: var(--field-surface);
+                color: var(--field-text);
+                text-align: left;
+                font-weight: 800;
+                cursor: pointer;
+            }
+
+            .quick-destination__mode-button.is-active {
+                border-color: var(--field-primary);
+                background: #eaf6ef;
+                color: var(--field-primary);
+            }
+
+            .quick-destination__result:hover,
+            .quick-destination__result:focus {
+                border-color: var(--field-primary);
+                outline: none;
+            }
+
+            .quick-destination__result-message {
+                margin: 0;
+                color: var(--field-muted);
+            }
+
+            .quick-destination__selection {
+                padding: 12px;
+                border: 1px solid #b8ddc4;
+                border-radius: var(--field-radius);
+                background: #f2fbf5;
+            }
+
+            .quick-destination__selection-label {
+                color: var(--field-muted);
+                font-weight: 800;
+            }
+
+            .quick-destination__advanced {
+                padding: 10px 12px;
+                border: 1px solid var(--field-line);
+                border-radius: var(--field-radius);
+                background: var(--field-surface);
+            }
+
+            .quick-destination__advanced summary {
+                cursor: pointer;
+                font-weight: 800;
+                color: var(--field-text);
+            }
+
+            @media (min-width: 680px) {
+                .field-actions {
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                }
+
+                .quick-destination__actions,
+                .quick-destination__mode-switch {
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                }
+
+                .quick-destination__grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+        </style>
+        {% set load_location_picker_assets = app.environment != 'test' or app.request.query.get('e2e_frontend_assets') == '1' %}
+        {% if load_location_picker_assets %}
+            {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
+        {% endif %}
+    </head>
+    <body>
+        <main class="field-shell">
+            <div class="field-topbar">
+                <a class="field-back" href="{{ path('admin') }}">Administration</a>
+                {% block topbar_action %}{% endblock %}
+            </div>
+
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="field-alert">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+
+            {% block body %}{% endblock %}
+        </main>
+
+        {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
+        {% if load_location_picker_assets %}
+            {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
+        {% endif %}
+        {% block scripts %}{% endblock %}
+    </body>
+</html>

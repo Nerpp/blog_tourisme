@@ -1,0 +1,70 @@
+{% set image_mode = image_mode|default('responsive') %}
+{% set image_size = image_mode == 'card_thumbnail' ? 'thumb' : image_size|default('thumb') %}
+{% set display_profile = display_profile|default(null) %}
+{% set image_src = display_profile ? media_display_image_url(media, display_profile) : media_image_url(media, image_size) %}
+{% set is_standard_image = media.mediaType.value == 'image' and media.imageType and media.imageType.value == 'standard' %}
+{% set avif_srcset = is_standard_image ? null : media_image_srcset(media, 'avif') %}
+{% set webp_srcset = display_profile ? media_display_image_srcset(media, display_profile) : media_image_srcset(media, 'webp') %}
+{% set fallback_srcset = is_standard_image ? null : media_image_srcset(media, 'fallback') %}
+{% set img_srcset = is_standard_image ? webp_srcset : fallback_srcset %}
+{% set dimensions = display_profile ? media_display_image_dimensions(media, display_profile) : media_image_dimensions(media, image_size) %}
+
+{% if image_src %}
+    {% if image_mode == 'card_thumbnail' %}
+        <img
+            src="{{ image_src }}"
+            alt="{{ alt|default('') }}"
+            loading="{{ loading|default('lazy') }}"
+            decoding="{{ decoding|default('async') }}"
+            {% if img_class|default(null) %}
+                class="{{ img_class }}"
+            {% endif %}
+            {% if fetchpriority|default(null) %}
+                fetchpriority="{{ fetchpriority }}"
+            {% endif %}
+            {% if dimensions %}
+                width="{{ dimensions.width }}"
+                height="{{ dimensions.height }}"
+            {% endif %}
+        >
+    {% else %}
+        <picture{% if picture_class|default(null) %} class="{{ picture_class }}"{% endif %}>
+            {% if avif_srcset %}
+                <source
+                    type="image/avif"
+                    srcset="{{ avif_srcset }}"
+                    sizes="{{ sizes|default('100vw') }}"
+                >
+            {% endif %}
+
+            {% if webp_srcset and not is_standard_image %}
+                <source
+                    type="image/webp"
+                    srcset="{{ webp_srcset }}"
+                    sizes="{{ sizes|default('100vw') }}"
+                >
+            {% endif %}
+
+            <img
+                src="{{ image_src }}"
+                alt="{{ alt|default('') }}"
+                loading="{{ loading|default('lazy') }}"
+                decoding="{{ decoding|default('async') }}"
+                {% if img_class|default(null) %}
+                    class="{{ img_class }}"
+                {% endif %}
+                {% if fetchpriority|default(null) %}
+                    fetchpriority="{{ fetchpriority }}"
+                {% endif %}
+                {% if img_srcset %}
+                    srcset="{{ img_srcset }}"
+                    sizes="{{ sizes|default('100vw') }}"
+                {% endif %}
+                {% if dimensions %}
+                    width="{{ dimensions.width }}"
+                    height="{{ dimensions.height }}"
+                {% endif %}
+            >
+        </picture>
+    {% endif %}
+{% endif %}

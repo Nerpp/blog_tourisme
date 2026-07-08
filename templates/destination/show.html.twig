@@ -1,0 +1,467 @@
+{% extends 'layouts/destination.html.twig' %}
+
+{% set destination_type_labels = {
+    country: 'Pays',
+    region: 'Région',
+    department: 'Département à explorer',
+    city: 'Ville',
+    area: 'Lieu à découvrir'
+} %}
+{% set is_region = destination.type.value == 'region' %}
+{% set is_country = destination.type.value == 'country' %}
+{% set is_department = destination.type.value == 'department' %}
+{% set is_content_level = destination.type.value in ['city', 'area'] %}
+{% set child_destinations = explore_destinations|default(destination.children) %}
+{% set article_count = article_cards|length %}
+{% set hike_count = hikes|length %}
+{% set city_visit_count = city_visits|length %}
+{% set child_count = child_destinations|length %}
+{% set content_count = article_count + hike_count + city_visit_count %}
+{% set discover_items = [] %}
+{% if article_count > 0 %}
+    {% set discover_items = discover_items|merge([article_count ~ ' article' ~ (article_count > 1 ? 's' : '')]) %}
+{% endif %}
+{% if hike_count > 0 %}
+    {% set discover_items = discover_items|merge([hike_count ~ ' randonnée' ~ (hike_count > 1 ? 's' : '')]) %}
+{% endif %}
+{% if city_visit_count > 0 %}
+    {% set discover_items = discover_items|merge([city_visit_count ~ ' visite' ~ (city_visit_count > 1 ? 's' : '')]) %}
+{% endif %}
+{% set discover_label = discover_items|length == 0
+    ? 'Aucun contenu publié pour le moment'
+    : (discover_items|length == 1
+        ? discover_items|first
+        : discover_items|slice(0, -1)|join(', ') ~ ' et ' ~ discover_items|last)
+%}
+{% set explore_title = is_country
+    ? 'Régions à explorer'
+    : (is_region
+        ? 'Départements à explorer'
+        : (is_department ? 'À découvrir dans ' ~ destination.name : 'À découvrir à ' ~ destination.name))
+%}
+{% set child_badge_label = is_country
+    ? child_count ~ ' région' ~ (child_count > 1 ? 's' : '') ~ ' à explorer'
+    : (is_region
+        ? child_count ~ ' département' ~ (child_count > 1 ? 's' : '') ~ ' à explorer'
+        : child_count ~ ' lieu' ~ (child_count > 1 ? 'x' : '') ~ ' à découvrir')
+%}
+{% set child_filter_label = is_country ? 'Régions' : (is_region ? 'Départements' : 'Lieux à découvrir') %}
+{% set child_cta_label = is_country ? 'Explorer la région' : (is_region ? 'Explorer le département' : 'Explorer ce lieu') %}
+
+{% block title %}{{ destination.seoTitle ?: destination.name }} - Blog Tourisme{% endblock %}
+{% block meta_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique à découvrir sur Blog Tourisme.' }}{% endblock %}
+{% block open_graph_title %}{{ destination.seoTitle ?: destination.name }}{% endblock %}
+{% block open_graph_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique à découvrir sur Blog Tourisme.' }}{% endblock %}
+
+{% block body %}
+    <main class="destination-detail-page">
+        <section class="destination-detail-hero">
+            <nav class="destination-detail-breadcrumb destination-detail-shell" aria-label="Fil d’Ariane">
+                <ol>
+                    <li><a href="{{ path('app_home') }}">Accueil</a></li>
+                    <li><a href="{{ path('app_destination_index') }}">Destinations</a></li>
+                    {% for path_destination in destination_path %}
+                        <li>
+                            {% if loop.last %}
+                                <span aria-current="page">{{ path_destination.name }}</span>
+                            {% else %}
+                                <a href="{{ path('app_destination_show', { slug: path_destination.slug }) }}">{{ path_destination.name }}</a>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ol>
+            </nav>
+
+            <div class="destination-detail-shell destination-detail-hero__inner">
+                <div class="destination-detail-hero__content">
+                    <p class="destination-detail-kicker">Destination</p>
+                    <h1>{{ destination.name }}</h1>
+
+                    {% if destination.description %}
+                        <p>{{ destination.description }}</p>
+                    {% else %}
+                        <p>Explorez les articles, randonnées, visites et destinations liées à {{ destination.name }}.</p>
+                    {% endif %}
+
+                    {% if is_content_level %}
+                        <div class="destination-detail-badges" aria-label="Contenus liés">
+                            <a href="#articles">{{ article_count }} article{{ article_count > 1 ? 's' : '' }}</a>
+                            <a href="#randonnees">{{ hike_count }} randonnée{{ hike_count > 1 ? 's' : '' }}</a>
+                            <a href="#visites">{{ city_visit_count }} visite{{ city_visit_count > 1 ? 's' : '' }}</a>
+                        </div>
+                    {% endif %}
+
+                    {% if is_granted('EDIT', destination) %}
+                        <a href="{{ path('admin_destinations_edit', { id: destination.id }) }}" class="destination-detail-admin-link">
+                            Modifier
+                        </a>
+                    {% endif %}
+                </div>
+
+                <aside class="destination-detail-info" aria-label="Informations destination">
+                    {% if not is_region and destination.parent %}
+                        <div>
+                            <strong>{{ destination.parent.type.value == 'region' ? 'Région' : 'Fait partie de' }}</strong>
+                            <a href="{{ path('app_destination_show', { slug: destination.parent.slug }) }}">{{ destination.parent.name }}</a>
+                        </div>
+                    {% endif %}
+                    <div>
+                        <strong>À découvrir</strong>
+                        {% if is_content_level %}
+                            <span>{{ discover_label }}</span>
+                        {% else %}
+                            <span data-destination-discover-count>{{ child_badge_label }}</span>
+                        {% endif %}
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <section
+            class="destination-detail-shell destination-detail-search js-destination-detail-search"
+            aria-label="Recherche dans la destination"
+        >
+            <nav class="destination-detail-search-path" aria-label="Navigation géographique de la recherche">
+                <ol>
+                    <li>
+                        <a
+                            href="{{ path('app_destination_index', destination_navigation_root_query) }}"
+                            data-destination-search-path-link
+                            data-destination-search-path-root
+                        >Toutes les destinations</a>
+                    </li>
+                    {% for path_destination in destination_path %}
+                        <li>
+                            {% if loop.last %}
+                                <span aria-current="page">{{ path_destination.name }}</span>
+                            {% else %}
+                                <a
+                                    href="{{ path('app_destination_show', destination_navigation_query|merge({ slug: path_destination.slug })) }}"
+                                    data-destination-search-path-link
+                                >{{ path_destination.name }}</a>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ol>
+            </nav>
+
+            <label for="destination-detail-search-input">Recherche dans {{ destination.name }}</label>
+            <div class="destination-detail-search__field">
+                <input
+                    id="destination-detail-search-input"
+                    class="js-destination-detail-search-input"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Rechercher un article, une randonnée, une visite…"
+                    aria-autocomplete="list"
+                    aria-controls="destination-detail-search-suggestions"
+                >
+                <button class="js-destination-detail-search-reset" type="button" hidden>Réinitialiser</button>
+            </div>
+            <div
+                id="destination-detail-search-suggestions"
+                class="destination-detail-search__suggestions js-destination-detail-search-suggestions"
+                role="listbox"
+                aria-label="Suggestions de recherche dans {{ destination.name }}"
+                hidden
+            ></div>
+            <div class="destination-detail-filters" aria-label="Filtres destination">
+                <button type="button" class="is-active" data-destination-filter="all">
+                    {{ is_content_level ? 'Tout' : 'Tous les contenus' }}
+                </button>
+                {% if is_content_level %}
+                    <button type="button" data-destination-filter="article">Articles</button>
+                    <button type="button" data-destination-filter="hike">Randonnées</button>
+                    <button type="button" data-destination-filter="city_visit">Visites</button>
+                {% endif %}
+                {% if child_count > 0 %}
+                    <button type="button" data-destination-filter="destination">
+                        {{ child_filter_label }}
+                    </button>
+                {% endif %}
+            </div>
+            <p class="destination-detail-empty js-destination-detail-empty" hidden>Aucun résultat trouvé.</p>
+        </section>
+
+        {% if child_count > 0 or not is_content_level %}
+        <section id="a-decouvrir" class="destination-detail-shell destination-detail-section" data-destination-section>
+            <div class="destination-detail-section__heading">
+                <div>
+                    <p class="destination-detail-kicker">Explorer</p>
+                    <h2 data-destination-original-title="{{ explore_title }}">
+                        {{ explore_title }}
+                    </h2>
+                </div>
+                <span>{{ child_count }} résultat{{ child_count > 1 ? 's' : '' }}</span>
+            </div>
+
+            {% if child_destinations|length > 0 %}
+                <div class="destination-compact-grid">
+                    {% for child in child_destinations %}
+                        {% set child_department = department_context_by_destination_id[child.id] is defined ? department_context_by_destination_id[child.id] : null %}
+                        {% set child_explore_count = child_explore_counts[child.id]|default(null) %}
+                        {% set child_search %}
+                            {{ child.name }}
+                            {{ destination_type_labels[child.type.value]|default(child.type.value) }}
+                            {{ child.description }}
+                            {{ destination.name }}
+                            {{ child_department ? child_department.name : '' }}
+                        {% endset %}
+                        <article
+                            class="destination-mini-card {{ is_region ? 'destination-mini-card--department' : '' }} js-destination-detail-card"
+                            data-destination-show-card
+                            data-type="destination"
+                            data-title="{{ child.name|e('html_attr') }}"
+                            data-url="{{ path('app_destination_show', { slug: child.slug }) }}"
+                            data-meta="{{ destination_type_labels[child.type.value]|default('Lieu à découvrir') }}"
+                            data-context="{{ child_department ? 'dans ' ~ child_department.name : destination.name|e('html_attr') }}"
+                            data-department-id="{{ is_region ? child.id : (child_department ? child_department.id : '') }}"
+                            data-department-name="{{ is_region ? child.name|e('html_attr') : (child_department ? child_department.name|e('html_attr') : '') }}"
+                            data-search="{{ child_search|striptags|trim|e('html_attr') }}"
+                        >
+                            <span>{{ destination_type_labels[child.type.value]|default(child.type.value) }}</span>
+                            <h3>
+                                <a href="{{ path('app_destination_show', { slug: child.slug }) }}">{{ child.name }}</a>
+                            </h3>
+                            {% if child.description %}
+                                <p>{{ child.description|length > 120 ? child.description|slice(0, 120) ~ '…' : child.description }}</p>
+                            {% endif %}
+                            {% if child_explore_count and child_explore_count.count > 0 %}
+                                <p class="destination-mini-card__counts">
+                                    {{ child_explore_count.label }}
+                                </p>
+                            {% endif %}
+                            {% if not is_content_level %}
+                                <div class="destination-mini-card__actions">
+                                    <a href="{{ path('app_destination_show', { slug: child.slug }) }}">{{ child_cta_label }}</a>
+                                </div>
+                            {% endif %}
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="destination-detail-muted">Aucun lieu à découvrir pour le moment.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if is_content_level %}
+        <section id="articles" class="destination-detail-shell destination-detail-section" data-destination-section>
+            <div class="destination-detail-section__heading">
+                <div>
+                    <p class="destination-detail-kicker">Pour aller plus loin</p>
+                    <h2>Articles liés</h2>
+                </div>
+                <span>{{ article_count }} résultat{{ article_count > 1 ? 's' : '' }}</span>
+            </div>
+
+            {% if article_cards|length > 0 %}
+                <div class="destination-content-grid">
+                    {% for card in article_cards %}
+                        {% set article = card.article %}
+                        {% set article_url = path('app_article_show', { slug: article.slug }) %}
+                        {% set category_label = article.category ? article.category.name : 'Article' %}
+                        {% set cover_media = null %}
+                        {% set image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+                        {% set cover_image_links = image_links|filter(link => link.role.value == 'cover') %}
+                        {% if cover_image_links|length > 0 %}
+                            {% set cover_media = (cover_image_links|first).mediaAsset %}
+                        {% elseif article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
+                            {% set cover_media = article.featuredImage %}
+                        {% elseif image_links|length > 0 %}
+                            {% set cover_media = (image_links|first).mediaAsset %}
+                        {% endif %}
+
+                        <article
+                            class="destination-resource-card destination-resource-card--article js-destination-detail-card"
+                            data-destination-show-card
+                            data-type="article"
+                            data-title="{{ article.title|e('html_attr') }}"
+                            data-url="{{ article_url }}"
+                            data-meta="{{ category_label|e('html_attr') }}"
+                            data-context="{{ card.context_label|e('html_attr') }}"
+                            data-department-id="{{ card.department_id }}"
+                            data-department-name="{{ card.department_name|default('')|e('html_attr') }}"
+                            data-search="{{ card.search_text|e('html_attr') }}"
+                        >
+                            <a class="destination-resource-card__media" href="{{ article_url }}" aria-label="Lire {{ article.title }}">
+                                {% if cover_media %}
+                                    {% include 'public_detail/_responsive_image.html.twig' with {
+                                        media: cover_media,
+                                        alt: media_public_alt(cover_media, article, article.title),
+                                        image_size: 'medium',
+                                        sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
+                                        img_class: 'destination-resource-card__image'
+                                    } only %}
+                                {% else %}
+                                    <div class="destination-resource-card__placeholder" role="img" aria-label="Image d'article non disponible">
+                                        <span>Article</span>
+                                    </div>
+                                {% endif %}
+                            </a>
+                            <div class="destination-resource-card__body">
+                                <div class="destination-resource-card__badges">
+                                    <span>{{ category_label }}</span>
+                                    {% if card.role_label and card.role_label != 'Pour aller plus loin' %}
+                                        <span>{{ card.role_label }}</span>
+                                    {% endif %}
+                                </div>
+                                <h3>
+                                    <a href="{{ article_url }}">{{ article.title }}</a>
+                                </h3>
+                                {% if article.excerpt %}
+                                    <p>{{ article.excerpt|length > 145 ? article.excerpt|slice(0, 145) ~ '…' : article.excerpt }}</p>
+                                {% endif %}
+                                <p class="destination-resource-card__context">{{ card.context_label }}</p>
+                                <a class="destination-resource-card__cta" href="{{ article_url }}">Lire l'article</a>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="destination-detail-muted">Aucun article publié pour cette destination pour le moment.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if is_content_level %}
+        <section id="randonnees" class="destination-detail-shell destination-detail-section" data-destination-section>
+            <div class="destination-detail-section__heading">
+                <div>
+                    <p class="destination-detail-kicker">Balades</p>
+                    <h2>Randonnées</h2>
+                </div>
+                <span>{{ hike_count }} résultat{{ hike_count > 1 ? 's' : '' }}</span>
+            </div>
+
+            {% if hikes|length > 0 %}
+                <div class="destination-content-grid">
+                    {% for hike in hikes %}
+                        {% set hike_url = path('app_hike_show', { slug: hike.slug }) %}
+                        {% set hike_geographic_destination = hike.geographicDestination ?: hike.destination %}
+                        {% set hike_department = hike_geographic_destination and department_context_by_destination_id[hike_geographic_destination.id] is defined ? department_context_by_destination_id[hike_geographic_destination.id] : null %}
+                        {% set hike_search %}
+                            {{ hike.title }}
+                            {{ hike.notes }}
+                            Randonnée
+                            {{ hike_geographic_destination ? hike_geographic_destination.name : hike.detectedCommuneName }}
+                            {{ hike.destination ? hike.destination.name : '' }}
+                            {{ hike_department ? hike_department.name : '' }}
+                            {{ hike.detectedDepartmentName }}
+                            {{ hike.detectedRegionName }}
+                        {% endset %}
+
+                        <article
+                            class="destination-resource-card js-destination-detail-card"
+                            data-destination-show-card
+                            data-type="hike"
+                            data-title="{{ hike.title|e('html_attr') }}"
+                            data-url="{{ hike_url }}"
+                            data-meta="Randonnée"
+                            data-context="{{ hike_department ? 'dans ' ~ hike_department.name : (hike_geographic_destination ? hike_geographic_destination.name : '') }}"
+                            data-department-id="{{ hike_department ? hike_department.id : '' }}"
+                            data-department-name="{{ hike_department ? hike_department.name|e('html_attr') : '' }}"
+                            data-search="{{ hike_search|striptags|trim|e('html_attr') }}"
+                        >
+                            <a class="destination-resource-card__media" href="{{ hike_url }}" aria-label="Voir la randonnée {{ hike.title }}">
+                                {% include 'partials/_cover_media.html.twig' with {
+                                    featured_media: null,
+                                    media_links: hike.mediaLinks,
+                                    media_context: hike,
+                                    display_profile: 'content'
+                                } only %}
+                            </a>
+                            <div class="destination-resource-card__body">
+                                <div class="destination-resource-card__badges">
+                                    <span>Randonnée</span>
+                                    {% if hike_geographic_destination %}<span>{{ hike_geographic_destination.name }}</span>{% endif %}
+                                    {% if hike.destination %}<span>{{ hike.destination.name }}</span>{% endif %}
+                                </div>
+                                <h3>
+                                    <a href="{{ hike_url }}">{{ hike.title }}</a>
+                                </h3>
+                                {% if hike.notes %}
+                                    <p>{{ hike.notes|striptags|length > 145 ? hike.notes|striptags|slice(0, 145) ~ '…' : hike.notes|striptags }}</p>
+                                {% endif %}
+                                <a class="destination-resource-card__cta" href="{{ hike_url }}">Voir la randonnée</a>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="destination-detail-muted">Aucune randonnée publique pour cette destination pour le moment.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+
+        {% if is_content_level %}
+        <section id="visites" class="destination-detail-shell destination-detail-section" data-destination-section>
+            <div class="destination-detail-section__heading">
+                <div>
+                    <p class="destination-detail-kicker">Villes</p>
+                    <h2>Visites de ville</h2>
+                </div>
+                <span>{{ city_visit_count }} résultat{{ city_visit_count > 1 ? 's' : '' }}</span>
+            </div>
+
+            {% if city_visits|length > 0 %}
+                <div class="destination-content-grid">
+                    {% for city_visit in city_visits %}
+                        {% set city_visit_url = path('app_city_visit_show', { slug: city_visit.slug }) %}
+                        {% set city_visit_geographic_destination = city_visit.geographicDestination ?: city_visit.destination %}
+                        {% set city_visit_department = city_visit_geographic_destination and department_context_by_destination_id[city_visit_geographic_destination.id] is defined ? department_context_by_destination_id[city_visit_geographic_destination.id] : null %}
+                        {% set city_visit_search %}
+                            {{ city_visit.title }}
+                            {{ city_visit.notes }}
+                            Visite de ville
+                            {{ city_visit_geographic_destination ? city_visit_geographic_destination.name : city_visit.detectedCommuneName }}
+                            {{ city_visit.destination ? city_visit.destination.name : '' }}
+                            {{ city_visit_department ? city_visit_department.name : '' }}
+                            {{ city_visit.detectedDepartmentName }}
+                            {{ city_visit.detectedRegionName }}
+                        {% endset %}
+
+                        <article
+                            class="destination-resource-card js-destination-detail-card"
+                            data-destination-show-card
+                            data-type="city_visit"
+                            data-title="{{ city_visit.title|e('html_attr') }}"
+                            data-url="{{ city_visit_url }}"
+                            data-meta="Visite"
+                            data-context="{{ city_visit_department ? 'dans ' ~ city_visit_department.name : (city_visit_geographic_destination ? city_visit_geographic_destination.name : '') }}"
+                            data-department-id="{{ city_visit_department ? city_visit_department.id : '' }}"
+                            data-department-name="{{ city_visit_department ? city_visit_department.name|e('html_attr') : '' }}"
+                            data-search="{{ city_visit_search|striptags|trim|e('html_attr') }}"
+                        >
+                            <a class="destination-resource-card__media" href="{{ city_visit_url }}" aria-label="Voir la visite de ville {{ city_visit.title }}">
+                                {% include 'partials/_cover_media.html.twig' with {
+                                    featured_media: null,
+                                    media_links: city_visit.mediaLinks,
+                                    media_context: city_visit,
+                                    display_profile: 'content'
+                                } only %}
+                            </a>
+                            <div class="destination-resource-card__body">
+                                <div class="destination-resource-card__badges">
+                                    <span>Visite de ville</span>
+                                    {% if city_visit_geographic_destination %}<span>{{ city_visit_geographic_destination.name }}</span>{% endif %}
+                                    {% if city_visit.destination %}<span>{{ city_visit.destination.name }}</span>{% endif %}
+                                </div>
+                                <h3>
+                                    <a href="{{ city_visit_url }}">{{ city_visit.title }}</a>
+                                </h3>
+                                {% if city_visit.notes %}
+                                    <p>{{ city_visit.notes|striptags|length > 145 ? city_visit.notes|striptags|slice(0, 145) ~ '…' : city_visit.notes|striptags }}</p>
+                                {% endif %}
+                                <a class="destination-resource-card__cta" href="{{ city_visit_url }}">Voir la visite</a>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="destination-detail-muted">Aucune visite de ville publique pour cette destination pour le moment.</p>
+            {% endif %}
+        </section>
+        {% endif %}
+    </main>
+{% endblock %}

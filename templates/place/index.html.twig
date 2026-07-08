@@ -1,0 +1,54 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Carnet de lieux - Blog Tourisme{% endblock %}
+{% block meta_description %}Repérages prives, notes terrain et points utiles pour preparer les contenus publics.{% endblock %}
+
+{% block body %}
+    <main class="page-shell">
+        <header class="page-header">
+            <p class="eyebrow">Repérages</p>
+            <h1>Carnet de lieux</h1>
+            <p>Filtrez les repérages par destination, categorie ou tag pour preparer les articles, randonnées et visites de ville.</p>
+        </header>
+
+        <form class="filters" method="get" action="{{ path('app_place_index') }}">
+            <label>
+                Destination
+                <select name="destination">
+                    <option value="">Toutes</option>
+                    {% for destination in destinations %}
+                        <option value="{{ destination.slug }}" {{ current_destination and current_destination.id == destination.id ? 'selected' : '' }}>{{ destination.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Categorie
+                <select name="category">
+                    <option value="">Toutes</option>
+                    {% for category in categories %}
+                        <option value="{{ category.slug }}" {{ current_category and current_category.id == category.id ? 'selected' : '' }}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Tag
+                <select name="tag">
+                    <option value="">Tous</option>
+                    {% for tag in tags %}
+                        <option value="{{ tag.slug }}" {{ current_tag and current_tag.id == tag.id ? 'selected' : '' }}>{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <button type="submit">Filtrer</button>
+            <a href="{{ path('app_place_index') }}">Reinitialiser</a>
+        </form>
+
+        <div class="card-grid">
+            {% for place in places %}
+                {% include 'partials/_place_card.html.twig' with { place: place, heading_level: 2 } only %}
+            {% else %}
+                <p>Aucun repérage ne correspond a ces filtres.</p>
+            {% endfor %}
+        </div>
+    </main>
+{% endblock %}

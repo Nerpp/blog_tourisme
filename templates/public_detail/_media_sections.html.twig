@@ -1,0 +1,1015 @@
+{% set standard_media_links = [] %}
+{% set video_media_links = [] %}
+{% set immersive_media_links = [] %}
+{% set panorama_media_links = [] %}
+{% set immersive_gallery_links = [] %}
+{% set gps_point_type = gps_point_type|default(null) %}
+{% set valid_gps_points = [] %}
+{% set hike_map_points = [] %}
+{% set route_map_id = gallery_id ~ '-route-map' %}
+{% set point_media_gallery_links = [] %}
+
+{% for mediaLink in item.mediaLinks %}
+    {% set media = mediaLink.mediaAsset %}
+
+    {% if media %}
+        {% if media.mediaType.value == 'video' %}
+            {% set video_media_links = video_media_links|merge([mediaLink]) %}
+        {% elseif media.imageType and media.imageType.value in ['360', '180'] %}
+            {% set immersive_media_links = immersive_media_links|merge([mediaLink]) %}
+            {% set immersive_gallery_links = immersive_gallery_links|merge([mediaLink]) %}
+        {% elseif media.imageType and media.imageType.value == 'panorama' %}
+            {% set panorama_media_links = panorama_media_links|merge([mediaLink]) %}
+            {% set immersive_gallery_links = immersive_gallery_links|merge([mediaLink]) %}
+        {% else %}
+            {% set standard_media_links = standard_media_links|merge([mediaLink]) %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+{% for point in item.points %}
+    {% if point.latitude is not null and point.longitude is not null %}
+        {% set valid_gps_points = valid_gps_points|merge([point]) %}
+        {% set hike_map_points = hike_map_points|merge([{
+            id: point.id,
+            position: point.position,
+            title: point.title ?: 'Étape ' ~ loop.index,
+            type: point.type.value,
+            latitude: point.latitude,
+            longitude: point.longitude
+        }]) %}
+    {% endif %}
+
+    {% for pointMediaLink in point.mediaLinks %}
+        {% set media = pointMediaLink.mediaAsset %}
+
+        {% if media and media.mediaType.value in ['image', 'video'] %}
+            {% set point_media_gallery_links = point_media_gallery_links|merge([pointMediaLink]) %}
+        {% endif %}
+    {% endfor %}
+{% endfor %}
+
+{% if standard_media_links|length > 0 %}
+    <section id="{{ gallery_id }}-photos" class="media-section">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">Parcours</p>
+                <h2 class="media-title">{{ photos_title }}</h2>
+                <p class="media-description">
+                    {{ photos_description }}
+                </p>
+            </div>
+
+            <div class="media-actions">
+                <span class="media-count">{{ standard_media_links|length }}</span>
+
+                <button
+                    type="button"
+                    class="media-visualize-btn"
+                    data-gallery-target="#{{ gallery_id }}"
+                    data-gallery-index="0"
+                >
+                    Visualiser
+                </button>
+            </div>
+        </div>
+
+        {% include 'public_detail/_image_gallery.html.twig' with {
+            media_links: standard_media_links,
+            gallery_id: gallery_id,
+            modal_title: photos_title,
+            gallery_context: item,
+            gallery_context_title: item_title
+        } only %}
+    </section>
+{% endif %}
+
+{% if video_media_links|length > 0 %}
+    <section id="{{ gallery_id }}-videos" class="media-section media-section--dark">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">{{ video_kicker }}</p>
+                <h2 class="media-title">{{ videos_title }}</h2>
+                <p class="media-description">
+                    {{ videos_description }}
+                </p>
+            </div>
+
+            <div class="media-actions">
+                <span class="media-count">{{ video_media_links|length }}</span>
+
+                <button
+                    type="button"
+                    class="media-visualize-btn"
+                    data-gallery-target="#{{ gallery_id }}-video-gallery"
+                    data-gallery-index="0"
+                >
+                    Visualiser
+                </button>
+            </div>
+        </div>
+
+        <div class="video-gallery-grid {{ video_media_links|length == 1 ? 'video-gallery-grid--single' : '' }}">
+            {% for mediaLink in video_media_links|slice(0, 5) %}
+                {% set media = mediaLink.mediaAsset %}
+
+                {% if media %}
+                    {% set local_video = media.filePath %}
+                    {% set embed_url = media|video_embed_url %}
+                    {% set external_video = media.externalUrl %}
+                    {% set poster_url = media_poster_url(media, 'medium') %}
+                    {% set youtube_thumbnail_url = video_thumbnail_url(external_video) %}
+                    {% set video_poster_url = poster_url ?: youtube_thumbnail_url %}
+
+                    {% set video_shape = 'unknown' %}
+                    {% if media.width and media.height %}
+                        {% if media.height > media.width %}
+                            {% set video_shape = 'portrait' %}
+                        {% elseif media.width > media.height %}
+                            {% set video_shape = 'landscape' %}
+                        {% else %}
+                            {% set video_shape = 'square' %}
+                        {% endif %}
+                    {% elseif external_video is not empty and '/shorts/' in external_video %}
+                        {% set video_shape = 'portrait' %}
+                    {% endif %}
+
+                    {% if embed_url or local_video or external_video %}
+                        <button
+                            type="button"
+                            class="video-gallery-card video-gallery-card--{{ video_shape }} {{ loop.first ? 'video-gallery-card--large' : '' }} {{ video_poster_url ? 'has-poster' : 'has-placeholder' }}"
+                            aria-label="Afficher la vidéo en grand"
+                            data-gallery-target="#{{ gallery_id }}-video-gallery"
+                            data-gallery-index="{{ loop.index0 }}"
+                        >
+                            {% if video_poster_url %}
+                                <img
+                                    src="{{ video_poster_url }}"
+                                    alt="{{ media_public_alt(media, item, media_public_title(media, item, video_fallback_title)) }}"
+                                    loading="lazy"
+                                    decoding="async"
+                                >
+                                <span class="video-gallery-card__play" aria-hidden="true">▶</span>
+                            {% else %}
+                                <span class="video-gallery-card__placeholder">
+                                    <span class="video-gallery-card__play" aria-hidden="true">▶</span>
+                                    <span class="video-gallery-card__title">
+                                        {{ media_public_title(media, item, video_fallback_title) }}
+                                    </span>
+                                </span>
+                            {% endif %}
+
+                            {% if loop.index == 5 and video_media_links|length > 5 %}
+                                <span class="video-gallery-card__more">
+                                    +{{ video_media_links|length - 5 }} vidéo{{ video_media_links|length - 5 > 1 ? 's' : '' }}
+                                </span>
+                            {% endif %}
+                        </button>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div
+            id="{{ gallery_id }}-video-gallery"
+            class="gallery-modal js-gallery-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="{{ gallery_id }}-video-gallery-title"
+            hidden
+        >
+            <div class="gallery-modal__dialog gallery-modal__dialog--video" role="document">
+                <header class="gallery-modal__header">
+                    <div>
+                        <h2 id="{{ gallery_id }}-video-gallery-title" class="gallery-modal__title">
+                            {{ videos_title }}
+                        </h2>
+
+                        <div class="gallery-modal__counter js-gallery-counter">
+                            1 / {{ video_media_links|length }}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__close js-gallery-close"
+                        aria-label="Fermer la galerie"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <div class="gallery-modal__body">
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--prev js-gallery-prev"
+                        aria-label="Vidéo précédente"
+                    >
+                        ‹
+                    </button>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--next js-gallery-next"
+                        aria-label="Vidéo suivante"
+                    >
+                        ›
+                    </button>
+
+                    {% for mediaLink in video_media_links %}
+                        {% set media = mediaLink.mediaAsset %}
+
+                        {% if media %}
+                            {% set local_video = media.filePath %}
+                            {% set embed_url = media|video_embed_url %}
+                            {% set external_video = media.externalUrl %}
+                            {% set poster_url = media_poster_url(media, 'medium') %}
+                            {% set youtube_thumbnail_url = video_thumbnail_url(external_video) %}
+                            {% set video_poster_url = poster_url ?: youtube_thumbnail_url %}
+                            {% set has_caption = media.caption is not empty %}
+
+                            {% set video_shape = 'unknown' %}
+                            {% if media.width and media.height %}
+                                {% if media.height > media.width %}
+                                    {% set video_shape = 'portrait' %}
+                                {% elseif media.width > media.height %}
+                                    {% set video_shape = 'landscape' %}
+                                {% else %}
+                                    {% set video_shape = 'square' %}
+                                {% endif %}
+                            {% elseif external_video is not empty and '/shorts/' in external_video %}
+                                {% set video_shape = 'portrait' %}
+                            {% endif %}
+
+                            {% set video_source_type = embed_url ? 'embed' : (local_video ? 'local' : 'external') %}
+
+                            {% if embed_url or local_video or external_video %}
+                                <article class="gallery-modal__slide gallery-modal__slide--video gallery-modal__slide--video-{{ video_shape }} gallery-modal__slide--video-{{ video_source_type }} js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                    <figure class="gallery-modal__media gallery-modal__video-frame gallery-modal__video-frame--{{ video_shape }} gallery-modal__video-frame--{{ video_source_type }}">
+                                        {% if embed_url %}
+                                            <iframe
+                                                data-video-src="{{ embed_url }}"
+                                                title="{{ media_public_title(media, item, item_title) }}"
+                                                loading="lazy"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                referrerpolicy="strict-origin-when-cross-origin"
+                                                allowfullscreen
+                                            ></iframe>
+                                        {% elseif local_video %}
+                                            {% set local_video_url = local_video starts with 'http' ? local_video : asset(local_video) %}
+                                            <video
+                                                controls
+                                                playsinline
+                                                preload="none"
+                                                data-video-src="{{ local_video_url }}"
+                                                data-video-type="{{ media.mimeType ?: 'video/mp4' }}"
+                                                {% if video_poster_url %}
+                                                    poster="{{ video_poster_url }}"
+                                                {% endif %}
+                                            >
+                                                Votre navigateur ne supporte pas la lecture vidéo.
+                                            </video>
+                                        {% elseif external_video %}
+                                            <a
+                                                class="video-external-link"
+                                                href="{{ external_video }}"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                Ouvrir la vidéo
+                                            </a>
+                                        {% endif %}
+                                    </figure>
+
+                                    {% if has_caption %}
+                                        <div class="gallery-modal__caption gallery-modal__caption--video">
+                                            <p>{{ media.caption|nl2br }}</p>
+                                        </div>
+                                    {% endif %}
+                                </article>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <footer class="gallery-modal__footer" aria-label="Navigation vidéos">
+                    {% for mediaLink in video_media_links %}
+                        <button
+                            type="button"
+                            class="gallery-modal__dot js-gallery-dot {{ loop.first ? 'is-active' : '' }}"
+                            aria-label="Afficher la vidéo {{ loop.index }}"
+                            aria-current="{{ loop.first ? 'true' : 'false' }}"
+                        ></button>
+                    {% endfor %}
+                </footer>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+{% if immersive_gallery_links|length > 0 %}
+    <section id="{{ gallery_id }}-immersive" class="media-section">
+        <div class="media-header">
+            <div>
+                <p class="media-kicker">Immersion</p>
+                <h2 class="media-title">Vues immersives et panoramiques</h2>
+                <p class="media-description">
+                    Ouvrez les vues 360°, 180° et panoramas en grand pour explorer le paysage confortablement.
+                </p>
+            </div>
+
+            <div class="media-actions">
+                <span class="media-count">{{ immersive_gallery_links|length }}</span>
+
+                <button
+                    type="button"
+                    class="media-visualize-btn"
+                    data-gallery-target="#{{ gallery_id }}-immersive-gallery"
+                    data-gallery-index="0"
+                >
+                    Visualiser
+                </button>
+            </div>
+        </div>
+
+        <div class="immersive-gallery-grid">
+            {% for mediaLink in immersive_gallery_links|slice(0, 5) %}
+                {% set media = mediaLink.mediaAsset %}
+
+                {% if media %}
+                    {% set image_type = media.imageType ? media.imageType.value : 'standard' %}
+                    {% set badge_label = image_type == '360' ? '360°' : (image_type == '180' ? '180°' : 'Panorama') %}
+                    {% set image_url = media_image_url(media, loop.first ? 'medium' : 'thumb') %}
+
+                    {% if image_url %}
+                        <button
+                            type="button"
+                            class="immersive-gallery-card {{ loop.first ? 'immersive-gallery-card--large' : '' }}"
+                            aria-label="Afficher la vue {{ badge_label }} en grand"
+                            data-gallery-target="#{{ gallery_id }}-immersive-gallery"
+                            data-gallery-index="{{ loop.index0 }}"
+                        >
+                            <span class="immersive-gallery-card__badge">{{ badge_label }}</span>
+
+                            {% include 'public_detail/_responsive_image.html.twig' with {
+                                media: media,
+                                alt: media_public_alt(media, item, item_title),
+                                image_size: loop.first ? 'medium' : 'thumb',
+                                sizes: loop.first ? '(min-width: 900px) 50vw, 90vw' : '(min-width: 900px) 25vw, 45vw'
+                            } only %}
+
+                            {% if loop.index == 5 and immersive_gallery_links|length > 5 %}
+                                <span class="immersive-gallery-card__more">
+                                    +{{ immersive_gallery_links|length - 5 }} vue{{ immersive_gallery_links|length - 5 > 1 ? 's' : '' }}
+                                </span>
+                            {% endif %}
+                        </button>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div
+            id="{{ gallery_id }}-immersive-gallery"
+            class="gallery-modal js-gallery-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="{{ gallery_id }}-immersive-gallery-title"
+            hidden
+        >
+            <div class="gallery-modal__dialog gallery-modal__dialog--immersive" role="document">
+                <header class="gallery-modal__header">
+                    <div>
+                        <h2 id="{{ gallery_id }}-immersive-gallery-title" class="gallery-modal__title">
+                            Vues immersives et panoramiques
+                        </h2>
+
+                        <div class="gallery-modal__counter js-gallery-counter">
+                            1 / {{ immersive_gallery_links|length }}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__close js-gallery-close"
+                        aria-label="Fermer la galerie"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <div class="gallery-modal__body">
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--prev js-gallery-prev"
+                        aria-label="Vue précédente"
+                    >
+                        ‹
+                    </button>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--next js-gallery-next"
+                        aria-label="Vue suivante"
+                    >
+                        ›
+                    </button>
+
+                    {% for mediaLink in immersive_gallery_links %}
+                        {% set media = mediaLink.mediaAsset %}
+
+                        {% if media %}
+                            {% set image_type = media.imageType ? media.imageType.value : 'standard' %}
+                            {% set is_360 = image_type == '360' %}
+                            {% set is_panorama = image_type == 'panorama' %}
+                            {% set has_caption = media.caption is not empty %}
+                            {% set image_url = media_modal_url(media) ?: media_image_url(media, 'large') %}
+                            {% set preview_url = media_image_url(media, 'thumb') ?: media_image_url(media, 'medium') %}
+                            {% set panorama = media.filePath ?: media.externalUrl %}
+                            {% set mobile_panorama = media.metadata and media.metadata.mobilePath is defined ? media.metadata.mobilePath : null %}
+
+                            {% if is_360 and panorama %}
+                                {% set panorama_url = panorama starts with 'http' ? panorama : asset(panorama) %}
+                                {% set mobile_panorama_url = mobile_panorama ? (mobile_panorama starts with 'http' ? mobile_panorama : asset(mobile_panorama)) : null %}
+
+                                <article class="gallery-modal__slide gallery-modal__slide--immersive gallery-modal__slide--viewer360 js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                    <div
+                                        class="js-panorama-viewer trail-panorama-viewer trail-panorama-viewer--modal"
+                                        data-panorama-url="{{ panorama_url }}"
+                                        {% if mobile_panorama_url %}data-panorama-mobile-url="{{ mobile_panorama_url }}"{% endif %}
+                                        aria-label="Vue panoramique 360 degrés"
+                                    >
+                                        <div class="trail-panorama-fallback" data-panorama-fallback>
+                                            {% if preview_url %}
+                                                <img
+                                                    data-gallery-src="{{ preview_url }}"
+                                                    alt="{{ media_public_alt(media, item, 'Aperçu de la vue 360°') }}"
+                                                    decoding="async"
+                                                >
+                                            {% endif %}
+                                            <p data-panorama-fallback-message>La vue 360° n’est pas disponible sur cet appareil, mais vous pouvez consulter l’image en aperçu.</p>
+                                        </div>
+                                    </div>
+
+                                    {% if has_caption %}
+                                        <div class="gallery-modal__caption gallery-modal__caption--immersive">
+                                            <p>{{ media.caption|nl2br }}</p>
+                                        </div>
+                                    {% endif %}
+                                </article>
+                            {% elseif image_url %}
+                                <article class="gallery-modal__slide gallery-modal__slide--immersive {{ is_panorama ? 'gallery-modal__slide--panorama' : '' }} js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                    <figure class="gallery-modal__media gallery-modal__media--immersive {{ is_panorama ? 'gallery-modal__media--panorama' : '' }}">
+                                        <img
+                                            data-gallery-src="{{ image_url }}"
+                                            alt="{{ media_public_alt(media, item, item_title) }}"
+                                            decoding="async"
+                                            {% if media.width and media.height %}
+                                                width="{{ media.width }}"
+                                                height="{{ media.height }}"
+                                            {% endif %}
+                                        >
+                                    </figure>
+
+                                    {% if has_caption %}
+                                        <div class="gallery-modal__caption gallery-modal__caption--immersive">
+                                            <p>{{ media.caption|nl2br }}</p>
+                                        </div>
+                                    {% endif %}
+                                </article>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <footer class="gallery-modal__footer" aria-label="Navigation vues immersives">
+                    {% for mediaLink in immersive_gallery_links %}
+                        <button
+                            type="button"
+                            class="gallery-modal__dot js-gallery-dot {{ loop.first ? 'is-active' : '' }}"
+                            aria-label="Afficher la vue {{ loop.index }}"
+                            aria-current="{{ loop.first ? 'true' : 'false' }}"
+                        ></button>
+                    {% endfor %}
+                </footer>
+            </div>
+        </div>
+    </section>
+{% endif %}
+
+<section id="{{ gallery_id }}-points" class="media-section public-point-section">
+    <div class="media-header">
+        <div>
+            <p class="media-kicker">Itinéraire</p>
+            <h2 class="media-title">{{ points_title }}</h2>
+        </div>
+
+        <span class="media-count">{{ item.points|length }}</span>
+    </div>
+
+    {% if valid_gps_points|length > 0 %}
+        {% set gps_access_point = valid_gps_points|first %}
+
+        <div class="public-route-gps">
+            {% if gps_point_type == 'hike' %}
+                {% set start_latitude = gps_access_point.latitude %}
+                {% set start_longitude = gps_access_point.longitude %}
+
+                <div class="public-route-gps__actions">
+                    <a
+                        class="public-point-gps__button"
+                        href="https://www.google.com/maps/dir/?api=1&amp;travelmode=walking&amp;destination={{ start_latitude }},{{ start_longitude }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Aller au départ
+                    </a>
+
+                    <a
+                        class="public-point-gps__button public-point-gps__button--secondary"
+                        href="#{{ route_map_id }}"
+                        data-hike-map-load
+                    >
+                        Voir le parcours
+                    </a>
+
+                    {% if valid_gps_points|length > 1 %}
+                        <a
+                            class="public-point-gps__button public-point-gps__button--secondary"
+                            href="{{ path('app_hike_gpx', { slug: item.slug }) }}"
+                        >
+                            Télécharger le GPX
+                        </a>
+                    {% endif %}
+                </div>
+
+                <p class="public-route-gps__notice">
+                    Conseil : utilisez Google Maps pour rejoindre le départ, puis une carte adaptée à la randonnée ou le parcours affiché sur cette page pour suivre les étapes. En montagne, le réseau peut être limité.
+                    {% if valid_gps_points|length > 1 %}
+                        Le fichier GPX contient les étapes enregistrées. Il ne remplace pas une trace GPS complète.
+                    {% endif %}
+                </p>
+            {% elseif gps_point_type and is_granted('GPS_ACCESS', gps_access_point) %}
+                <div class="public-route-gps__actions">
+                    <a
+                        class="public-point-gps__button"
+                        href="{{ path('app_gps_start_open', { type: gps_point_type, id: item.id }) }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Aller au départ
+                    </a>
+
+                    <a
+                        class="public-point-gps__button public-point-gps__button--secondary"
+                        href="{{ path('app_gps_route_open', { type: gps_point_type, id: item.id }) }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Parcours Google Maps
+                    </a>
+                </div>
+
+                <p class="public-route-gps__notice">
+                    Conseil : avant de partir, téléchargez la zone dans Google Maps pour pouvoir naviguer même sans réseau.
+                </p>
+            {% elseif not is_granted('GPS_ACCESS', gps_access_point) %}
+                <a
+                    class="public-point-gps__cta"
+                    href="{{ path('app_login') }}"
+                >
+                    Connectez-vous pour accéder à la navigation GPS
+                </a>
+            {% endif %}
+        </div>
+    {% elseif gps_point_type == 'hike' and item.points|length > 0 %}
+        <p class="public-route-map__empty">
+            Le parcours cartographique n’est pas encore disponible pour cette randonnée.
+        </p>
+    {% endif %}
+
+    {% if gps_point_type == 'hike' and valid_gps_points|length > 0 %}
+        {% set osm_point = valid_gps_points|first %}
+
+        <div class="public-route-map" id="{{ route_map_id }}">
+            <div
+                class="public-route-map__canvas"
+                data-public-hike-map
+                data-map-id="{{ route_map_id }}"
+                data-points="{{ hike_map_points|json_encode|e('html_attr') }}"
+                role="region"
+                aria-label="Carte du parcours de randonnée"
+            ></div>
+
+            <div class="public-route-map__footer">
+                {% if valid_gps_points|length > 1 %}
+                    <p>Le tracé relie les étapes enregistrées. Il ne remplace pas une trace GPS complète.</p>
+                {% else %}
+                    <p>La carte affiche le point GPS enregistré pour cette randonnée.</p>
+                {% endif %}
+
+                <a
+                    href="https://www.openstreetmap.org/?mlat={{ osm_point.latitude }}&amp;mlon={{ osm_point.longitude }}#map=14/{{ osm_point.latitude }}/{{ osm_point.longitude }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Ouvrir la zone dans OpenStreetMap
+                </a>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="public-point-list">
+        {% set point_map_index = 0 %}
+        {% set point_media_gallery_index = 0 %}
+
+        {% for point in item.points %}
+            <article class="public-point-card">
+                <div>
+                    <span class="public-point-number">
+                        {{ '%02d'|format(loop.index) }}
+                    </span>
+                </div>
+
+                <div>
+                    <p class="public-point-type">{{ point.type.value }}</p>
+
+                    <h3>{{ point.title ?: 'Étape ' ~ loop.index }}</h3>
+
+                    {% if point.note %}
+                        <p>{{ point.note|nl2br }}</p>
+                    {% endif %}
+
+                    {% if point.latitude is not null and point.longitude is not null %}
+                        <div class="public-point-gps">
+                            {% if gps_point_type == 'hike' %}
+                                <a
+                                    class="public-point-gps__button"
+                                    href="#{{ route_map_id }}"
+                                    data-hike-map-focus
+                                    data-point-index="{{ point_map_index }}"
+                                    data-point-id="{{ point.id }}"
+                                    aria-label="Voir ce point sur la carte : {{ point.title ?: 'Étape ' ~ loop.index }}"
+                                >
+                                    Voir ce point
+                                </a>
+                                {% set point_map_index = point_map_index + 1 %}
+                            {% elseif gps_point_type and is_granted('GPS_ACCESS', point) %}
+                                <a
+                                    class="public-point-gps__button"
+                                    href="{{ path('app_gps_point_open', { type: gps_point_type, id: point.id }) }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Voir ce point
+                                </a>
+                            {% elseif not is_granted('GPS_ACCESS', point) %}
+                                <a
+                                    class="public-point-gps__cta"
+                                    href="{{ path('app_login') }}"
+                                >
+                                    Connectez-vous pour ouvrir ce point sur la carte
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% if point.mediaLinks|length > 0 %}
+                        <div class="point-media-grid">
+                            {% for pointMediaLink in point.mediaLinks %}
+                                {% set media = pointMediaLink.mediaAsset %}
+
+                                {% if media %}
+                                    {% if media.mediaType.value == 'image' %}
+                                        {% set image_url = media_image_url(media, 'thumb') %}
+
+                                        {% if image_url %}
+                                            {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
+                                            {% set point_media_caption = media.caption ?: point_media_title %}
+                                            {% set modal_image_url = media_modal_url(media) %}
+
+                                            <figure
+                                                class="point-media-card point-media-card--image"
+                                                role="button"
+                                                tabindex="0"
+                                                aria-label="Voir la photo"
+                                                data-gallery-target="#{{ gallery_id }}-point-media-gallery"
+                                                data-gallery-index="{{ point_media_gallery_index }}"
+                                                data-gallery-type="image"
+                                                data-gallery-src="{{ modal_image_url }}"
+                                                {% if point_media_title %}
+                                                    data-gallery-title="{{ point_media_title|e('html_attr') }}"
+                                                {% endif %}
+                                                {% if point_media_caption %}
+                                                    data-gallery-caption="{{ point_media_caption|striptags|e('html_attr') }}"
+                                                {% endif %}
+                                            >
+                                                {% if media.imageType and media.imageType.value in ['360', '180'] %}
+                                                    <span class="point-media-card__badge">{{ media.imageType.value == '360' ? '360°' : '180°' }}</span>
+                                                {% endif %}
+
+                                                {% include 'public_detail/_responsive_image.html.twig' with {
+                                                    media: media,
+                                                    alt: media_public_alt(media, item, point.title ?: item_title),
+                                                    image_size: 'thumb',
+                                                    display_profile: 'thumbnail',
+                                                    sizes: '(min-width: 760px) 240px, 45vw'
+                                                } only %}
+
+                                            {% if media.caption or point_media_title %}
+                                                <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
+                                            {% endif %}
+                                            </figure>
+
+                                            {% set point_media_gallery_index = point_media_gallery_index + 1 %}
+                                        {% endif %}
+                                    {% elseif media.mediaType.value == 'video' %}
+                                        {% set local_video = media.filePath %}
+                                        {% set external_video = media.externalUrl %}
+                                        {% set embed_url = media|video_embed_url %}
+                                        {% set poster_url = media_poster_url(media, 'thumb') ?: video_thumbnail_url(external_video) %}
+                                        {% set point_media_title = media_public_title(media, item, point.title ?: item_title) %}
+                                        {% set point_media_caption = media.caption ?: point_media_title %}
+                                        {% set point_media_source = local_video ? (local_video starts with 'http' ? local_video : asset(local_video)) : (embed_url ?: external_video) %}
+                                        {% set point_gallery_type = local_video ? 'video' : (embed_url ? 'embed' : 'video') %}
+
+                                        <figure
+                                            class="point-media-card point-media-card--video"
+                                            role="button"
+                                            tabindex="0"
+                                            aria-label="Voir la vidéo"
+                                            data-gallery-target="#{{ gallery_id }}-point-media-gallery"
+                                            data-gallery-index="{{ point_media_gallery_index }}"
+                                            data-gallery-type="{{ point_gallery_type }}"
+                                            {% if point_media_source %}
+                                                data-gallery-src="{{ point_media_source }}"
+                                            {% endif %}
+                                            {% if embed_url and media.videoType %}
+                                                data-gallery-provider="{{ media.videoType.value }}"
+                                            {% endif %}
+                                            {% if poster_url %}
+                                                data-gallery-poster="{{ poster_url }}"
+                                            {% endif %}
+                                            {% if point_media_title %}
+                                                data-gallery-title="{{ point_media_title|e('html_attr') }}"
+                                            {% endif %}
+                                            {% if point_media_caption %}
+                                                data-gallery-caption="{{ point_media_caption|striptags|e('html_attr') }}"
+                                            {% endif %}
+                                        >
+                                            <span class="point-media-card__badge">Vidéo</span>
+
+                                            {% if local_video %}
+                                                {% set local_video_url = local_video starts with 'http' ? local_video : asset(local_video) %}
+                                                <video
+                                                    controls
+                                                    playsinline
+                                                    preload="metadata"
+                                                    {% if poster_url %}
+                                                        poster="{{ poster_url }}"
+                                                    {% endif %}
+                                                >
+                                                    <source src="{{ local_video_url }}" type="{{ media.mimeType ?: 'video/mp4' }}">
+                                                    Votre navigateur ne supporte pas la lecture vidéo.
+                                                </video>
+                                            {% elseif embed_url %}
+                                                <div class="point-media-card__external-video">
+                                                    {% if poster_url %}
+                                                        <img
+                                                            src="{{ poster_url }}"
+                                                            alt="{{ media_public_alt(media, item, point_media_title) }}"
+                                                            loading="lazy"
+                                                            decoding="async"
+                                                        >
+                                                    {% endif %}
+                                                    <span>Lire la vidéo</span>
+                                                </div>
+                                            {% elseif external_video %}
+                                                <a
+                                                    class="point-media-card__external-video"
+                                                    href="{{ external_video }}"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    {% if poster_url %}
+                                                        <img
+                                                            src="{{ poster_url }}"
+                                                            alt="{{ media_public_alt(media, item, point_media_title) }}"
+                                                            loading="lazy"
+                                                            decoding="async"
+                                                        >
+                                                    {% endif %}
+                                                    <span>Ouvrir la vidéo</span>
+                                                </a>
+                                            {% else %}
+                                                <div class="point-media-card__fallback">
+                                                    Vidéo indisponible
+                                                </div>
+                                            {% endif %}
+
+                                            {% if media.caption or point_media_title %}
+                                                <figcaption>{{ media.caption ?: point_media_title }}</figcaption>
+                                            {% endif %}
+                                        </figure>
+
+                                        {% set point_media_gallery_index = point_media_gallery_index + 1 %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </article>
+        {% else %}
+            <p class="empty-media-note">Aucune étape détaillée pour le moment.</p>
+        {% endfor %}
+    </div>
+
+    {% if point_media_gallery_links|length > 0 %}
+        <div
+            id="{{ gallery_id }}-point-media-gallery"
+            class="gallery-modal js-gallery-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="{{ gallery_id }}-point-media-gallery-title"
+            data-gallery-autoplay="false"
+            hidden
+        >
+            <div class="gallery-modal__dialog gallery-modal__dialog--point-media" role="document">
+                <header class="gallery-modal__header">
+                    <div>
+                        <h2 id="{{ gallery_id }}-point-media-gallery-title" class="gallery-modal__title">
+                            Médias du parcours
+                        </h2>
+
+                        <div class="gallery-modal__counter js-gallery-counter">
+                            1 / {{ point_media_gallery_links|length }}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__close js-gallery-close"
+                        aria-label="Fermer la galerie"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <div class="gallery-modal__body">
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--prev js-gallery-prev"
+                        aria-label="Média précédent"
+                    >
+                        ‹
+                    </button>
+
+                    <button
+                        type="button"
+                        class="gallery-modal__nav gallery-modal__nav--next js-gallery-next"
+                        aria-label="Média suivant"
+                    >
+                        ›
+                    </button>
+
+                    {% for pointMediaLink in point_media_gallery_links %}
+                        {% set media = pointMediaLink.mediaAsset %}
+
+                        {% if media and media.mediaType.value == 'image' %}
+                            {% set image_url = media_modal_url(media) %}
+                            {% set point = pointMediaLink.point %}
+                            {% set point_media_title = media_public_title(media, item, point ? (point.title ?: item_title) : item_title) %}
+                            {% set point_media_caption = media.caption ?: point_media_title %}
+                            {% set has_caption = point_media_caption is not empty %}
+
+                            {% if image_url %}
+                                <article class="gallery-modal__slide js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                    <figure class="gallery-modal__media">
+                                        <img
+                                            data-gallery-src="{{ image_url }}"
+                                            alt="{{ media_public_alt(media, item, point ? (point.title ?: item_title) : item_title) }}"
+                                            decoding="async"
+                                            {% if media.width and media.height %}
+                                                width="{{ media.width }}"
+                                                height="{{ media.height }}"
+                                            {% endif %}
+                                        >
+                                    </figure>
+
+                                    {% if has_caption %}
+                                        <div class="gallery-modal__caption">
+                                            <p>{{ point_media_caption|nl2br }}</p>
+                                        </div>
+                                    {% endif %}
+                                </article>
+                            {% endif %}
+                        {% elseif media and media.mediaType.value == 'video' %}
+                            {% set point = pointMediaLink.point %}
+                            {% set local_video = media.filePath %}
+                            {% set external_video = media.externalUrl %}
+                            {% set embed_url = media|video_embed_url %}
+                            {% set poster_url = media_poster_url(media, 'medium') ?: video_thumbnail_url(external_video) %}
+                            {% set point_media_title = media_public_title(media, item, point ? (point.title ?: item_title) : item_title) %}
+                            {% set point_media_caption = media.caption ?: point_media_title %}
+                            {% set has_caption = point_media_caption is not empty %}
+
+                            {% set video_shape = 'unknown' %}
+                            {% if media.width and media.height %}
+                                {% if media.height > media.width %}
+                                    {% set video_shape = 'portrait' %}
+                                {% elseif media.width > media.height %}
+                                    {% set video_shape = 'landscape' %}
+                                {% else %}
+                                    {% set video_shape = 'square' %}
+                                {% endif %}
+                            {% elseif external_video is not empty and '/shorts/' in external_video %}
+                                {% set video_shape = 'portrait' %}
+                            {% endif %}
+
+                            <article class="gallery-modal__slide gallery-modal__slide--video gallery-modal__slide--video-{{ video_shape }} js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                                <figure class="gallery-modal__media gallery-modal__video-frame gallery-modal__video-frame--{{ video_shape }} {{ local_video ? 'gallery-modal__video-frame--local' : 'gallery-modal__video-frame--external' }}">
+                                    {% if local_video %}
+                                        {% set local_video_url = local_video starts with 'http' ? local_video : asset(local_video) %}
+                                        <video
+                                            controls
+                                            playsinline
+                                            preload="metadata"
+                                            data-video-src="{{ local_video_url }}"
+                                            data-video-type="{{ media.mimeType ?: 'video/mp4' }}"
+                                            {% if poster_url %}
+                                                poster="{{ poster_url }}"
+                                            {% endif %}
+                                        >
+                                            Votre navigateur ne supporte pas la lecture vidéo.
+                                        </video>
+                                    {% elseif embed_url %}
+                                        <iframe
+                                            data-video-src="{{ embed_url }}"
+                                            title="{{ point_media_title ?: 'Vidéo du parcours' }}"
+                                            loading="lazy"
+                                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            sandbox="allow-scripts allow-same-origin allow-presentation"
+                                            referrerpolicy="strict-origin-when-cross-origin"
+                                            allowfullscreen
+                                        ></iframe>
+                                    {% elseif external_video %}
+                                        <div class="gallery-modal__external-video-card">
+                                            {% if poster_url %}
+                                                <img
+                                                    src="{{ poster_url }}"
+                                                    alt="{{ media_public_alt(media, item, point_media_title) }}"
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                >
+                                            {% endif %}
+
+                                            <div>
+                                                <p>Cette vidéo ne peut pas être lue directement ici.</p>
+                                                <a
+                                                    class="video-external-link"
+                                                    href="{{ external_video }}"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    Ouvrir la vidéo
+                                                </a>
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <div class="gallery-modal__external-video-card">
+                                            <div>
+                                                <p>Vidéo indisponible</p>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </figure>
+
+                                {% if has_caption %}
+                                    <div class="gallery-modal__caption gallery-modal__caption--video">
+                                        <p>{{ point_media_caption|nl2br }}</p>
+                                    </div>
+                                {% endif %}
+                            </article>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <footer class="gallery-modal__footer" aria-label="Navigation médias de parcours">
+                    {% for pointMediaLink in point_media_gallery_links %}
+                        {% set media = pointMediaLink.mediaAsset %}
+                        <button
+                            type="button"
+                            class="gallery-modal__dot js-gallery-dot {{ loop.first ? 'is-active' : '' }}"
+                            aria-label="Afficher {{ media and media.mediaType.value == 'video' ? 'la vidéo' : 'la photo' }} {{ loop.index }}"
+                            aria-current="{{ loop.first ? 'true' : 'false' }}"
+                        ></button>
+                    {% endfor %}
+                </footer>
+            </div>
+        </div>
+    {% endif %}
+</section>

@@ -1,5 +1,9 @@
 framework:
     secret: '%env(APP_SECRET)%'
+    csrf_protection: true
+    form: true
+    validation:
+        email_validation_mode: html5
     http_method_override: false
     handle_all_throwables: true
 
@@ -13,6 +17,39 @@ framework:
 
     router:
         utf8: true
+
+    rate_limiter:
+        comment_create_minute:
+            policy: sliding_window
+            limit: 5
+            interval: '1 minute'
+        comment_create_hour:
+            policy: sliding_window
+            limit: 20
+            interval: '1 hour'
+        comment_create:
+            policy: compound
+            limiters:
+                - comment_create_minute
+                - comment_create_hour
+        comment_report:
+            policy: sliding_window
+            limit: 10
+            interval: '15 minutes'
+        admin_upload:
+            policy: token_bucket
+            limit: 30
+            rate:
+                interval: '1 minute'
+                amount: 10
+        password_reset:
+            policy: sliding_window
+            limit: 5
+            interval: '15 minutes'
+        email_verification_resend:
+            policy: sliding_window
+            limit: 3
+            interval: '15 minutes'
 
     mailer:
         dsn: '%env(MAILER_DSN)%'

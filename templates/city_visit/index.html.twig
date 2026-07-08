@@ -1,0 +1,30 @@
+{% extends 'layouts/listing.html.twig' %}
+
+{% block title %}Visites - Blog Tourisme{% endblock %}
+{% block meta_description %}Toutes les visites de ville publiées : parcours urbains, monuments, points d’intérêt et conseils pratiques.{% endblock %}
+
+{% block body %}
+    {% include 'public_listing/_content_list.html.twig' with {
+        content_type: 'city-visits',
+        page_modifier: 'article-index-page--city-visits',
+        hero_kicker: 'Visites',
+        hero_title: 'Toutes les visites',
+        hero_intro: 'Retrouvez les parcours urbains publiés, les points d’intérêt et les étapes utiles pour découvrir une ville à pied.',
+        search_action: path('app_city_visit_index'),
+        suggestions_url: path('app_city_visit_suggestions'),
+        search_id: 'city-visit-search-input',
+        suggestions_id: 'city-visit-search-suggestions',
+        search_label: 'Rechercher dans les visites',
+        search_placeholder: 'Rechercher une visite, une ville, un quartier…',
+        quick_filters: [],
+        results_kicker: 'Parcours urbains',
+        results_title: 'Visites de ville et points d’intérêt',
+        count_singular: 'visite',
+        count_plural: 'visites',
+        empty_search_message: 'Aucune visite ne correspond à cette recherche.',
+        empty_initial_message: 'Aucune visite publiée pour le moment.',
+        items: city_visits,
+        search_query: search_query,
+        card_template: 'public_listing/_city_visit_card.html.twig'
+    } only %}
+{% endblock %}

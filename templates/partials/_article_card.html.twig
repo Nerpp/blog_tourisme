@@ -1,0 +1,18 @@
+<article class="content-card">
+    {% include 'partials/_cover_media.html.twig' with {
+        featured_media: article.featuredImage,
+        media_links: article.mediaLinks,
+        media_context: article
+    } only %}
+    <div class="card-body">
+        <p class="card-meta">
+            {% if article.publishedAt %}{{ article.publishedAt|date('d/m/Y') }}{% endif %}
+            {% if article.category %}<span>{{ article.category.name }}</span>{% endif %}
+        </p>
+        <h3><a href="{{ path('app_article_show', { slug: article.slug }) }}">{{ article.title }}</a></h3>
+        {% if article.excerpt %}
+            <p>{{ article.excerpt }}</p>
+        {% endif %}
+        <a class="text-link" href="{{ path('app_article_show', { slug: article.slug }) }}">Lire l'article</a>
+    </div>
+</article>

@@ -1,0 +1,394 @@
+<?php
+
+namespace App\Tests\Functional;
+
+use App\Entity\Comment;
+use App\Entity\CommentReport;
+use App\Enum\CommentReportReason;
+use App\Enum\CommentReportStatus;
+use App\Enum\CommentStatus;
+
+final class AdminCommentModerationControllerTest extends FunctionalTestCase
+{
+    public function testAnonymousVisitorIsRedirectedFromModerationList(): void
+    {
+        $client = static::createClient();
+
+        $client->request('GET', '/admin/comments');
+
+        self::assertResponseRedirects('/login');
+    }
+
+    public function testRegularUserIsRejectedFromModerationList(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $client->request('GET', '/admin/comments');
+
+        self::assertResponseRedirects('/');
+    }
+
+    public function testUnverifiedAdminIsRejectedFromModerationList(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER'], false));
+
+        $client->request('GET', '/admin/comments');
+
+        self::assertResponseRedirects('/');
+    }
+
+    public function testVerifiedAdminCanOpenModerationList(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
+
+        $client->request('GET', '/admin/comments');
+
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testVerifiedAdminCanOpenReportedShortcut(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenPendingReport)
+            ->setReportedCount(1);
+        $report = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Spam)
+            ->setStatus(CommentReportStatus::Pending);
+        $comment->getReports()->add($report);
+        $this->persistAndFlush($comment, $report);
+
+        $client->request('GET', '/admin/comments/reported');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Commentaire fonctionnel assez long.', $client->getResponse()->getContent() ?: '');
+    }
+
+    public function testVerifiedAdminCanRenderModerationFilters(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser(['ROLE_ADMIN', 'ROLE_USER']));
+
+        foreach (['restored', 'hidden', 'deleted', 'recent'] as $filter) {
+            $client->request('GET', sprintf('/admin/comments?filter=%s', $filter));
+
+            self::assertResponseIsSuccessful();
+        }
+    }
+
+    public function testVerifiedAdminCanApprovePendingComment(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::Pending);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments/pending');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/approve', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/approve', $comment->getId())),
+            'returnUrl' => '/admin/comments/pending',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/pending');
+        $comment = $this->refresh($comment);
+        self::assertSame(CommentStatus::Approved, $comment->getStatus());
+    }
+
+    public function testVerifiedAdminCanRejectPendingCommentWithReason(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::Pending);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments/pending');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/reject', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/reject', $comment->getId())),
+            'returnUrl' => '/admin/comments/pending',
+            'reason' => 'Hors charte de test.',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/pending');
+        $comment = $this->refresh($comment);
+        self::assertSame(CommentStatus::Rejected, $comment->getStatus());
+        self::assertSame('Hors charte de test.', $comment->getModerationReason());
+    }
+
+    public function testVerifiedAdminCannotRejectPendingCommentWithoutReason(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::Pending);
+        $client->loginUser($admin);
+
+        $client->request('GET', '/admin/comments/pending');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/reject', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_comment_action_'.$comment->getId()),
+            'returnUrl' => '/admin/comments/pending',
+            'reason' => '   ',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/pending');
+        $comment = $this->refresh($comment);
+        self::assertSame(CommentStatus::Pending, $comment->getStatus());
+        self::assertNull($comment->getModerationReason());
+    }
+
+    public function testVerifiedAdminCanPinApprovedCommentFromModeration(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle());
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments?filter=approved');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/pin', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/pin', $comment->getId())),
+            'returnUrl' => '/admin/comments?filter=approved',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments?filter=approved');
+        $comment = $this->refresh($comment);
+        self::assertTrue($comment->isPinned());
+    }
+
+    public function testVerifiedAdminCanDeleteCommentFromModeration(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle());
+        $commentId = $comment->getId();
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments?filter=all');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/delete', $commentId), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/delete', $commentId)),
+            'returnUrl' => '/admin/comments?filter=all',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments?filter=all');
+        $comment = $this->entityManager()->find(Comment::class, $commentId);
+        self::assertInstanceOf(Comment::class, $comment);
+        self::assertSame(CommentStatus::Deleted, $comment->getStatus());
+    }
+
+    public function testVerifiedAdminCanRestoreReportedCommentAndDismissReport(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenPendingReport)
+            ->setReportedCount(1);
+        $report = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Spam)
+            ->setStatus(CommentReportStatus::Pending);
+        $this->persistAndFlush($comment, $report);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments/reports');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/restore', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/restore', $comment->getId())),
+            'returnUrl' => '/admin/comments/reports',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/reports');
+        $comment = $this->refresh($comment);
+        $report = $this->refresh($report);
+        self::assertSame(CommentStatus::Approved, $comment->getStatus());
+        self::assertSame(0, $comment->getReportedCount());
+        self::assertSame(CommentReportStatus::Dismissed, $report->getStatus());
+    }
+
+    public function testVerifiedAdminCanHideReportedCommentAndReviewReport(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenPendingReport)
+            ->setReportedCount(1);
+        $report = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Inappropriate)
+            ->setStatus(CommentReportStatus::Pending);
+        $this->persistAndFlush($comment, $report);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/comments/reports');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/hide', $comment->getId()), [
+            '_token' => $this->tokenFromFormAction($crawler, sprintf('/admin/comments/%d/hide', $comment->getId())),
+            'returnUrl' => '/admin/comments/reports',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/reports');
+        $comment = $this->refresh($comment);
+        $report = $this->refresh($report);
+        self::assertSame(CommentStatus::HiddenByAdmin, $comment->getStatus());
+        self::assertSame(0, $comment->getReportedCount());
+        self::assertSame(CommentReportStatus::Reviewed, $report->getStatus());
+    }
+
+    public function testVerifiedAdminCanMarkReportedCommentAsSpamAndReviewReport(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenPendingReport)
+            ->setReportedCount(1);
+        $report = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Spam)
+            ->setStatus(CommentReportStatus::Pending);
+        $comment->getReports()->add($report);
+        $this->persistAndFlush($comment, $report);
+        $client->loginUser($admin);
+
+        $client->request('GET', '/admin/comments/reports');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/spam', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_comment_action_'.$comment->getId()),
+            'returnUrl' => '/admin/comments/reports',
+            'reason' => 'Signalements confirmés.',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/reports');
+        $comment = $this->refresh($comment);
+        $report = $this->refresh($report);
+        self::assertSame(CommentStatus::Spam, $comment->getStatus());
+        self::assertSame('Signalements confirmés.', $comment->getModerationReason());
+        self::assertSame(0, $comment->getReportedCount());
+        self::assertSame(CommentReportStatus::Reviewed, $report->getStatus());
+        self::assertSame($admin->getId(), $report->getReviewedBy()?->getId());
+        self::assertNotNull($report->getReviewedAt());
+    }
+
+    public function testVerifiedAdminCanReviewOnlyPendingReports(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenPendingReport)
+            ->setReportedCount(1);
+        $pendingReport = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Spam)
+            ->setStatus(CommentReportStatus::Pending);
+        $dismissedReport = (new CommentReport())
+            ->setComment($comment)
+            ->setReporter($this->createUser())
+            ->setReason(CommentReportReason::Other)
+            ->setStatus(CommentReportStatus::Dismissed);
+        $comment->getReports()->add($pendingReport);
+        $comment->getReports()->add($dismissedReport);
+        $this->persistAndFlush($comment, $pendingReport, $dismissedReport);
+        $client->loginUser($admin);
+
+        $client->request('GET', '/admin/comments/reports');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/reports/review', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_comment_action_'.$comment->getId()),
+            'returnUrl' => '/admin/comments/reports',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments/reports');
+        $comment = $this->refresh($comment);
+        $pendingReport = $this->refresh($pendingReport);
+        $dismissedReport = $this->refresh($dismissedReport);
+        self::assertSame(0, $comment->getReportedCount());
+        self::assertSame(CommentReportStatus::Reviewed, $pendingReport->getStatus());
+        self::assertSame($admin->getId(), $pendingReport->getReviewedBy()?->getId());
+        self::assertNotNull($pendingReport->getReviewedAt());
+        self::assertSame(CommentReportStatus::Dismissed, $dismissedReport->getStatus());
+        self::assertNull($dismissedReport->getReviewedBy());
+        self::assertNull($dismissedReport->getReviewedAt());
+    }
+
+    public function testVerifiedAdminCannotRestoreAlreadyApprovedComment(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::Approved);
+        $client->loginUser($admin);
+
+        $client->request('GET', '/admin/comments?filter=approved');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/restore', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_comment_action_'.$comment->getId()),
+            'returnUrl' => '/admin/comments?filter=approved',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments?filter=approved');
+        self::assertSame(CommentStatus::Approved, $this->refresh($comment)->getStatus());
+    }
+
+    public function testVerifiedAdminCannotPinReplyFromModeration(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $article = $this->createArticle();
+        $parent = $this->createComment($this->createUser(), $article);
+        $reply = (new Comment())
+            ->setAuthor($this->createUser())
+            ->setArticle($article)
+            ->setParent($parent)
+            ->setContent('Réponse fonctionnelle assez longue.')
+            ->setStatus(CommentStatus::Approved)
+            ->setPublishedAt(new \DateTimeImmutable('-30 minutes'))
+            ->setApprovedAt(new \DateTimeImmutable('-30 minutes'));
+        $parent->getChildren()->add($reply);
+        $this->persistAndFlush($reply);
+        $client->loginUser($admin);
+
+        $client->request('GET', '/admin/comments?filter=approved');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/pin', $reply->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_comment_action_'.$reply->getId()),
+            'returnUrl' => '/admin/comments?filter=approved',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments?filter=approved');
+        self::assertFalse($this->refresh($reply)->isPinned());
+    }
+
+    public function testVerifiedAdminCannotPinHiddenCommentFromModeration(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createUser(['ROLE_ADMIN', 'ROLE_USER']);
+        $comment = $this->createComment($this->createUser(), $this->createArticle(), CommentStatus::HiddenByAdmin);
+        $client->loginUser($admin);
+
+        $client->request('GET', '/admin/comments?filter=hidden');
+        self::assertResponseIsSuccessful();
+
+        $client->request('POST', sprintf('/admin/comments/%d/pin', $comment->getId()), [
+            '_token' => $this->csrfTokenForClient($client, 'admin_comment_action_'.$comment->getId()),
+            'returnUrl' => '/admin/comments?filter=hidden',
+        ]);
+
+        self::assertResponseRedirects('/admin/comments?filter=hidden');
+        self::assertFalse($this->refresh($comment)->isPinned());
+    }
+}

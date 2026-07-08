@@ -1,0 +1,58 @@
+{% set nav_id = nav_id|default('studio-quick-nav-links') %}
+{% set items = items|default([]) %}
+{% set action_links = action_links|default([]) %}
+{% set submit_form_id = submit_form_id|default(null) %}
+{% set submit_label = submit_label|default('Enregistrer') %}
+
+{% if items|length > 0 or action_links|length > 0 or submit_form_id %}
+    <nav class="studio-quick-nav" aria-label="Navigation rapide du studio" data-studio-quick-nav>
+        <button
+            class="studio-quick-nav__toggle"
+            type="button"
+            aria-controls="{{ nav_id }}"
+            aria-expanded="true"
+            data-studio-quick-nav-toggle
+        >
+            Navigation
+        </button>
+
+        <div id="{{ nav_id }}" class="studio-quick-nav__links" data-studio-quick-nav-panel>
+            {% if action_links|length > 0 %}
+                <div class="studio-quick-nav__group">
+                    {% for action in action_links %}
+                        {% if action.href is defined and action.href %}
+                            <a
+                                class="studio-quick-nav__item studio-quick-nav__item--action"
+                                href="{{ action.href }}"
+                                {% if action.target is defined and action.target %}target="{{ action.target }}"{% endif %}
+                                {% if action.rel is defined and action.rel %}rel="{{ action.rel }}"{% endif %}
+                            >
+                                {{ action.label }}
+                            </a>
+                        {% else %}
+                            <span class="studio-quick-nav__item studio-quick-nav__item--disabled" aria-disabled="true">
+                                {{ action.disabled_label|default(action.label) }}
+                            </span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if items|length > 0 %}
+                <div class="studio-quick-nav__group">
+                    {% for item in items %}
+                        <a class="studio-quick-nav__item" href="#{{ item.anchor }}">{{ item.label }}</a>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if submit_form_id %}
+                <div class="studio-quick-nav__group">
+                    <button class="studio-quick-nav__submit" form="{{ submit_form_id }}" type="submit">
+                        {{ submit_label }}
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </nav>
+{% endif %}

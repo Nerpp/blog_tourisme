@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Controller;
+
+use App\Entity\Comment;
+use App\Entity\User;
+use App\Form\CommentType;
+use App\Repository\CategoryRepository;
+use App\Repository\CommentRepository;
+use App\Repository\DestinationRepository;
+use App\Repository\PlaceRepository;
+use App\Repository\TagRepository;
+use App\Service\CommentReactionViewService;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Attribute\Route;
+
+final class PlaceController extends AbstractController
+{
+    #[Route('/places', name: 'app_place_index', methods: ['GET'])]
+    public function index(
+        Request $request,
+        PlaceRepository $placeRepository,
+        DestinationRepository $destinationRepository,
+        CategoryRepository $categoryRepository,
+        TagRepository $tagRepository,
+    ): Response {
+        $destination = null;
+        $category = null;
+        $tag = null;
+
+        if ($request->query->get('destination')) {
+            $destination = $destinationRepository->findOneBy(['slug' => $request->query->get('destination')]);
+        }
+
+        if ($request->query->get('category')) {
+            $category = $categoryRepository->findOneBy(['slug' => $request->query->get('category')]);
+        }
+
+        if ($request->query->get('tag')) {
+            $tag = $tagRepository->findOneBy(['slug' => $request->query->get('tag')]);
+        }
+
+        return $this->render('place/index.html.twig', [
+            'places' => $placeRepository->findPublished($destination, $category, $tag),
+            'destinations' => $destinationRepository->findDiscoverableDestinations(20),
+            'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
+            'tags' => $tagRepository->findBy([], ['name' => 'ASC']),
+            'current_destination' => $destination,
+            'current_category' => $category,
+            'current_tag' => $tag,
+        ]);
+    }
+
+    #[Route('/places/{slug}', name: 'app_place_show', methods: ['GET'])]
+    public function show(
+        string $slug,
+        Request $request,
+        PlaceRepository $placeRepository,
+        CommentRepository $commentRepository,
+        CommentReactionViewService $reactionViewService,
+    ): Response
+    {
+        $place = $placeRepository->findPublishedBySlug($slug);
+        if ($place === null) {
+            throw $this->createNotFoundException('Lieu introuvable.');
+        }
+
+        $commentForm = $this->getUser() === null
+            ? null
+            : $this->createForm(CommentType::class, new Comment(), [
+                'action' => $this->generateUrl('app_place_comment_create', ['slug' => $place->getSlug()]),
+                'method' => 'POST',
+            ])->createView();
+
+        $viewer = $this->getUser();
+        $commentSort = $this->commentSort($request);
+        $comments = $commentRepository->findApprovedForPlace($place, $viewer instanceof User ? $viewer : null, $commentSort);
+        $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
+
+        return $this->render('place/show.html.twig', [
+            'place' => $place,
+            'comments' => $comments,
+            'comment_form' => $commentForm,
+            'comments_sort' => $commentSort,
+            'comments_count' => $reactionContext['comment_count'],
+            'comment_like_counts' => $reactionContext['like_counts'],
+            'liked_comment_ids' => $reactionContext['liked_comment_ids'],
+        ]);
+    }
+
+    private function commentSort(Request $request): string
+    {
+        $sort = $request->query->getString('comments_sort', 'recent');
+
+        return in_array($sort, ['recent', 'popular'], true) ? $sort : 'recent';
+    }
+}

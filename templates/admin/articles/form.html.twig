@@ -1,0 +1,365 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}{{ title }}{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ title }}</h1>
+            <p class="admin-subtitle">Rédigez une page SEO complète et reliez-la aux contenus touristiques du site.</p>
+        </div>
+    </header>
+
+    <form
+        class="admin-form article-admin-form"
+        method="post"
+        enctype="multipart/form-data"
+        data-article-admin-form
+        data-article-saving-label="Enregistrement en cours…"
+    >
+        <input type="hidden" name="_token" value="{{ csrf_token(article.id ? 'admin_article_' ~ article.id : 'admin_article_form') }}">
+        {% if article_submission_token is defined %}
+            <input type="hidden" name="_submission_token" value="{{ article_submission_token }}">
+        {% endif %}
+
+        <div class="article-admin-layout">
+            <div class="article-admin-main">
+                <section class="admin-card article-admin-section">
+                    <h2>Informations principales</h2>
+
+                    <div class="admin-form-grid">
+                        <div class="admin-field admin-field--full">
+                            <label for="article-title">Titre</label>
+                            <input id="article-title" name="title" value="{{ article.title }}" required>
+                        </div>
+
+                        <div class="admin-field admin-field--full">
+                            <label for="article-excerpt">Résumé</label>
+                            <textarea id="article-excerpt" name="excerpt" rows="4">{{ article.excerpt }}</textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-card article-admin-section">
+                    <h2>Contenu de l’article</h2>
+
+                    <div class="admin-field">
+                        <label for="article-content">Contenu</label>
+                        <div class="article-editor-toolbar" aria-label="Outils de mise en forme">
+                            <button type="button" data-article-editor-format="p">Paragraphe</button>
+                            <button type="button" data-article-editor-format="h2">H2</button>
+                            <button type="button" data-article-editor-format="h3">H3</button>
+                            <button type="button" data-article-editor-command="bold">Gras</button>
+                            <button type="button" data-article-editor-command="italic">Italique</button>
+                            <button type="button" data-article-editor-command="insertUnorderedList">Liste</button>
+                            <button type="button" data-article-editor-command="insertOrderedList">Liste numérotée</button>
+                            <button type="button" data-article-editor-format="blockquote">Citation</button>
+                            <button type="button" data-article-editor-link>Lien</button>
+                        </div>
+                        <div
+                            class="article-rich-editor"
+                            contenteditable="true"
+                            data-article-editor
+                        >{{ article_editor_content_html(article) }}</div>
+                        <textarea
+                            id="article-content"
+                            class="article-editor-source"
+                            name="content"
+                            data-article-editor-source
+                        >{{ article.content }}</textarea>
+                        <span class="admin-muted">Mise en forme autorisée : titres, gras, italique, listes, citations, liens et images liées à l’article. Le HTML est nettoyé côté serveur.</span>
+                    </div>
+                </section>
+
+                <section class="admin-card article-admin-section">
+                    <h2>Images de l’article</h2>
+
+                    <div class="admin-field">
+                        <label for="article-gallery-images">Ajouter des images</label>
+                        <input
+                            id="article-gallery-images"
+                            type="file"
+                            name="galleryImages[]"
+                            accept="image/jpeg,image/png,image/webp"
+                            multiple
+                            aria-describedby="article-gallery-images-help"
+                            data-article-file-input="gallery"
+                        >
+                        <span id="article-gallery-images-help" class="admin-muted">Formats acceptés : JPG, PNG, WebP. Taille maximum : 30 Mo par photo. Les images sont renommées, nettoyées et optimisées automatiquement.</span>
+                        <div class="article-upload-preview" data-article-file-preview="gallery" aria-live="polite"></div>
+                        <input type="hidden" name="newCoverImageIndex" value="" data-article-new-cover-index>
+                    </div>
+
+                    {% set article_image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
+                    {% set featured_image_is_linked = article.featuredImage and (article_image_links|filter(link => link.mediaAsset.id == article.featuredImage.id)|length > 0) %}
+
+                    {% if article_image_links|length > 0 or (article.featuredImage and not featured_image_is_linked) %}
+                        <div class="article-admin-media-list">
+                            {% if article.featuredImage and not featured_image_is_linked %}
+                                {% set media = article.featuredImage %}
+                                {% set media_title = media_public_title(media, article, 'Image d’article') %}
+                                <article class="article-admin-media-item is-main-media" data-main-media-card data-main-media-state="main">
+                                    {% include 'admin/articles/_media_thumbnail.html.twig' with {
+                                        media: media,
+                                        alt: media_public_alt(media, article, media_title),
+                                        img_class: 'article-admin-media-item__image'
+                                    } only %}
+                                    <div>
+                                        <strong>{{ media_title }}</strong>
+                                        <span class="studio-media-role-badge" data-main-media-badge>Image principale</span>
+                                        <code>[[media:{{ media.id }}]]</code>
+                                        <div class="article-admin-media-actions">
+                                            <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">Insérer</button>
+                                            <label class="article-admin-cover-choice">
+                                                <input type="radio" name="promoteCoverMedia" value="" checked data-article-cover-choice>
+                                                Image principale
+                                            </label>
+                                            <label class="article-admin-check">
+                                                <input
+                                                    type="checkbox"
+                                                    name="removeFeaturedImage"
+                                                    value="{{ media.id }}"
+                                                    data-article-delete-media
+                                                    data-article-delete-message="Supprimer définitivement cette image de l’article ?&#10;Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs."
+                                                >
+                                                Supprimer l’image
+                                            </label>
+                                            <span class="article-admin-delete-note">Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs.</span>
+                                        </div>
+                                    </div>
+                                </article>
+                            {% endif %}
+                            {% for media_link in article_image_links %}
+                                {% set media = media_link.mediaAsset %}
+                                {% set media_title = media_public_title(media, article, 'Image d’article') %}
+                                {% set is_cover_image = media_link.role.value == 'cover' or (article.featuredImage and media.id and article.featuredImage.id == media.id) %}
+                                <article
+                                    class="article-admin-media-item {{ is_cover_image ? 'is-main-media' : '' }}"
+                                    data-main-media-card
+                                    data-main-media-state="{{ is_cover_image ? 'main' : 'gallery' }}"
+                                >
+                                    {% include 'admin/articles/_media_thumbnail.html.twig' with {
+                                        media: media,
+                                        alt: media_public_alt(media, article, media_title),
+                                        img_class: 'article-admin-media-item__image'
+                                    } only %}
+
+                                    <div>
+                                        <strong>{{ media_title }}</strong>
+                                        <span class="studio-media-role-badge" data-main-media-badge>
+                                            {{ is_cover_image ? 'Image principale' : 'Galerie générale' }}
+                                        </span>
+                                        <code>[[media:{{ media.id }}]]</code>
+                                        <div class="article-admin-media-actions">
+                                            <button type="button" class="admin-button admin-button--secondary" data-article-insert-media="[[media:{{ media.id }}]]">
+                                                Insérer
+                                            </button>
+                                            <label class="article-admin-cover-choice">
+                                                <input
+                                                    type="radio"
+                                                    name="promoteCoverMedia"
+                                                    value="{{ is_cover_image ? '' : media_link.id }}"
+                                                    {% if is_cover_image %}checked{% endif %}
+                                                    data-article-cover-choice
+                                                >
+                                                {{ is_cover_image ? 'Image principale' : 'Définir comme image principale' }}
+                                            </label>
+                                            <label class="article-admin-check">
+                                                <input
+                                                    type="checkbox"
+                                                    name="removeMediaLinks[]"
+                                                    value="{{ media_link.id }}"
+                                                    data-article-delete-media
+                                                    data-article-delete-message="Supprimer définitivement cette image de l’article ?&#10;Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs."
+                                                >
+                                                Supprimer l’image
+                                            </label>
+                                            <span class="article-admin-delete-note">
+                                                Elle sera retirée du contenu et supprimée du serveur si elle n’est utilisée nulle part ailleurs.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </section>
+            </div>
+
+            <aside class="article-admin-sidebar article-admin-sidebar--sticky" data-article-sticky-sidebar>
+                <section class="admin-card article-admin-section">
+                    <h2>Publication</h2>
+
+                    <div class="admin-field">
+                        <label for="article-status">Statut</label>
+                        <select id="article-status" name="status">
+                            {% for value, label in status_options %}
+                                <option value="{{ value }}" {% if article.status.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="admin-field">
+                        <label for="article-category">Catégorie</label>
+                        <select id="article-category" name="category">
+                            <option value="">Non renseignée</option>
+                            {% for category in categories %}
+                                <option value="{{ category.id }}" {% if article.category and article.category.id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {% if article.slug %}
+                        <p class="admin-muted">URL : /articles/{{ article.slug }}</p>
+                    {% endif %}
+                </section>
+
+                <section class="admin-card article-admin-section">
+                    <h2>Lien avec le site</h2>
+
+                    <div class="admin-field">
+                        <label for="article-linked-type">Type de contenu lié</label>
+                        <select
+                            id="article-linked-type"
+                            name="linkedContentType"
+                            aria-controls="article-link-panel-hike article-link-panel-city-visit"
+                            data-article-link-type
+                        >
+                            <option value="none" {% if selected_link_type == 'none' %}selected{% endif %}>Aucun lien pour le moment</option>
+                            <option value="hike" {% if selected_link_type == 'hike' %}selected{% endif %}>Randonnée</option>
+                            <option value="city_visit" {% if selected_link_type == 'city_visit' %}selected{% endif %}>Visite de ville</option>
+                        </select>
+                    </div>
+
+                    <div
+                        id="article-link-panel-hike"
+                        class="admin-field"
+                        data-article-link-panel="hike"
+                        aria-hidden="{{ selected_link_type == 'hike' ? 'false' : 'true' }}"
+                        {% if selected_link_type != 'hike' %}hidden{% endif %}
+                    >
+                        <label for="article-hike-search">Randonnée</label>
+                        <div
+                            class="admin-autocomplete"
+                            data-admin-autocomplete
+                            data-empty-label="Aucune randonnée trouvée"
+                        >
+                            <input type="hidden" name="linkedHike" value="{{ selected_hike_id }}" data-admin-autocomplete-value {% if selected_link_type != 'hike' %}disabled{% endif %}>
+                            <input
+                                id="article-hike-search"
+                                type="search"
+                                placeholder="Rechercher une randonnée…"
+                                autocomplete="off"
+                                data-admin-autocomplete-input
+                                {% if selected_link_type != 'hike' %}disabled{% endif %}
+                            >
+                            <div class="admin-autocomplete__selection" data-admin-autocomplete-selection hidden></div>
+                            <div class="admin-autocomplete__results" data-admin-autocomplete-results hidden></div>
+                            {% for hike in hike_options %}
+                                {% set is_automatic_hike_title = hike.title starts with 'Randonnée du ' %}
+                                {% set label = hike.title ~ (hike.destination ? ' — ' ~ hike.destination.name : '') ~ (is_automatic_hike_title ? ' — titre automatique' : '') %}
+                                <button
+                                    type="button"
+                                    class="admin-autocomplete__option"
+                                    data-admin-autocomplete-option
+                                    data-id="{{ hike.id }}"
+                                    data-label="{{ label|e('html_attr') }}"
+                                    data-search="{{ (label ~ ' ' ~ (hike.destination ? hike.destination.name : ''))|lower|e('html_attr') }}"
+                                    hidden
+                                >{{ label }}</button>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div
+                        id="article-link-panel-city-visit"
+                        class="admin-field"
+                        data-article-link-panel="city_visit"
+                        aria-hidden="{{ selected_link_type == 'city_visit' ? 'false' : 'true' }}"
+                        {% if selected_link_type != 'city_visit' %}hidden{% endif %}
+                    >
+                        <label for="article-city-visit-search">Visite de ville</label>
+                        <div
+                            class="admin-autocomplete"
+                            data-admin-autocomplete
+                            data-empty-label="Aucune visite trouvée"
+                        >
+                            <input type="hidden" name="linkedCityVisit" value="{{ selected_city_visit_id }}" data-admin-autocomplete-value {% if selected_link_type != 'city_visit' %}disabled{% endif %}>
+                            <input
+                                id="article-city-visit-search"
+                                type="search"
+                                placeholder="Rechercher une visite de ville…"
+                                autocomplete="off"
+                                data-admin-autocomplete-input
+                                {% if selected_link_type != 'city_visit' %}disabled{% endif %}
+                            >
+                            <div class="admin-autocomplete__selection" data-admin-autocomplete-selection hidden></div>
+                            <div class="admin-autocomplete__results" data-admin-autocomplete-results hidden></div>
+                            {% for city_visit in city_visit_options %}
+                                {% set is_automatic_city_visit_title = city_visit.title starts with 'Visite de ville du ' %}
+                                {% set label = city_visit.title ~ (city_visit.destination ? ' — ' ~ city_visit.destination.name : '') ~ (is_automatic_city_visit_title ? ' — titre automatique' : '') %}
+                                <button
+                                    type="button"
+                                    class="admin-autocomplete__option"
+                                    data-admin-autocomplete-option
+                                    data-id="{{ city_visit.id }}"
+                                    data-label="{{ label|e('html_attr') }}"
+                                    data-search="{{ (label ~ ' ' ~ (city_visit.destination ? city_visit.destination.name : ''))|lower|e('html_attr') }}"
+                                    hidden
+                                >{{ label }}</button>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div
+                        class="admin-field"
+                        data-article-link-role
+                        aria-hidden="{{ selected_link_type == 'none' ? 'true' : 'false' }}"
+                        {% if selected_link_type == 'none' %}hidden{% endif %}
+                    >
+                        <label for="article-role">Type d’article</label>
+                        <select id="article-role" name="articleRole" {% if selected_link_type == 'none' %}disabled{% endif %}>
+                            {% for value, label in role_options %}
+                                <option value="{{ value }}" {% if selected_article_role == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <noscript>
+                        <p class="admin-muted">JavaScript est nécessaire pour changer le type de contenu lié. La sélection enregistrée reste affichée et utilisable.</p>
+                    </noscript>
+                </section>
+
+                <div class="admin-actions">
+                    <button class="admin-button" type="submit" data-article-submit-button>
+                        <span data-article-submit-label>{{ submit_label }}</span>
+                        <span class="admin-button__spinner" aria-hidden="true"></span>
+                    </button>
+                    {% if article.id %}
+                        <a
+                            class="admin-button admin-button--secondary"
+                            href="{{ path('admin_articles_preview', { id: article.id }) }}"
+                            target="_blank"
+                            rel="noopener"
+                            aria-label="Aperçu rapide de l’article dans un nouvel onglet"
+                            data-article-quick-preview
+                        >Aperçu rapide</a>
+                        <span class="admin-muted article-admin-preview-help">L’aperçu affiche la dernière version enregistrée.</span>
+                    {% else %}
+                        <button
+                            class="admin-button admin-button--secondary article-admin-preview--disabled"
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            aria-describedby="article-preview-help"
+                            data-article-quick-preview
+                        >Aperçu rapide</button>
+                        <span id="article-preview-help" class="admin-muted article-admin-preview-help">Enregistrez d’abord l’article pour ouvrir un aperçu.</span>
+                    {% endif %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Retour à la liste</a>
+                    <span class="article-admin-submit-status" data-article-submit-status aria-live="polite"></span>
+                </div>
+            </aside>
+        </div>
+    </form>
+{% endblock %}

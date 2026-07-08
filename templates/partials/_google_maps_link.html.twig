@@ -1,0 +1,12 @@
+{% set google_maps_url = null %}
+
+{% if place.latitude is not null and place.longitude is not null %}
+    {% set google_maps_url = 'https://www.google.com/maps/search/?api=1&query=' ~ place.latitude ~ ',' ~ place.longitude %}
+{% elseif place.name and place.destination and place.destination.name %}
+    {% set google_maps_query = place.name ~ ' ' ~ place.destination.name %}
+    {% set google_maps_url = 'https://www.google.com/maps/search/?api=1&query=' ~ (google_maps_query|url_encode) %}
+{% endif %}
+
+{% if google_maps_url %}
+    <a class="google-maps-link" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Voir sur Google Maps</a>
+{% endif %}

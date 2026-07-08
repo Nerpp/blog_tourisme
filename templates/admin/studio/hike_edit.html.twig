@@ -1,0 +1,491 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Studio randonnée rapide{% endblock %}
+
+{% set main_form_id = 'studio-hike-main-form' %}
+
+{% block stylesheets %}
+    {% set load_location_picker_assets = app.environment != 'test' or app.request.query.get('e2e_frontend_assets') == '1' %}
+    {% if load_location_picker_assets %}
+        {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
+    <style>
+        .studio-page { display: grid; gap: 18px; max-width: 1320px; width: 100%; }
+        .studio-hero, .studio-section { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: var(--admin-surface); }
+        .studio-hero { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+        .studio-eyebrow { margin: 0 0 4px; color: var(--admin-muted); font-size: .82rem; font-weight: 800; text-transform: uppercase; }
+        .studio-title { margin: 0; font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.1; }
+        .studio-meta, .studio-actions, .studio-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .studio-status-list { display: grid; gap: 8px; margin-top: 12px; }
+        .studio-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .studio-status-label { color: var(--admin-muted); font-size: .82rem; font-weight: 850; text-transform: uppercase; }
+        .studio-actions { justify-content: flex-end; }
+        .studio-badge { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 9px; border-radius: 999px; background: var(--admin-primary-soft); color: var(--admin-primary); font-size: .85rem; font-weight: 800; }
+        .studio-badge--muted { background: #eef0ee; color: var(--admin-muted); }
+        .studio-section__header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px; }
+        .studio-section h2 { margin: 0; font-size: 1.25rem; }
+        .studio-subtitle { margin: 6px 0 0; font-size: 1rem; }
+        .studio-section p { margin: 4px 0 0; color: var(--admin-muted); }
+        .studio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+        .studio-field { display: grid; gap: 6px; }
+        .studio-field--full { grid-column: 1 / -1; }
+        .studio-field label, .studio-label { color: #2d352f; font-weight: 800; }
+        .studio-field input, .studio-field select, .studio-field textarea, .studio-preview input, .studio-preview select, .studio-preview textarea, .studio-media-card input, .studio-media-card select, .studio-media-card textarea, .studio-video-form input, .studio-video-form select, .studio-video-form textarea { width: 100%; min-height: 42px; padding: 9px 10px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fff; color: var(--admin-text); font: inherit; }
+        .studio-field textarea, .studio-preview textarea, .studio-media-card textarea, .studio-video-form textarea { min-height: 110px; resize: vertical; }
+        .studio-help { color: var(--admin-muted); font-size: .9rem; }
+        .studio-gps__coordinates { min-height: 22px; margin: 0; color: var(--admin-muted); font-size: .9rem; font-weight: 800; overflow-wrap: anywhere; }
+        .studio-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        .studio-upload-form { display: grid; gap: 12px; }
+        .studio-file-input { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+        .studio-preview-list, .studio-media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+        .studio-preview, .studio-media-card, .studio-point { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fbfcfb; }
+        .studio-preview__name { color: var(--admin-text); font-weight: 800; word-break: break-word; }
+        .studio-preview__meta { color: var(--admin-muted); font-size: .86rem; font-weight: 750; }
+        .studio-preview__status { justify-self: start; min-height: 26px; padding: 4px 8px; border-radius: 999px; background: #eef0ee; color: var(--admin-muted); font-size: .8rem; font-weight: 800; }
+        .studio-preview__status--done { background: #e6f5ec; color: #16703b; }
+        .studio-preview__status--error { background: var(--admin-warning-soft); color: var(--admin-warning); }
+        .studio-progress { overflow: hidden; height: 7px; border-radius: 999px; background: #e3e8e3; }
+        .studio-progress span { display: block; height: 100%; border-radius: inherit; background: var(--admin-primary); transition: width .18s ease; }
+        .studio-upload-form.is-drag-over { outline: 2px dashed var(--admin-primary); outline-offset: 6px; }
+        .studio-upload-summary { padding: 10px 12px; border-radius: var(--admin-radius); background: var(--admin-info-soft); color: var(--admin-info); font-weight: 800; }
+        .studio-upload-summary--success { background: #e6f5ec; color: #16703b; }
+        .studio-upload-summary--warning { background: var(--admin-warning-soft); color: var(--admin-warning); }
+        .studio-preview__notice { margin: 0; padding: 10px 12px; border-radius: var(--admin-radius); background: var(--admin-info-soft); color: var(--admin-info); font-size: .9rem; font-weight: 750; }
+        .studio-preview__notice.is-warning { background: var(--admin-warning-soft); color: var(--admin-warning); }
+        .studio-preview img, .studio-media-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
+        .studio-video-card__thumbnail { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--admin-radius); background: #eef3ee; }
+        .studio-video-card__thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
+        .studio-video-card__thumbnail-placeholder { width: 100%; height: 100%; display: grid; place-items: center; color: #5f6f64; font-weight: 800; }
+        .studio-point-media-section { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--admin-line); }
+        .studio-point-media-section h3 { margin: 0; font-size: .98rem; }
+        .studio-point-media { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+        .studio-point-media-card { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 10px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fff; }
+        .studio-point-media-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--admin-radius); background: #eef0ee; }
+        .studio-point-media-label { color: #2d352f; font-size: .85rem; font-weight: 800; }
+        .studio-point-media-meta { display: grid; gap: 5px; margin: 0; color: var(--admin-muted); font-size: .82rem; }
+        .studio-point-media-meta div { display: grid; gap: 2px; min-width: 0; }
+        .studio-point-media-meta dt { color: #2d352f; font-weight: 850; }
+        .studio-point-media-meta dd { margin: 0; overflow-wrap: anywhere; }
+        .studio-point-media-edit summary { cursor: pointer; color: var(--admin-primary); font-weight: 850; }
+        .studio-point-media-edit[open] { display: grid; gap: 8px; }
+        .studio-point-media-placeholder { display: grid; min-height: 130px; place-items: center; border-radius: var(--admin-radius); background: #eef0ee; color: var(--admin-muted); font-weight: 800; }
+        .studio-media-card__body, .studio-video-form { display: grid; gap: 10px; }
+        .studio-media-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .studio-link { color: var(--admin-primary); font-weight: 800; }
+        .studio-hidden { display: none; }
+        .studio-button-danger { border: 1px solid #dba0a0; background: #fff5f5; color: #8c1d18; }
+        .studio-section, .studio-hero, .quick-destination, .studio-scroll-target, .studio-media-card, .studio-point { scroll-margin-top: 84px; }
+        .studio-section:target, .studio-media-card:target, .studio-point:target { outline: 2px solid rgba(46, 125, 90, 0.35); box-shadow: 0 0 0 6px rgba(46, 125, 90, 0.08); }
+        .quick-destination { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fbfcfb; }
+        .quick-destination__title { margin: 0; font-size: 1.05rem; }
+        .quick-destination__text { margin: 4px 0 0; color: var(--admin-muted); }
+        .quick-destination__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .quick-destination__form { display: grid; gap: 12px; }
+        .quick-destination__form[hidden], .quick-destination__actions[hidden], .quick-destination__status[hidden] { display: none; }
+        .quick-destination__status { min-height: 22px; margin: 0; color: var(--admin-muted); font-weight: 700; }
+        .quick-destination__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+        .quick-destination__panel { display: grid; gap: 12px; }
+        .quick-destination__panel[hidden], .quick-destination__results[hidden], .quick-destination__selection[hidden] { display: none; }
+        .quick-destination__mode-switch { display: flex; flex-wrap: wrap; gap: 8px; }
+        .quick-destination__mode-button { border: 1px solid var(--admin-line); border-radius: var(--admin-radius); padding: 9px 12px; background: #fff; color: #2d352f; font-weight: 800; cursor: pointer; }
+        .quick-destination__mode-button.is-active { border-color: var(--admin-primary); background: #e6f5ec; color: var(--admin-primary); }
+        .quick-destination__search, .quick-destination__selection, .quick-destination__advanced { display: grid; gap: 10px; }
+        .quick-destination__results { display: grid; gap: 6px; }
+        .quick-destination__result { width: 100%; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); padding: 10px 12px; background: #fff; color: #2d352f; text-align: left; font-weight: 750; cursor: pointer; }
+        .quick-destination__result:hover, .quick-destination__result:focus { border-color: var(--admin-primary); outline: none; }
+        .quick-destination__result-message { margin: 0; color: var(--admin-muted); }
+        .quick-destination__selection { padding: 12px; border: 1px solid #b8ddc4; border-radius: var(--admin-radius); background: #f2fbf5; }
+        .quick-destination__selection-label { color: var(--admin-muted); font-weight: 800; }
+        .quick-destination__advanced { padding: 10px 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: #fff; }
+        .quick-destination__advanced summary { cursor: pointer; font-weight: 800; color: #2d352f; }
+        @media (max-width: 760px) { .studio-hero, .studio-media-row { grid-template-columns: 1fr; } .studio-actions { justify-content: flex-start; } .admin-button, .studio-upload label { width: 100%; justify-content: center; } }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_hike_edit', { id: hike.id }) }}"></form>
+    <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_hike_edit_' ~ hike.id) }}">
+    <input form="{{ main_form_id }}" type="hidden" name="_redirect_anchor" value="section-publication">
+
+    {% include 'admin/studio/_studio_quick_nav.html.twig' with {
+        nav_id: 'studio-hike-quick-nav',
+        action_links: [
+            { label: 'Retour au site public', href: path('app_home') },
+            hike.slug is not empty and hike.status.value in ['finished', 'converted']
+                ? { label: 'Aperçu public', href: path('app_hike_show', { slug: hike.slug }), target: '_blank', rel: 'noopener noreferrer' }
+                : { label: 'Aperçu public', disabled_label: 'Aperçu indisponible' }
+        ],
+        items: [
+            { label: 'Général', anchor: 'studio-general' },
+            { label: 'Publication', anchor: 'studio-publication' },
+            { label: 'Localisation', anchor: 'studio-location' },
+            { label: 'Points GPS', anchor: 'studio-points' },
+            { label: 'Photos', anchor: 'studio-photos' },
+            { label: 'Vidéos', anchor: 'studio-videos' }
+        ],
+        submit_form_id: main_form_id
+    } only %}
+
+    <div class="studio-page studio-page--with-quick-nav">
+        <section id="studio-general" class="studio-hero">
+            <div>
+                <p class="studio-eyebrow">Studio randonnée rapide</p>
+                <h1 class="studio-title">{{ hike.title }}</h1>
+                <div class="studio-status-list">
+                    <div class="studio-status-row">
+                        <span class="studio-badge">{{ status_options[hike.status.value] ?? hike.status.value }}</span>
+                    </div>
+                    <div class="studio-status-row">
+                        <span class="studio-status-label">Destination éditoriale</span>
+                        {% if hike.destination %}
+                            <span class="studio-badge">{{ hike.destination.name }}</span>
+                        {% else %}
+                            <span class="studio-badge studio-badge--muted">Destination éditoriale non associée</span>
+                        {% endif %}
+                    </div>
+                    <div class="studio-status-row">
+                        <span class="studio-status-label">Localisation géographique</span>
+                        {% for location_badge in location_badges %}
+                            <span class="studio-badge studio-badge--muted">{{ location_badge }}</span>
+                        {% else %}
+                            <span class="studio-badge studio-badge--muted">Localisation géographique non associée</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="studio-actions">
+                {% if hike.slug is not empty and hike.status.value in ['finished', 'converted'] %}
+                    <a class="admin-button admin-button--secondary" href="{{ path('app_hike_show', { slug: hike.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% endif %}
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
+                {% endif %}
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_field_tools_hikes') }}">Retour aux randonnées</a>
+                <button class="admin-button" form="{{ main_form_id }}" type="submit">Enregistrer</button>
+            </div>
+        </section>
+
+        <span id="section-publication" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-publication" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Préparation publication</h2>
+                    <p>Le brouillon terrain reste éditable avant conversion en contenu public.</p>
+                </div>
+            </div>
+            <div class="studio-grid">
+                <div class="studio-field">
+                    <label for="hike-title">Titre</label>
+                    <input form="{{ main_form_id }}" id="hike-title" name="title" value="{{ hike.title }}" required>
+                </div>
+                <div class="studio-field">
+                    <label for="hike-status">Statut</label>
+                    <select form="{{ main_form_id }}" id="hike-status" name="status">
+                        {% for value, label in status_options %}
+                            <option value="{{ value }}" {% if hike.status.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="studio-field">
+                    <label for="hike-destination">Destination éditoriale</label>
+                    <select form="{{ main_form_id }}" id="hike-destination" name="destination">
+                        <option value="">Non associée</option>
+                        {% for destination in destinations %}
+                            <option
+                                value="{{ destination.id }}"
+                                {% if hike.destination and hike.destination.id == destination.id %}selected{% endif %}
+                            >{{ destination.name }} · {{ destination.type.value }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="studio-help">Optionnelle : elle classe éditorialement la randonnée et ne remplace pas la commune géographique.</span>
+                </div>
+                <div class="studio-field studio-field--full">
+                    <label for="hike-notes">Notes</label>
+                    <textarea form="{{ main_form_id }}" id="hike-notes" name="notes" rows="8">{{ hike.notes }}</textarea>
+                </div>
+            </div>
+            <section id="studio-location" class="quick-destination" aria-labelledby="hike-current-location-title">
+                <div class="quick-destination__header">
+                    <div>
+                        <h2 id="hike-current-location-title" class="quick-destination__title">Localisation actuellement enregistrée</h2>
+                        {% if hike.geographicDestination %}
+                            <p class="quick-destination__text">
+                                <strong>{{ hike.geographicDestination.name }}</strong>
+                                {% if hike.geographicDestination.code %} — Code INSEE : {{ hike.geographicDestination.code }}{% endif %}
+                            </p>
+                        {% else %}
+                            <p class="quick-destination__text">Aucune localisation géographique enregistrée.</p>
+                        {% endif %}
+
+                        {% if current_location_point %}
+                            <p class="quick-destination__text">
+                                Point GPS actuellement enregistré :
+                                {{ current_location_point.latitude|number_format(7, '.', '') }},
+                                {{ current_location_point.longitude|number_format(7, '.', '') }}
+                                {% if current_location_point.accuracy is not null %} — précision {{ current_location_point.accuracy|number_format(0, '.', ' ') }} m{% endif %}
+                            </p>
+                            <div class="quick-destination__actions">
+                                <a class="admin-button admin-button--secondary" href="https://www.google.com/maps?q={{ current_location_point.latitude|number_format(7, '.', '') }},{{ current_location_point.longitude|number_format(7, '.', '') }}" target="_blank" rel="noopener noreferrer">Vérifier dans Google Maps</a>
+                            </div>
+                        {% else %}
+                            <p class="quick-destination__text">Aucun point GPS principal enregistré.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+            {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
+                picker_id: 'studio-hike-location-' ~ hike.id,
+                ui_context: 'studio',
+                mode: 'studio_edit',
+                form_id: main_form_id,
+                row_class: 'studio-field',
+                input_class: '',
+                commune_title: 'Localisation géographique',
+                point_title: 'Point GPS principal optionnel',
+                search_help: 'Recherchez une commune française. La région, le département, le code INSEE et la destination éditoriale seront mis à jour à la validation.',
+                validate_button_label: 'Valider la commune et le point GPS',
+                validate_submit_form_id: main_form_id,
+                require_commune_for_validation: true,
+                show_osm_link: false,
+                fields: {
+                    country: { name: 'locationCountry', value: location_picker_data.country },
+                    region: { id: 'hike-region', name: 'detectedRegionName', value: location_picker_data.region, label: 'Région' },
+                    department: { id: 'hike-department', name: 'detectedDepartmentName', value: location_picker_data.department, label: 'Département' },
+                    departmentCode: { name: 'locationDepartmentCode', value: location_picker_data.departmentCode },
+                    commune: { id: 'hike-commune', name: 'detectedCommuneName', value: location_picker_data.commune, label: 'Commune' },
+                    insee: { id: 'hike-commune-code', name: 'detectedCommuneCode', value: location_picker_data.insee, label: 'Code INSEE' },
+                    postal: { name: 'locationPostalCode', value: location_picker_data.postalCode },
+                    latitude: { id: 'hike-location-latitude', name: 'locationLatitude', value: location_picker_data.latitude, label: 'Latitude du point' },
+                    longitude: { id: 'hike-location-longitude', name: 'locationLongitude', value: location_picker_data.longitude, label: 'Longitude du point' },
+                    accuracy: { id: 'hike-location-accuracy', name: 'locationAccuracy', value: location_picker_data.accuracy, label: 'Précision GPS' },
+                    communeCenterLatitude: { name: 'communeCenterLatitude', value: location_picker_data.communeCenterLatitude },
+                    communeCenterLongitude: { name: 'communeCenterLongitude', value: location_picker_data.communeCenterLongitude }
+                },
+                location_field_keys: ['commune', 'insee', 'department', 'region'],
+                coordinate_field_keys: ['latitude', 'longitude', 'accuracy'],
+                initial_commune: location_picker_data.commune,
+                initial_department: location_picker_data.department,
+                initial_department_code: location_picker_data.departmentCode,
+                initial_region: location_picker_data.region,
+                initial_insee: location_picker_data.insee,
+                initial_postal_code: location_picker_data.postalCode,
+                initial_latitude: location_picker_data.latitude,
+                initial_longitude: location_picker_data.longitude,
+                commune_center_latitude: location_picker_data.communeCenterLatitude,
+                commune_center_longitude: location_picker_data.communeCenterLongitude
+            } only %}
+            {% include 'admin/_quick_destination_form.html.twig' with {
+                ui_context: 'studio',
+                quick_destination_title: 'Destination éditoriale',
+                quick_destination_france_text: 'Choisissez ou créez une destination éditoriale. Elle reste optionnelle et ne modifie pas la localisation géographique.',
+                quick_destination_show_osm_link: false,
+                current_destination: hike.destination,
+                current_destination_edit: current_destination_edit,
+                current_destination_update_action: path('admin_studio_hike_destination_update', { id: hike.id }),
+                current_destination_update_token: csrf_token('studio_hike_destination_update_' ~ hike.id),
+                destination_quick_create: destination_quick_create,
+                destination_type_options: destination_type_options,
+                destination_parent_options: destination_parent_options,
+                redirect_anchor: 'section-publication'
+            } only %}
+        </section>
+
+        <span id="section-points" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-points" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Points GPS</h2>
+                    <p>{{ hike.points|length }} point{{ hike.points|length > 1 ? 's' : '' }} relevé{{ hike.points|length > 1 ? 's' : '' }} sur le terrain.</p>
+                </div>
+                {% if google_maps_url %}
+                    <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Ouvrir l’itinéraire</a>
+                {% endif %}
+            </div>
+            <div class="studio-media-grid">
+                {% for point in hike.points %}
+                    {% set point_has_valid_coordinates = point.latitude is not null and point.longitude is not null and point.latitude >= -90 and point.latitude <= 90 and point.longitude >= -180 and point.longitude <= 180 %}
+                    <article id="point-{{ point.id }}" class="studio-point">
+                        <form class="studio-media-card__body" method="post" action="{{ path('admin_studio_hike_point_update', { id: point.id }) }}" data-high-precision-gps>
+                            <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_point_update_' ~ point.id) }}">
+                            <input type="hidden" name="_redirect_anchor" value="point-{{ point.id }}">
+                            <input type="hidden" name="accuracy" value="{{ point.accuracy }}" data-gps-accuracy>
+
+                            <div class="studio-field">
+                                <label for="hike-point-title-{{ point.id }}">Titre</label>
+                                <input id="hike-point-title-{{ point.id }}" name="title" value="{{ point.title }}">
+                            </div>
+
+                            <div class="studio-media-row">
+                                <div class="studio-field">
+                                    <label for="hike-point-type-{{ point.id }}">Type</label>
+                                    <select id="hike-point-type-{{ point.id }}" name="type">
+                                        {% for value, label in point_type_options %}
+                                            <option value="{{ value }}" {% if point.type.value == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="studio-field">
+                                    <label for="hike-point-position-{{ point.id }}">Position</label>
+                                    <input id="hike-point-position-{{ point.id }}" name="position" type="number" min="1" step="1" value="{{ point.position }}">
+                                </div>
+                            </div>
+
+                            <div class="studio-media-row">
+                                <div class="studio-field">
+                                    <label for="hike-point-latitude-{{ point.id }}">Latitude</label>
+                                    <input id="hike-point-latitude-{{ point.id }}" name="latitude" type="text" inputmode="decimal" value="{{ point.latitude }}" data-gps-latitude required>
+                                </div>
+                                <div class="studio-field">
+                                    <label for="hike-point-longitude-{{ point.id }}">Longitude</label>
+                                    <input id="hike-point-longitude-{{ point.id }}" name="longitude" type="text" inputmode="decimal" value="{{ point.longitude }}" data-gps-longitude required>
+                                </div>
+                            </div>
+
+                            <p class="studio-gps__coordinates" data-gps-coordinates>
+                                {% if point.accuracy is not null %}
+                                    Précision actuelle {{ point.accuracy|round }} m
+                                {% endif %}
+                            </p>
+                            <p class="studio-help" data-gps-status aria-live="polite"></p>
+                            <div class="studio-inline-actions">
+                                <button class="admin-button admin-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
+                                <button class="admin-button admin-button--secondary" type="button" data-gps-stop hidden>Arrêter la recherche</button>
+                                <button class="admin-button admin-button--secondary" type="button" data-gps-copy hidden>Copier les coordonnées</button>
+                            </div>
+
+                            <div class="studio-field">
+                                <label for="hike-point-note-{{ point.id }}">Note</label>
+                                <textarea id="hike-point-note-{{ point.id }}" name="note" rows="4">{{ point.note }}</textarea>
+                            </div>
+
+                            <span class="admin-muted">{{ point.detectedCommuneName ?: hike.detectedCommuneName ?: 'Commune non détectée' }}</span>
+
+                            <div class="studio-inline-actions">
+                                <button class="admin-button" type="submit">Enregistrer ce point</button>
+                                {% if point_has_valid_coordinates %}
+                                    <a class="admin-button admin-button--secondary" href="https://www.google.com/maps/search/?api=1&query={{ point.latitude }},{{ point.longitude }}" target="_blank" rel="noopener noreferrer">Voir ce point sur Google Maps</a>
+                                {% endif %}
+                            </div>
+                        </form>
+                        {% include 'admin/studio/_point_media_cards.html.twig' with {
+                            point: point,
+                            point_label: point_labels[point.id] ?? 'Point GPS',
+                            point_anchor: 'point-' ~ point.id,
+                            point_anchor_prefix: 'hike',
+                            point_media_enabled: point_media_enabled,
+                            update_route: 'admin_studio_hike_point_media_update',
+                            delete_route: 'admin_studio_hike_point_media_delete',
+                            update_token_prefix: 'studio_hike_point_media_update_',
+                            delete_token_prefix: 'studio_hike_point_media_delete_',
+                            video_type_options: video_type_options
+                        } only %}
+                    </article>
+                {% else %}
+                    <p class="admin-muted">Aucun point GPS.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <span id="section-photos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-photos" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Photos</h2>
+                    <p>Associez chaque image à la couverture, à la galerie générale ou à un point GPS.</p>
+                </div>
+            </div>
+            {% include 'admin/studio/_photo_upload_form.html.twig' with {
+                action: path('admin_studio_hike_media_photos', { id: hike.id }),
+                bulk_action: path('admin_studio_hike_media_photos_bulk', { id: hike.id }),
+                csrf_token_id: 'studio_hike_photos_' ~ hike.id,
+                input_id: 'studio-hike-photo-input',
+                image_type_options: image_type_options,
+                association_options: photo_association_options,
+                point_target_options: point_target_options,
+                upload_policy: bulk_upload_policy,
+                redirect_anchor: 'section-photos'
+            } only %}
+            <h3 class="studio-subtitle">Image principale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: hike,
+                subject_label: hike.title,
+                media_links: cover_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                card_anchor_prefix: 'photo',
+                delete_redirect_anchor: 'section-photos',
+                update_route: 'admin_studio_hike_media_update',
+                delete_route: 'admin_studio_hike_media_delete',
+                update_token_prefix: 'studio_hike_media_update_',
+                delete_token_prefix: 'studio_hike_media_delete_',
+                empty_label: 'Aucune image principale pour le moment.'
+            } only %}
+            <h3 class="studio-subtitle">Galerie générale</h3>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: hike,
+                subject_label: hike.title,
+                media_links: gallery_photo_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: photo_association_options,
+                media_point_targets: media_point_targets,
+                card_anchor_prefix: 'photo',
+                delete_redirect_anchor: 'section-photos',
+                update_route: 'admin_studio_hike_media_update',
+                delete_route: 'admin_studio_hike_media_delete',
+                update_token_prefix: 'studio_hike_media_update_',
+                delete_token_prefix: 'studio_hike_media_delete_',
+                empty_label: 'Aucune photo liée pour le moment.'
+            } only %}
+        </section>
+
+        <span id="section-videos" class="studio-scroll-anchor" aria-hidden="true"></span>
+        <section id="studio-videos" class="studio-section">
+            <div class="studio-section__header">
+                <div>
+                    <h2>Galerie générale - vidéos</h2>
+                    <p>Vidéos non associées à un point GPS.</p>
+                </div>
+                <button class="admin-button" type="button" data-video-toggle>Ajouter une vidéo</button>
+            </div>
+            <form class="studio-video-form studio-hidden" method="post" action="{{ path('admin_studio_hike_media_video', { id: hike.id }) }}" data-video-form>
+                <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_video_' ~ hike.id) }}">
+                <input type="hidden" name="_redirect_anchor" value="section-videos">
+                {% include 'admin/studio/_video_form_fields.html.twig' with { video_type_options: video_type_options, association_options: video_association_options } only %}
+            </form>
+            {% include 'admin/studio/_media_cards.html.twig' with {
+                subject: hike,
+                subject_label: hike.title,
+                media_links: video_links,
+                image_type_options: image_type_options,
+                video_type_options: video_type_options,
+                association_options: video_association_options,
+                media_point_targets: media_point_targets,
+                card_anchor_prefix: 'video',
+                delete_redirect_anchor: 'section-videos',
+                update_route: 'admin_studio_hike_media_update',
+                delete_route: 'admin_studio_hike_media_delete',
+                update_token_prefix: 'studio_hike_media_update_',
+                delete_token_prefix: 'studio_hike_media_delete_',
+                empty_label: 'Aucune vidéo liée pour le moment.'
+            } only %}
+        </section>
+
+        <section id="section-panoramas" class="studio-section">
+            <h2>Images 360° / 180°</h2>
+            {% include 'admin/studio/_immersive_cards.html.twig' with { media_links: immersive_links, image_type_options: image_type_options, subject_label: hike.title } only %}
+        </section>
+    </div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ vite_entry_script_tags('assets/js/admin-high-precision-gps.js') }}
+    {% set load_location_picker_assets = app.environment != 'test' or app.request.query.get('e2e_frontend_assets') == '1' %}
+    {% if load_location_picker_assets %}
+        {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
+    {{ vite_entry_script_tags('assets/js/studio-video-thumbnails.js') }}
+    {% include 'admin/studio/_studio_media_javascript.html.twig' %}
+{% endblock %}

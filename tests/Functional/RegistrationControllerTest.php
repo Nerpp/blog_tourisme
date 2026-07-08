@@ -1,0 +1,402 @@
+<?php
+
+namespace App\Tests\Functional;
+
+use App\Entity\User;
+use App\Service\AvatarUploadService;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\RawMessage;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+
+final class RegistrationControllerTest extends FunctionalTestCase
+{
+    /** @var list<string> */
+    private array $uploadedAvatars = [];
+
+    protected function tearDown(): void
+    {
+        foreach ($this->uploadedAvatars as $avatarPath) {
+            $this->avatarUploadService()->delete($avatarPath);
+        }
+
+        parent::tearDown();
+    }
+
+    public function testRegistrationWithoutAvatarPersistsHashedPasswordAndLoginWorks(): void
+    {
+        $client = static::createClient();
+        $email = sprintf('register-no-avatar-%s@example.test', bin2hex(random_bytes(6)));
+        $password = 'Phrase robuste inscription 2026 9!';
+
+        $crawler = $client->request('GET', '/register');
+        self::assertResponseIsSuccessful();
+        self::assertGreaterThan(0, $crawler->filter('input[name="registration_form[_token]"]')->count());
+
+        $client->submit($this->registrationForm($crawler, $email, 'Sans Avatar '.$this->uniqueToken('register'), $password));
+
+        self::assertResponseRedirects('/login');
+
+        $user = $this->registeredUser($email);
+        self::assertNull($user->getAvatarPath());
+        self::assertSame(['ROLE_USER'], $user->getRoles());
+        self::assertFalse($user->isVerified());
+        self::assertNotSame($password, $user->getPassword());
+        self::assertTrue($this->passwordHasher()->isPasswordValid($user, $password));
+
+        $this->loginWithPassword($client, $email, $password);
+    }
+
+    public function testRegistrationRejectsPrivilegedFieldsWithoutCreatingAccount(): void
+    {
+        $client = static::createClient();
+        $email = sprintf('register-privileged-%s@example.test', bin2hex(random_bytes(6)));
+        $crawler = $client->request('GET', '/register');
+
+        $client->request('POST', '/register', [
+            'registration_form' => [
+                'email' => $email,
+                'displayName' => 'Privilège refusé '.$this->uniqueToken('register'),
+                'plainPassword' => [
+                    'first' => 'Phrase robuste privilège 2026 9!',
+                    'second' => 'Phrase robuste privilège 2026 9!',
+                ],
+                'roles' => ['ROLE_ADMIN'],
+                'isVerified' => '1',
+                '_token' => $this->inputValue($crawler, 'input[name="registration_form[_token]"]'),
+            ],
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertNull($this->entityManager()->getRepository(User::class)->findOneBy(['email' => $email]));
+    }
+
+    public function testAuthenticatedUserIsRedirectedAwayFromRegistration(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createUser());
+
+        $client->request('GET', '/register');
+
+        self::assertResponseRedirects('/profile');
+    }
+
+    public function testMailerFailureKeepsSingleUnverifiedAccountAndRetryRequestsConfirmation(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $failingMailer = new FailingRegistrationMailer();
+        static::getContainer()->set('mailer.mailer', $failingMailer);
+        $email = sprintf('register-mailer-failure-%s@example.test', bin2hex(random_bytes(6)));
+        $password = 'Phrase robuste panne mailer 2026 9!';
+        $displayName = 'Panne Mailer '.$this->uniqueToken('register');
+        $crawler = $client->request('GET', '/register');
+
+        $client->submit($this->registrationForm($crawler, $email, $displayName, $password));
+
+        self::assertResponseRedirects('/login');
+        self::assertSame(1, $failingMailer->sendAttempts);
+        $user = $this->registeredUser($email);
+        self::assertFalse($user->isVerified());
+        self::assertSame(['ROLE_USER'], $user->getRoles());
+
+        static::ensureKernelShutdown();
+        $client = static::createClient();
+        $client->disableReboot();
+        $recordingMailer = new RecordingRegistrationMailer();
+        static::getContainer()->set('mailer.mailer', $recordingMailer);
+        $client->request('POST', '/register', [
+            'registration_form' => [
+                'email' => $email,
+                '_token' => 'invalid-token',
+            ],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $recordingMailer->sentCount);
+
+        $crawler = $client->request('GET', '/register');
+        $client->submit($this->registrationForm(
+            $crawler,
+            $email,
+            'Tentative dupliquée '.$this->uniqueToken('register'),
+            'Autre phrase robuste 2026 8!',
+        ));
+
+        self::assertResponseRedirects('/login');
+        self::assertSame(1, $recordingMailer->sentCount);
+        self::assertSame(1, $this->entityManager()->getRepository(User::class)->count(['email' => $email]));
+        $storedUser = $this->registeredUser($email);
+        self::assertFalse($storedUser->isVerified());
+        self::assertSame(['ROLE_USER'], $storedUser->getRoles());
+        self::assertSame($displayName, $storedUser->getDisplayName());
+        self::assertTrue($this->passwordHasher()->isPasswordValid($storedUser, $password));
+    }
+
+    public function testVerifiedExistingAccountIsNotDuplicatedOrSentAnotherConfirmation(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $recordingMailer = new RecordingRegistrationMailer();
+        static::getContainer()->set('mailer.mailer', $recordingMailer);
+        $user = $this->createUser(verified: true);
+        $crawler = $client->request('GET', '/register');
+
+        $client->submit($this->registrationForm(
+            $crawler,
+            (string) $user->getEmail(),
+            'Doublon vérifié '.$this->uniqueToken('register'),
+            'Phrase robuste doublon 2026 7!',
+        ));
+
+        self::assertResponseRedirects('/login');
+        self::assertSame(0, $recordingMailer->sentCount);
+        self::assertSame(1, $this->entityManager()->getRepository(User::class)->count(['email' => $user->getEmail()]));
+        self::assertTrue($this->refresh($user)->isVerified());
+    }
+
+    public function testRegistrationWithAvatarPersistsAvatarPathAndLoginWorks(): void
+    {
+        $this->requireGdFor('png');
+
+        $client = static::createClient();
+        $email = sprintf('register-avatar-%s@example.test', bin2hex(random_bytes(6)));
+        $password = 'Phrase robuste avatar 2026 9!';
+        $avatar = $this->createImage('png', 320, 180);
+
+        $crawler = $client->request('GET', '/register');
+        $form = $this->registrationForm($crawler, $email, 'Avec Avatar '.$this->uniqueToken('register'), $password);
+        $form['registration_form[avatarFile]']->upload($avatar);
+
+        $client->submit($form);
+
+        self::assertResponseRedirects('/login');
+
+        $user = $this->registeredUser($email);
+        $avatarPath = $user->getAvatarPath();
+        self::assertIsString($avatarPath);
+        $this->uploadedAvatars[] = $avatarPath;
+        self::assertMatchesRegularExpression('#^/uploads/avatars/avatar_[a-f0-9]{32}\.webp$#', $avatarPath);
+        self::assertFileExists((string) static::getContainer()->getParameter('kernel.project_dir').'/public'.$avatarPath);
+        self::assertTrue($this->passwordHasher()->isPasswordValid($user, $password));
+
+        $this->loginWithPassword($client, $email, $password);
+    }
+
+    #[DataProvider('supportedAvatarFormatsProvider')]
+    public function testRegistrationWithSupportedAvatarFormatPersistsWebpAvatar(string $extension): void
+    {
+        $this->requireGdFor($extension);
+
+        $client = static::createClient();
+        $email = sprintf('register-avatar-%s-%s@example.test', $extension, bin2hex(random_bytes(6)));
+        $password = 'Phrase robuste avatar format 2026 9!';
+        $originalFile = $this->createImage($extension, 300, 300);
+
+        try {
+            $crawler = $client->request('GET', '/register');
+            $form = $this->registrationForm($crawler, $email, 'Avatar Format '.$this->uniqueToken('register'), $password);
+            $form['registration_form[avatarFile]']->upload($originalFile);
+
+            $client->submit($form);
+        } finally {
+            if (is_file($originalFile)) {
+                unlink($originalFile);
+            }
+        }
+
+        self::assertResponseRedirects('/login');
+        $user = $this->registeredUser($email);
+        $avatarPath = $user->getAvatarPath();
+        self::assertIsString($avatarPath);
+        $this->uploadedAvatars[] = $avatarPath;
+        self::assertMatchesRegularExpression('#^/uploads/avatars/avatar_[a-f0-9]{32}\.webp$#', $avatarPath);
+        self::assertStringNotContainsString(sprintf('.%s', $extension), basename($avatarPath, '.webp'));
+        self::assertFileExists((string) static::getContainer()->getParameter('kernel.project_dir').'/public'.$avatarPath);
+    }
+
+    public function testRegistrationWithTooSmallAvatarDoesNotCreateAccount(): void
+    {
+        $this->requireGdFor('png');
+
+        $client = static::createClient();
+        $email = sprintf('register-small-avatar-%s@example.test', bin2hex(random_bytes(6)));
+        $avatar = $this->createImage('png', 32, 80);
+
+        try {
+            $crawler = $client->request('GET', '/register');
+            $form = $this->registrationForm(
+                $crawler,
+                $email,
+                'Avatar Trop Petit '.$this->uniqueToken('register'),
+                'Phrase robuste petit avatar 2026 9!',
+            );
+            $form['registration_form[avatarFile]']->upload($avatar);
+
+            $client->submit($form);
+        } finally {
+            if (is_file($avatar)) {
+                unlink($avatar);
+            }
+        }
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString(
+            'L’image de profil doit mesurer au moins 64 px de côté.',
+            $client->getResponse()->getContent() ?: '',
+        );
+        self::assertNull($this->entityManager()->getRepository(User::class)->findOneBy(['email' => $email]));
+    }
+
+    public function testShortNumericPasswordIsRejectedWithClearMessage(): void
+    {
+        $client = static::createClient();
+        $crawler = $client->request('GET', '/register');
+
+        $client->submit($this->registrationForm(
+            $crawler,
+            sprintf('register-short-password-%s@example.test', bin2hex(random_bytes(6))),
+            'Mot Court '.$this->uniqueToken('register'),
+            '12345678',
+        ));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Le mot de passe doit contenir au moins 12 caractères.');
+    }
+
+    public function testCommonPasswordIsRejectedWithClearMessage(): void
+    {
+        $client = static::createClient();
+        $crawler = $client->request('GET', '/register');
+
+        $client->submit($this->registrationForm(
+            $crawler,
+            sprintf('register-common-password-%s@example.test', bin2hex(random_bytes(6))),
+            'Mot Commun '.$this->uniqueToken('register'),
+            'password123456',
+        ));
+
+        self::assertResponseIsSuccessful();
+        $content = $client->getResponse()->getContent() ?: '';
+        self::assertTrue(
+            str_contains($content, 'Votre mot de passe est trop faible.')
+            || str_contains($content, 'Ce mot de passe est connu dans des fuites de données.'),
+            'The registration page should display a clear weak or compromised password error.',
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function supportedAvatarFormatsProvider(): iterable
+    {
+        yield 'jpeg' => ['jpg'];
+        yield 'webp' => ['webp'];
+    }
+
+    private function registrationForm(Crawler $crawler, string $email, string $displayName, string $password): \Symfony\Component\DomCrawler\Form
+    {
+        return $crawler->selectButton('Créer mon compte')->form([
+            'registration_form[email]' => $email,
+            'registration_form[displayName]' => $displayName,
+            'registration_form[plainPassword][first]' => $password,
+            'registration_form[plainPassword][second]' => $password,
+        ]);
+    }
+
+    private function registeredUser(string $email): User
+    {
+        $user = $this->entityManager()->getRepository(User::class)->findOneBy(['email' => $email]);
+        self::assertInstanceOf(User::class, $user);
+
+        return $user;
+    }
+
+    private function loginWithPassword(KernelBrowser $client, string $email, string $password): void
+    {
+        $crawler = $client->request('GET', '/login');
+        $client->request('POST', '/login', [
+            '_username' => $email,
+            '_password' => $password,
+            '_csrf_token' => $this->inputValue($crawler, 'input[name="_csrf_token"]'),
+        ]);
+
+        self::assertResponseRedirects('/');
+    }
+
+    private function passwordHasher(): UserPasswordHasherInterface
+    {
+        $passwordHasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        self::assertInstanceOf(UserPasswordHasherInterface::class, $passwordHasher);
+
+        return $passwordHasher;
+    }
+
+    private function avatarUploadService(): AvatarUploadService
+    {
+        $service = static::getContainer()->get(AvatarUploadService::class);
+        self::assertInstanceOf(AvatarUploadService::class, $service);
+
+        return $service;
+    }
+
+    private function createImage(string $extension, int $width, int $height): string
+    {
+        $this->requireGdFor($extension);
+
+        $path = sprintf('%s/registration-avatar-%s.%s', sys_get_temp_dir(), bin2hex(random_bytes(6)), $extension);
+        $image = imagecreatetruecolor($width, $height);
+        self::assertNotFalse($image);
+        imagefill($image, 0, 0, imagecolorallocate($image, 48, 120, 180));
+
+        match ($extension) {
+            'jpg' => imagejpeg($image, $path),
+            'png' => imagepng($image, $path),
+            'webp' => imagewebp($image, $path),
+            default => false,
+        } || self::fail(sprintf('Unable to create %s fixture image.', $extension));
+
+        imagedestroy($image);
+
+        return $path;
+    }
+
+    private function requireGdFor(string $extension): void
+    {
+        $required = match ($extension) {
+            'jpg' => 'imagejpeg',
+            'png' => 'imagepng',
+            'webp' => 'imagewebp',
+            default => null,
+        };
+
+        if (!function_exists('imagecreatetruecolor') || ($required !== null && !function_exists($required))) {
+            self::markTestSkipped(sprintf('GD %s support is required for this registration test.', strtoupper($extension)));
+        }
+    }
+}
+
+final class FailingRegistrationMailer implements MailerInterface
+{
+    public int $sendAttempts = 0;
+
+    public function send(RawMessage $message, ?Envelope $envelope = null): void
+    {
+        ++$this->sendAttempts;
+
+        throw new TransportException('Simulated registration mailer failure.');
+    }
+}
+
+final class RecordingRegistrationMailer implements MailerInterface
+{
+    public int $sentCount = 0;
+
+    public function send(RawMessage $message, ?Envelope $envelope = null): void
+    {
+        ++$this->sentCount;
+    }
+}

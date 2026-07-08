@@ -1,0 +1,80 @@
+{% extends 'layouts/destination.html.twig' %}
+
+{% block title %}Destinations - Blog Tourisme{% endblock %}
+{% block meta_description %}Explorez la hierarchie des destinations touristiques : pays, regions, departements et villes.{% endblock %}
+
+{% block body %}
+    <main class="destinations-page" data-destination-browser>
+        <section class="destinations-hero">
+            <div class="destinations-container">
+                <p class="destinations-kicker">Destinations</p>
+                <h1 class="destinations-title">Explorer les destinations</h1>
+                <p class="destinations-intro">Parcourez la hierarchie geographique du blog et retrouvez rapidement les pays, regions, departements et villes associes aux contenus publics.</p>
+            </div>
+        </section>
+
+        <section class="destinations-content">
+            <div class="destinations-container">
+                <div class="destinations-panel">
+                    <div class="destinations-toolbar">
+                        <label class="destinations-search">
+                            <span>Rechercher</span>
+                            <input
+                                type="search"
+                                placeholder="Rechercher une ville, une region, un departement..."
+                                list="destination-suggestions"
+                                autocomplete="off"
+                                data-destination-search
+                            >
+                        </label>
+
+                        <div class="destinations-toolbar-actions">
+                            <button class="destination-tool-btn" type="button" data-destination-open-all>Tout ouvrir</button>
+                            <button class="destination-tool-btn destination-tool-btn--secondary" type="button" data-destination-close-all>Tout fermer</button>
+                        </div>
+                    </div>
+
+                    <datalist id="destination-suggestions">
+                        {% for destination in destination_suggestions %}
+                            <option value="{{ destination.name }}"></option>
+                        {% endfor %}
+                    </datalist>
+
+                    <div class="destinations-summary-grid" aria-label="Resume des contenus publics">
+                        <a
+                            class="destination-summary-card"
+                            href="{{ path('app_article_index') }}"
+                            data-destination-summary-link="articles"
+                        >
+                            <span>Articles</span>
+                            <strong>{{ destination_summary.articles }}</strong>
+                        </a>
+                        <a
+                            class="destination-summary-card"
+                            href="{{ path('app_hike_index') }}"
+                            data-destination-summary-link="hikes"
+                        >
+                            <span>Randonnées</span>
+                            <strong>{{ destination_summary.hikes }}</strong>
+                        </a>
+                        <a
+                            class="destination-summary-card"
+                            href="{{ path('app_city_visit_index') }}"
+                            data-destination-summary-link="city-visits"
+                        >
+                            <span>Visites</span>
+                            <strong>{{ destination_summary.city_visits }}</strong>
+                        </a>
+                    </div>
+
+                    {% include 'partials/_destination_tree.html.twig' with {
+                        destinations: root_destinations,
+                        destination_counts: destination_counts
+                    } only %}
+
+                    <p class="destinations-empty" data-destination-empty hidden>Aucune destination ne correspond a cette recherche.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+{% endblock %}

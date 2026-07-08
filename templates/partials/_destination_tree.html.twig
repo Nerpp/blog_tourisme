@@ -1,0 +1,96 @@
+{% set destination_type_labels = {
+    country: 'Pays',
+    region: 'Région',
+    department: 'Département',
+    city: 'Ville',
+    area: 'Zone'
+} %}
+{% set destination_stat_links = [
+    { key: 'articles', singular: 'article', plural: 'articles', anchor: 'articles' },
+    { key: 'hikes', singular: 'randonnée', plural: 'randonnées', anchor: 'randonnees' },
+    { key: 'city_visits', singular: 'visite', plural: 'visites', anchor: 'visites' }
+] %}
+
+<ul class="destination-tree">
+    {% for destination in destinations %}
+        {% set counts = destination_counts[destination.id]|default({
+            places: 0,
+            articles: 0,
+            hikes: 0,
+            city_visits: 0,
+            total: 0
+        }) %}
+        {% if counts.total > 0 %}
+            {% set destination_url = path('app_destination_show', { slug: destination.slug }) %}
+            {% set type_label = destination_type_labels[destination.type.value]|default(destination.type.value) %}
+            {% set has_children = destination.children|length > 0 %}
+
+            <li
+                class="destination-node"
+                data-destination-node
+                data-destination-name="{{ destination.name|lower|e('html_attr') }}"
+                data-destination-type="{{ type_label|lower|e('html_attr') }}"
+            >
+                {% if has_children %}
+                    <details class="destination-branch" data-destination-branch>
+                        <summary class="destination-summary">
+                            <span class="destination-card">
+                                <span class="destination-main">
+                                    <span class="destination-toggle" aria-hidden="true"></span>
+                                    <span class="destination-icon" aria-hidden="true">{{ destination.name|slice(0, 2)|upper }}</span>
+                                    <span class="destination-name-row">
+                                        <a class="destination-name" href="{{ destination_url }}" data-destination-link>{{ destination.name }}</a>
+                                        <span class="destination-type">{{ type_label }}</span>
+                                    </span>
+                                </span>
+
+                                <span class="destination-stats">
+                                    {% for stat in destination_stat_links %}
+                                        {% set value = attribute(counts, stat.key) %}
+                                        {% set label = value > 1 ? stat.plural : stat.singular %}
+                                        {% if value > 0 %}
+                                            <a class="destination-stat destination-stat--active" href="{{ destination_url }}#{{ stat.anchor }}" data-destination-link>{{ value }} {{ label }}</a>
+                                        {% else %}
+                                            <span class="destination-stat">{{ value }} {{ label }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </span>
+
+                                <a class="destination-open-link" href="{{ destination_url }}" aria-label="Voir la destination {{ destination.name }}" data-destination-link>Voir</a>
+                            </span>
+                        </summary>
+
+                        {% include 'partials/_destination_tree.html.twig' with {
+                            destinations: destination.children,
+                            destination_counts: destination_counts
+                        } only %}
+                    </details>
+                {% else %}
+                    <div class="destination-card destination-card--leaf">
+                        <span class="destination-main">
+                            <span class="destination-icon" aria-hidden="true">{{ destination.name|slice(0, 2)|upper }}</span>
+                            <span class="destination-name-row">
+                                <a class="destination-name" href="{{ destination_url }}" data-destination-link>{{ destination.name }}</a>
+                                <span class="destination-type">{{ type_label }}</span>
+                            </span>
+                        </span>
+
+                        <span class="destination-stats">
+                            {% for stat in destination_stat_links %}
+                                {% set value = attribute(counts, stat.key) %}
+                                {% set label = value > 1 ? stat.plural : stat.singular %}
+                                {% if value > 0 %}
+                                    <a class="destination-stat destination-stat--active" href="{{ destination_url }}#{{ stat.anchor }}" data-destination-link>{{ value }} {{ label }}</a>
+                                {% else %}
+                                    <span class="destination-stat">{{ value }} {{ label }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        </span>
+
+                        <a class="destination-open-link" href="{{ destination_url }}" aria-label="Voir la destination {{ destination.name }}" data-destination-link>Voir</a>
+                    </div>
+                {% endif %}
+            </li>
+        {% endif %}
+    {% endfor %}
+</ul>

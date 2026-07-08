@@ -1,0 +1,56 @@
+{% extends 'emails/base.html.twig' %}
+
+{% block subject %}Nouvelle publication - Estela Explorations{% endblock %}
+{% block preheader %}Une nouvelle publication est disponible sur Estela Explorations.{% endblock %}
+{% block email_title %}Nouvelle publication sur Estela Explorations{% endblock %}
+
+{% block content %}
+    <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
+        Bonjour {{ user.displayName ?: user.email }},
+    </p>
+
+    <p style="margin:0 0 18px;color:#66756d;font-size:15px;line-height:1.7;">
+        Une nouvelle étape à découvrir entre nature, ville et grands paysages.
+    </p>
+
+    <div style="margin:0 0 22px;padding:18px;border:1px solid #e7dfcf;border-radius:12px;background:#f4fbfa;">
+        <p style="margin:0 0 8px;color:#45aeb0;font-size:12px;font-weight:700;letter-spacing:0;text-transform:uppercase;">
+            {{ content_type_label }}
+        </p>
+        <h2 style="margin:0;color:#243b36;font-size:23px;line-height:1.25;font-weight:700;">
+            {{ content_title }}
+        </h2>
+        {% if content_summary %}
+            <p style="margin:12px 0 0;color:#66756d;font-size:15px;line-height:1.65;">
+                {{ content_summary }}
+            </p>
+        {% endif %}
+    </div>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:24px auto;">
+        <tr>
+            <td style="border-radius:999px;background:#243b36;">
+                <a href="{{ publication_url }}" style="display:inline-block;padding:12px 20px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;border-radius:999px;">
+                    Découvrir la publication
+                </a>
+            </td>
+        </tr>
+    </table>
+
+    <p style="margin:0 0 8px;color:#66756d;font-size:13px;line-height:1.6;">
+        Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :
+    </p>
+    <p style="margin:0 0 22px;color:#66756d;font-size:12px;line-height:1.6;word-break:break-all;">
+        <a href="{{ publication_url }}" style="color:#243b36;text-decoration:underline;">{{ publication_url }}</a>
+    </p>
+
+    <div style="margin:22px 0;padding:16px;border:1px solid #eadfbd;border-left:4px solid #d6b16a;border-radius:10px;background:#fff8e8;">
+        <p style="margin:0;color:#66756d;font-size:13px;line-height:1.65;">
+            Vous recevez cet email car vous avez activé les notifications de nouvelles publications dans votre profil.
+        </p>
+    </div>
+
+    <p style="margin:0;color:#66756d;font-size:13px;line-height:1.65;">
+        <a href="{{ profile_url }}" style="color:#243b36;font-weight:700;text-decoration:underline;">Gérer mes préférences email</a>
+    </p>
+{% endblock %}

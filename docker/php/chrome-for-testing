@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+binary=/opt/chrome-for-testing/chrome-headless-shell-linux64/chrome-headless-shell
+
+case " $* " in
+    *" --version "*|*" --dump-dom "*)
+        exec "$binary" "$@"
+        ;;
+esac
+
+# ChromeDriver expects an initial DevTools page. The headless-shell artifact
+# does not create one unless a target URL is supplied.
+exec "$binary" "$@" about:blank

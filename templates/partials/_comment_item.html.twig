@@ -1,0 +1,200 @@
+{% set level = level|default(1) %}
+{% set is_owner_preview = app.user and comment.author.id == app.user.id and comment.status.value in ['pending', 'rejected'] %}
+{% set author_name = comment.author.displayName ?: comment.author.email %}
+{% set like_count = comment_like_counts[comment.id]|default(0) %}
+{% set has_liked = comment.id in liked_comment_ids|default([]) %}
+{% set has_admin_access = is_granted(constant('App\\Security\\Voter\\AdminAccessVoter::ACCESS')) %}
+
+<article class="comment comment-item {{ level == 2 ? 'comment--reply comment-item--reply' : '' }}" id="comment-{{ comment.id }}">
+    <div class="comment-item__avatar">
+        {% if comment.author.avatarPath %}
+            <img class="avatar avatar--comment" src="{{ asset(comment.author.avatarPath) }}" alt="">
+        {% else %}
+            <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ author_name|first|upper }}</span>
+        {% endif %}
+    </div>
+
+    <div class="comment-body comment-item__body">
+        <footer class="comment-meta comment-item__meta">
+            <a href="{{ path('app_public_profile', { id: comment.author.id }) }}">{{ author_name }}</a>
+            <span class="comment-handle">@{{ comment.author.mentionHandle }}</span>
+            <span>
+                {% if comment.publishedAt %}
+                    {{ comment.publishedAt|date('d/m/Y H:i') }}
+                {% endif %}
+                {% if comment.editedAt %}
+                    · modifié
+                {% endif %}
+            </span>
+        </footer>
+
+        <div class="comment-content comment-item__content">
+            {{ comment_content_html(comment.content) }}
+        </div>
+
+        {% if comment.adminHeartedAt %}
+            <div class="comment-admin-heart comment-heart-badge" title="Cœur de l’équipe">
+                <span aria-hidden="true">♥</span>
+                <span>Cœur de l’équipe</span>
+            </div>
+        {% endif %}
+
+        {% if level == 1 and comment.pinnedAt %}
+            <div class="comment-pin-badge" title="Commentaire épinglé">
+                <span>Épinglé par l’équipe</span>
+            </div>
+        {% endif %}
+
+        {% if is_owner_preview %}
+            <span class="comment-status-badge">
+                {{ comment.status.value == 'pending' ? 'En attente' : 'Refusé' }}
+            </span>
+        {% endif %}
+
+        {% if app.user %}
+            <div class="comment-actions comment-item__actions">
+                <form method="post" action="{{ path('app_comment_like_toggle', { id: comment.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('like-comment-' ~ comment.id) }}">
+                    <button class="comment-like-button {{ has_liked ? 'is-active' }}" type="submit" aria-pressed="{{ has_liked ? 'true' : 'false' }}" aria-label="{{ has_liked ? 'Retirer le pouce en l’air' : 'Ajouter un pouce en l’air' }}">
+                        <span aria-hidden="true">👍</span>
+                        <span>{{ like_count }}</span>
+                    </button>
+                </form>
+
+                {% if has_admin_access and comment.status.value == 'approved' %}
+                    <form method="post" action="{{ path('app_comment_admin_heart_toggle', { id: comment.id }) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('admin-heart-comment-' ~ comment.id) }}">
+                        <button class="comment-heart-button {{ comment.adminHeartedAt ? 'is-active' }}" type="submit">
+                            {{ comment.adminHeartedAt ? 'Retirer le cœur' : 'Mettre un cœur' }}
+                        </button>
+                    </form>
+                {% endif %}
+
+                {% if has_admin_access and level == 1 and comment.status.value == 'approved' %}
+                    <form method="post" action="{{ path('app_comment_pin_toggle', { id: comment.id }) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('pin-comment-' ~ comment.id) }}">
+                        <button class="comment-pin-button {{ comment.pinnedAt ? 'is-active' }}" type="submit">
+                            {{ comment.pinnedAt ? 'Désépingler' : 'Épingler' }}
+                        </button>
+                    </form>
+                {% endif %}
+
+                {% if level == 1 and comment.status.value == 'approved' and app.user.verified is defined and app.user.verified %}
+                    <details class="comment-action-panel comment-reply-panel" data-comment-reply-panel>
+                        <summary
+                            data-comment-reply-toggle
+                            aria-controls="reply-form-{{ comment.id }}"
+                            aria-expanded="false"
+                        >
+                            Répondre
+                        </summary>
+                        <div id="reply-form-{{ comment.id }}" class="comment-item__reply">
+                            <div class="comment-composer__avatar">
+                                {% set reply_author_name = app.user.displayName ?: app.user.userIdentifier %}
+                                {% if app.user.avatarPath %}
+                                    <img class="avatar avatar--comment" src="{{ asset(app.user.avatarPath) }}" alt="">
+                                {% else %}
+                                    <span class="avatar avatar--comment avatar--initials" aria-hidden="true">{{ reply_author_name|first|upper }}</span>
+                                {% endif %}
+                            </div>
+                            <form class="comment-inline-form comment-composer__form" method="post" action="{{ path('app_comment_reply', { id: comment.id }) }}" data-comment-reply-form>
+                                <input type="hidden" name="_token" value="{{ csrf_token('reply-comment-' ~ comment.id) }}">
+                                <div class="comment-honeypot" aria-hidden="true">
+                                    <label for="reply-website-{{ comment.id }}">Site web</label>
+                                    <input id="reply-website-{{ comment.id }}" type="text" name="website" tabindex="-1" autocomplete="off">
+                                </div>
+                                <label class="sr-only" for="reply-content-{{ comment.id }}">Votre réponse</label>
+                                <textarea id="reply-content-{{ comment.id }}" name="content" rows="1" maxlength="5000" required placeholder="Ajoutez une réponse…"></textarea>
+                                <div class="comment-composer__actions">
+                                    <button type="button" class="comment-button comment-button--ghost" data-comment-reply-cancel>Annuler</button>
+                                    <button type="submit" class="comment-button comment-button--primary">Répondre</button>
+                                </div>
+                            </form>
+                        </div>
+                    </details>
+                {% endif %}
+
+                {% if is_granted('COMMENT_EDIT', comment) %}
+                    <details class="comment-action-panel">
+                        <summary>Modifier</summary>
+                        <form class="comment-inline-form" method="post" action="{{ path('app_comment_edit', { id: comment.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('edit-comment-' ~ comment.id) }}">
+                            <label for="edit-content-{{ comment.id }}">Votre commentaire</label>
+                            <textarea id="edit-content-{{ comment.id }}" name="content" rows="4" maxlength="5000" required>{{ comment.content }}</textarea>
+                            <button type="submit">Enregistrer</button>
+                        </form>
+                    </details>
+                {% endif %}
+
+                {% if is_granted('COMMENT_DELETE', comment) %}
+                    <form method="post" action="{{ path('app_comment_delete', { id: comment.id }) }}" onsubmit="return confirm('Supprimer ce commentaire ?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('delete-comment-' ~ comment.id) }}">
+                        <button type="submit">Supprimer</button>
+                    </form>
+                {% endif %}
+
+                {% if is_granted('COMMENT_REPORT', comment) %}
+                    <details class="comment-action-panel">
+                        <summary>Signaler</summary>
+                        <form class="comment-inline-form" method="post" action="{{ path('app_comment_report', { id: comment.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('report-comment-' ~ comment.id) }}">
+                            <label for="report-reason-{{ comment.id }}">Raison</label>
+                            <select id="report-reason-{{ comment.id }}" name="reason">
+                                <option value="spam">Spam</option>
+                                <option value="offensive">Offensant</option>
+                                <option value="harassment">Harcèlement</option>
+                                <option value="inappropriate">Inapproprié</option>
+                                <option value="false_information">Fausse information</option>
+                                <option value="other">Autre</option>
+                            </select>
+                            <label for="report-message-{{ comment.id }}">Message facultatif</label>
+                            <textarea id="report-message-{{ comment.id }}" name="message" rows="3" maxlength="2000"></textarea>
+                            <button type="submit">Envoyer le signalement</button>
+                        </form>
+                    </details>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="comment-actions comment-item__actions">
+                <a class="comment-login-like" href="{{ path('app_login') }}">
+                    <span aria-hidden="true">👍</span>
+                    <span>{{ like_count }}</span>
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if level == 1 %}
+        {% set visible_children = [] %}
+        {% for child in comment.children %}
+            {% if child.status.value == 'approved'
+                or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected'])
+            %}
+                {% set visible_children = visible_children|merge([child]) %}
+            {% endif %}
+        {% endfor %}
+
+        {% if visible_children|length > 0 %}
+            <button
+                class="comment-replies-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="comment-replies-{{ comment.id }}"
+                data-comment-replies-toggle
+            >
+                {{ visible_children|length }} {{ visible_children|length > 1 ? 'réponses' : 'réponse' }}
+                <span aria-hidden="true">˅</span>
+            </button>
+            <div id="comment-replies-{{ comment.id }}" class="comment-children comment-replies" data-comment-replies>
+                {% for child in visible_children %}
+                    {% include 'partials/_comment_item.html.twig' with {
+                        comment: child,
+                        level: 2,
+                        comment_like_counts: comment_like_counts|default({}),
+                        liked_comment_ids: liked_comment_ids|default([])
+                    } %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endif %}
+</article>

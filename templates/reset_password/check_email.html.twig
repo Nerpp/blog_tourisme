@@ -1,0 +1,51 @@
+{% extends 'layouts/auth.html.twig' %}
+
+{% block title %}Email envoyé - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main class="login-page auth-reset-page auth-reset-page--check">
+        <section class="login-shell auth-reset-shell" aria-labelledby="reset-check-title">
+            <aside class="login-hero auth-reset-hero" aria-label="Email de réinitialisation">
+                <div class="login-hero__content auth-reset-hero__content">
+                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <p class="login-eyebrow">Lien temporaire</p>
+                    <h1 id="reset-check-title" class="auth-reset-title">Vérifiez votre boîte mail</h1>
+                    <p class="login-hero__text auth-reset-subtitle">
+                        Votre demande suit un parcours sécurisé, sans confirmer si l’adresse existe dans nos comptes.
+                    </p>
+
+                    <div class="login-badges auth-reset-badges" aria-label="Informations de suivi">
+                        <span>Message générique</span>
+                        <span>Lien temporaire</span>
+                        <span>Compte protégé</span>
+                    </div>
+                </div>
+
+                <div class="auth-reset-visual auth-reset-visual--mail" aria-hidden="true">
+                    <span class="auth-reset-visual__sun"></span>
+                    <span class="auth-reset-visual__ridge auth-reset-visual__ridge--back"></span>
+                    <span class="auth-reset-visual__ridge auth-reset-visual__ridge--front"></span>
+                    <span class="auth-reset-visual__mail"></span>
+                </div>
+            </aside>
+
+            <section class="login-panel" aria-label="Confirmation d’envoi">
+                <div class="login-card auth-reset-card reset-check-card">
+                    <div class="auth-reset-icon auth-reset-icon--mail" aria-hidden="true"></div>
+
+                    <div class="login-card__header">
+                        <p class="login-card__kicker">Demande prise en compte</p>
+                        <h2>Vérifiez votre boîte mail</h2>
+                        <p>{{ generic_message }}</p>
+                        <p>Ce lien est temporaire et reste valide pendant {{ reset_token_lifetime // 60 }} minute{{ reset_token_lifetime // 60 > 1 ? 's' : '' }}.</p>
+                    </div>
+
+                    <div class="login-links auth-reset-actions" aria-label="Liens utiles">
+                        <a href="{{ path('app_login') }}">Retour à la connexion</a>
+                        <a href="{{ path('app_forgot_password_request') }}">Faire une nouvelle demande</a>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+{% endblock %}

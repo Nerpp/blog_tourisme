@@ -1,0 +1,129 @@
+{% extends 'layouts/comments.html.twig' %}
+
+{% set has_related_articles = place.articleLinks|filter(link => link.article and link.article.status.value == 'published')|length > 0 %}
+
+{% block title %}{{ place.seoTitle ?: place.name }} - Carnet de lieux{% endblock %}
+{% block meta_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
+{% block open_graph_title %}{{ place.seoTitle ?: place.name }}{% endblock %}
+{% block open_graph_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
+
+{% block page_stylesheets %}
+    {% if has_related_articles %}
+        {{ vite_entry_link_tags('assets/entries/related-articles.js') }}
+    {% endif %}
+{% endblock %}
+
+{% block page_javascripts %}
+    {% set comment_thread_items = comments|default([]) %}
+    {% set has_comment_reply_forms = app.user and app.user.verified is defined and app.user.verified and comment_thread_items|filter(comment => comment.parent is null and comment.status.value == 'approved')|length > 0 %}
+    {% set has_comment_replies = comment_thread_items|filter(comment => comment.parent is null and (comment.children|filter(child => child.status.value == 'approved' or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected']))|length) > 0)|length > 0 %}
+
+    {% if has_related_articles %}
+        {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
+    {% endif %}
+    {% if has_comment_reply_forms or has_comment_replies %}
+        {{ vite_entry_script_tags('assets/entries/comments.js') }}
+    {% endif %}
+{% endblock %}
+
+{% block body %}
+    <main class="page-shell article-layout">
+        <article class="article-main">
+            <header class="page-header">
+                <p class="eyebrow">
+                    {% if place.category %}{{ place.category.name }}{% else %}Repérage{% endif %}
+                    {% if place.destination %} - {{ place.destination.name }}{% endif %}
+                </p>
+                <h1>{{ place.name }}</h1>
+                {% if is_granted('EDIT', place) %}
+                    <div class="show-admin-actions">
+                        <a href="{{ path('admin_studio_place_edit', { id: place.id }) }}" class="show-admin-edit-link">Modifier</a>
+                    </div>
+                {% endif %}
+                {% if place.shortDescription %}
+                    <p>{{ place.shortDescription }}</p>
+                {% endif %}
+            </header>
+
+            <div class="featured-media">
+                {% include 'partials/_cover_media.html.twig' with {
+                    featured_media: place.featuredImage,
+                    media_links: place.mediaLinks,
+                    media_context: place
+                } only %}
+            </div>
+
+            {% if place.description %}
+                <div class="prose">{{ place.description|nl2br }}</div>
+            {% endif %}
+
+            {% set special_media_links = place.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'video' or not link.mediaAsset.imageType or link.mediaAsset.imageType.value != 'standard') %}
+            {% if special_media_links|length > 0 %}
+                <section class="section-block">
+                    <h2>Photos et vidéos</h2>
+                    {% include 'partials/_media_gallery.html.twig' with { media_links: special_media_links } only %}
+                </section>
+            {% endif %}
+        </article>
+
+        <aside class="side-panel">
+            <section>
+                <h2>Notes terrain</h2>
+                <dl class="facts-list">
+                    {% if place.destination %}
+                        <div><dt>Destination</dt><dd><a href="{{ path('app_destination_show', { slug: place.destination.slug }) }}">{{ place.destination.name }}</a></dd></div>
+                    {% endif %}
+                    {% if place.category %}<div><dt>Categorie</dt><dd>{{ place.category.name }}</dd></div>{% endif %}
+                    {% if place.address %}<div><dt>Adresse</dt><dd>{{ place.address }}</dd></div>{% endif %}
+                    {% if place.visitDurationMinutes %}<div><dt>Duree</dt><dd>{{ place.visitDurationMinutes }} min</dd></div>{% endif %}
+                    {% if place.difficulty %}<div><dt>Difficulte</dt><dd>{{ place.difficulty.value }}</dd></div>{% endif %}
+                    {% if place.priceType %}<div><dt>Prix</dt><dd>{{ place.priceType.value }}</dd></div>{% endif %}
+                    {% if place.latitude is not null and place.longitude is not null %}
+                        <div>
+                            <dt>Coordonnees</dt>
+                            <dd>
+                                {{ place.latitude }}, {{ place.longitude }}
+                                {% include 'partials/_google_maps_link.html.twig' with { place: place } only %}
+                            </dd>
+                        </div>
+                    {% elseif place.name and place.destination %}
+                        <div>
+                            <dt>Carte</dt>
+                            <dd>
+                                {% include 'partials/_google_maps_link.html.twig' with { place: place } only %}
+                            </dd>
+                        </div>
+                    {% endif %}
+                </dl>
+            </section>
+
+            {% if place.tagLinks|length > 0 %}
+                <section>
+                    <h2>Tags</h2>
+                    <div class="badges">
+                        {% for tagLink in place.tagLinks %}
+                            <span class="badge">{{ tagLink.tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                </section>
+            {% endif %}
+
+            {% include 'public_detail/_related_articles.html.twig' with {
+                article_links: place.articleLinks,
+                section_title: 'Pour aller plus loin',
+                modal_id_prefix: 'place-related-article-' ~ place.id
+            } only %}
+        </aside>
+
+        <div class="full-span">
+            {% include 'partials/_comments.html.twig' with {
+                comments: comments,
+                comment_form: comment_form,
+                comments_count: comments_count,
+                comments_sort: comments_sort,
+                comment_like_counts: comment_like_counts,
+                liked_comment_ids: liked_comment_ids
+            } %}
+        </div>
+    </main>
+{% endblock %}

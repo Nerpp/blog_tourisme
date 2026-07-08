@@ -1,0 +1,134 @@
+{% set image_media_links = media_links|filter(link => link.mediaAsset and link.mediaAsset.mediaType.value == 'image') %}
+{% set gallery_context = gallery_context|default(null) %}
+{% set gallery_context_title = gallery_context_title|default('Média touristique') %}
+{% set gallery_preload_neighbors = gallery_preload_neighbors is defined ? gallery_preload_neighbors : true %}
+
+{% if image_media_links|length > 0 %}
+    <div class="journey-gallery">
+        {% for mediaLink in image_media_links|slice(0, 5) %}
+            {% set media = mediaLink.mediaAsset %}
+            {% set image_url = media_image_url(media, 'thumb') %}
+
+            {% if image_url %}
+                {% set card_sizes = loop.first ? '(min-width: 900px) 50vw, (max-width: 360px) calc(100vw - 58px), (max-width: 640px) calc(100vw - 70px), 90vw' : '(min-width: 900px) 25vw, 45vw' %}
+
+                <button
+                    type="button"
+                    class="journey-gallery-card {{ loop.first ? 'journey-gallery-card--large' : '' }}"
+                    aria-label="Afficher la photo {{ loop.index }} en grand"
+                    data-gallery-target="#{{ gallery_id }}"
+                    data-gallery-index="{{ loop.index0 }}"
+                >
+                    <span class="media-badge" aria-hidden="true">
+                        Photo
+                    </span>
+
+                    {% include 'public_detail/_responsive_image.html.twig' with {
+                        media: media,
+                        alt: media_public_alt(media, gallery_context, gallery_context_title),
+                        image_size: loop.first ? 'medium' : 'thumb',
+                        display_profile: loop.first ? 'content' : 'thumbnail',
+                        sizes: card_sizes
+                    } only %}
+
+                    {% if loop.index == 5 and image_media_links|length > 5 %}
+                        <span class="journey-gallery-card__more">
+                            +{{ image_media_links|length - 5 }} photo{{ image_media_links|length - 5 > 1 ? 's' : '' }}
+                        </span>
+                    {% endif %}
+                </button>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <div
+        id="{{ gallery_id }}"
+        class="gallery-modal js-gallery-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-hidden="true"
+        aria-labelledby="{{ gallery_id }}-title"
+        data-gallery-preload-neighbors="{{ gallery_preload_neighbors ? 'true' : 'false' }}"
+        hidden
+    >
+        <div class="gallery-modal__dialog" role="document">
+            <header class="gallery-modal__header">
+                <div>
+                    <h2 id="{{ gallery_id }}-title" class="gallery-modal__title">
+                        {{ modal_title }}
+                    </h2>
+
+                    <div class="gallery-modal__counter js-gallery-counter">
+                        1 / {{ image_media_links|length }}
+                    </div>
+                </div>
+
+                <button
+                    type="button"
+                    class="gallery-modal__close js-gallery-close"
+                    aria-label="Fermer la galerie"
+                >
+                    ×
+                </button>
+            </header>
+
+            <div class="gallery-modal__body">
+                <button
+                    type="button"
+                    class="gallery-modal__nav gallery-modal__nav--prev js-gallery-prev"
+                    aria-label="Photo précédente"
+                >
+                    ‹
+                </button>
+
+                <button
+                    type="button"
+                    class="gallery-modal__nav gallery-modal__nav--next js-gallery-next"
+                    aria-label="Photo suivante"
+                >
+                    ›
+                </button>
+
+                {% for mediaLink in image_media_links %}
+                    {% set media = mediaLink.mediaAsset %}
+                    {% set image_url = media_modal_url(media) %}
+
+                    {% if image_url %}
+                        {% set has_caption = media.caption is not empty %}
+
+                        <article class="gallery-modal__slide js-gallery-slide {{ has_caption ? 'gallery-modal__slide--with-comment' : 'gallery-modal__slide--image-only' }} {{ loop.first ? 'is-active' : '' }}">
+                            <figure class="gallery-modal__media">
+                                <img
+                                    data-gallery-src="{{ image_url }}"
+                                    alt="{{ media_public_alt(media, gallery_context, gallery_context_title) }}"
+                                    decoding="async"
+                                    {% if media.width and media.height %}
+                                        width="{{ media.width }}"
+                                        height="{{ media.height }}"
+                                    {% endif %}
+                                >
+                            </figure>
+
+                            {% if has_caption %}
+                                <div class="gallery-modal__caption">
+                                    <p>{{ media.caption|nl2br }}</p>
+                                </div>
+                            {% endif %}
+                        </article>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <footer class="gallery-modal__footer" aria-label="Navigation galerie">
+                {% for mediaLink in image_media_links %}
+                    <button
+                        type="button"
+                        class="gallery-modal__dot js-gallery-dot {{ loop.first ? 'is-active' : '' }}"
+                        aria-label="Afficher la photo {{ loop.index }}"
+                        aria-current="{{ loop.first ? 'true' : 'false' }}"
+                    ></button>
+                {% endfor %}
+            </footer>
+        </div>
+    </div>
+{% endif %}

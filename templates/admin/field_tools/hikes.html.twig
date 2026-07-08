@@ -1,0 +1,62 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Randonnées{% endblock %}
+
+{% block stylesheets %}
+    <style>
+        .studio-hike-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Randonnées rapides</h1>
+            <p class="admin-subtitle">Brouillons et sorties terrain créés depuis le smartphone.</p>
+        </div>
+        <a class="admin-button" href="{{ path('admin_quick_index', { type: 'hike' }) }}">Créer une randonnée</a>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Titre</th>
+                    <th>Statut</th>
+                    <th>Commune</th>
+                    <th>Destination</th>
+                    <th>Points</th>
+                    <th>Création</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for hike in hikes %}
+                    <tr>
+                        <td>{{ hike.title }}</td>
+                        <td>{{ hike.status.value }}</td>
+                        <td>{{ hike.detectedCommuneName ?: '-' }}</td>
+                        <td>{{ hike.destination ?: '-' }}</td>
+                        <td>{{ hike.points|length }}</td>
+                        <td>{{ hike.createdAt ? hike.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
+                        <td>
+                            <div class="studio-hike-actions">
+                                <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir</a>
+                                <form method="post" action="{{ path('admin_studio_hike_delete', { id: hike.id }) }}" onsubmit="return confirm('Supprimer cette randonnée ? Les images locales inutilisées et les destinations devenues orphelines pourront aussi être supprimées.');">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('studio_hike_delete_' ~ hike.id) }}">
+                                    <button class="admin-button admin-button--small admin-button--danger-soft" type="submit">Supprimer</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7">Aucune randonnée rapide.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

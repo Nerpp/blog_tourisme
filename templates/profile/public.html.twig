@@ -1,0 +1,26 @@
+{% extends 'layouts/profile.html.twig' %}
+
+{% block title %}{{ profile_user.displayName ?: profile_user.userIdentifier }} - Profil{% endblock %}
+
+{% block body %}
+    <main class="profile-page">
+        <div class="profile-shell">
+            <section class="profile-hero">
+                <div class="profile-hero__avatar">
+                    {% if profile_user.avatarPath %}
+                        <img class="profile-avatar profile-avatar--large" src="{{ asset(profile_user.avatarPath) }}" alt="">
+                    {% else %}
+                        <span class="profile-avatar profile-avatar--large avatar--initials" aria-hidden="true">
+                            {{ (profile_user.displayName ?: profile_user.userIdentifier)|first|upper }}
+                        </span>
+                    {% endif %}
+                </div>
+                <div class="profile-hero__content">
+                    <p class="profile-kicker">@{{ profile_user.mentionHandle }}</p>
+                    <h1>{{ profile_user.displayName ?: profile_user.userIdentifier }}</h1>
+                    <p>Membre depuis {{ profile_user.createdAt ? profile_user.createdAt|date('d/m/Y') : 'quelque temps' }}.</p>
+                </div>
+            </section>
+        </div>
+    </main>
+{% endblock %}

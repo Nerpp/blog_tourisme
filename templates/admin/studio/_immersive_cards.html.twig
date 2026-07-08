@@ -1,0 +1,24 @@
+{% if media_links %}
+    <div class="studio-media-grid">
+        {% for media_link in media_links %}
+            {% set media = media_link.mediaAsset %}
+            {% set image_src = media_image_url(media, 'thumb') %}
+            <article class="studio-media-card">
+                {% if image_src %}
+                    <img class="studio-media-thumb" src="{{ image_src }}" alt="{{ media.altText ?: media.title ?: subject_label }}">
+                {% endif %}
+                <div class="studio-meta">
+                    {% if media.imageType %}
+                        <span class="studio-badge">{{ image_type_options[media.imageType.value] ?? media.imageType.value }}</span>
+                    {% endif %}
+                </div>
+                <strong>{{ media.title ?: 'Média sans titre' }}</strong>
+                {% if media.caption %}
+                    <span class="admin-muted">{{ media.caption }}</span>
+                {% endif %}
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="admin-muted">Aucune image 360° ou 180° n’est encore configurée.</p>
+{% endif %}

@@ -1,0 +1,92 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}{{ title }}{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ title }}</h1>
+            <p class="admin-subtitle">Créez la destination finale et choisissez un parent si la hiérarchie existe déjà.</p>
+        </div>
+        <div class="admin-row-actions">
+            {% if destination.id and destination.slug is not empty %}
+                <a class="admin-button admin-button--secondary" href="{{ path('app_destination_show', { slug: destination.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu</a>
+            {% endif %}
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_destinations_index') }}">Retour</a>
+        </div>
+    </header>
+
+    <section class="admin-card">
+        <form class="admin-form" method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token(destination.id ? 'admin_destination_' ~ destination.id : 'admin_destination_form') }}">
+            <input type="hidden" name="name" value="{{ destination.name }}">
+            <div class="admin-form-grid">
+                <div class="admin-field">
+                    <label for="destination-country">Pays</label>
+                    <input id="destination-country" name="countryName" value="{{ destination.type.value == 'country' ? destination.name : '' }}">
+                </div>
+                <div class="admin-field">
+                    <label for="destination-region">Région</label>
+                    <input id="destination-region" name="regionName" value="{{ destination.type.value == 'region' ? destination.name : '' }}">
+                </div>
+                <div class="admin-field">
+                    <label for="destination-department">Département / province</label>
+                    <input id="destination-department" name="departmentName" value="{{ destination.type.value == 'department' ? destination.name : '' }}">
+                </div>
+                <div class="admin-field">
+                    <label for="destination-city">Ville</label>
+                    <input id="destination-city" name="cityName" value="{{ destination.type.value == 'city' ? destination.name : '' }}">
+                </div>
+                <div class="admin-field">
+                    <label for="destination-area">Zone / lieu</label>
+                    <input id="destination-area" name="areaName" value="{{ destination.type.value == 'area' ? destination.name : '' }}">
+                </div>
+                <div class="admin-field">
+                    <label for="destination-type">Type</label>
+                    <select id="destination-type" name="type">
+                        {% for value, label in type_options %}
+                            <option value="{{ value }}" {% if destination.type.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="destination-parent">Parent optionnel</label>
+                    <select id="destination-parent" name="parent">
+                        <option value="">Aucun parent</option>
+                        {% for parent in destinations %}
+                            {% if not destination.id or parent.id != destination.id %}
+                                <option value="{{ parent.id }}" {% if destination.parent and destination.parent.id == parent.id %}selected{% endif %}>{{ parent.name }} · {{ type_options[parent.type.value] ?? parent.type.value }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="destination-code">Code optionnel</label>
+                    <input id="destination-code" name="code" value="{{ destination.code }}">
+                </div>
+                <div class="admin-field">
+                    <label for="destination-latitude">Latitude</label>
+                    <input id="destination-latitude" name="latitude" type="number" step="any" value="{{ destination.latitude }}">
+                </div>
+                <div class="admin-field">
+                    <label for="destination-longitude">Longitude</label>
+                    <input id="destination-longitude" name="longitude" type="number" step="any" value="{{ destination.longitude }}">
+                </div>
+                {% if destination.latitude is not null and destination.longitude is not null %}
+                    <div class="admin-field">
+                        <span class="admin-muted">Carte</span>
+                        <a class="admin-button admin-button--secondary" href="https://www.google.com/maps/search/?api=1&query={{ destination.latitude }},{{ destination.longitude }}" target="_blank" rel="noopener noreferrer">Voir sur Google Maps</a>
+                    </div>
+                {% endif %}
+                <div class="admin-field admin-field--full">
+                    <label for="destination-description">Description</label>
+                    <textarea id="destination-description" name="description" rows="5">{{ destination.description }}</textarea>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button class="admin-button" type="submit">{{ submit_label }}</button>
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_destinations_index') }}">Annuler</a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

@@ -1,0 +1,9 @@
+# Ce fichier est un modèle.
+# Copier ce fichier sur le serveur dans :
+# config/production/initial-admins.yaml
+#
+# Ne jamais mettre d’adresse e-mail réelle dans ce fichier .dist.
+
+super_admins: []
+
+admins: []

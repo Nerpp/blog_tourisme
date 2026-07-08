@@ -1,0 +1,104 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}{{ title }}{% endblock %}
+
+{% block stylesheets %}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_link_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
+{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ title }}</h1>
+            <p class="admin-subtitle">Ce brouillon sert uniquement à mémoriser une destination possible. Il ne crée pas automatiquement une randonnée, une visite ou une destination publique.</p>
+        </div>
+        <a class="admin-button admin-button--secondary" href="{{ path('admin_prevision_destinations_index') }}">Retour à l’index</a>
+    </header>
+
+    <section class="admin-card prevision-form-layout" data-prevision-destination-form>
+        {{ form_start(form, { attr: { class: 'admin-form', novalidate: 'novalidate' } }) }}
+            {{ form_errors(form) }}
+
+            <div class="admin-form-grid">
+                <div class="admin-field">
+                    {{ form_label(form.title) }}
+                    {{ form_widget(form.title) }}
+                    {{ form_errors(form.title) }}
+                </div>
+                <div class="admin-field">
+                    {{ form_label(form.status) }}
+                    {{ form_widget(form.status) }}
+                    {{ form_errors(form.status) }}
+                </div>
+                <div class="admin-field">
+                    {{ form_label(form.source) }}
+                    {{ form_widget(form.source, { attr: { 'data-source-input': 'true', 'data-prevision-source': 'true' } }) }}
+                    {{ form_errors(form.source) }}
+                </div>
+                <div class="admin-field">
+                    {{ form_label(form.priority) }}
+                    {{ form_widget(form.priority) }}
+                    {{ form_errors(form.priority) }}
+                </div>
+                <div class="admin-field">
+                    {{ form_label(form.plannedPeriod) }}
+                    {{ form_widget(form.plannedPeriod) }}
+                    {{ form_errors(form.plannedPeriod) }}
+                </div>
+            </div>
+
+            {% include 'admin/partials/_location_geopoint_picker.html.twig' with {
+                render_root: false,
+                picker_id: 'prevision-destination-location',
+                legacy_prefix: 'prevision',
+                mode: 'prevision_destination',
+                commune_title: 'Commune / village',
+                point_title: 'Point précis',
+                search_help: 'La commune sert au classement administratif. Le point sur la carte peut être déplacé pour choisir précisément le lieu à visiter.',
+                point_help: 'Déplacez le marqueur ou cliquez sur la carte pour choisir le point exact. Utilisez la molette de la souris pour zoomer ou dézoomer la carte.',
+                fields: {
+                    commune: { form_field: form.commune },
+                    insee: { form_field: form.inseeCode },
+                    postal: { form_field: form.postalCode },
+                    department: { form_field: form.department },
+                    region: { form_field: form.region },
+                    country: { form_field: form.country },
+                    latitude: { form_field: form.latitude },
+                    longitude: { form_field: form.longitude },
+                    accuracy: { form_field: form.gpsAccuracy },
+                    communeCenterLatitude: { value: '' },
+                    communeCenterLongitude: { value: '' }
+                },
+                location_field_keys: ['commune', 'insee', 'postal', 'department', 'region', 'country'],
+                coordinate_field_keys: ['latitude', 'longitude', 'accuracy'],
+                initial_commune: prevision_destination.commune,
+                initial_department: prevision_destination.department,
+                initial_region: prevision_destination.region,
+                initial_insee: prevision_destination.inseeCode,
+                initial_postal_code: prevision_destination.postalCode,
+                initial_latitude: prevision_destination.latitude is not null ? prevision_destination.latitude|number_format(7, '.', '') : '',
+                initial_longitude: prevision_destination.longitude is not null ? prevision_destination.longitude|number_format(7, '.', '') : ''
+            } only %}
+
+            <div class="admin-field admin-field--full">
+                {{ form_label(form.notes) }}
+                {{ form_widget(form.notes, { attr: { rows: 6 } }) }}
+                {{ form_errors(form.notes) }}
+            </div>
+
+            <div class="admin-actions">
+                <button class="admin-button" type="submit">{{ submit_label }}</button>
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_prevision_destinations_index') }}">Annuler</a>
+            </div>
+            <p class="admin-muted">Pensez à valider le point sur la carte avant d’enregistrer.</p>
+        {{ form_end(form) }}
+    </section>
+{% endblock %}
+
+{% block javascripts %}
+    {% if app.environment != 'test' %}
+        {{ vite_entry_script_tags('assets/js/location-geopoint-picker.js') }}
+    {% endif %}
+{% endblock %}

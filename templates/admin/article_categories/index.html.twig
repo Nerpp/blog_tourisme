@@ -1,0 +1,59 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Catégories d’articles{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Catégories d’articles</h1>
+            <p class="admin-subtitle">Gérez les catégories proposées dans les formulaires de création et d’édition des articles.</p>
+        </div>
+        <div class="admin-row-actions">
+            <a class="admin-button admin-button--secondary" href="{{ path('admin_articles_index') }}">Articles</a>
+            <a class="admin-button" href="{{ path('admin_article_categories_new') }}">Nouvelle catégorie</a>
+        </div>
+    </header>
+
+    <section class="admin-card admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Slug</th>
+                    <th>Description</th>
+                    <th>Articles</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category in categories %}
+                    {% set is_shared = category.type.value == 'both' %}
+                    <tr>
+                        <td>
+                            {{ category.name }}
+                            {% if is_shared %}<span class="admin-badge admin-badge--info">Partagée avec les lieux</span>{% endif %}
+                        </td>
+                        <td><code>{{ category.slug }}</code></td>
+                        <td>{{ category.description ?: '—' }}</td>
+                        <td>{{ category.articles|length }}</td>
+                        <td>
+                            {% if is_shared %}
+                                <span class="admin-muted">Protégée dans ce CRUD</span>
+                            {% else %}
+                                <div class="admin-row-actions">
+                                    <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_article_categories_edit', { id: category.id }) }}">Modifier</a>
+                                    <form method="post" action="{{ path('admin_article_categories_delete', { id: category.id }) }}" onsubmit="return confirm('Supprimer définitivement cette catégorie ?');">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('admin_article_category_delete_' ~ category.id) }}">
+                                        <button class="admin-button admin-button--small admin-button--danger" type="submit">Supprimer</button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="5">Aucune catégorie d’article.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% endblock %}

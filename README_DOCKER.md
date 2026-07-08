@@ -10,7 +10,7 @@ Webpack Encore n'est pas utilise dans ce projet.
 docker compose up -d --build
 ```
 
-Au premier demarrage, le conteneur PHP lance `composer install` si le dossier `vendor/` n'existe pas. Le service Node lance `npm install`, puis `npm run dev`.
+Au premier demarrage, le conteneur PHP lance `composer install` si le dossier `vendor/` n'existe pas. Le service Node est un service one-shot : il sert de runtime reproductible pour les commandes npm, mais il n'est pas necessaire de le laisser tourner en permanence.
 
 Les services PHP et Node utilisent `DOCKER_UID` et `DOCKER_GID` depuis `.env` pour eviter de creer des fichiers appartenant a `root` sur l'hote.
 
@@ -40,11 +40,11 @@ Ne pas installer `symfony/webpack-encore-bundle`.
 
 ```bash
 docker compose run --rm node npm install
-docker compose run --rm node npm run dev
+docker compose run --rm --service-ports node npm run dev
 docker compose run --rm node npm run build
 ```
 
-Le serveur Vite est expose sur le port `5173`.
+Le serveur Vite est expose sur le port `5173` lorsque la commande est lancee avec `--service-ports`.
 
 ## Base de donnees
 

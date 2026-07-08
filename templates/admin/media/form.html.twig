@@ -1,0 +1,73 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}{{ title }}{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">{{ title }}</h1>
+            <p class="admin-subtitle">Renseignez un fichier existant ou une URL externe. Les uploads terrain restent gérés par les Studios.</p>
+        </div>
+        <a class="admin-button admin-button--secondary" href="{{ path('admin_media_index') }}">Retour</a>
+    </header>
+
+    <section class="admin-card">
+        <form class="admin-form" method="post">
+            <input type="hidden" name="_token" value="{{ csrf_token(media.id ? 'admin_media_' ~ media.id : 'admin_media_form') }}">
+            <div class="admin-form-grid">
+                <div class="admin-field">
+                    <label for="media-title">Titre</label>
+                    <input id="media-title" name="title" value="{{ media.title }}">
+                </div>
+                <div class="admin-field">
+                    <label for="media-type">Type de média</label>
+                    <select id="media-type" name="mediaType">
+                        {% for value, label in media_type_options %}
+                            <option value="{{ value }}" {% if media.mediaType.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="media-image-type">Type d’image</label>
+                    <select id="media-image-type" name="imageType">
+                        {% for value, label in image_type_options %}
+                            <option value="{{ value }}" {% if media.imageType and media.imageType.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="media-video-type">Type de vidéo</label>
+                    <select id="media-video-type" name="videoType">
+                        {% for value, label in video_type_options %}
+                            <option value="{{ value }}" {% if media.videoType and media.videoType.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="admin-field">
+                    <label for="media-file">Fichier</label>
+                    <input id="media-file" name="filePath" value="{{ media.filePath }}">
+                </div>
+                <div class="admin-field">
+                    <label for="media-url">URL externe</label>
+                    <input id="media-url" name="externalUrl" value="{{ media.externalUrl }}">
+                </div>
+                <div class="admin-field">
+                    <label for="media-thumbnail">Miniature</label>
+                    <input id="media-thumbnail" name="thumbnailPath" value="{{ media.thumbnailPath }}">
+                </div>
+                <div class="admin-field">
+                    <label for="media-alt">Texte alternatif</label>
+                    <input id="media-alt" name="altText" value="{{ media.altText }}">
+                </div>
+                <div class="admin-field admin-field--full">
+                    <label for="media-caption">Légende</label>
+                    <textarea id="media-caption" name="caption" rows="4">{{ media.caption }}</textarea>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <button class="admin-button" type="submit">{{ submit_label }}</button>
+                <a class="admin-button admin-button--secondary" href="{{ path('admin_media_index') }}">Annuler</a>
+            </div>
+        </form>
+    </section>
+{% endblock %}

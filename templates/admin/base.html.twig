@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="icon" type="image/webp" sizes="32x32" href="{{ asset('images/brand/estela-favicon-32.webp') }}">
+        <link rel="icon" type="image/webp" sizes="48x48" href="{{ asset('images/brand/estela-favicon-48.webp') }}">
+        <title>{% block title %}Admin — {% block admin_title %}Administration{% endblock %} — Estela{% endblock %}</title>
+        {{ vite_entry_link_tags('assets/js/admin.js') }}
+        {% block stylesheets %}{% endblock %}
+    </head>
+    <body>
+        {% set route = app.request.attributes.get('_route') %}
+        {% set pending_comment_reports = comment_pending_report_count() %}
+        <div class="admin-shell">
+            <aside class="admin-sidebar">
+                <a class="admin-brand" href="{{ path('admin') }}">Administration</a>
+                <button
+                    class="admin-menu-toggle js-admin-menu-toggle"
+                    type="button"
+                    aria-controls="admin-navigation"
+                    aria-expanded="false"
+                >
+                    Menu administration
+                </button>
+                <nav id="admin-navigation" class="admin-nav js-admin-menu" aria-label="Navigation admin">
+                    <section>
+                        <h2>Contenu</h2>
+                        <a href="{{ path('admin_articles_index') }}" class="{{ route starts with 'admin_articles' ? 'is-active' }}">Articles</a>
+                        <a href="{{ path('admin_article_categories_index') }}" class="{{ route starts with 'admin_article_categories' ? 'is-active' }}">Catégories d’articles</a>
+                        <a href="{{ path('admin_places_index') }}" class="{{ route starts with 'admin_places' or route starts with 'admin_studio_place' ? 'is-active' }}">Repérages</a>
+                        <a href="{{ path('admin_destinations_index') }}" class="{{ route starts with 'admin_destinations' ? 'is-active' }}">Destinations</a>
+                        <a href="{{ path('admin_media_index') }}" class="{{ route starts with 'admin_media' ? 'is-active' }}">Médias</a>
+                    </section>
+                    <section>
+                        <h2>Modération</h2>
+                        <a href="{{ path('admin_comments_index') }}" class="{{ route in ['admin_comments_index', 'admin_comments_pending'] ? 'is-active' }}">Commentaires</a>
+                        <a href="{{ path('admin_comments_reports') }}" class="{{ route in ['admin_comments_reports', 'admin_comments_reported'] ? 'is-active' }}">
+                            Signalements{% if pending_comment_reports > 0 %} : {{ pending_comment_reports }}{% endif %}
+                        </a>
+                        <a href="{{ path('admin_moderation_keywords_index') }}" class="{{ route starts with 'admin_moderation_keywords' ? 'is-active' }}">Mots-clés de modération</a>
+                    </section>
+                    <section>
+                        <h2>Outils terrain</h2>
+                        <a href="{{ path('admin_quick_index') }}" class="{{ route starts with 'admin_quick' ? 'is-active' }}">Création rapide</a>
+                        <a href="{{ path('admin_studio_index') }}" class="{{ route == 'admin_studio_index' or route in ['admin_field_tools_hikes', 'admin_field_tools_city_visits'] or route starts with 'admin_studio_hike' or route starts with 'admin_studio_city_visit' ? 'is-active' }}">Studio</a>
+                        <a href="{{ path('admin_field_tools_gps') }}" class="{{ route == 'admin_field_tools_gps' ? 'is-active' }}">GPS terrain</a>
+                    </section>
+                    <section>
+                        <h2>Prévision</h2>
+                        <a href="{{ path('admin_prevision_destinations_index') }}" class="{{ route == 'admin_prevision_destinations_index' ? 'is-active' }}">Index</a>
+                        <a href="{{ path('admin_prevision_destinations_new') }}" class="{{ route == 'admin_prevision_destinations_new' ? 'is-active' }}">Ajouter une destination</a>
+                    </section>
+                    <section>
+                        <h2>Système</h2>
+                        <a href="{{ path('admin_traffic_index') }}" class="{{ route starts with 'admin_traffic' ? 'is-active' }}">Trafic</a>
+                        <a href="{{ path('admin_users_index') }}" class="{{ route starts with 'admin_users' ? 'is-active' }}">Utilisateurs</a>
+                        <a href="{{ path('app_home') }}">Retour au site public</a>
+                    </section>
+                </nav>
+            </aside>
+
+            <main class="admin-main">
+                {% for label, messages in app.flashes %}
+                    {% for message in messages %}
+                        <div class="flash flash-{{ label }}">{{ message }}</div>
+                    {% endfor %}
+                {% endfor %}
+
+                {% block body %}{% endblock %}
+            </main>
+        </div>
+        {{ vite_entry_script_tags('assets/js/admin.js') }}
+        {% block javascripts %}{% endblock %}
+    </body>
+</html>

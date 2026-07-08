@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block subject %}Estela Explorations{% endblock %}</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f7f3ea;font-family:Arial,Helvetica,sans-serif;color:#243b36;">
+        <div style="display:none;font-size:1px;color:#f7f3ea;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+            {% block preheader %}Un message de Estela Explorations{% endblock %}
+        </div>
+
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;background:#f7f3ea;padding:24px 12px;">
+            <tr>
+                <td align="center" style="padding:24px 12px;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid #e7dfcf;border-radius:20px;background:#ffffff;">
+                        <tr>
+                            <td style="padding:32px 28px 28px;text-align:center;">
+                                <img
+                                    src="{{ absolute_url(asset('images/brand/estela-email-logo.png')) }}"
+                                    alt="Estela Explorations"
+                                    width="160"
+                                    style="display:block;width:160px;max-width:160px;height:auto;border:0;margin:0 auto 24px auto;"
+                                >
+
+                                {% block hero %}
+                                    
+                                    <h1 style="margin:0;color:#243b36;font-size:28px;line-height:1.2;font-weight:700;">
+                                        {% block email_title %}Estela Explorations{% endblock %}
+                                    </h1>
+                                {% endblock %}
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="padding:0 28px 32px;">
+                                {% block content %}{% endblock %}
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <td style="padding:22px 28px 28px;border-top:1px solid #e7dfcf;background:#fbf8f0;text-align:center;">
+                                <p style="margin:0;color:#243b36;font-size:14px;line-height:1.6;font-weight:700;">
+                                    Estela Explorations
+                                </p>
+                                <p style="margin:4px 0 0;color:#66756d;font-size:13px;line-height:1.6;">
+                                    Randonnées, villages et découvertes nature.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+</html>

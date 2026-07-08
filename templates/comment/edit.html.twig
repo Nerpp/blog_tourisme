@@ -1,0 +1,14 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Modifier un commentaire - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main>
+        <h1>Modifier le commentaire</h1>
+
+        {{ form_start(comment_form) }}
+            {{ form_row(comment_form.content) }}
+            {{ form_row(comment_form.submit) }}
+        {{ form_end(comment_form) }}
+    </main>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'admin/base.html.twig' %}
+
+{% block admin_title %}Studio{% endblock %}
+
+{% block body %}
+    <header class="admin-header">
+        <div>
+            <h1 class="admin-title">Studio</h1>
+            <p class="admin-subtitle">Retrouvez vos contenus et complétez-les avec les médias, descriptions et informations de publication.</p>
+        </div>
+    </header>
+
+    <section class="admin-grid" aria-label="Choix du studio">
+        <article class="admin-card">
+            <h2>Randonnées</h2>
+            <p class="admin-muted">Gérer les randonnées et leurs médias.</p>
+            <div class="admin-actions">
+                <a class="admin-button" href="{{ path('admin_field_tools_hikes') }}">Ouvrir le studio randonnées</a>
+            </div>
+        </article>
+
+        <article class="admin-card">
+            <h2>Visites de ville</h2>
+            <p class="admin-muted">Gérer les visites de ville et leurs étapes.</p>
+            <div class="admin-actions">
+                <a class="admin-button" href="{{ path('admin_field_tools_city_visits') }}">Ouvrir le studio visites de ville</a>
+            </div>
+        </article>
+
+        <article class="admin-card">
+            <h2>GPS terrain</h2>
+            <p class="admin-muted">Relever une position depuis le téléphone, afficher la hauteur GPS, récupérer le QNH et calculer le QFE Skywatch.</p>
+            <div class="admin-actions">
+                <a class="admin-button" href="{{ path('admin_field_tools_gps') }}">Ouvrir le GPS terrain</a>
+            </div>
+        </article>
+    </section>
+{% endblock %}

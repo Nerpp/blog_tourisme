@@ -1,0 +1,129 @@
+{% extends 'layouts/public-detail.html.twig' %}
+
+{% set cover_media = null %}
+{% set fallback_cover_media = null %}
+
+{% for mediaLink in hike.mediaLinks %}
+    {% set media = mediaLink.mediaAsset %}
+
+    {% if media and media.mediaType.value == 'image' %}
+        {% if fallback_cover_media is null %}
+            {% set fallback_cover_media = media %}
+        {% endif %}
+
+        {% if cover_media is null and mediaLink.role.value == 'cover' %}
+            {% set cover_media = media %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+{% set cover_media = cover_media ?: fallback_cover_media %}
+
+{% set cover_image = null %}
+{% set cover_webp_image = null %}
+{% set cover_webp_srcset = null %}
+{% set cover_fallback_srcset = null %}
+{% set cover_sizes = '(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
+
+{% if cover_media %}
+    {% set cover_image = media_cover_image_url(cover_media, 'medium', 'fallback') %}
+    {% set cover_webp_image = media_cover_image_url(cover_media, 'medium', 'webp') %}
+    {% set cover_webp_srcset = media_cover_image_srcset(cover_media, 'webp') %}
+    {% set cover_fallback_srcset = media_cover_image_srcset(cover_media, 'fallback') %}
+{% endif %}
+
+{% block title %}{{ hike.title }} - Randonnée{% endblock %}
+
+{% block preloads %}
+    {% if cover_image %}
+        <link
+            rel="preload"
+            as="image"
+            href="{{ cover_webp_image ?: cover_image }}"
+            {% if cover_webp_image %}type="image/webp"{% endif %}
+            {% if cover_webp_srcset %}imagesrcset="{{ cover_webp_srcset }}" imagesizes="{{ cover_sizes }}"{% elseif cover_fallback_srcset %}imagesrcset="{{ cover_fallback_srcset }}" imagesizes="{{ cover_sizes }}"{% endif %}
+            fetchpriority="high"
+        >
+    {% endif %}
+{% endblock %}
+
+{% block body %}
+    <main class="public-detail-page public-detail-page--hike">
+        <section class="public-detail-hero">
+            <div class="public-detail-container public-detail-hero-grid">
+                <div>
+                    <p class="public-detail-kicker">Randonnée</p>
+
+                    <h1 class="public-detail-title">{{ hike.title }}</h1>
+
+                    {% if hike.notes %}
+                        <p class="public-detail-intro">{{ hike.notes|nl2br }}</p>
+                    {% endif %}
+
+                    {% include 'public_detail/_content_meta_badges.html.twig' with {
+                        destination: hike.destination,
+                        detected_commune_name: hike.detectedCommuneName,
+                        detected_department_name: hike.detectedDepartmentName,
+                        detected_region_name: hike.detectedRegionName,
+                        points_count: hike.points|length,
+                        show_destination_badge: false
+                    } only %}
+                </div>
+
+                <div class="public-detail-cover {{ cover_media ? 'public-detail-cover--media' : '' }}">
+                    {% if cover_media %}
+                        {% include 'public_detail/_cover_image.html.twig' with {
+                            media: cover_media,
+                            alt: media_public_alt(cover_media, hike, hike.title),
+                            sizes: cover_sizes
+                        } only %}
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <section class="public-detail-content">
+            <div class="public-detail-container">
+                {% set gallery_id = 'hike-gallery-' ~ hike.id %}
+
+                <div class="public-detail-layout">
+                    {% include 'public_detail/_section_nav.html.twig' with {
+                        entries: [
+                            { label: 'Photos', href: '#' ~ gallery_id ~ '-photos' },
+                            { label: 'Vidéos', href: '#' ~ gallery_id ~ '-videos' },
+                            { label: 'Immersion', href: '#' ~ gallery_id ~ '-immersive' },
+                            { label: 'Itinéraire', href: '#' ~ gallery_id ~ '-points' },
+                            { label: 'Articles', href: '#hike-related-articles-' ~ hike.id }
+                        ],
+                        admin_subject: hike,
+                        admin_edit_path: path('admin_studio_hike_edit', { id: hike.id })
+                    } only %}
+
+                    <div class="public-detail-main">
+                        {% include 'public_detail/_media_sections.html.twig' with {
+                            item: hike,
+                            item_title: hike.title,
+                            gallery_id: gallery_id,
+                            photos_title: 'Photos du parcours',
+                            photos_description: 'Les images classiques du lieu, utiles pour ressentir l’ambiance générale de la balade.',
+                            video_kicker: 'Drone',
+                            videos_title: 'Vidéos aériennes',
+                            videos_description: 'Les vidéos prises pendant l’exploration permettent de visualiser le relief, les accès et l’ambiance du site.',
+                            video_fallback_title: 'Vidéo du parcours',
+                            points_title: 'Étapes de la randonnée',
+                            gps_point_type: 'hike'
+                        } only %}
+
+                        {% include 'public_detail/_related_articles.html.twig' with {
+                            article_links: hike.articleLinks,
+                            section_title: 'Autour de cette balade',
+                            section_id: 'hike-related-articles-' ~ hike.id,
+                            source_type: 'hike',
+                            source_slug: hike.slug
+                        } only %}
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+{% endblock %}

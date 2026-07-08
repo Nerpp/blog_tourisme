@@ -1,0 +1,63 @@
+{% extends 'layouts/comments.html.twig' %}
+
+{% block title %}Notifications commentaires - Blog Tourisme{% endblock %}
+
+{% block body %}
+    <main class="comment-notifications-page">
+        <section class="comment-notifications">
+            <header class="comment-notifications__header">
+                <div>
+                    <p class="comment-notifications__eyebrow">Commentaires</p>
+                    <h1>Notifications commentaires</h1>
+                    <p class="comment-notifications__intro">
+                        Retrouvez les réponses et mentions liées à vos commentaires.
+                    </p>
+                </div>
+                {% if notifications|length > 0 %}
+                    <form method="post" action="{{ path('app_comment_notifications_clear') }}" onsubmit="return confirm('Vider toutes vos notifications commentaires ?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('clear-comment-notifications') }}">
+                        <button class="comment-notifications__clear" type="submit">Vider les notifications</button>
+                    </form>
+                {% endif %}
+            </header>
+
+            <div class="comment-notification-list">
+                {% for notification in notifications %}
+                    {% set comment = notification.comment %}
+                    {% set author = notification.triggeredBy ?: comment.author %}
+                    {% set is_unread = notification.id in unread_notification_ids %}
+                    <article class="comment-notification {{ notification.id in unread_notification_ids ? 'is-unread' : '' }}">
+                        <div>
+                            <p class="comment-notification__title">
+                                {% if notification.kind == 'mention' %}
+                                    {{ author.displayName ?: author.userIdentifier }} vous a mentionné.
+                                {% else %}
+                                    {{ author.displayName ?: author.userIdentifier }} a répondu à votre commentaire.
+                                {% endif %}
+                                <span class="comment-notification__state">{{ is_unread ? 'Non lue' : 'Lue' }}</span>
+                            </p>
+                            <p class="comment-notification__meta">
+                                {{ notification.createdAt ? notification.createdAt|date('d/m/Y H:i') : '' }}
+                                {% if comment.article %}
+                                    · {{ comment.article.title }}
+                                {% elseif comment.place %}
+                                    · {{ comment.place.name }}
+                                {% endif %}
+                            </p>
+                            <p class="comment-notification__excerpt">
+                                {{ comment.content|striptags|length > 180 ? comment.content|striptags|slice(0, 180) ~ '...' : comment.content|striptags }}
+                            </p>
+                        </div>
+                        <a class="comment-notification__link" href="{{ path('app_comment_notification_open', { id: notification.id }) }}">
+                            Voir
+                        </a>
+                    </article>
+                {% else %}
+                    <section class="comment-notifications__empty">
+                        <p>Aucune notification commentaire pour le moment.</p>
+                    </section>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+{% endblock %}
