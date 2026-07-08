@@ -44,6 +44,7 @@ final class ProfileAvatarPantherTest extends PantherTestCase
         self::assertIsInt($userId);
 
         $imagePath = $this->createAvatarFixture();
+        $svgPath = $this->createSvgFixture();
 
         try {
             $client = $this->loginAsUser($email, $password);
@@ -65,6 +66,27 @@ final class ProfileAvatarPantherTest extends PantherTestCase
             self::assertSame(0, $initialState['visibleImages']);
             self::assertSame(2, $initialState['visibleInitials']);
             self::assertTrue($initialState['messageHidden']);
+
+            $avatarInput = $webDriver->findElement(WebDriverBy::cssSelector('[data-avatar-preview-input]'));
+            $avatarInput->sendKeys($svgPath);
+
+            /** @var array{visibleImages: int, visibleInitials: int, blobSources: int, messageHidden: bool} $rejectedSvgState */
+            $rejectedSvgState = $webDriver->executeScript(<<<'JS'
+                const previewImages = Array.from(document.querySelectorAll('[data-avatar-preview-image]'));
+
+                return {
+                    visibleImages: previewImages.filter((image) => !image.classList.contains('is-hidden')).length,
+                    visibleInitials: Array.from(document.querySelectorAll('[data-avatar-preview-initials]'))
+                        .filter((initials) => !initials.classList.contains('is-hidden')).length,
+                    blobSources: previewImages.filter((image) => (image.getAttribute('src') || '').startsWith('blob:')).length,
+                    messageHidden: document.querySelector('[data-avatar-preview-message]')?.classList.contains('is-hidden') === true,
+                };
+            JS);
+
+            self::assertSame(0, $rejectedSvgState['visibleImages']);
+            self::assertSame(2, $rejectedSvgState['visibleInitials']);
+            self::assertSame(0, $rejectedSvgState['blobSources']);
+            self::assertTrue($rejectedSvgState['messageHidden']);
 
             $webDriver
                 ->findElement(WebDriverBy::cssSelector('[data-avatar-preview-input]'))
@@ -129,6 +151,9 @@ final class ProfileAvatarPantherTest extends PantherTestCase
             if (is_file($imagePath)) {
                 unlink($imagePath);
             }
+            if (is_file($svgPath)) {
+                unlink($svgPath);
+            }
 
             $storedAvatarPath = $this->avatarPathForUser($userId);
             if (is_string($storedAvatarPath) && !in_array($storedAvatarPath, $this->uploadedAvatars, true)) {
@@ -169,6 +194,14 @@ final class ProfileAvatarPantherTest extends PantherTestCase
         imagefilledellipse($image, 64, 48, 56, 56, $accent);
         self::assertTrue(imagepng($image, $path));
         imagedestroy($image);
+
+        return $path;
+    }
+
+    private function createSvgFixture(): string
+    {
+        $path = sys_get_temp_dir().'/panther-profile-avatar-'.bin2hex(random_bytes(6)).'.svg';
+        file_put_contents($path, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 
         return $path;
     }

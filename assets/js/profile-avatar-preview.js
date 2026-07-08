@@ -60,8 +60,11 @@ export function initProfileAvatarPreview() {
     }
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    const extension = file.name.toLowerCase().split('.').pop() || '';
+    const isSvg = file.type.toLowerCase() === 'image/svg+xml' || extension === 'svg';
 
-    if (!allowedTypes.includes(file.type)) {
+    if (isSvg || !allowedTypes.includes(file.type.toLowerCase()) || !allowedExtensions.includes(extension)) {
       restoreInitialState();
       return;
     }
