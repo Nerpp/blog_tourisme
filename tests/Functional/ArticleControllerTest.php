@@ -429,7 +429,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertSame('async', $coverImage->attr('decoding'));
         self::assertSame('960', $coverImage->attr('width'));
         self::assertSame('540', $coverImage->attr('height'));
-        self::assertSame('(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)', $coverImage->attr('sizes'));
+        self::assertSame('(min-width: 1360px) 760px, (min-width: 981px) 56vw, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)', $coverImage->attr('sizes'));
         self::assertSame(
             '/uploads/media/variants/article-cover-thumb.webp 600w, /uploads/media/variants/article-cover-mobile.webp 960w, /uploads/media/variants/article-cover-medium.webp 1600w, /uploads/media/variants/article-cover-large.webp 1920w',
             $coverImage->attr('srcset'),
@@ -534,7 +534,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         $coverImage = $crawler->filter('.article-show-cover img')->first();
         self::assertSame('/uploads/media/article-cover-display.webp', $coverImage->attr('src'));
         self::assertSame('/uploads/media/article-cover-inline.webp 640w, /uploads/media/article-cover-display.webp 960w, /uploads/media/article-cover-cover.webp 1280w', $coverImage->attr('srcset'));
-        self::assertSame('(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)', $coverImage->attr('sizes'));
+        self::assertSame('(min-width: 1360px) 760px, (min-width: 981px) 56vw, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)', $coverImage->attr('sizes'));
         self::assertSame('eager', $coverImage->attr('loading'));
         self::assertSame('high', $coverImage->attr('fetchpriority'));
         self::assertNotSame('lazy', $coverImage->attr('loading'));

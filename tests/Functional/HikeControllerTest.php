@@ -53,6 +53,29 @@ final class HikeControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertSame(0, $crawler->filter('.public-detail-hero .public-detail-meta')->count());
+        self::assertStringNotContainsString('étape', $crawler->filter('.public-detail-hero')->text());
+    }
+
+    public function testHikeHeroOnlyRendersAvailableGeographicMetadataWithoutPointCount(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin());
+        $hike
+            ->setDetectedCommuneName('Nyer')
+            ->setDetectedDepartmentName('   ')
+            ->setDetectedRegionName('Occitanie');
+        $this->createHikePoint($hike);
+        $this->persistAndFlush($hike);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $badges = $crawler->filter('.public-detail-hero .public-detail-meta span');
+        self::assertSame(2, $badges->count());
+        self::assertSame('Commune : Nyer', trim($badges->eq(0)->text()));
+        self::assertSame('Occitanie', trim($badges->eq(1)->text()));
+        self::assertStringNotContainsString('1 étape', $crawler->filter('.public-detail-hero')->text());
     }
 
     public function testHikeCoverUsesAHighPriorityResponsiveWebpPicture(): void

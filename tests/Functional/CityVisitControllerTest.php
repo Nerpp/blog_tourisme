@@ -51,6 +51,7 @@ final class CityVisitControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertStringNotContainsString('étape', $crawler->filter('.public-detail-hero')->text());
     }
 
     public function testCityVisitCoverUsesTheSameResponsiveWebpContract(): void

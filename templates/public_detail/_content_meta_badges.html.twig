@@ -47,31 +47,38 @@
 {% set public_commune_key = public_commune_label|lower %}
 {% set public_department_key = public_department_label|lower %}
 {% set public_region_key = public_region_label|lower %}
-{% set points_label = points_count|default(0) > 1 ? 'étapes' : 'étape' %}
+{% set show_public_destination = (show_destination_badge is not defined or show_destination_badge)
+    and public_destination_label is not empty
+    and public_destination_key not in [public_commune_key, public_department_key, public_region_key]
+%}
+{% set show_public_department = public_department_label is not empty
+    and public_department_key != public_commune_key
+%}
+{% set show_public_region = public_region_label is not empty
+    and public_region_key not in [public_commune_key, public_department_key]
+%}
+{% set has_public_metadata = public_commune_label is not empty
+    or show_public_destination
+    or show_public_department
+    or show_public_region
+%}
 
-<div class="public-detail-meta">
-    {% if public_commune_label is not empty %}
-        <span>Commune : {{ public_commune_label }}</span>
-    {% endif %}
+{% if has_public_metadata %}
+    <div class="public-detail-meta">
+        {% if public_commune_label is not empty %}
+            <span>Commune : {{ public_commune_label }}</span>
+        {% endif %}
 
-    {% if (show_destination_badge is not defined or show_destination_badge) and public_destination_label is not empty %}
-        <span>Destination : {{ public_destination_label }}</span>
-    {% endif %}
+        {% if show_public_destination %}
+            <span>Destination : {{ public_destination_label }}</span>
+        {% endif %}
 
-    {% if public_department_label is not empty
-        and public_department_key != public_destination_key
-        and public_department_key != public_commune_key
-    %}
-        <span>{{ public_department_label }}</span>
-    {% endif %}
+        {% if show_public_department %}
+            <span>{{ public_department_label }}</span>
+        {% endif %}
 
-    {% if public_region_label is not empty
-        and public_region_key not in [public_destination_key, public_commune_key, public_department_key]
-    %}
-        <span>{{ public_region_label }}</span>
-    {% endif %}
-
-    {% if points_count is defined and points_count is not null %}
-        <span>{{ points_count }} {{ points_label }}</span>
-    {% endif %}
-</div>
+        {% if show_public_region %}
+            <span>{{ public_region_label }}</span>
+        {% endif %}
+    </div>
+{% endif %}

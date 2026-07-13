@@ -23,7 +23,7 @@
 {% set cover_webp_image = null %}
 {% set cover_webp_srcset = null %}
 {% set cover_fallback_srcset = null %}
-{% set cover_sizes = '(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
+{% set cover_sizes = '(min-width: 1360px) 760px, (min-width: 981px) 56vw, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
 
 {% if cover_media %}
     {% set cover_image = media_cover_image_url(cover_media, 'medium', 'fallback') %}
@@ -49,26 +49,25 @@
 
 {% block body %}
     <main class="public-detail-page">
-        <section class="public-detail-hero">
-            <div class="public-detail-container public-detail-hero-grid">
-                <div>
-                    <p class="public-detail-kicker">Visite de ville</p>
+        {% embed 'public_detail/_hero.html.twig' %}
+            {% block public_detail_hero_content %}
+                <p class="public-detail-kicker">Visite de ville</p>
 
-                    <h1 class="public-detail-title">{{ city_visit.title }}</h1>
+                <h1 class="public-detail-title">{{ city_visit.title }}</h1>
 
-                    {% if city_visit.notes %}
-                        <p class="public-detail-intro">{{ city_visit.notes|nl2br }}</p>
-                    {% endif %}
+                {% if city_visit.notes %}
+                    <p class="public-detail-intro">{{ city_visit.notes|nl2br }}</p>
+                {% endif %}
 
-                    {% include 'public_detail/_content_meta_badges.html.twig' with {
-                        destination: city_visit.destination,
-                        detected_commune_name: city_visit.detectedCommuneName,
-                        detected_department_name: city_visit.detectedDepartmentName,
-                        detected_region_name: city_visit.detectedRegionName,
-                        points_count: city_visit.points|length
-                    } only %}
-                </div>
+                {% include 'public_detail/_content_meta_badges.html.twig' with {
+                    destination: city_visit.destination,
+                    detected_commune_name: city_visit.detectedCommuneName,
+                    detected_department_name: city_visit.detectedDepartmentName,
+                    detected_region_name: city_visit.detectedRegionName
+                } only %}
+            {% endblock %}
 
+            {% block public_detail_hero_cover %}
                 <div class="public-detail-cover {{ cover_media ? 'public-detail-cover--media' : '' }}">
                     {% if cover_media %}
                         {% include 'public_detail/_cover_image.html.twig' with {
@@ -78,8 +77,8 @@
                         } only %}
                     {% endif %}
                 </div>
-            </div>
-        </section>
+            {% endblock %}
+        {% endembed %}
 
         <section class="public-detail-content">
             <div class="public-detail-container">
