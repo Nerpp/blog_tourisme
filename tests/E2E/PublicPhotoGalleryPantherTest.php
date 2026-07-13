@@ -18,6 +18,8 @@ use Facebook\WebDriver\WebDriverWait;
 
 final class PublicPhotoGalleryPantherTest extends PantherTestCase
 {
+    private const LOCAL_VIDEO_EMBED_PATH = '/robots.txt';
+
     public function testHomepageStandardCardsKeepThumbWebpAtMobileAndDesktopWidths(): void
     {
         $this->skipIfFrontendBuildIsMissing();
@@ -297,8 +299,34 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
 
                 $trigger = $webDriver->findElement(WebDriverBy::cssSelector('.video-gallery-card[data-gallery-index="0"]'));
                 $modalSelector = (string) $trigger->getAttribute('data-gallery-target');
+                $iframeSelector = $modalSelector.' iframe[data-video-src]';
+                $localVideoSource = $webDriver->executeScript(<<<'JS'
+                    const iframe = document.querySelector(arguments[0]);
+
+                    if (!iframe) {
+                        return null;
+                    }
+
+                    iframe.dataset.videoSrc = new URL(arguments[1], window.location.origin).toString();
+
+                    return iframe.dataset.videoSrc;
+                JS, [$iframeSelector, self::LOCAL_VIDEO_EMBED_PATH]);
+                self::assertIsString($localVideoSource);
+                self::assertSame(self::LOCAL_VIDEO_EMBED_PATH, parse_url($localVideoSource, PHP_URL_PATH));
+
                 $trigger->click();
                 $client->waitFor($modalSelector.' .gallery-modal__caption--video');
+
+                /** @var string $openedVideoSource */
+                $openedVideoSource = (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $iframeSelector): string|false {
+                    $source = $webDriver->executeScript(
+                        'return document.querySelector(arguments[0])?.getAttribute("src") || "";',
+                        [$iframeSelector],
+                    );
+
+                    return is_string($source) && $source !== '' ? $source : false;
+                });
+                self::assertSame(self::LOCAL_VIDEO_EMBED_PATH, parse_url($openedVideoSource, PHP_URL_PATH));
 
                 /** @var array<string, float|int|string> $layout */
                 $layout = $webDriver->executeScript(<<<'JS'
