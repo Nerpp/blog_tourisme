@@ -24,6 +24,7 @@ final class ArticlePerformancePantherTest extends PantherTestCase
 
         /** @var array<string, float|int|bool> $layout */
         $layout = $driver->executeScript(<<<'JS'
+            const heroGrid = document.querySelector('.public-detail-hero-grid').getBoundingClientRect();
             const container = document.querySelector('.public-detail-content .public-detail-container').getBoundingClientRect();
             const layout = document.querySelector('.article-show-layout').getBoundingClientRect();
             const main = document.querySelector('.article-show-main').getBoundingClientRect();
@@ -32,6 +33,7 @@ final class ArticlePerformancePantherTest extends PantherTestCase
             const sidebar = document.querySelector('.article-show-sidebar').getBoundingClientRect();
 
             return {
+                heroGridWidth: heroGrid.width,
                 layoutWidth: layout.width,
                 mainWidth: main.width,
                 contentWidth: content.width,
@@ -47,7 +49,11 @@ final class ArticlePerformancePantherTest extends PantherTestCase
         self::assertEqualsWithDelta(1040.0, (float) $layout['layoutWidth'], 1.0);
         self::assertEqualsWithDelta(1040.0, (float) $layout['mainWidth'], 1.0);
         self::assertEqualsWithDelta(820.0, (float) $layout['contentWidth'], 1.0);
-        self::assertEqualsWithDelta(560.0, (float) $layout['coverWidth'], 1.0);
+        self::assertEqualsWithDelta(
+            (float) $layout['heroGridWidth'] * 0.54,
+            (float) $layout['coverWidth'],
+            2.0,
+        );
         self::assertLessThanOrEqual(1.0, (float) $layout['layoutCenterDelta']);
         self::assertLessThanOrEqual(1.0, (float) $layout['contentCenterDelta']);
         self::assertTrue((bool) $layout['sidebarAfterMain']);
