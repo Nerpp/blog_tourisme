@@ -1,6 +1,10 @@
 .git
 .agents
 .codex
+.env.local
+.env.*.local
+config/secrets/*/*.private.php
+config/secrets/*/*decrypt.private.php
 node_modules
 vendor
 var/cache

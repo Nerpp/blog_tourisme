@@ -18,6 +18,7 @@
         "knpuniversity/oauth2-client-bundle": "^2.20",
         "league/oauth2-google": "^5.0",
         "symfony/asset": "8.1.*",
+        "symfony/brevo-mailer": "^8.1",
         "symfony/cache": "8.1.*",
         "symfony/config": "8.1.*",
         "symfony/console": "8.1.*",
