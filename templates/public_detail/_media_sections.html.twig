@@ -4,6 +4,7 @@
 {% set panorama_media_links = [] %}
 {% set immersive_gallery_links = [] %}
 {% set gps_point_type = gps_point_type|default(null) %}
+{% set is_preview = is_preview|default(false) %}
 {% set valid_gps_points = [] %}
 {% set hike_map_points = [] %}
 {% set route_map_id = gallery_id ~ '-route-map' %}
@@ -535,7 +536,7 @@
                         Voir le parcours
                     </a>
 
-                    {% if valid_gps_points|length > 1 %}
+                    {% if valid_gps_points|length > 1 and not is_preview %}
                         <a
                             class="public-point-gps__button public-point-gps__button--secondary"
                             href="{{ path('app_hike_gpx', { slug: item.slug }) }}"
@@ -547,10 +548,21 @@
 
                 <p class="public-route-gps__notice">
                     Conseil : utilisez Google Maps pour rejoindre le départ, puis une carte adaptée à la randonnée ou le parcours affiché sur cette page pour suivre les étapes. En montagne, le réseau peut être limité.
-                    {% if valid_gps_points|length > 1 %}
+                    {% if valid_gps_points|length > 1 and not is_preview %}
                         Le fichier GPX contient les étapes enregistrées. Il ne remplace pas une trace GPS complète.
                     {% endif %}
                 </p>
+            {% elseif gps_point_type and is_preview %}
+                <div class="public-route-gps__actions">
+                    <a
+                        class="public-point-gps__button"
+                        href="https://www.google.com/maps/dir/?api=1&amp;travelmode=walking&amp;destination={{ gps_access_point.latitude }},{{ gps_access_point.longitude }}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Aller au départ
+                    </a>
+                </div>
             {% elseif gps_point_type and is_granted('GPS_ACCESS', gps_access_point) %}
                 <div class="public-route-gps__actions">
                     <a
@@ -656,6 +668,15 @@
                                     Voir ce point
                                 </a>
                                 {% set point_map_index = point_map_index + 1 %}
+                            {% elseif gps_point_type and is_preview %}
+                                <a
+                                    class="public-point-gps__button"
+                                    href="https://www.google.com/maps/search/?api=1&amp;query={{ point.latitude }},{{ point.longitude }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Voir ce point
+                                </a>
                             {% elseif gps_point_type and is_granted('GPS_ACCESS', point) %}
                                 <a
                                     class="public-point-gps__button"
