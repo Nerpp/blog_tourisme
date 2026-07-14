@@ -10,41 +10,25 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Europe/Paris"
-    open-pull-requests-limit: 3
-    allow:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
-      - dependency-name: "symfony/*"
-        update-types:
-          - "version-update:semver-minor"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
+    open-pull-requests-limit: 10
+    assignees:
+      - "Nerpp"
+    labels:
+      - "dependencies"
+      - "php"
     groups:
-      symfony-updates:
-        applies-to: "version-updates"
-        patterns:
-          - "symfony/*"
-        update-types:
-          - "patch"
-          - "minor"
-      doctrine-patches:
-        applies-to: "version-updates"
-        patterns:
-          - "doctrine/*"
-        update-types:
-          - "patch"
       composer-patches:
         applies-to: "version-updates"
         patterns:
           - "*"
-        exclude-patterns:
-          - "symfony/*"
-          - "doctrine/*"
         update-types:
           - "patch"
+      composer-minors:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
 
   # Dépendances JavaScript : Vite, Leaflet, plugins, etc.
   - package-ecosystem: "npm"
@@ -55,16 +39,12 @@ updates:
       day: "monday"
       time: "07:15"
       timezone: "Europe/Paris"
-    open-pull-requests-limit: 2
-    allow:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-major"
+    open-pull-requests-limit: 10
+    assignees:
+      - "Nerpp"
+    labels:
+      - "dependencies"
+      - "javascript"
     groups:
       npm-patches:
         applies-to: "version-updates"
@@ -72,6 +52,12 @@ updates:
           - "*"
         update-types:
           - "patch"
+      npm-minors:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
 
   # Image PHP définie dans le Dockerfile racine.
   - package-ecosystem: "docker"
@@ -82,16 +68,11 @@ updates:
       day: "monday"
       time: "07:30"
       timezone: "Europe/Paris"
-    open-pull-requests-limit: 1
-    allow:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
-          - "version-update:semver-minor"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
+    open-pull-requests-limit: 5
+    assignees:
+      - "Nerpp"
+    labels:
+      - "dependencies"
     groups:
       docker-patches:
         applies-to: "version-updates"
@@ -99,6 +80,12 @@ updates:
           - "*"
         update-types:
           - "patch"
+      docker-minors:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
 
   # Actions GitHub utilisées par la CI.
   - package-ecosystem: "github-actions"
@@ -109,16 +96,12 @@ updates:
       day: "monday"
       time: "07:45"
       timezone: "Europe/Paris"
-    open-pull-requests-limit: 2
-    allow:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-patch"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-minor"
-          - "version-update:semver-major"
+    open-pull-requests-limit: 5
+    assignees:
+      - "Nerpp"
+    labels:
+      - "dependencies"
+      - "github_actions"
     groups:
       github-actions-patches:
         applies-to: "version-updates"
@@ -126,3 +109,9 @@ updates:
           - "*"
         update-types:
           - "patch"
+      github-actions-minors:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
