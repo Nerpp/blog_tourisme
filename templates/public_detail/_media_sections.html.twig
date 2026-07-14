@@ -9,6 +9,7 @@
 {% set hike_map_points = [] %}
 {% set route_map_id = gallery_id ~ '-route-map' %}
 {% set point_media_gallery_links = [] %}
+{% set use_panther_embed_placeholder = app.environment == 'test' and app.request.query.get('panther_external_embed_placeholder') == '1' %}
 
 {% for mediaLink in item.mediaLinks %}
     {% set media = mediaLink.mediaAsset %}
@@ -121,6 +122,7 @@
                     {% set poster_url = media_poster_url(media, 'medium') %}
                     {% set youtube_thumbnail_url = video_thumbnail_url(external_video) %}
                     {% set video_poster_url = poster_url ?: youtube_thumbnail_url %}
+                    {% set rendered_video_poster_url = use_panther_embed_placeholder and not poster_url and youtube_thumbnail_url ? null : video_poster_url %}
 
                     {% set video_shape = 'unknown' %}
                     {% if media.width and media.height %}
@@ -138,14 +140,17 @@
                     {% if embed_url or local_video or external_video %}
                         <button
                             type="button"
-                            class="video-gallery-card video-gallery-card--{{ video_shape }} {{ loop.first ? 'video-gallery-card--large' : '' }} {{ video_poster_url ? 'has-poster' : 'has-placeholder' }}"
+                            class="video-gallery-card video-gallery-card--{{ video_shape }} {{ loop.first ? 'video-gallery-card--large' : '' }} {{ rendered_video_poster_url ? 'has-poster' : 'has-placeholder' }}"
                             aria-label="Afficher la vidéo en grand"
                             data-gallery-target="#{{ gallery_id }}-video-gallery"
                             data-gallery-index="{{ loop.index0 }}"
+                            {% if use_panther_embed_placeholder and youtube_thumbnail_url %}
+                                data-video-thumbnail-src="{{ youtube_thumbnail_url }}"
+                            {% endif %}
                         >
-                            {% if video_poster_url %}
+                            {% if rendered_video_poster_url %}
                                 <img
-                                    src="{{ video_poster_url }}"
+                                    src="{{ rendered_video_poster_url }}"
                                     alt="{{ media_public_alt(media, item, media_public_title(media, item, video_fallback_title)) }}"
                                     loading="lazy"
                                     decoding="async"
@@ -256,6 +261,10 @@
                                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                                 referrerpolicy="strict-origin-when-cross-origin"
                                                 allowfullscreen
+                                                {% if use_panther_embed_placeholder %}
+                                                    data-panther-external-embed-placeholder="true"
+                                                    srcdoc="<p>Vidéo externe neutralisée pour le test navigateur.</p>"
+                                                {% endif %}
                                             ></iframe>
                                         {% elseif local_video %}
                                             {% set local_video_url = local_video starts with 'http' ? local_video : asset(local_video) %}
@@ -976,6 +985,10 @@
                                             sandbox="allow-scripts allow-same-origin allow-presentation"
                                             referrerpolicy="strict-origin-when-cross-origin"
                                             allowfullscreen
+                                            {% if use_panther_embed_placeholder %}
+                                                data-panther-external-embed-placeholder="true"
+                                                srcdoc="<p>Vidéo externe neutralisée pour le test navigateur.</p>"
+                                            {% endif %}
                                         ></iframe>
                                     {% elseif external_video %}
                                         <div class="gallery-modal__external-video-card">

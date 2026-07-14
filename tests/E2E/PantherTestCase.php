@@ -100,6 +100,12 @@ abstract class PantherTestCase extends BasePantherTestCase
         return sprintf('%s-%s@blog-tourisme.test', $prefix, bin2hex(random_bytes(6)));
     }
 
+    protected function requestWithExternalEmbedPlaceholders(Client $client, string $path): void
+    {
+        $separator = str_contains($path, '?') ? '&' : '?';
+        $client->request('GET', $path.$separator.'panther_external_embed_placeholder=1');
+    }
+
     protected function assertPageHasBuiltAssets(Client $client, string ...$entries): void
     {
         $renderedAssetUrls = $this->renderedBuildAssetUrls($client->getWebDriver());
@@ -187,8 +193,16 @@ abstract class PantherTestCase extends BasePantherTestCase
 
     protected function assertNoBrowserSevereErrors(Client $client): void
     {
+        $this->assertNoSevereBrowserLogEntries($client->getWebDriver()->manage()->getLog('browser'));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     */
+    protected function assertNoSevereBrowserLogEntries(array $entries): void
+    {
         $errors = array_filter(
-            $client->getWebDriver()->manage()->getLog('browser'),
+            $entries,
             static fn (array $entry): bool => ($entry['level'] ?? '') === 'SEVERE',
         );
 
