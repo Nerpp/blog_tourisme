@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev
+      - main
   pull_request:
     branches:
       - dev
@@ -24,6 +25,12 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      - name: Enforce dev as the only promotion source
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: test "$HEAD_BRANCH" = "dev"
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -36,9 +43,11 @@ jobs:
 
       - name: Configure Docker user
         run: |
-          echo "DOCKER_UID=$(id -u)" >> "$GITHUB_ENV"
-          echo "DOCKER_GID=$(id -g)" >> "$GITHUB_ENV"
-          echo "COMPOSE_FILE=docker-compose.yml:.github/compose.ci.yml" >> "$GITHUB_ENV"
+          {
+            echo "DOCKER_UID=$(id -u)"
+            echo "DOCKER_GID=$(id -g)"
+            echo "COMPOSE_FILE=docker-compose.yml:.github/compose.ci.yml"
+          } >> "$GITHUB_ENV"
 
       - name: Start MySQL
         run: docker compose up -d --wait mysql
@@ -47,6 +56,9 @@ jobs:
         run: |
           docker compose build php
           docker compose run --rm -e SKIP_COMPOSER_INSTALL=1 php composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Verify isolated production build
+        run: docker compose run --rm -e SKIP_COMPOSER_INSTALL=1 php sh scripts/check-production-build.sh
 
       - name: Start PHP and Mailpit
         run: docker compose up -d --wait php mailpit
