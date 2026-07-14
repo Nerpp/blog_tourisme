@@ -130,6 +130,11 @@ class HikeDraft
         return $this;
     }
 
+    public function isPublished(): bool
+    {
+        return in_array($this->status, [HikeDraftStatus::Finished, HikeDraftStatus::Converted], true);
+    }
+
     public function getCreatedBy(): ?User
     {
         return $this->createdBy;

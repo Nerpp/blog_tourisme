@@ -66,6 +66,23 @@ final class UserRoleManager
         return $this->grantRole($target, $role, null, AdminRoleAudit::SOURCE_BOOTSTRAP);
     }
 
+    public function grantAdminFromCli(User $target): bool
+    {
+        if ($target->isSuperAdmin()) {
+            throw new UserRoleManagementException('Un super-administrateur dispose déjà des droits administratifs grâce à la hiérarchie des rôles.');
+        }
+
+        if (!$target->isVerified()) {
+            throw new UserRoleManagementException('Un utilisateur non vérifié ne peut pas recevoir le rôle administrateur.');
+        }
+
+        if ($target->isBanned()) {
+            throw new UserRoleManagementException('Un utilisateur banni ne peut pas recevoir le rôle administrateur.');
+        }
+
+        return $this->grantRole($target, self::ROLE_ADMIN, null, AdminRoleAudit::SOURCE_CLI);
+    }
+
     public function assertCanDeleteUser(User $target): void
     {
         if (!$target->isSuperAdmin()) {

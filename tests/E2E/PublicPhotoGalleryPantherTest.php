@@ -18,6 +18,8 @@ use Facebook\WebDriver\WebDriverWait;
 
 final class PublicPhotoGalleryPantherTest extends PantherTestCase
 {
+    private const LOCAL_VIDEO_EMBED_PATH = '/robots.txt';
+
     public function testHomepageStandardCardsKeepThumbWebpAtMobileAndDesktopWidths(): void
     {
         $this->skipIfFrontendBuildIsMissing();
@@ -270,6 +272,123 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         ));
     }
 
+    public function testVideoGalleryKeepsTheCaptionCompactAcrossBreakpoints(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+        $slug = $this->ensureFixtureVideoIsLinkedToCityVisit();
+        $originalCaption = $this->replaceFixtureVideoCaption(str_repeat(
+            'Une longue légende de test avec un lien-ininterrompu-exemple.test/video/aerienne. ',
+            24,
+        ));
+
+        try {
+            $client = self::createBrowser();
+            $webDriver = $client->getWebDriver();
+            $this->blockExternalMediaRequests($webDriver);
+
+            foreach ([1440, 1280, 1024, 768, 390] as $viewportWidth) {
+                $viewportHeight = $viewportWidth === 390 ? 844 : 900;
+                (new ChromeDevToolsDriver($webDriver))->execute('Emulation.setDeviceMetricsOverride', [
+                    'width' => $viewportWidth,
+                    'height' => $viewportHeight,
+                    'deviceScaleFactor' => 1,
+                    'mobile' => $viewportWidth === 390,
+                ]);
+                $client->request('GET', '/visites-de-ville/'.$slug);
+                $client->waitFor('.video-gallery-card[data-gallery-index="0"]');
+
+                $trigger = $webDriver->findElement(WebDriverBy::cssSelector('.video-gallery-card[data-gallery-index="0"]'));
+                $modalSelector = (string) $trigger->getAttribute('data-gallery-target');
+                $iframeSelector = $modalSelector.' iframe[data-video-src]';
+                $localVideoSource = $webDriver->executeScript(<<<'JS'
+                    const iframe = document.querySelector(arguments[0]);
+
+                    if (!iframe) {
+                        return null;
+                    }
+
+                    iframe.dataset.videoSrc = new URL(arguments[1], window.location.origin).toString();
+
+                    return iframe.dataset.videoSrc;
+                JS, [$iframeSelector, self::LOCAL_VIDEO_EMBED_PATH]);
+                self::assertIsString($localVideoSource);
+                self::assertSame(self::LOCAL_VIDEO_EMBED_PATH, parse_url($localVideoSource, PHP_URL_PATH));
+
+                $trigger->click();
+                $client->waitFor($modalSelector.' .gallery-modal__caption--video');
+
+                /** @var string $openedVideoSource */
+                $openedVideoSource = (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $iframeSelector): string|false {
+                    $source = $webDriver->executeScript(
+                        'return document.querySelector(arguments[0])?.getAttribute("src") || "";',
+                        [$iframeSelector],
+                    );
+
+                    return is_string($source) && $source !== '' ? $source : false;
+                });
+                self::assertSame(self::LOCAL_VIDEO_EMBED_PATH, parse_url($openedVideoSource, PHP_URL_PATH));
+
+                /** @var array<string, float|int|string> $layout */
+                $layout = $webDriver->executeScript(<<<'JS'
+                    const modal = document.querySelector(arguments[0]);
+                    const dialog = modal.querySelector('.gallery-modal__dialog--video');
+                    const slide = modal.querySelector('.gallery-modal__slide--video.is-active');
+                    const video = slide.querySelector('.gallery-modal__video-frame');
+                    const caption = slide.querySelector('.gallery-modal__caption--video');
+                    const previous = modal.querySelector('.gallery-modal__nav--prev');
+                    const next = modal.querySelector('.gallery-modal__nav--next');
+                    const close = modal.querySelector('.gallery-modal__close');
+                    const footer = modal.querySelector('.gallery-modal__footer');
+                    const rect = (element) => element.getBoundingClientRect();
+
+                    return {
+                        viewportWidth: window.innerWidth,
+                        viewportHeight: window.innerHeight,
+                        documentScrollWidth: document.documentElement.scrollWidth,
+                        dialogWidth: rect(dialog).width,
+                        slideWidth: rect(slide).width,
+                        videoWidth: rect(video).width,
+                        captionWidth: rect(caption).width,
+                        captionClientHeight: caption.clientHeight,
+                        captionScrollHeight: caption.scrollHeight,
+                        gridTemplateColumns: getComputedStyle(slide).gridTemplateColumns,
+                        previousLeft: rect(previous).left,
+                        nextRight: rect(next).right,
+                        closeRight: rect(close).right,
+                        closeTop: rect(close).top,
+                        footerBottom: rect(footer).bottom,
+                    };
+                JS, [$modalSelector]);
+
+                self::assertLessThanOrEqual($viewportWidth, $layout['documentScrollWidth']);
+                self::assertLessThanOrEqual($viewportWidth, $layout['dialogWidth']);
+                self::assertGreaterThanOrEqual(0, $layout['previousLeft']);
+                self::assertLessThanOrEqual($viewportWidth, $layout['nextRight']);
+                self::assertLessThanOrEqual($viewportWidth, $layout['closeRight']);
+                self::assertGreaterThanOrEqual(0, $layout['closeTop']);
+                self::assertLessThanOrEqual($viewportHeight, $layout['footerBottom']);
+
+                if ($viewportWidth >= 1024) {
+                    self::assertLessThanOrEqual(320, $layout['captionWidth']);
+                    self::assertGreaterThanOrEqual(0.70, $layout['videoWidth'] / $layout['slideWidth']);
+                } elseif ($viewportWidth === 768) {
+                    self::assertLessThanOrEqual(260, $layout['captionWidth']);
+                    self::assertStringContainsString('px ', (string) $layout['gridTemplateColumns']);
+                } else {
+                    self::assertGreaterThanOrEqual($layout['slideWidth'] - 12, $layout['captionWidth']);
+                    self::assertLessThanOrEqual($layout['slideWidth'], $layout['captionWidth']);
+                    self::assertGreaterThan($layout['captionClientHeight'], $layout['captionScrollHeight']);
+                }
+
+                $webDriver->getKeyboard()->sendKeys(WebDriverKeys::ESCAPE);
+            }
+
+            $this->assertNoBrowserSevereErrors($client);
+        } finally {
+            $this->replaceFixtureVideoCaption($originalCaption);
+        }
+    }
+
     private function waitForGalleryIndex(
         \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
         string $modalSelector,
@@ -381,6 +500,27 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         self::ensureKernelShutdown();
 
         return $slug;
+    }
+
+    private function replaceFixtureVideoCaption(?string $caption): ?string
+    {
+        self::bootKernel();
+        $entityManager = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+
+        try {
+            $video = $entityManager->getRepository(MediaAsset::class)->findOneBy([
+                'externalUrl' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            ]);
+            self::assertInstanceOf(MediaAsset::class, $video);
+            $originalCaption = $video->getCaption();
+            $video->setCaption($caption);
+            $entityManager->flush();
+
+            return $originalCaption;
+        } finally {
+            self::ensureKernelShutdown();
+        }
     }
 
     private function ensureFixturePanoramaIsLinkedToCityVisit(): string

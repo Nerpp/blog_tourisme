@@ -53,6 +53,29 @@ final class HikeControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertSame(0, $crawler->filter('.public-detail-hero .public-detail-meta')->count());
+        self::assertStringNotContainsString('étape', $crawler->filter('.public-detail-hero')->text());
+    }
+
+    public function testHikeHeroOnlyRendersAvailableGeographicMetadataWithoutPointCount(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin());
+        $hike
+            ->setDetectedCommuneName('Nyer')
+            ->setDetectedDepartmentName('   ')
+            ->setDetectedRegionName('Occitanie');
+        $this->createHikePoint($hike);
+        $this->persistAndFlush($hike);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $badges = $crawler->filter('.public-detail-hero .public-detail-meta span');
+        self::assertSame(2, $badges->count());
+        self::assertSame('Commune : Nyer', trim($badges->eq(0)->text()));
+        self::assertSame('Occitanie', trim($badges->eq(1)->text()));
+        self::assertStringNotContainsString('1 étape', $crawler->filter('.public-detail-hero')->text());
     }
 
     public function testHikeCoverUsesAHighPriorityResponsiveWebpPicture(): void
@@ -394,6 +417,78 @@ final class HikeControllerTest extends FunctionalTestCase
         $this->expectException(NotFoundHttpException::class);
 
         $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+    }
+
+    public function testVerifiedAdminCanPreviewIncompleteDraftHikeWithoutPublishingIt(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $hikeId = $hike->getId();
+        self::assertNotNull($hikeId);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.draft-preview-banner', 'Aperçu du brouillon — Cette page n’est pas visible publiquement.');
+        self::assertSelectorTextContains('.draft-preview-banner__badge', 'Brouillon');
+        self::assertSame('/admin/field-tools/hikes', $crawler->filter('.draft-preview-banner a:contains("Retour au studio")')->attr('href'));
+        self::assertSame(sprintf('/admin/studio/hikes/%d/edit', $hikeId), $crawler->filter('.draft-preview-banner a:contains("Modifier")')->attr('href'));
+        self::assertSame('noindex, nofollow, noarchive', $client->getResponse()->headers->get('X-Robots-Tag'));
+        self::assertStringContainsString('no-store', (string) $client->getResponse()->headers->get('Cache-Control'));
+        self::assertSame('noindex, nofollow, noarchive', $crawler->filter('meta[name="robots"]')->attr('content'));
+        self::assertSelectorTextContains('body', (string) $hike->getTitle());
+        self::assertSelectorTextContains('body', 'Aucune étape détaillée pour le moment.');
+
+        $this->entityManager()->clear();
+        $storedHike = $this->entityManager()->find(\App\Entity\HikeDraft::class, $hikeId);
+        self::assertInstanceOf(\App\Entity\HikeDraft::class, $storedHike);
+        self::assertSame(HikeDraftStatus::Draft, $storedHike->getStatus());
+        self::assertNull($storedHike->getFinishedAt());
+    }
+
+    public function testConnectedUserWithoutAdminAccessCannotPreviewDraftHike(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createHikeDraft($this->createVerifiedAdmin());
+        $client->loginUser($this->createUser());
+
+        $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testDraftHikePreviewKeepsPublicOnlyGpxEndpointHidden(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $this->createHikePoint($hike, 42.70, 2.90, 1);
+        $this->createHikePoint($hike, 42.71, 2.91, 2);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('[data-public-hike-map]'));
+        self::assertCount(0, $crawler->filter(sprintf('a[href="/randonnees/%s/gpx"]', $hike->getSlug())));
+    }
+
+    public function testAdminViewingPublishedHikeDoesNotEnterPreviewMode(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createPublishedHike($admin);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('.draft-preview-banner'));
+        self::assertCount(0, $crawler->filter('meta[name="robots"]'));
+        self::assertNotSame('noindex, nofollow, noarchive', $client->getResponse()->headers->get('X-Robots-Tag'));
+        self::assertStringNotContainsString('no-store', (string) $client->getResponse()->headers->get('Cache-Control'));
     }
 
     public function testGeographicDestinationWithoutEditorialDestinationDoesNotBreakShowPage(): void

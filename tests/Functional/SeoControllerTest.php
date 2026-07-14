@@ -25,10 +25,12 @@ final class SeoControllerTest extends FunctionalTestCase
         self::assertSame('/places', $footerLinks['Lieux'] ?? null);
         self::assertSame('/plan-du-site', $footerLinks['Plan du site'] ?? null);
 
-        $youtube = $crawler->filter('footer.site-footer a[href="https://www.youtube.com/"]');
+        $youtube = $crawler->filter('footer.site-footer a[href="https://www.youtube.com/channel/UCKv62tsRzbWy_rfm6_oKM-A"]');
         self::assertSame(1, $youtube->count());
         self::assertSame('_blank', $youtube->attr('target'));
         self::assertSame('noopener noreferrer', $youtube->attr('rel'));
+        self::assertSame('Voir la chaîne YouTube Estela', $youtube->attr('aria-label'));
+        self::assertSame(1, $youtube->filter('svg.site-footer__social-icon--youtube[aria-hidden="true"]')->count());
 
         $client->loginUser($this->createVerifiedAdmin());
         $adminCrawler = $client->request('GET', '/admin');

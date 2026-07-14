@@ -28,7 +28,7 @@
 {% set article_cover_image_size = article_cover_media ? 'mobile' : null %}
 {% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, article_cover_image_size) : null %}
 {% set article_cover_srcset = article_cover_media ? media_image_srcset(article_cover_media, 'webp') : null %}
-{% set article_cover_sizes = '(min-width: 981px) 560px, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
+{% set article_cover_sizes = '(min-width: 1360px) 760px, (min-width: 981px) 56vw, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
 {% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
 
 {% set related_article_links = [] %}
@@ -113,68 +113,68 @@
 
 {% block body %}
 	<main class="public-detail-page article-show-page">
-		<section class="public-detail-hero">
-			<div class="public-detail-container public-detail-hero-grid">
-				<div>
-					{% if return_context %}
-						<a class="article-show-context-return" href="{{ return_context.url }}">
-							{{ return_context.label }}
-						</a>
+		{% embed 'public_detail/_hero.html.twig' %}
+			{% block public_detail_hero_content %}
+				{% if return_context %}
+					<a class="article-show-context-return" href="{{ return_context.url }}">
+						{{ return_context.label }}
+					</a>
+				{% endif %}
+
+				<p class="public-detail-kicker">
+					{% if article.category %}
+						{{ article.category.name }}{% else %}Article
+					{% endif %}
+					{% if article.publishedAt %}
+						·
+						{{ article.publishedAt|date('d/m/Y') }}
+					{% endif %}
+				</p>
+
+				<h1 class="public-detail-title article-show-title">{{ article.title }}</h1>
+
+				<div class="public-detail-meta article-show-meta">
+					<span>Article</span>
+
+					{% if article.category %}
+						<span>{{ article.category.name }}</span>
 					{% endif %}
 
-					<p class="public-detail-kicker">
-						{% if article.category %}
-							{{ article.category.name }}{% else %}Article
-						{% endif %}
-						{% if article.publishedAt %}
-							·
-							{{ article.publishedAt|date('d/m/Y') }}
-						{% endif %}
-					</p>
+					{% for hikeLink in article.hikeLinks|slice(0, 1) %}
+						{% set hike = hikeLink.hikeDraft %}
 
-					<h1 class="public-detail-title article-show-title">{{ article.title }}</h1>
-
-					<div class="public-detail-meta article-show-meta">
-						<span>Article</span>
-
-						{% if article.category %}
-							<span>{{ article.category.name }}</span>
-						{% endif %}
-
-						{% for hikeLink in article.hikeLinks|slice(0, 1) %}
-							{% set hike = hikeLink.hikeDraft %}
-
-							{% if hike and hike.status.value in ['finished', 'converted'] %}
-								{% if hike.destination %}
-									<span>{{ hike.destination.name }}</span>
-								{% endif %}
-
-								<span>{{ hike.title }}</span>
+						{% if hike and hike.status.value in ['finished', 'converted'] %}
+							{% if hike.destination %}
+								<span>{{ hike.destination.name }}</span>
 							{% endif %}
-						{% endfor %}
 
-						{% for cityVisitLink in article.cityVisitLinks|slice(0, 1) %}
-							{% set visit = cityVisitLink.cityVisitDraft %}
+							<span>{{ hike.title }}</span>
+						{% endif %}
+					{% endfor %}
 
-							{% if visit and visit.status.value in ['finished', 'converted'] %}
-								{% if visit.destination %}
-									<span>{{ visit.destination.name }}</span>
-								{% endif %}
+					{% for cityVisitLink in article.cityVisitLinks|slice(0, 1) %}
+						{% set visit = cityVisitLink.cityVisitDraft %}
 
-								<span>{{ visit.title }}</span>
+						{% if visit and visit.status.value in ['finished', 'converted'] %}
+							{% if visit.destination %}
+								<span>{{ visit.destination.name }}</span>
 							{% endif %}
-						{% endfor %}
-					</div>
 
-					{% if is_granted('EDIT', article) %}
-						<div class="article-show-admin">
-							<a href="{{ path('admin_articles_edit', { id: article.id }) }}" class="show-admin-edit-link">
-								Modifier
-							</a>
-						</div>
-					{% endif %}
+							<span>{{ visit.title }}</span>
+						{% endif %}
+					{% endfor %}
 				</div>
 
+				{% if is_granted('EDIT', article) %}
+					<div class="article-show-admin">
+						<a href="{{ path('admin_articles_edit', { id: article.id }) }}" class="show-admin-edit-link">
+							Modifier
+						</a>
+					</div>
+				{% endif %}
+			{% endblock %}
+
+			{% block public_detail_hero_cover %}
 				<div class="public-detail-cover article-show-cover {{ article_cover_media ? 'article-show-cover--image' : '' }}">
 					{% if article_cover_media %}
 						{% include 'public_detail/_responsive_image.html.twig' with {
@@ -189,8 +189,8 @@
 						} only %}
 					{% endif %}
 				</div>
-			</div>
-		</section>
+			{% endblock %}
+		{% endembed %}
 
 		<section class="public-detail-content">
 			<div class="public-detail-container">

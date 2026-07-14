@@ -77,6 +77,123 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
         }
     }
 
+    public function testSharedHeroUsesAFullWidthTopPanelAndATiltedBottomOverlappingCoverWithoutHorizontalOverflow(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+        $client = self::createBrowser();
+        $driver = $client->getWebDriver();
+        $devTools = new ChromeDevToolsDriver($driver);
+
+        foreach ([1440, 1280, 1024, 768, 390] as $viewportWidth) {
+            $viewportHeight = $viewportWidth === 390 ? 844 : 1000;
+            $devTools->execute('Emulation.setDeviceMetricsOverride', [
+                'width' => $viewportWidth,
+                'height' => $viewportHeight,
+                'deviceScaleFactor' => 1,
+                'mobile' => $viewportWidth === 390,
+            ]);
+
+            foreach (self::PAGES as $kind => $page) {
+                $client->request('GET', $page['path']);
+
+                /** @var array<string, float|int|string|bool> $layout */
+                $layout = (new WebDriverWait($driver, 8))->until(static function () use ($driver): array|false {
+                    $result = $driver->executeScript(<<<'JS'
+                        const hero = document.querySelector('.public-detail-hero');
+                        const grid = hero?.querySelector('.public-detail-hero-grid');
+                        const content = grid?.querySelector('.public-detail-hero__content');
+                        const cover = grid?.querySelector('.public-detail-cover');
+
+                        if (!hero || !grid || !content || !cover) {
+                            return null;
+                        }
+
+                        const gridRect = grid.getBoundingClientRect();
+                        const heroRect = hero.getBoundingClientRect();
+                        const contentRect = content.getBoundingClientRect();
+                        const coverRect = cover.getBoundingClientRect();
+                        const panelStyle = getComputedStyle(hero, '::before');
+                        const coverStyle = getComputedStyle(cover);
+                        const panelWidth = parseFloat(panelStyle.width);
+                        const panelHeight = parseFloat(panelStyle.height);
+                        const coverTransform = coverStyle.transform;
+                        const coverMatrix = new DOMMatrixReadOnly(coverTransform);
+
+                        return {
+                            viewportWidth: window.innerWidth,
+                            documentScrollWidth: document.documentElement.scrollWidth,
+                            heroWidth: heroRect.width,
+                            heroHeight: heroRect.height,
+                            heroTop: heroRect.top,
+                            panelWidth,
+                            panelHeight,
+                            panelTop: heroRect.top + parseFloat(panelStyle.top),
+                            panelBottom: heroRect.top + parseFloat(panelStyle.top) + panelHeight,
+                            panelRight: heroRect.left + panelWidth,
+                            gridWidth: gridRect.width,
+                            gridRight: gridRect.right,
+                            contentWidth: contentRect.width,
+                            contentRight: contentRect.right,
+                            coverWidth: coverRect.width,
+                            coverHeight: coverRect.height,
+                            coverLayoutWidth: parseFloat(coverStyle.width),
+                            coverLayoutHeight: parseFloat(coverStyle.height),
+                            coverLeft: coverRect.left,
+                            coverBottom: coverRect.bottom,
+                            coverRight: coverRect.right,
+                            gridColumns: getComputedStyle(grid).gridTemplateColumns,
+                            coverTransform,
+                            coverRotation: Math.atan2(coverMatrix.b, coverMatrix.a) * (180 / Math.PI),
+                            coverRadius: parseFloat(getComputedStyle(cover).borderTopLeftRadius),
+                        };
+                    JS);
+
+                    return is_array($result) ? $result : false;
+                });
+
+                self::assertSame($viewportWidth, $layout['viewportWidth'], $kind);
+                self::assertLessThanOrEqual($viewportWidth, $layout['documentScrollWidth'], $kind);
+                self::assertGreaterThan(0, $layout['coverRadius'], $kind);
+                self::assertEqualsWithDelta($layout['heroWidth'], $layout['panelWidth'], 1.0, $kind);
+                self::assertEqualsWithDelta($layout['heroTop'], $layout['panelTop'], 1.0, $kind);
+                self::assertGreaterThan($layout['panelBottom'], $layout['coverBottom'], $kind);
+
+                if ($viewportWidth >= 981) {
+                    self::assertLessThanOrEqual(1180, $layout['gridWidth'], $kind);
+                    self::assertGreaterThanOrEqual(0.52, $layout['coverWidth'] / $layout['gridWidth'], $kind);
+                    self::assertGreaterThanOrEqual(0.40, $layout['contentWidth'] / $layout['gridWidth'], $kind);
+                    self::assertLessThanOrEqual(0.45, $layout['contentWidth'] / $layout['gridWidth'], $kind);
+                    self::assertGreaterThanOrEqual(0.78, $layout['panelHeight'] / $layout['coverLayoutHeight'], $kind);
+                    self::assertLessThanOrEqual(0.88, $layout['panelHeight'] / $layout['coverLayoutHeight'], $kind);
+                    self::assertGreaterThanOrEqual(60.0, $layout['coverBottom'] - $layout['panelBottom'], $kind);
+                    self::assertLessThanOrEqual(125.0, $layout['coverBottom'] - $layout['panelBottom'], $kind);
+                    self::assertGreaterThanOrEqual(15.0, $layout['coverRight'] - $layout['gridRight'], $kind);
+                    self::assertLessThanOrEqual(50.0, $layout['coverRight'] - $layout['gridRight'], $kind);
+                    self::assertGreaterThan($layout['gridRight'], $layout['coverRight'], $kind);
+                    self::assertNotSame('none', $layout['coverTransform'], $kind);
+                    self::assertGreaterThanOrEqual(-2.0, $layout['coverRotation'], $kind);
+                    self::assertLessThanOrEqual(-1.0, $layout['coverRotation'], $kind);
+                } elseif ($viewportWidth > 640) {
+                    self::assertEqualsWithDelta($layout['gridWidth'], $layout['coverLayoutWidth'], 1.0, $kind);
+                    self::assertGreaterThanOrEqual(45.0, $layout['coverBottom'] - $layout['panelBottom'], $kind);
+                    self::assertLessThanOrEqual(90.0, $layout['coverBottom'] - $layout['panelBottom'], $kind);
+                    self::assertNotSame('none', $layout['coverTransform'], $kind);
+                    self::assertGreaterThanOrEqual(-1.0, $layout['coverRotation'], $kind);
+                    self::assertLessThanOrEqual(-0.4, $layout['coverRotation'], $kind);
+                    self::assertStringNotContainsString(' ', trim((string) $layout['gridColumns']), $kind);
+                } else {
+                    self::assertEqualsWithDelta($layout['gridWidth'], $layout['coverWidth'], 1.0, $kind);
+                    self::assertEqualsWithDelta(48.0, $layout['coverBottom'] - $layout['panelBottom'], 1.0, $kind);
+                    self::assertSame('none', $layout['coverTransform'], $kind);
+                    self::assertEqualsWithDelta(0.0, $layout['coverRotation'], 0.01, $kind);
+                    self::assertStringNotContainsString(' ', trim((string) $layout['gridColumns']), $kind);
+                }
+            }
+        }
+
+        $this->assertNoBrowserSevereErrors($client);
+    }
+
     /**
      * @return array{
      *     currentSrc: string,

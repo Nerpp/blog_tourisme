@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\HikeDraft;
 use App\Repository\HikeDraftRepository;
+use App\Security\Voter\AdminAccessVoter;
 use App\Service\Hike\HikeGpxExporter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -56,15 +57,28 @@ final class HikeController extends AbstractController
     #[Route('/randonnees/{slug}', name: 'app_hike_show', methods: ['GET'])]
     public function show(string $slug, HikeDraftRepository $hikeDraftRepository): Response
     {
-        $hike = $hikeDraftRepository->findPublicBySlug($slug);
+        $hike = $hikeDraftRepository->findOneBySlugWithRelations($slug);
 
         if ($hike === null) {
             throw $this->createNotFoundException('Randonnée introuvable.');
         }
 
-        return $this->render('hike/show.html.twig', [
+        $isPreview = !$hike->isPublished();
+        if ($isPreview && !$this->isGranted(AdminAccessVoter::ACCESS)) {
+            throw $this->createNotFoundException('Randonnée introuvable.');
+        }
+
+        $response = $this->render('hike/show.html.twig', [
             'hike' => $hike,
+            'is_preview' => $isPreview,
         ]);
+
+        if ($isPreview) {
+            $response->headers->set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+            $response->headers->set('Cache-Control', 'private, no-store');
+        }
+
+        return $response;
     }
 
     #[Route('/randonnees/{slug}/gpx', name: 'app_hike_gpx', methods: ['GET'])]

@@ -4,6 +4,7 @@ updates:
   # Dépendances PHP : Symfony, Doctrine, PHPUnit, etc.
   - package-ecosystem: "composer"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -48,6 +49,7 @@ updates:
   # Dépendances JavaScript : Vite, Leaflet, plugins, etc.
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -74,6 +76,7 @@ updates:
   # Image PHP définie dans le Dockerfile racine.
   - package-ecosystem: "docker"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -100,6 +103,7 @@ updates:
   # Actions GitHub utilisées par la CI.
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "monthly"
       day: "monday"

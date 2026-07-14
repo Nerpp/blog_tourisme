@@ -44,7 +44,7 @@
 
 .article-show-title {
   max-width: 760px;
-  font-size: clamp(3rem, 5.5vw, 5.4rem);
+  font-size: clamp(2.8rem, 4.6vw, 4.7rem);
   line-height: 0.92;
 }
 
@@ -377,11 +377,6 @@
   .article-show-page {
     background: #f5f7f3;
   }
-
-  .article-show-page .public-detail-hero {
-    background: #10271f;
-  }
-
 }
 
 @media (max-width: 640px) {

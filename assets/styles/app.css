@@ -604,8 +604,28 @@ textarea {
   font-weight: 700;
 }
 
+.site-footer__social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.site-footer__social-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+}
+
+.site-footer__social-icon--youtube {
+  color: #ff0000;
+}
+
 .site-footer__section a:hover {
   color: #fff;
+}
+
+.site-footer__social-link--youtube:hover .site-footer__social-icon--youtube {
+  color: #ff3030;
 }
 
 .site-footer a:focus-visible {

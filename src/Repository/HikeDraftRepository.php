@@ -93,7 +93,31 @@ class HikeDraftRepository extends ServiceEntityRepository
     public function findPublicBySlug(string $slug): ?HikeDraft
     {
         /** @var HikeDraft|null $draft */
-        $draft = $this->createQueryBuilder('h')
+        $draft = $this->createDetailBySlugQueryBuilder($slug)
+            ->andWhere('h.status IN (:statuses)')
+            ->setParameter('statuses', [
+                HikeDraftStatus::Finished,
+                HikeDraftStatus::Converted,
+            ])
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $draft;
+    }
+
+    public function findOneBySlugWithRelations(string $slug): ?HikeDraft
+    {
+        /** @var HikeDraft|null $draft */
+        $draft = $this->createDetailBySlugQueryBuilder($slug)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $draft;
+    }
+
+    private function createDetailBySlugQueryBuilder(string $slug): QueryBuilder
+    {
+        return $this->createQueryBuilder('h')
             ->addSelect('destination', 'geographicDestination', 'geographicDestinationParent', 'geographicDestinationGrandParent', 'geographicDestinationGreatGrandParent', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('h.destination', 'destination')
             ->leftJoin('h.geographicDestination', 'geographicDestination')
@@ -113,19 +137,10 @@ class HikeDraftRepository extends ServiceEntityRepository
             ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
             ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
             ->andWhere('h.slug = :slug')
-            ->andWhere('h.status IN (:statuses)')
             ->setParameter('slug', $slug)
-            ->setParameter('statuses', [
-                HikeDraftStatus::Finished,
-                HikeDraftStatus::Converted,
-            ])
             ->orderBy('points.position', 'ASC')
             ->addOrderBy('mediaLinks.position', 'ASC')
-            ->addOrderBy('articleLinks.position', 'ASC')
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $draft;
+            ->addOrderBy('articleLinks.position', 'ASC');
     }
 
     /** @return list<HikeDraft> */

@@ -1,0 +1,15 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\DataFixtures\:
+        resource: '../src/DataFixtures/'
+
+    App\DataFixtures\UserFixtures:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\DataFixtures\MediaAssetFixtures:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
