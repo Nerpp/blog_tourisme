@@ -18,8 +18,6 @@ use Facebook\WebDriver\WebDriverWait;
 
 final class PublicPhotoGalleryPantherTest extends PantherTestCase
 {
-    private const LOCAL_VIDEO_EMBED_PATH = '/robots.txt';
-
     public function testHomepageStandardCardsKeepThumbWebpAtMobileAndDesktopWidths(): void
     {
         $this->skipIfFrontendBuildIsMissing();
@@ -221,17 +219,26 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
 
         $client = self::createBrowser();
         $webDriver = $client->getWebDriver();
-        $this->blockExternalMediaRequests($webDriver);
 
-        $client->request('GET', '/visites-de-ville/'.$slug);
+        $this->requestWithExternalEmbedPlaceholders($client, '/visites-de-ville/'.$slug);
         $client->waitFor('.video-gallery-card[data-gallery-index="0"]');
 
         $trigger = $webDriver->findElement(WebDriverBy::cssSelector('.video-gallery-card[data-gallery-index="0"]'));
         $modalSelector = (string) $trigger->getAttribute('data-gallery-target');
         self::assertStringStartsWith('#', $modalSelector);
+        $thumbnailSource = (string) $trigger->getAttribute('data-video-thumbnail-src');
+        self::assertSame('img.youtube.com', parse_url($thumbnailSource, PHP_URL_HOST));
+        $renderedPosters = $trigger->findElements(WebDriverBy::cssSelector('img'));
+        $renderedPlaceholders = $trigger->findElements(WebDriverBy::cssSelector('.video-gallery-card__placeholder'));
+        self::assertSame(1, count($renderedPosters) + count($renderedPlaceholders));
+        foreach ($renderedPosters as $renderedPoster) {
+            self::assertNotSame('img.youtube.com', parse_url((string) $renderedPoster->getAttribute('src'), PHP_URL_HOST));
+        }
+        self::assertFalse($this->resourceHostWasRequested($webDriver, 'img.youtube.com'));
 
         $iframeSelector = $modalSelector.' iframe[data-video-src]';
         $iframe = $webDriver->findElement(WebDriverBy::cssSelector($iframeSelector));
+        $declaredSource = $this->assertPantherYoutubeEmbedPlaceholder($webDriver, $iframeSelector);
         self::assertNull($webDriver->executeScript(
             'return document.querySelector(arguments[0])?.getAttribute("src");',
             [$iframeSelector]
@@ -253,6 +260,11 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         });
 
         self::assertStringContainsString('autoplay=1', $openedSource);
+        self::assertSame('www.youtube-nocookie.com', parse_url($openedSource, PHP_URL_HOST));
+        self::assertSame(parse_url($declaredSource, PHP_URL_PATH), parse_url($openedSource, PHP_URL_PATH));
+        $this->waitForPantherEmbedPlaceholder($webDriver, $iframeSelector);
+        self::assertFalse($this->resourceHostWasRequested($webDriver, 'www.youtube-nocookie.com'));
+        self::assertFalse($this->resourceHostWasRequested($webDriver, 'img.youtube.com'));
         self::assertSame('false', $webDriver->findElement(WebDriverBy::cssSelector($modalSelector))->getAttribute('aria-hidden'));
         self::assertSame($initialWindowHandles, $webDriver->getWindowHandles());
 
@@ -270,6 +282,7 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
             'return document.activeElement === arguments[0];',
             [$trigger]
         ));
+        $this->assertNoBrowserSevereErrors($client);
     }
 
     public function testVideoGalleryKeepsTheCaptionCompactAcrossBreakpoints(): void
@@ -284,7 +297,6 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         try {
             $client = self::createBrowser();
             $webDriver = $client->getWebDriver();
-            $this->blockExternalMediaRequests($webDriver);
 
             foreach ([1440, 1280, 1024, 768, 390] as $viewportWidth) {
                 $viewportHeight = $viewportWidth === 390 ? 844 : 900;
@@ -294,25 +306,13 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
                     'deviceScaleFactor' => 1,
                     'mobile' => $viewportWidth === 390,
                 ]);
-                $client->request('GET', '/visites-de-ville/'.$slug);
+                $this->requestWithExternalEmbedPlaceholders($client, '/visites-de-ville/'.$slug);
                 $client->waitFor('.video-gallery-card[data-gallery-index="0"]');
 
                 $trigger = $webDriver->findElement(WebDriverBy::cssSelector('.video-gallery-card[data-gallery-index="0"]'));
                 $modalSelector = (string) $trigger->getAttribute('data-gallery-target');
                 $iframeSelector = $modalSelector.' iframe[data-video-src]';
-                $localVideoSource = $webDriver->executeScript(<<<'JS'
-                    const iframe = document.querySelector(arguments[0]);
-
-                    if (!iframe) {
-                        return null;
-                    }
-
-                    iframe.dataset.videoSrc = new URL(arguments[1], window.location.origin).toString();
-
-                    return iframe.dataset.videoSrc;
-                JS, [$iframeSelector, self::LOCAL_VIDEO_EMBED_PATH]);
-                self::assertIsString($localVideoSource);
-                self::assertSame(self::LOCAL_VIDEO_EMBED_PATH, parse_url($localVideoSource, PHP_URL_PATH));
+                $declaredSource = $this->assertPantherYoutubeEmbedPlaceholder($webDriver, $iframeSelector);
 
                 $trigger->click();
                 $client->waitFor($modalSelector.' .gallery-modal__caption--video');
@@ -326,7 +326,11 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
 
                     return is_string($source) && $source !== '' ? $source : false;
                 });
-                self::assertSame(self::LOCAL_VIDEO_EMBED_PATH, parse_url($openedVideoSource, PHP_URL_PATH));
+                self::assertStringContainsString('autoplay=1', $openedVideoSource);
+                self::assertSame('www.youtube-nocookie.com', parse_url($openedVideoSource, PHP_URL_HOST));
+                self::assertSame(parse_url($declaredSource, PHP_URL_PATH), parse_url($openedVideoSource, PHP_URL_PATH));
+                $this->waitForPantherEmbedPlaceholder($webDriver, $iframeSelector);
+                self::assertFalse($this->resourceHostWasRequested($webDriver, 'www.youtube-nocookie.com'));
 
                 /** @var array<string, float|int|string> $layout */
                 $layout = $webDriver->executeScript(<<<'JS'
@@ -569,6 +573,64 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         );
     }
 
+    private function resourceHostWasRequested(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $expectedHost,
+    ): bool {
+        return (bool) $webDriver->executeScript(<<<'JS'
+            return performance.getEntriesByType('resource').some((entry) => {
+                try {
+                    return new URL(entry.name).hostname === arguments[0];
+                } catch (error) {
+                    return false;
+                }
+            });
+        JS, [$expectedHost]);
+    }
+
+    private function assertPantherYoutubeEmbedPlaceholder(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $iframeSelector,
+    ): string {
+        $iframe = $webDriver->findElement(WebDriverBy::cssSelector($iframeSelector));
+        $declaredSource = (string) $iframe->getAttribute('data-video-src');
+
+        self::assertSame('www.youtube-nocookie.com', parse_url($declaredSource, PHP_URL_HOST));
+        self::assertStringStartsWith('/embed/', (string) parse_url($declaredSource, PHP_URL_PATH));
+        self::assertNotSame('', trim((string) $iframe->getAttribute('title')));
+        self::assertSame('lazy', $iframe->getAttribute('loading'));
+        self::assertStringContainsString('encrypted-media', (string) $iframe->getAttribute('allow'));
+        self::assertSame('strict-origin-when-cross-origin', $iframe->getAttribute('referrerpolicy'));
+        $placeholderAttributes = $webDriver->executeScript(<<<'JS'
+            const iframe = document.querySelector(arguments[0]);
+
+            return {
+                allowFullscreen: iframe?.hasAttribute('allowfullscreen') === true,
+                placeholder: iframe?.dataset.pantherExternalEmbedPlaceholder || null,
+                srcdoc: iframe?.getAttribute('srcdoc') || null,
+            };
+        JS, [$iframeSelector]);
+        self::assertIsArray($placeholderAttributes);
+        self::assertTrue($placeholderAttributes['allowFullscreen'] ?? false);
+        self::assertSame('true', $placeholderAttributes['placeholder'] ?? null);
+        self::assertStringContainsString(
+            'Vidéo externe neutralisée',
+            (string) ($placeholderAttributes['srcdoc'] ?? ''),
+        );
+
+        return $declaredSource;
+    }
+
+    private function waitForPantherEmbedPlaceholder(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $iframeSelector,
+    ): void {
+        (new WebDriverWait($webDriver, 8))->until(static fn () => (bool) $webDriver->executeScript(
+            'return document.querySelector(arguments[0])?.contentDocument?.URL === "about:srcdoc";',
+            [$iframeSelector],
+        ));
+    }
+
     private function ensureFixtureStandardGalleryVariants(): void
     {
         self::bootKernel();
@@ -695,24 +757,6 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         } finally {
             self::ensureKernelShutdown();
         }
-    }
-
-    private function blockExternalMediaRequests(
-        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
-    ): void {
-        $devTools = new ChromeDevToolsDriver($webDriver);
-        $devTools->execute('Network.enable');
-        $devTools->execute('Network.setBlockedURLs', [
-            'urls' => [
-                '*://youtube.com/*',
-                '*://*.youtube.com/*',
-                '*://youtube-nocookie.com/*',
-                '*://*.youtube-nocookie.com/*',
-                '*://*.googlevideo.com/*',
-                '*://img.youtube.com/*',
-                '*://*.ytimg.com/*',
-            ],
-        ]);
     }
 
     private function disableBrowserCache(
