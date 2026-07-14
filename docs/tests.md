@@ -44,6 +44,26 @@ Ne pas utiliser la base de developpement pour les tests et ne pas lancer `schema
 
 Les fixtures de production futures ne doivent pas rejoindre le groupe Doctrine `test`. Elles devront utiliser un groupe ou un namespace separe et ne jamais etre appelees par `make test-db-reset`.
 
+## Contenus externes dans Panther
+
+Le helper Panther `requestWithExternalEmbedPlaceholders()` ajoute un opt-in aux
+navigations E2E qui ouvrent une iframe externe. En environnement `test`
+uniquement, les iframes des galeries conservent alors leur URL reelle dans
+`data-video-src` mais recoivent un document local minimal via `srcdoc`. Comme
+`srcdoc` est prioritaire sur `src`, Chromium ne telecharge et n'execute pas le
+document YouTube lorsque le JavaScript de la galerie ouvre la video. Une
+miniature YouTube reste elle aussi declarée dans `data-video-thumbnail-src`,
+mais le placeholder visuel local est utilise afin de ne pas contacter
+`img.youtube.com`.
+
+Les tests continuent de verifier l'hote exact `www.youtube-nocookie.com`, le
+chemin d'embed, le titre accessible et les attributs de securite. La detection
+globale des entrees navigateur `SEVERE` reste intacte : aucune origine, aucun
+`ReferenceError` et aucun message YouTube ne sont filtres.
+
+Le parametre d'opt-in est ignore hors de l'environnement `test`. Le comportement
+des environnements de developpement et de production est donc inchange.
+
 ## Couverture
 
 La couverture PHPUnit cible `src/` et exclut les tests E2E/Panther au depart.
