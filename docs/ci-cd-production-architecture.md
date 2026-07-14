@@ -548,3 +548,16 @@ valeurs sensibles pendant l'audit.
 11. Audit Infomaniak puis phase de déploiement distincte.
 
 La phase 1 n'autorise aucune de ces mutations distantes.
+
+## Alignement d'ascendance dev/main — 14 juillet 2026
+
+- SHA `dev` sauvegardé : `a7d1d684e84f778678ac3df80fcb8106ab90fd1e` ;
+- SHA `main` sauvegardé : `001d5f31dcfd6b7fae75b478d15fdffce3ef6fde` ;
+- tags : `backup/pre-alignment-dev-20260714` et
+  `backup/pre-alignment-main-20260714` ;
+- méthode : merge Git réel de `main` dans une branche issue de `dev`, sans
+  réécriture d'historique, avec résolution explicite des conflits historiques ;
+- commit de raccordement : `2f1994fe9bb7e2662bdaa7af4742c814d79e0587` ;
+- aucun fichier applicatif n'a changé dans le commit de raccordement ;
+- tree conservé avant et après le merge :
+  `357a28cc7a87c883d66fabf635117882c5505860`.
