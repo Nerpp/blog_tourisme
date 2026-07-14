@@ -1,0 +1,241 @@
+name: Promote dev to main
+
+run-name: Promote dev ${{ github.event.workflow_run.head_sha }} to main
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - dev
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: promote-dev-to-main
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Prepare dev to main promotion
+    if: >-
+      vars.PROMOTION_ENABLED == 'true' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Read-only promotion preflight
+        id: preflight
+        uses: actions/github-script@v9
+        env:
+          EXPECTED_DEV_SHA: ${{ github.event.workflow_run.head_sha }}
+          PROMOTION_BASE_SHA: ${{ vars.PROMOTION_BASE_SHA }}
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const expectedDevSha = process.env.EXPECTED_DEV_SHA;
+            const promotionBaseSha = process.env.PROMOTION_BASE_SHA;
+            const isAncestor = (comparison) =>
+              comparison.behind_by === 0 && ['ahead', 'identical'].includes(comparison.status);
+
+            if (run.path !== '.github/workflows/ci.yml' || run.head_repository.full_name !== repository) {
+              core.setFailed('Promotion must follow this repository CI workflow.');
+              return;
+            }
+            if (!/^[0-9a-f]{40}$/.test(promotionBaseSha || '')) {
+              core.setFailed('PROMOTION_BASE_SHA must contain the validated 40-character alignment baseline SHA.');
+              return;
+            }
+
+            const {data: rules} = await github.request('GET /repos/{owner}/{repo}/rules/branches/{branch}', {
+              ...context.repo,
+              branch: 'main',
+            });
+            const pullRules = rules.filter((rule) => rule.type === 'pull_request');
+            const requiredContexts = rules
+              .filter((rule) => rule.type === 'required_status_checks')
+              .flatMap((rule) => rule.parameters.required_status_checks.map((check) => check.context));
+            const mergeOnly = pullRules.length === 1
+              && pullRules[0].parameters.required_review_thread_resolution === true
+              && pullRules[0].parameters.allowed_merge_methods.length === 1
+              && pullRules[0].parameters.allowed_merge_methods[0] === 'merge';
+            if (!mergeOnly || requiredContexts.length !== 1 || requiredContexts[0] !== 'Quality') {
+              core.setFailed('The effective main rules must require only Quality and allow only merge commits.');
+              return;
+            }
+
+            const [{data: devRef}, {data: mainRef}] = await Promise.all([
+              github.rest.git.getRef({...context.repo, ref: 'heads/dev'}),
+              github.rest.git.getRef({...context.repo, ref: 'heads/main'}),
+            ]);
+            const devSha = devRef.object.sha;
+            const mainSha = mainRef.object.sha;
+
+            if (devSha !== expectedDevSha) {
+              core.notice(`Skipping stale successful CI ${expectedDevSha}; dev is now ${devSha}.`);
+              core.setOutput('should-promote', 'false');
+              return;
+            }
+
+            const [{data: baseToDev}, {data: baseToMain}] = await Promise.all([
+              github.rest.repos.compareCommitsWithBasehead({...context.repo, basehead: `${promotionBaseSha}...${devSha}`}),
+              github.rest.repos.compareCommitsWithBasehead({...context.repo, basehead: `${promotionBaseSha}...${mainSha}`}),
+            ]);
+            if (!isAncestor(baseToDev) || !isAncestor(baseToMain)) {
+              core.setFailed('The validated promotion baseline is not an ancestor of both dev and main. Repair alignment first.');
+              return;
+            }
+
+            const {data: mainOnly} = await github.rest.repos.compareCommitsWithBasehead({
+              ...context.repo,
+              basehead: `${devSha}...${mainSha}`,
+              per_page: 100,
+            });
+            if (mainOnly.ahead_by > mainOnly.commits.length) {
+              core.setFailed('Too many main-only commits to validate safely.');
+              return;
+            }
+            for (const commit of mainOnly.commits) {
+              if (commit.parents.length !== 2) {
+                core.setFailed(`Unexpected non-merge commit on main: ${commit.sha}.`);
+                return;
+              }
+              const {data: promotedParent} = await github.rest.repos.compareCommitsWithBasehead({
+                ...context.repo,
+                basehead: `${commit.parents[1].sha}...${devSha}`,
+              });
+              if (!isAncestor(promotedParent)) {
+                core.setFailed(`Main commit ${commit.sha} is not a dev promotion merge.`);
+                return;
+              }
+            }
+
+            const [{data: devCommit}, {data: mainCommit}, {data: comparison}] = await Promise.all([
+              github.rest.git.getCommit({...context.repo, commit_sha: devSha}),
+              github.rest.git.getCommit({...context.repo, commit_sha: mainSha}),
+              github.rest.repos.compareCommitsWithBasehead({...context.repo, basehead: `${mainSha}...${devSha}`}),
+            ]);
+            if (devCommit.tree.sha === mainCommit.tree.sha) {
+              core.notice('dev and main have identical trees; no promotion PR is needed.');
+              core.setOutput('should-promote', 'false');
+              return;
+            }
+            if (comparison.ahead_by === 0) {
+              core.setFailed('dev has no unique commit to promote although the trees differ.');
+              return;
+            }
+
+            const {data: pulls} = await github.rest.pulls.list({
+              ...context.repo,
+              state: 'open',
+              base: 'main',
+              head: `${context.repo.owner}:dev`,
+              per_page: 10,
+            });
+            if (pulls.length > 1) {
+              core.setFailed('More than one dev to main promotion PR is open.');
+              return;
+            }
+            if (pulls.length === 1 && (pulls[0].draft || pulls[0].base.ref !== 'main' || pulls[0].head.ref !== 'dev')) {
+              core.setFailed('The existing promotion PR is not in the expected state.');
+              return;
+            }
+
+            core.setOutput('should-promote', 'true');
+            core.setOutput('dev-sha', devSha);
+            core.setOutput('existing-pr', pulls.length === 1 ? String(pulls[0].number) : '');
+
+      - name: Create least-privilege GitHub App token
+        if: steps.preflight.outputs.should-promote == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.PROMOTION_GITHUB_APP_ID }}
+          private-key: ${{ secrets.PROMOTION_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: blog_tourisme
+
+      - name: Create or reuse promotion PR and request auto-merge
+        if: steps.preflight.outputs.should-promote == 'true'
+        uses: actions/github-script@v9
+        env:
+          EXPECTED_DEV_SHA: ${{ steps.preflight.outputs.dev-sha }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const expectedDevSha = process.env.EXPECTED_DEV_SHA;
+            const {data: currentDev} = await github.rest.git.getRef({...context.repo, ref: 'heads/dev'});
+            if (currentDev.object.sha !== expectedDevSha) {
+              core.setFailed('dev advanced after preflight; a later successful CI run must promote it.');
+              return;
+            }
+
+            let {data: pulls} = await github.rest.pulls.list({
+              ...context.repo,
+              state: 'open',
+              base: 'main',
+              head: `${context.repo.owner}:dev`,
+              per_page: 10,
+            });
+            if (pulls.length > 1) {
+              core.setFailed('Refusing to choose between duplicate promotion PRs.');
+              return;
+            }
+
+            let pull;
+            if (pulls.length === 0) {
+              ({data: pull} = await github.rest.pulls.create({
+                ...context.repo,
+                head: 'dev',
+                base: 'main',
+                title: `Promote dev ${expectedDevSha.slice(0, 12)} to main`,
+                body: [
+                  'Automated promotion from `dev` to `main`.',
+                  '',
+                  `Validated dev SHA: \`${expectedDevSha}\``,
+                  '',
+                  'The PR must pass `Quality`; merge method: merge commit.',
+                ].join('\n'),
+                maintainer_can_modify: false,
+              }));
+            } else {
+              ({data: pull} = await github.rest.pulls.get({...context.repo, pull_number: pulls[0].number}));
+            }
+
+            ({data: pull} = await github.rest.pulls.get({...context.repo, pull_number: pull.number}));
+
+            if (pull.base.ref !== 'main' || pull.head.ref !== 'dev' || pull.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}` || pull.draft) {
+              core.setFailed('The promotion PR source, target or state is invalid.');
+              return;
+            }
+
+            for (let attempt = 0; attempt < 5 && pull.mergeable === null; attempt += 1) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              ({data: pull} = await github.rest.pulls.get({...context.repo, pull_number: pull.number}));
+            }
+            if (pull.mergeable !== true || pull.mergeable_state === 'dirty') {
+              core.setFailed(`Promotion PR is conflicting or mergeability is ambiguous (${pull.mergeable_state}).`);
+              return;
+            }
+            if (pull.auto_merge) {
+              core.notice(`Auto-merge is already enabled on PR #${pull.number}.`);
+              return;
+            }
+
+            await github.graphql(
+              `mutation($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
+                  pullRequest { number }
+                }
+              }`,
+              {pullRequestId: pull.node_id},
+            );

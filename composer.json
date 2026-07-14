@@ -8,6 +8,8 @@
     "require": {
         "php": ">=8.4",
         "ext-ctype": "*",
+        "ext-exif": "*",
+        "ext-gd": "*",
         "ext-iconv": "*",
         "ext-intl": "*",
         "ext-mbstring": "*",
@@ -37,6 +39,7 @@
         "symfony/mailer": "8.1.*",
         "symfony/mime": "8.1.*",
         "symfony/monolog-bundle": "^4.0",
+        "symfony/process": "8.1.*",
         "symfony/rate-limiter": "8.1.*",
         "symfony/routing": "8.1.*",
         "symfony/runtime": "8.1.*",
