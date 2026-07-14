@@ -254,6 +254,13 @@ Dependabot. Il :
 10. demande uniquement un auto-merge `MERGE` avec la GitHub App, puis laisse
     Quality et le ruleset décider de la fusion réelle.
 
+`fetch-metadata@v3` déduit le champ `directory` depuis le nom de branche. Avec
+la cible non standard `dev`, il représente actuellement la racine `/` par
+`/dev`. Le classificateur n'accepte cette forme que comme alias de `/` lorsque
+l'écosystème, la cible et le préfixe immuable de la branche concordent tous ;
+une vraie sous-arborescence conserve un composant supplémentaire et est
+rejetée.
+
 Les PR minor nécessitent une revue des notes de version et une validation
 manuelle. Les PR major exigent en plus une branche de migration dédiée et un
 plan de compatibilité. Une Quality verte est nécessaire mais ne remplace jamais

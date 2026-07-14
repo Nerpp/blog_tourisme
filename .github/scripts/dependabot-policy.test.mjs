@@ -48,6 +48,12 @@ function makeInput({
   changedFiles,
   files,
 } = {}) {
+  const normalizedDependencies = dependencies.map((dependency) => ({
+    directory: '/',
+    packageEcosystem: ecosystem,
+    targetBranch: 'dev',
+    ...dependency,
+  }));
   return {
     pull: {
       actor: 'dependabot[bot]',
@@ -61,13 +67,13 @@ function makeInput({
       ...pull,
     },
     metadata: {
-      dependencyNames: dependencies.map((dependency) => dependency.dependencyName).join(','),
+      dependencyNames: normalizedDependencies.map((dependency) => dependency.dependencyName).join(','),
       directory: '/',
       packageEcosystem: ecosystem,
       maintainerChanges: false,
       targetBranch: 'dev',
       updateType: `version-update:semver-${level}`,
-      updatedDependencies: dependencies,
+      updatedDependencies: normalizedDependencies,
       ...metadata,
     },
     changedFiles: changedFiles ?? [defaultChangedFile(ecosystem)],
@@ -252,6 +258,26 @@ test('aggregate and structured metadata disagreement fails safely', () => {
     level: 'patch',
     dependencies: [versionUpdate('vendor/package', '1.0.0', '1.1.0', 'minor')],
   }), 'minor', false, false);
+});
+
+test('fetch-metadata target-branch alias is accepted only as the root directory', () => {
+  const input = makeInput({ecosystem: 'github-actions', level: 'major'});
+  input.metadata.directory = '/dev';
+  input.metadata.updatedDependencies = input.metadata.updatedDependencies.map((dependency) => ({
+    ...dependency,
+    directory: '/dev',
+  }));
+  expectLevel(input, 'major', false);
+});
+
+test('a real nested Dependabot directory is rejected', () => {
+  const input = makeInput();
+  input.metadata.directory = '/packages/app';
+  input.metadata.updatedDependencies = input.metadata.updatedDependencies.map((dependency) => ({
+    ...dependency,
+    directory: '/packages/app',
+  }));
+  expectLevel(input, 'patch', false, false);
 });
 
 test('minor and major classifications can never become eligible', () => {

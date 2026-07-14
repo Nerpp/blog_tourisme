@@ -58,11 +58,26 @@ function normalizeDependency(raw) {
   return {
     name: raw.dependencyName ?? raw['dependency-name'] ?? raw.name ?? 'unknown dependency',
     dependencyType: raw.dependencyType ?? raw['dependency-type'] ?? 'unknown',
+    directory: raw.directory ?? null,
+    packageEcosystem: raw.packageEcosystem ?? raw['package-ecosystem'] ?? null,
+    targetBranch: raw.targetBranch ?? raw['target-branch'] ?? null,
     previousVersion,
     newVersion,
     level: declaredLevel ?? levelFromVersions(previousVersion, newVersion),
     source: 'metadata',
   };
+}
+
+function isTrustedRootDirectory(directory, targetBranch, ecosystem, headRef) {
+  if (directory === '/') return true;
+  // fetch-metadata@v3 derives the directory from the branch name. When a
+  // non-default target branch is embedded after the ecosystem, a real root
+  // directory is reported as "/<target>". Accept that alias only when every
+  // immutable branch component agrees; a real nested directory retains an
+  // additional path component and is rejected.
+  return Boolean(targetBranch)
+    && directory === `/${targetBranch}`
+    && String(headRef ?? '').startsWith(`dependabot/${ecosystem}/${targetBranch}/`);
 }
 
 function composerLockChanges(files, errors) {
@@ -211,7 +226,9 @@ export function classifyDependabotPolicy(input) {
   }
   if (pull.draft === true) errors.push('draft PRs are not eligible');
   if (!SUPPORTED_ECOSYSTEMS.has(ecosystem)) errors.push(`unsupported ecosystem: ${ecosystem ?? 'missing'}`);
-  if (metadata.directory !== '/') errors.push('Dependabot directory must be /');
+  if (!isTrustedRootDirectory(metadata.directory, metadata.targetBranch, ecosystem, pull.headRef)) {
+    errors.push('Dependabot directory must resolve exactly to /');
+  }
   if (metadata.targetBranch !== 'dev') errors.push('Dependabot target branch must be dev');
   if (!String(metadata.dependencyNames ?? '').trim()) errors.push('dependency names are missing');
 
@@ -239,6 +256,18 @@ export function classifyDependabotPolicy(input) {
     : [];
   if (!Array.isArray(rawDependencies)) errors.push('updated-dependencies-json must be an array');
   if (metadataChanges.length === 0) errors.push('updated-dependencies-json contains no dependency');
+  for (const change of metadataChanges) {
+    if (change.directory
+        && !isTrustedRootDirectory(change.directory, change.targetBranch, change.packageEcosystem, pull.headRef)) {
+      errors.push(`dependency metadata directory must resolve exactly to / for ${change.name}`);
+    }
+    if (change.packageEcosystem && change.packageEcosystem !== ecosystem) {
+      errors.push(`dependency ecosystem mismatch for ${change.name}`);
+    }
+    if (change.targetBranch && change.targetBranch !== 'dev') {
+      errors.push(`dependency target branch mismatch for ${change.name}`);
+    }
+  }
   const maintainerChanges = metadata.maintainerChanges === true
     || metadata.maintainerChanges === 'true'
     || metadataChanges.some((change, index) => {
