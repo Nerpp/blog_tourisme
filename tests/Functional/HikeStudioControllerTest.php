@@ -53,6 +53,27 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testHikeStudioIndexExposesPreviewLinksForDraftAndPublishedContents(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createHikeDraft($admin);
+        $published = $this->createPublishedHike($admin);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/field-tools/hikes');
+
+        self::assertResponseIsSuccessful();
+        foreach ([$draft, $published] as $hike) {
+            $link = $crawler->filter(sprintf('a[href="/randonnees/%s"]', $hike->getSlug()));
+            self::assertCount(1, $link);
+            self::assertSame('Aperçu', trim($link->text()));
+            self::assertSame('_blank', $link->attr('target'));
+            self::assertSame('noopener noreferrer', $link->attr('rel'));
+            self::assertSame('Aperçu de la randonnée '.$hike->getTitle(), $link->attr('aria-label'));
+        }
+    }
+
     public function testVerifiedAdminGetsNotFoundForMissingHikeDraft(): void
     {
         $client = static::createClient();

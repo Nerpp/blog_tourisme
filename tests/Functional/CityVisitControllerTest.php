@@ -182,6 +182,78 @@ final class CityVisitControllerTest extends FunctionalTestCase
         $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
     }
 
+    public function testVerifiedAdminCanPreviewIncompleteDraftCityVisitWithoutPublishingIt(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $cityVisitId = $cityVisit->getId();
+        self::assertNotNull($cityVisitId);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.draft-preview-banner', 'Aperçu du brouillon — Cette page n’est pas visible publiquement.');
+        self::assertSelectorTextContains('.draft-preview-banner__badge', 'Brouillon');
+        self::assertSame('/admin/field-tools/city-visits', $crawler->filter('.draft-preview-banner a:contains("Retour au studio")')->attr('href'));
+        self::assertSame(sprintf('/admin/studio/city-visits/%d/edit', $cityVisitId), $crawler->filter('.draft-preview-banner a:contains("Modifier")')->attr('href'));
+        self::assertSame('noindex, nofollow, noarchive', $client->getResponse()->headers->get('X-Robots-Tag'));
+        self::assertStringContainsString('no-store', (string) $client->getResponse()->headers->get('Cache-Control'));
+        self::assertSame('noindex, nofollow, noarchive', $crawler->filter('meta[name="robots"]')->attr('content'));
+        self::assertSelectorTextContains('body', (string) $cityVisit->getTitle());
+        self::assertSelectorTextContains('body', 'Aucune étape détaillée pour le moment.');
+
+        $this->entityManager()->clear();
+        $storedCityVisit = $this->entityManager()->find(\App\Entity\CityVisitDraft::class, $cityVisitId);
+        self::assertInstanceOf(\App\Entity\CityVisitDraft::class, $storedCityVisit);
+        self::assertSame(CityVisitDraftStatus::Draft, $storedCityVisit->getStatus());
+        self::assertNull($storedCityVisit->getFinishedAt());
+    }
+
+    public function testConnectedUserWithoutAdminAccessCannotPreviewDraftCityVisit(): void
+    {
+        $client = static::createClient();
+        $cityVisit = $this->createCityVisitDraft($this->createVerifiedAdmin());
+        $client->loginUser($this->createUser());
+
+        $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testDraftCityVisitPreviewUsesDirectMapLinksInsteadOfPublicOnlyGpsEndpoints(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createCityVisitDraft($admin);
+        $this->createCityVisitPoint($cityVisit, 43.60, 3.88, 1);
+        $this->createCityVisitPoint($cityVisit, 43.61, 3.89, 2);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('a[href^="/gps/"]'));
+        self::assertGreaterThanOrEqual(3, $crawler->filter('a[href^="https://www.google.com/maps/"]')->count());
+    }
+
+    public function testAdminViewingPublishedCityVisitDoesNotEnterPreviewMode(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $cityVisit = $this->createPublishedCityVisit($admin);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/visites-de-ville/%s', $cityVisit->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('.draft-preview-banner'));
+        self::assertCount(0, $crawler->filter('meta[name="robots"]'));
+        self::assertNotSame('noindex, nofollow, noarchive', $client->getResponse()->headers->get('X-Robots-Tag'));
+        self::assertStringNotContainsString('no-store', (string) $client->getResponse()->headers->get('Cache-Control'));
+    }
+
     public function testGeographicDestinationWithoutEditorialDestinationDoesNotBreakShowPage(): void
     {
         $client = static::createClient();

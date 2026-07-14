@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\CityVisitDraft;
 use App\Repository\CityVisitDraftRepository;
+use App\Security\Voter\AdminAccessVoter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -54,15 +55,28 @@ final class CityVisitController extends AbstractController
     #[Route('/visites-de-ville/{slug}', name: 'app_city_visit_show', methods: ['GET'])]
     public function show(string $slug, CityVisitDraftRepository $cityVisitDraftRepository): Response
     {
-        $cityVisit = $cityVisitDraftRepository->findPublicBySlug($slug);
+        $cityVisit = $cityVisitDraftRepository->findOneBySlugWithRelations($slug);
 
         if ($cityVisit === null) {
             throw $this->createNotFoundException('Visite de ville introuvable.');
         }
 
-        return $this->render('city_visit/show.html.twig', [
+        $isPreview = !$cityVisit->isPublished();
+        if ($isPreview && !$this->isGranted(AdminAccessVoter::ACCESS)) {
+            throw $this->createNotFoundException('Visite de ville introuvable.');
+        }
+
+        $response = $this->render('city_visit/show.html.twig', [
             'city_visit' => $cityVisit,
+            'is_preview' => $isPreview,
         ]);
+
+        if ($isPreview) {
+            $response->headers->set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+            $response->headers->set('Cache-Control', 'private, no-store');
+        }
+
+        return $response;
     }
 
     private function searchQuery(Request $request): string

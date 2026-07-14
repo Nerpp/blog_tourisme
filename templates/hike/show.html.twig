@@ -1,5 +1,6 @@
 {% extends 'layouts/public-detail.html.twig' %}
 
+{% set is_preview = is_preview|default(false) %}
 {% set cover_media = null %}
 {% set fallback_cover_media = null %}
 
@@ -49,6 +50,12 @@
 
 {% block body %}
     <main class="public-detail-page public-detail-page--hike">
+        {% include 'public_detail/_draft_preview_banner.html.twig' with {
+            is_preview: is_preview,
+            studio_path: path('admin_field_tools_hikes'),
+            edit_path: path('admin_studio_hike_edit', { id: hike.id })
+        } only %}
+
         {% embed 'public_detail/_hero.html.twig' %}
             {% block public_detail_hero_content %}
                 <p class="public-detail-kicker">Randonnée</p>
@@ -110,7 +117,8 @@
                             videos_description: 'Les vidéos prises pendant l’exploration permettent de visualiser le relief, les accès et l’ambiance du site.',
                             video_fallback_title: 'Vidéo du parcours',
                             points_title: 'Étapes de la randonnée',
-                            gps_point_type: 'hike'
+                            gps_point_type: 'hike',
+                            is_preview: is_preview
                         } only %}
 
                         {% include 'public_detail/_related_articles.html.twig' with {

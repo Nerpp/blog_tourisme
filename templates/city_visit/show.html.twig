@@ -1,5 +1,6 @@
 {% extends 'layouts/public-detail.html.twig' %}
 
+{% set is_preview = is_preview|default(false) %}
 {% set cover_media = null %}
 {% set fallback_cover_media = null %}
 
@@ -49,6 +50,12 @@
 
 {% block body %}
     <main class="public-detail-page">
+        {% include 'public_detail/_draft_preview_banner.html.twig' with {
+            is_preview: is_preview,
+            studio_path: path('admin_field_tools_city_visits'),
+            edit_path: path('admin_studio_city_visit_edit', { id: city_visit.id })
+        } only %}
+
         {% embed 'public_detail/_hero.html.twig' %}
             {% block public_detail_hero_content %}
                 <p class="public-detail-kicker">Visite de ville</p>
@@ -109,7 +116,8 @@
                             videos_description: 'Les vidéos permettent de visualiser l’ambiance, les rues, les accès et les points d’intérêt.',
                             video_fallback_title: 'Vidéo de la visite',
                             points_title: 'Étapes de la visite',
-                            gps_point_type: 'city_visit'
+                            gps_point_type: 'city_visit',
+                            is_preview: is_preview
                         } only %}
 
                         {% include 'public_detail/_related_articles.html.twig' with {

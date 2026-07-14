@@ -52,6 +52,27 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testCityVisitStudioIndexExposesPreviewLinksForDraftAndPublishedContents(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createCityVisitDraft($admin);
+        $published = $this->createPublishedCityVisit($admin);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', '/admin/field-tools/city-visits');
+
+        self::assertResponseIsSuccessful();
+        foreach ([$draft, $published] as $cityVisit) {
+            $link = $crawler->filter(sprintf('a[href="/visites-de-ville/%s"]', $cityVisit->getSlug()));
+            self::assertCount(1, $link);
+            self::assertSame('Aperçu', trim($link->text()));
+            self::assertSame('_blank', $link->attr('target'));
+            self::assertSame('noopener noreferrer', $link->attr('rel'));
+            self::assertSame('Aperçu de la visite '.$cityVisit->getTitle(), $link->attr('aria-label'));
+        }
+    }
+
     public function testVerifiedAdminGetsNotFoundForMissingCityVisitDraft(): void
     {
         $client = static::createClient();

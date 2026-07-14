@@ -54,6 +54,13 @@
                         <td>
                             <div class="studio-city-visit-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}">Ouvrir</a>
+                                <a
+                                    class="admin-button admin-button--small admin-button--secondary"
+                                    href="{{ path('app_city_visit_show', { slug: city_visit.slug }) }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="Aperçu de la visite {{ city_visit.title }}"
+                                >Aperçu</a>
                                 <form method="post" action="{{ path('admin_studio_city_visit_delete', { id: city_visit.id }) }}" onsubmit="return confirm('Supprimer cette visite de ville ? Les images locales inutilisées et les destinations devenues orphelines pourront aussi être supprimées.');">
                                     <input type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_delete_' ~ city_visit.id) }}">
                                     <button class="admin-button admin-button--small admin-button--danger-soft" type="submit">Supprimer</button>

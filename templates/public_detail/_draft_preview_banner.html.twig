@@ -1,0 +1,25 @@
+{% set is_preview = is_preview|default(false) %}
+{% set studio_path = studio_path|default(null) %}
+{% set edit_path = edit_path|default(null) %}
+
+{% if is_preview %}
+    <aside class="draft-preview-banner" aria-label="Mode aperçu du brouillon">
+        <div class="public-detail-container draft-preview-banner__inner">
+            <span class="draft-preview-banner__badge">Brouillon</span>
+
+            <p class="draft-preview-banner__message">
+                <strong>Aperçu du brouillon</strong> — Cette page n’est pas visible publiquement.
+            </p>
+
+            <div class="draft-preview-banner__actions">
+                {% if studio_path %}
+                    <a class="draft-preview-banner__link" href="{{ studio_path }}">Retour au studio</a>
+                {% endif %}
+
+                {% if edit_path %}
+                    <a class="draft-preview-banner__link draft-preview-banner__link--primary" href="{{ edit_path }}">Modifier</a>
+                {% endif %}
+            </div>
+        </div>
+    </aside>
+{% endif %}

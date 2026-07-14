@@ -133,6 +133,11 @@ class CityVisitDraft
         return $this;
     }
 
+    public function isPublished(): bool
+    {
+        return in_array($this->status, [CityVisitDraftStatus::Finished, CityVisitDraftStatus::Converted], true);
+    }
+
     public function getDetectedCommuneName(): ?string
     {
         return $this->detectedCommuneName;

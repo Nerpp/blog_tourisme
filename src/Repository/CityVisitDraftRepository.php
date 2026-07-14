@@ -93,7 +93,31 @@ class CityVisitDraftRepository extends ServiceEntityRepository
     public function findPublicBySlug(string $slug): ?CityVisitDraft
     {
         /** @var CityVisitDraft|null $draft */
-        $draft = $this->createQueryBuilder('c')
+        $draft = $this->createDetailBySlugQueryBuilder($slug)
+            ->andWhere('c.status IN (:statuses)')
+            ->setParameter('statuses', [
+                CityVisitDraftStatus::Finished,
+                CityVisitDraftStatus::Converted,
+            ])
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $draft;
+    }
+
+    public function findOneBySlugWithRelations(string $slug): ?CityVisitDraft
+    {
+        /** @var CityVisitDraft|null $draft */
+        $draft = $this->createDetailBySlugQueryBuilder($slug)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $draft;
+    }
+
+    private function createDetailBySlugQueryBuilder(string $slug): QueryBuilder
+    {
+        return $this->createQueryBuilder('c')
             ->addSelect('destination', 'geographicDestination', 'geographicDestinationParent', 'geographicDestinationGrandParent', 'geographicDestinationGreatGrandParent', 'destinationParent', 'destinationGrandParent', 'destinationGreatGrandParent', 'points', 'mediaLinks', 'mediaAssets', 'articleLinks', 'articles', 'articleCategories', 'articleFeaturedImages', 'articleMediaLinks', 'articleMediaAssets')
             ->leftJoin('c.destination', 'destination')
             ->leftJoin('c.geographicDestination', 'geographicDestination')
@@ -113,19 +137,10 @@ class CityVisitDraftRepository extends ServiceEntityRepository
             ->leftJoin('articles.mediaLinks', 'articleMediaLinks')
             ->leftJoin('articleMediaLinks.mediaAsset', 'articleMediaAssets')
             ->andWhere('c.slug = :slug')
-            ->andWhere('c.status IN (:statuses)')
             ->setParameter('slug', $slug)
-            ->setParameter('statuses', [
-                CityVisitDraftStatus::Finished,
-                CityVisitDraftStatus::Converted,
-            ])
             ->orderBy('points.position', 'ASC')
             ->addOrderBy('mediaLinks.position', 'ASC')
-            ->addOrderBy('articleLinks.position', 'ASC')
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        return $draft;
+            ->addOrderBy('articleLinks.position', 'ASC');
     }
 
     /** @return list<CityVisitDraft> */
