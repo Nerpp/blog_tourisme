@@ -18,6 +18,7 @@ class AdminRoleAudit
     public const ACTION_REVOKE = 'revoke';
     public const SOURCE_WEB = 'web';
     public const SOURCE_BOOTSTRAP = 'bootstrap_command';
+    public const SOURCE_CLI = 'cli_command';
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -109,7 +110,7 @@ class AdminRoleAudit
 
     public function setSource(string $source): static
     {
-        if (!in_array($source, [self::SOURCE_WEB, self::SOURCE_BOOTSTRAP], true)) {
+        if (!in_array($source, [self::SOURCE_WEB, self::SOURCE_BOOTSTRAP, self::SOURCE_CLI], true)) {
             throw new \InvalidArgumentException('Source d’audit de rôle invalide.');
         }
 
