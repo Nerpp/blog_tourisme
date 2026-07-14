@@ -1,6 +1,6 @@
-name: Dependabot auto-merge
+name: Dependabot policy
 
-run-name: Dependabot auto-merge for PR #${{ github.event.pull_request.number }}
+run-name: Dependabot policy for PR #${{ github.event.pull_request.number }}
 
 on:
   pull_request_target:
@@ -17,48 +17,36 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: dependabot-automerge-${{ github.event.pull_request.number }}
+  group: dependabot-policy-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
-  dependabot-automerge:
-    name: Dependabot auto-merge policy
+  classify:
+    name: Classify Dependabot update
     if: >-
-      vars.DEPENDABOT_AUTOMERGE_ENABLED == 'true' &&
       github.actor == 'dependabot[bot]' &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.base.ref == 'dev' &&
+      startsWith(github.event.pull_request.head.ref, 'dependabot/') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    outputs:
+      semver-level: ${{ steps.policy.outputs.semver-level }}
+      auto-merge-eligible: ${{ steps.policy.outputs.auto-merge-eligible }}
+      policy-valid: ${{ steps.policy.outputs.policy-valid }}
 
     steps:
-      - name: Verify immutable PR identity
-        uses: actions/github-script@v9
-        env:
-          EXPECTED_ACTOR: dependabot[bot]
-          EXPECTED_BASE: dev
+      - name: Check out trusted base revision
+        uses: actions/checkout@v5
         with:
-          script: |
-            const pull = context.payload.pull_request;
-            const expectedActor = process.env.EXPECTED_ACTOR;
-            const expectedBase = process.env.EXPECTED_BASE;
-
-            if (context.actor !== expectedActor || pull.user.login !== expectedActor) {
-              core.setFailed('Both github.actor and the PR author must be dependabot[bot].');
-              return;
-            }
-            if (pull.base.ref !== expectedBase || pull.base.repo.full_name !== context.repo.owner + '/' + context.repo.repo) {
-              core.setFailed('Dependabot updates must target dev in this repository.');
-              return;
-            }
-            if (pull.head.repo.full_name !== context.repo.owner + '/' + context.repo.repo || !pull.head.ref.startsWith('dependabot/')) {
-              core.setFailed('The PR head must be a Dependabot branch in this repository.');
-              return;
-            }
-            if (pull.draft) {
-              core.setFailed('Draft pull requests cannot be auto-merged.');
-            }
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
 
       - name: Fetch verified Dependabot metadata
         id: dependabot-metadata
@@ -66,148 +54,198 @@ jobs:
         with:
           github-token: ${{ github.token }}
 
-      - name: Enforce the declared update policy
+      - name: Collect immutable dependency inputs
+        id: collect
+        uses: actions/github-script@v9
+        env:
+          ECOSYSTEM: ${{ steps.dependabot-metadata.outputs.package-ecosystem }}
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+            const pull = context.payload.pull_request;
+            const ecosystem = process.env.ECOSYSTEM;
+            const changedFiles = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo,
+              pull_number: pull.number,
+              per_page: 100,
+            });
+
+            const dependencyFiles = {
+              composer: ['composer.json', 'composer.lock'],
+              npm: ['package.json', 'package-lock.json', 'npm-shrinkwrap.json'],
+              npm_and_yarn: ['package.json', 'package-lock.json', 'npm-shrinkwrap.json'],
+            }[ecosystem] ?? [];
+
+            const readAtRef = async (file, ref) => {
+              try {
+                const {data} = await github.rest.repos.getContent({
+                  ...context.repo,
+                  path: file,
+                  ref,
+                });
+                if (Array.isArray(data) || data.type !== 'file') {
+                  throw new Error(`${file} is not a regular file at ${ref}`);
+                }
+                return Buffer.from(data.content, data.encoding).toString('utf8');
+              } catch (error) {
+                if (error.status === 404) return null;
+                throw error;
+              }
+            };
+
+            const snapshots = {base: {}, head: {}};
+            for (const file of dependencyFiles) {
+              snapshots.base[file] = await readAtRef(file, pull.base.sha);
+              snapshots.head[file] = await readAtRef(file, pull.head.sha);
+            }
+
+            const input = {
+              pull: {
+                actor: context.actor,
+                author: pull.user.login,
+                repository: `${context.repo.owner}/${context.repo.repo}`,
+                baseRef: pull.base.ref,
+                baseRepository: pull.base.repo.full_name,
+                headRef: pull.head.ref,
+                headRepository: pull.head.repo.full_name,
+                draft: pull.draft,
+              },
+              changedFiles: changedFiles.map((file) => ({
+                filename: file.filename,
+                status: file.status,
+                patch: file.patch ?? null,
+              })),
+              files: snapshots,
+            };
+            const inputPath = path.join(process.env.RUNNER_TEMP, 'dependabot-policy-input.json');
+            fs.writeFileSync(inputPath, JSON.stringify(input), {encoding: 'utf8', mode: 0o600});
+            core.setOutput('input-path', inputPath);
+
+      - name: Compute global dependency level
+        id: policy
         env:
           DEPENDENCY_NAMES: ${{ steps.dependabot-metadata.outputs.dependency-names }}
           DIRECTORY: ${{ steps.dependabot-metadata.outputs.directory }}
           ECOSYSTEM: ${{ steps.dependabot-metadata.outputs.package-ecosystem }}
           MAINTAINER_CHANGES: ${{ steps.dependabot-metadata.outputs.maintainer-changes }}
+          POLICY_INPUT_PATH: ${{ steps.collect.outputs.input-path }}
           TARGET_BRANCH: ${{ steps.dependabot-metadata.outputs.target-branch }}
+          UPDATED_DEPENDENCIES_JSON: ${{ steps.dependabot-metadata.outputs.updated-dependencies-json }}
           UPDATE_TYPE: ${{ steps.dependabot-metadata.outputs.update-type }}
-        shell: bash
-        run: |
-          set -euo pipefail
+        run: node .github/scripts/dependabot-policy.mjs
 
-          test -n "$DEPENDENCY_NAMES"
-          test "$DIRECTORY" = "/"
-          test "$TARGET_BRANCH" = "dev"
-          test "$MAINTAINER_CHANGES" != "true"
-
-          if [ "$UPDATE_TYPE" = "version-update:semver-major" ]; then
-            echo "Major updates are never eligible for auto-merge." >&2
-            exit 1
-          fi
-
-          case "$ECOSYSTEM" in
-            composer)
-              case "$UPDATE_TYPE" in
-                version-update:semver-patch)
-                  ;;
-                version-update:semver-minor)
-                  while IFS= read -r dependency; do
-                    dependency=$(printf '%s' "$dependency" | tr -d '[:space:]')
-                    case "$dependency" in
-                      symfony/*) ;;
-                      *) echo "Composer minor update outside symfony/*: $dependency" >&2; exit 1 ;;
-                    esac
-                  done < <(printf '%s' "$DEPENDENCY_NAMES" | tr ',' '\n')
-                  ;;
-                *) echo "Unsupported Composer update type: $UPDATE_TYPE" >&2; exit 1 ;;
-              esac
-              ;;
-            npm|npm_and_yarn)
-              test "$UPDATE_TYPE" = "version-update:semver-patch"
-              ;;
-            docker)
-              case "$UPDATE_TYPE" in
-                version-update:semver-patch|version-update:semver-minor) ;;
-                *) echo "Unsupported Docker update type: $UPDATE_TYPE" >&2; exit 1 ;;
-              esac
-              ;;
-            github-actions|github_actions)
-              test "$UPDATE_TYPE" = "version-update:semver-patch"
-              ;;
-            *)
-              echo "Unsupported or ambiguous package ecosystem: $ECOSYSTEM" >&2
-              exit 1
-              ;;
-          esac
-
-      - name: Reject unexpected file or code changes
+      - name: Apply the unique level label and assignment
         uses: actions/github-script@v9
         env:
-          ECOSYSTEM: ${{ steps.dependabot-metadata.outputs.package-ecosystem }}
+          LEVEL: ${{ steps.policy.outputs.semver-level }}
         with:
           script: |
-            const ecosystem = process.env.ECOSYSTEM;
-            const pullNumber = context.payload.pull_request.number;
-            const files = await github.paginate(github.rest.pulls.listFiles, {
+            const allowedLevels = ['patch', 'minor', 'major'];
+            const level = process.env.LEVEL;
+            if (!allowedLevels.includes(level)) {
+              core.setFailed(`Invalid computed dependency level: ${level}`);
+              return;
+            }
+            const issueNumber = context.payload.pull_request.number;
+            const {data: issue} = await github.rest.issues.get({
               ...context.repo,
-              pull_number: pullNumber,
-              per_page: 100,
+              issue_number: issueNumber,
+            });
+            const labels = issue.labels
+              .map((label) => typeof label === 'string' ? label : label.name)
+              .filter((label) => label && !allowedLevels.includes(label));
+            labels.push(level);
+            await github.rest.issues.setLabels({
+              ...context.repo,
+              issue_number: issueNumber,
+              labels,
+            });
+            await github.rest.issues.addAssignees({
+              ...context.repo,
+              issue_number: issueNumber,
+              assignees: ['Nerpp'],
             });
 
-            if (files.length === 0) {
-              core.setFailed('A dependency PR must change at least one dependency file.');
-              return;
+            const {data: verified} = await github.rest.issues.get({
+              ...context.repo,
+              issue_number: issueNumber,
+            });
+            const verifiedLevels = verified.labels
+              .map((label) => typeof label === 'string' ? label : label.name)
+              .filter((label) => allowedLevels.includes(label));
+            const assignees = verified.assignees.map((assignee) => assignee.login);
+            if (verifiedLevels.length !== 1 || verifiedLevels[0] !== level || !assignees.includes('Nerpp')) {
+              core.setFailed('The level label or Nerpp assignment could not be verified.');
+            }
+            if (level === 'minor') {
+              core.notice('Minor update: human validation and a manual merge are required.');
+            }
+            if (level === 'major') {
+              core.notice('Major update: breaking-change analysis, migration, human validation, and a manual merge are required.');
             }
 
-            const allowedPath = (path) => {
-              switch (ecosystem) {
-                case 'composer':
-                  return path === 'composer.json' || path === 'composer.lock';
-                case 'npm':
-                case 'npm_and_yarn':
-                  return ['package.json', 'package-lock.json', 'npm-shrinkwrap.json'].includes(path);
-                case 'docker':
-                  return /(^|\/)(Dockerfile|[^/]+\.Dockerfile)$/.test(path) || /(^|\/)docker-compose[^/]*\.ya?ml$/.test(path);
-                case 'github-actions':
-                case 'github_actions':
-                  return /^\.github\/(workflows\/[^/]+\.ya?ml|actions\/[^/]+\/action\.ya?ml)$/.test(path);
-                default:
-                  return false;
-              }
-            };
+      - name: Publish policy summary
+        env:
+          ELIGIBLE: ${{ steps.policy.outputs.auto-merge-eligible }}
+          LEVEL: ${{ steps.policy.outputs.semver-level }}
+          REASON: ${{ steps.policy.outputs.reason }}
+          SUMMARY: ${{ steps.policy.outputs.dependency-summary }}
+        run: |
+          {
+            echo '### Dependabot policy classification'
+            printf -- "- Global level: \`%s\`\n" "$LEVEL"
+            printf -- "- Future auto-merge eligible: \`%s\`\n" "$ELIGIBLE"
+            printf -- '- Reason: %s\n' "$REASON"
+            printf -- '- Dependencies: %s\n' "$SUMMARY"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-            const unexpected = files.map((file) => file.filename).filter((path) => !allowedPath(path));
-            if (unexpected.length > 0) {
-              core.setFailed(`Unexpected files in dependency PR: ${unexpected.join(', ')}`);
-              return;
-            }
+      - name: Validate classification policy
+        env:
+          POLICY_VALID: ${{ steps.policy.outputs.policy-valid }}
+        run: test "$POLICY_VALID" = 'true'
 
-            if (ecosystem === 'github-actions' || ecosystem === 'github_actions') {
-              for (const file of files) {
-                if (!file.patch) {
-                  core.setFailed(`Cannot inspect the complete patch for ${file.filename}.`);
-                  return;
-                }
-                const changedLines = file.patch
-                  .split('\n')
-                  .filter((line) => /^[+-]/.test(line) && !/^(---|\+\+\+)/.test(line))
-                  .map((line) => line.slice(1).trim())
-                  .filter(Boolean);
-                const invalid = changedLines.filter((line) => !/^(?:-\s*)?uses:\s*[^\s]+@[^\s#]+(?:\s+#.*)?$/.test(line));
-                if (invalid.length > 0) {
-                  core.setFailed(`GitHub Actions PR changes more than action refs in ${file.filename}.`);
-                  return;
-                }
-              }
-            }
+  auto-merge:
+    name: Request patch auto-merge
+    needs:
+      - classify
+    if: >-
+      needs.classify.result == 'success' &&
+      needs.classify.outputs.policy-valid == 'true' &&
+      needs.classify.outputs.semver-level == 'patch' &&
+      needs.classify.outputs.auto-merge-eligible == 'true' &&
+      vars.DEPENDABOT_AUTOMERGE_ENABLED == 'true' &&
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.base.ref == 'dev' &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
 
-            if (ecosystem === 'docker') {
-              for (const file of files) {
-                if (!file.patch) {
-                  core.setFailed(`Cannot inspect the complete patch for ${file.filename}.`);
-                  return;
-                }
-                const changedLines = file.patch
-                  .split('\n')
-                  .filter((line) => /^[+-]/.test(line) && !/^(---|\+\+\+)/.test(line))
-                  .map((line) => line.slice(1).trim())
-                  .filter(Boolean);
-                const invalid = changedLines.filter((line) => !/^(FROM|image:)\s+/i.test(line));
-                if (invalid.length > 0) {
-                  core.setFailed(`Docker PR changes more than image references in ${file.filename}.`);
-                  return;
-                }
-              }
-            }
-
-      - name: Verify mergeability and effective dev rules
+    steps:
+      - name: Verify immutable PR identity and effective dev rules
         uses: actions/github-script@v9
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         with:
           retries: 3
           script: |
+            const pull = context.payload.pull_request;
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            if (pull.head.sha !== process.env.EXPECTED_HEAD_SHA
+                || pull.user.login !== 'dependabot[bot]'
+                || pull.base.ref !== 'dev'
+                || pull.base.repo.full_name !== repository
+                || pull.head.repo.full_name !== repository
+                || !pull.head.ref.startsWith('dependabot/')
+                || pull.draft) {
+              core.setFailed('The immutable Dependabot PR identity is no longer valid.');
+              return;
+            }
+
             const {data: rules} = await github.request('GET /repos/{owner}/{repo}/rules/branches/{branch}', {
               ...context.repo,
               branch: 'dev',
@@ -225,18 +263,19 @@ jobs:
               return;
             }
 
-            let pull;
+            let current;
             for (let attempt = 0; attempt < 5; attempt += 1) {
-              ({data: pull} = await github.rest.pulls.get({
+              ({data: current} = await github.rest.pulls.get({
                 ...context.repo,
-                pull_number: context.payload.pull_request.number,
+                pull_number: pull.number,
               }));
-              if (pull.mergeable !== null) break;
+              if (current.mergeable !== null) break;
               await new Promise((resolve) => setTimeout(resolve, 2000));
             }
-
-            if (pull.mergeable !== true || pull.mergeable_state === 'dirty') {
-              core.setFailed(`PR is conflicting or mergeability is ambiguous (${pull.mergeable_state}).`);
+            if (current.head.sha !== process.env.EXPECTED_HEAD_SHA
+                || current.mergeable !== true
+                || current.mergeable_state === 'dirty') {
+              core.setFailed(`PR changed, conflicts, or has ambiguous mergeability (${current.mergeable_state}).`);
             }
 
       - name: Create least-privilege GitHub App token
@@ -259,8 +298,9 @@ jobs:
               ...context.repo,
               pull_number: context.payload.pull_request.number,
             });
-
-            if (pull.head.sha !== process.env.EXPECTED_HEAD_SHA || pull.base.ref !== 'dev' || pull.user.login !== 'dependabot[bot]') {
+            if (pull.head.sha !== process.env.EXPECTED_HEAD_SHA
+                || pull.base.ref !== 'dev'
+                || pull.user.login !== 'dependabot[bot]') {
               core.setFailed('The PR changed after policy validation.');
               return;
             }
@@ -268,7 +308,6 @@ jobs:
               core.notice('Auto-merge is already enabled.');
               return;
             }
-
             await github.graphql(
               `mutation($pullRequestId: ID!) {
                 enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {

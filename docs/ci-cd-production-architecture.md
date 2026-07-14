@@ -210,42 +210,74 @@ Rôles cibles :
 
 ## Dependabot et auto-merge
 
-Les quatre blocs ciblent explicitement dev. Les limites restent 3 PR Composer,
-2 npm, 1 Docker et 2 GitHub Actions.
+Les quatre écosystèmes ciblent explicitement `dev` et proposent les trois
+niveaux semver : patch, minor et major. Les groupes rassemblent uniquement les
+patches et les minors ; les majors restent des PR séparées afin de rendre leur
+portée évidente. Les plafonds de PR ouvertes sont 10 pour Composer, 10 pour npm,
+5 pour Docker et 5 pour GitHub Actions : ces limites empêchent qu'une major soit
+masquée par des groupes patch ou minor déjà ouverts. Chaque PR est assignée à
+`Nerpp` et reçoit exactement un label de niveau parmi `patch`, `minor` et
+`major`, en plus des labels d'écosystème.
 
-Politique conservée :
+| Niveau | PR créée | Assignation | Quality | Auto-merge | Fusion |
+| --- | --- | --- | --- | --- | --- |
+| Patch | Oui | Nerpp | Obligatoire | Possible après activation | Automatique possible |
+| Minor | Oui | Nerpp | Obligatoire | Non | Manuelle |
+| Major | Oui | Nerpp | Obligatoire | Non | Manuelle avec migration |
 
-- Composer : patch pour toutes les dépendances, minor uniquement pour
-  symfony/*, jamais major ;
-- npm : patch uniquement ;
-- Docker : patch et minor, jamais major ;
-- GitHub Actions : patch uniquement.
+Exemples : `8.1.0 → 8.1.1` est un patch, `8.0 → 8.1` est une mineure et
+`8 → 9` est une majeure. Les mises à jour mineures et majeures sont visibles,
+mais ne sont jamais auto-fusionnées. Pour une PR groupée, le niveau global est
+le plus élevé de toutes les mises à jour directes et transitives. Ainsi, un
+patch direct qui entraîne un minor dans `composer.lock` ou `package-lock.json`
+classe toute la PR en minor ; un major transitive la classe en major.
 
-Le workflow Dependabot auto-merge utilise pull_request_target mais ne checkout
-jamais la PR et n'exécute aucun de ses fichiers. Il :
+Le workflow `Dependabot policy` utilise `pull_request_target`, mais checkout
+uniquement le SHA immuable de la base et n'exécute aucun fichier de la branche
+Dependabot. Il :
 
-1. exige github.actor et l'auteur dependabot[bot] ;
-2. exige une branche dependabot interne et une base dev non draft ;
-3. utilise dependabot/fetch-metadata@v3 sans désactiver la vérification de
-   l'auteur ou des signatures de commits ;
-4. refuse les métadonnées vides, ambiguës, hors politique ou majeures ;
+1. exige l'acteur et l'auteur `dependabot[bot]`, une branche Dependabot interne,
+   une base `dev` et une PR non draft ;
+2. conserve la vérification d'identité et de signatures de
+   `dependabot/fetch-metadata@v3` ;
+3. lit les manifests et lockfiles aux SHA exacts via l'API GitHub, puis recalcule
+   le niveau des changements directs et transitifs avec un script sans réseau ;
+4. compare ce résultat aux métadonnées agrégées, et échoue de manière sûre en
+   cas de métadonnées absentes, incohérentes ou de version non interprétable ;
 5. refuse les changements de mainteneur et les chemins inattendus ;
-6. limite les changements GitHub Actions aux lignes uses et les changements
-   Docker aux références d'image ;
-7. refuse une PR conflictuelle ou de mergeabilité inconnue ;
-8. vérifie que les règles effectives de dev exigent uniquement Quality et les
-   merge commits ;
-9. demande l'auto-merge MERGE avec une GitHub App ;
-10. laisse le ruleset dev et Quality décider de la fusion réelle.
+6. limite GitHub Actions aux lignes `uses:` et Docker aux références d'image ;
+7. applique le label global unique et l'assignation même quand l'auto-merge est
+   désactivé ;
+8. n'autorise le job d'auto-merge que pour un résultat global `patch` valide ;
+9. revérifie la tête, la mergeabilité et les règles effectives de `dev`, qui
+   doivent imposer Quality et le merge commit ;
+10. demande uniquement un auto-merge `MERGE` avec la GitHub App, puis laisse
+    Quality et le ruleset décider de la fusion réelle.
 
-La variable DEPENDABOT_AUTOMERGE_ENABLED absente ou différente de true rend le
-job inerte. Sa valeur initiale cible est false.
+`fetch-metadata@v3` déduit le champ `directory` depuis le nom de branche. Avec
+la cible non standard `dev`, il représente actuellement la racine `/` par
+`/dev`. Le classificateur n'accepte cette forme que comme alias de `/` lorsque
+l'écosystème, la cible et le préfixe immuable de la branche concordent tous ;
+une vraie sous-arborescence conserve un composant supplémentaire et est
+rejetée.
 
-Les événements créés par GITHUB_TOKEN sont volontairement évités pour les
-écritures. GitHub documente qu'ils ne déclenchent généralement pas de nouveaux
+Les PR minor nécessitent une revue des notes de version et une validation
+manuelle. Les PR major exigent en plus une branche de migration dédiée et un
+plan de compatibilité. Une Quality verte est nécessaire mais ne remplace jamais
+ces revues humaines.
+
+La variable `DEPENDABOT_AUTOMERGE_ENABLED` absente ou différente de `true`
+empêche entièrement le job d'auto-merge, y compris la création du jeton GitHub
+App. La classification et l'assignation restent actives. L'état initial et
+actuel est désactivé : aucun secret n'est créé et aucun déploiement n'est lié à
+ce workflow.
+
+Le `GITHUB_TOKEN` écrit uniquement le label et l'assignation de la PR existante.
+Il n'est jamais utilisé pour demander une fusion ni pour créer une PR. GitHub
+documente que ses événements ne déclenchent généralement pas de nouveaux
 workflows et que les PR créées avec ce token peuvent nécessiter une approbation
 manuelle des runs. La GitHub App dédiée produit des événements d'application
-normaux. Références :
+normaux pour les opérations de fusion et de promotion. Références :
 
 - https://docs.github.com/en/actions/concepts/security/github_token
 - https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/making-authenticated-api-requests-with-a-github-app-in-a-github-actions-workflow
