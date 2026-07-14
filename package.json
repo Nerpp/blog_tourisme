@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
-    "@photo-sphere-viewer/core": "^5.14.1",
+    "@photo-sphere-viewer/core": "^5.14.3",
     "leaflet": "^1.9.4",
     "pannellum": "^2.5.7",
-    "vue": "^3.5.0",
-    "vuetify": "^3.7.0"
+    "vue": "^3.5.39",
+    "vuetify": "^3.12.10"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.0",
