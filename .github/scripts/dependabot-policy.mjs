@@ -471,10 +471,17 @@ function isTrue(value) {
   return value === true || value === 'true';
 }
 
+function isFalse(value) {
+  return value === false || value === 'false';
+}
+
 export function evaluateAutoMergeGate(input) {
   const blockers = [];
   if (!isTrue(input.policyValid)) blockers.push('classification policy is invalid');
+  if (input.globalUpdateType !== 'patch') blockers.push('the global update type is not patch');
   if (!isTrue(input.autoMergeEligible)) blockers.push('the update is not auto-merge eligible');
+  if (!isFalse(input.manualReviewRequired)) blockers.push('manual review is required');
+  if (!isFalse(input.maintainerChanges)) blockers.push('a maintainer or publisher change was reported');
   if (input.activationValue !== 'true') blockers.push('DEPENDABOT_AUTOMERGE_ENABLED is not exactly true');
   if (!isPresent(input.appId)) blockers.push('the GitHub App id is unavailable');
   if (!isPresent(input.privateKey)) blockers.push('the GitHub App private key is unavailable');
@@ -484,11 +491,15 @@ export function evaluateAutoMergeGate(input) {
     blockers.push('the pull request head SHA changed or is malformed');
   }
   if (input.qualityConclusion !== 'success') blockers.push('Quality is not successful for the expected SHA');
+  if (!/^[0-9a-f]{40}$/.test(String(input.qualityHeadSha ?? ''))
+      || input.qualityHeadSha !== input.expectedHeadSha) {
+    blockers.push('Quality does not target the expected pull request SHA');
+  }
   return {
     autoMergeAllowed: blockers.length === 0,
     reason: blockers.length === 0
-      ? 'All auto-merge gates are satisfied.'
-      : `Auto-merge remains inactive: ${blockers.join('; ')}.`,
+      ? 'All automatic merge gates are satisfied.'
+      : `Automatic merge remains inactive: ${blockers.join('; ')}.`,
     blockers,
   };
 }
@@ -537,13 +548,17 @@ async function runCli() {
 async function runAutoMergeGateCli() {
   const result = evaluateAutoMergeGate({
     policyValid: process.env.POLICY_VALID,
+    globalUpdateType: process.env.GLOBAL_UPDATE_TYPE,
     autoMergeEligible: process.env.AUTO_MERGE_ELIGIBLE,
+    manualReviewRequired: process.env.MANUAL_REVIEW_REQUIRED,
+    maintainerChanges: process.env.MAINTAINER_CHANGES,
     activationValue: process.env.ACTIVATION_VALUE,
     appId: process.env.GITHUB_APP_ID,
     privateKey: process.env.GITHUB_APP_PRIVATE_KEY,
     expectedHeadSha: process.env.EXPECTED_HEAD_SHA,
     currentHeadSha: process.env.CURRENT_HEAD_SHA,
     qualityConclusion: process.env.QUALITY_CONCLUSION,
+    qualityHeadSha: process.env.QUALITY_HEAD_SHA,
   });
   await writeOutputs({
     'auto-merge-allowed': String(result.autoMergeAllowed),
