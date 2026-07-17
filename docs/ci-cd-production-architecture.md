@@ -530,12 +530,26 @@ n'est plus le seul verrou.
 Créer une GitHub App dédiée, installée uniquement sur Nerpp/blog_tourisme :
 
 - Metadata : read, implicite ;
-- Contents : read, nécessaire aux lectures des références, commits et
-  comparaisons du dépôt ;
-- Pull requests : write, nécessaire pour créer ou réutiliser la PR dev vers
-  main et demander l'auto-merge MERGE ; ce droit ne permet ni de pousser ni de
-  modifier le contenu du dépôt ;
+- Contents : write, niveau d'écriture du dépôt exigé par GitHub pour activer
+  l'auto-merge ;
+- Pull requests : write, nécessaire pour créer, réutiliser et gérer la PR dev
+  vers main ;
 - aucun droit Actions, Checks, Secrets, Environments ou Deployments.
+
+Le workflow utilise Pull requests: write pour créer ou réutiliser la PR dev
+vers main et la gérer. La mutation GraphQL qui demande l'auto-merge MERGE exige
+en plus Contents: write, même si le workflow ne pousse aucun commit et ne
+modifie aucun fichier du dépôt.
+
+Contents: write donne techniquement au jeton une capacité d'écriture sur le
+contenu. Son exposition est réduite par :
+
+- une GitHub App dédiée à cette automatisation ;
+- une installation limitée au seul dépôt Nerpp/blog_tourisme ;
+- un jeton d'installation temporaire ;
+- l'absence de checkout authentifié avec ce jeton ;
+- les rulesets de dev et main ;
+- le préflight du workflow avant toute création ou gestion de PR.
 
 La clé privée n'est jamais stockée dans Git. Les secrets Actions alimentent la
 promotion ; les secrets Dependabot de mêmes noms alimentent le workflow
