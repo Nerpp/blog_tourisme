@@ -164,7 +164,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: blog_tourisme
 
-      - name: Create or reuse promotion PR and request auto-merge
+      - name: Create or reuse promotion PR and merge safely
         if: steps.preflight.outputs.should-promote == 'true'
         uses: actions/github-script@v9
         env:
@@ -173,8 +173,9 @@ jobs:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const expectedDevSha = process.env.EXPECTED_DEV_SHA;
-            const {data: currentDev} = await github.rest.git.getRef({...context.repo, ref: 'heads/dev'});
-            if (currentDev.object.sha !== expectedDevSha) {
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const {data: initialDev} = await github.rest.git.getRef({...context.repo, ref: 'heads/dev'});
+            if (initialDev.object.sha !== expectedDevSha) {
               core.setFailed('dev advanced after preflight; a later successful CI run must promote it.');
               return;
             }
@@ -191,9 +192,9 @@ jobs:
               return;
             }
 
-            let pull;
+            let pullNumber;
             if (pulls.length === 0) {
-              ({data: pull} = await github.rest.pulls.create({
+              const {data: createdPull} = await github.rest.pulls.create({
                 ...context.repo,
                 head: 'dev',
                 base: 'main',
@@ -206,24 +207,40 @@ jobs:
                   'The PR must pass `Quality`; merge method: merge commit.',
                 ].join('\n'),
                 maintainer_can_modify: false,
-              }));
+              });
+              pullNumber = createdPull.number;
             } else {
-              ({data: pull} = await github.rest.pulls.get({...context.repo, pull_number: pulls[0].number}));
+              pullNumber = pulls[0].number;
             }
 
-            ({data: pull} = await github.rest.pulls.get({...context.repo, pull_number: pull.number}));
+            let pull;
+            let currentDev;
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+              [{data: pull}, {data: currentDev}] = await Promise.all([
+                github.rest.pulls.get({...context.repo, pull_number: pullNumber}),
+                github.rest.git.getRef({...context.repo, ref: 'heads/dev'}),
+              ]);
 
-            if (pull.base.ref !== 'main' || pull.head.ref !== 'dev' || pull.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}` || pull.draft) {
-              core.setFailed('The promotion PR source, target or state is invalid.');
-              return;
+              if (pull.state !== 'open'
+                  || pull.draft
+                  || pull.base.ref !== 'main'
+                  || pull.base.repo.full_name !== repository
+                  || pull.head.ref !== 'dev'
+                  || pull.head.repo.full_name !== repository
+                  || pull.head.sha !== expectedDevSha
+                  || currentDev.object.sha !== expectedDevSha) {
+                core.setFailed('The promotion PR or dev SHA changed after preflight.');
+                return;
+              }
+
+              const mergeabilityState = pull.mergeable_state ?? 'unknown';
+              if (pull.mergeable !== null && mergeabilityState !== 'unknown') break;
+              if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 2000));
             }
 
-            for (let attempt = 0; attempt < 5 && pull.mergeable === null; attempt += 1) {
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-              ({data: pull} = await github.rest.pulls.get({...context.repo, pull_number: pull.number}));
-            }
-            if (pull.mergeable !== true || pull.mergeable_state === 'dirty') {
-              core.setFailed(`Promotion PR is conflicting or mergeability is ambiguous (${pull.mergeable_state}).`);
+            const mergeabilityState = pull.mergeable_state ?? 'unknown';
+            if (pull.mergeable !== true || !['clean', 'blocked'].includes(mergeabilityState)) {
+              core.setFailed(`Promotion PR mergeability is not safe (${mergeabilityState}).`);
               return;
             }
             if (pull.auto_merge) {
@@ -231,7 +248,33 @@ jobs:
               return;
             }
 
-            await github.graphql(
+            if (mergeabilityState === 'clean') {
+              const {data: mergeResult} = await github.rest.pulls.merge({
+                ...context.repo,
+                pull_number: pull.number,
+                merge_method: 'merge',
+                sha: expectedDevSha,
+              });
+              if (mergeResult.merged !== true || !/^[0-9a-f]{40}$/.test(mergeResult.sha ?? '')) {
+                core.setFailed('GitHub did not confirm the merge or return a merge commit SHA.');
+                return;
+              }
+
+              const {data: mergedPull} = await github.rest.pulls.get({
+                ...context.repo,
+                pull_number: pull.number,
+              });
+              if (mergedPull.merged !== true
+                  || !mergedPull.merge_commit_sha
+                  || mergedPull.merge_commit_sha !== mergeResult.sha) {
+                core.setFailed('The merged PR did not confirm the expected merge commit SHA.');
+                return;
+              }
+              core.notice(`Promotion PR #${pull.number} merged as ${mergeResult.sha}.`);
+              return;
+            }
+
+            const autoMergeResult = await github.graphql(
               `mutation($pullRequestId: ID!) {
                 enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
                   pullRequest { number }
@@ -239,3 +282,8 @@ jobs:
               }`,
               {pullRequestId: pull.node_id},
             );
+            if (autoMergeResult?.enablePullRequestAutoMerge?.pullRequest?.number !== pull.number) {
+              core.setFailed('GitHub did not confirm the auto-merge request.');
+              return;
+            }
+            core.notice(`Auto-merge enabled on blocked promotion PR #${pull.number}.`);

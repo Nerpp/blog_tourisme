@@ -336,12 +336,33 @@ Le préflight en lecture seule :
 - exige des commits dev réellement nouveaux ;
 - recherche l'unique PR ouverte dev vers main et refuse les doublons.
 
-Après ce préflight seulement, la GitHub App crée la PR si elle n'existe pas,
-inclut le SHA dev dans son corps, revalide la tête, puis demande un auto-merge
-MERGE. La PR déclenche Quality. Le push du merge commit réel sur main déclenche
-une nouvelle CI grâce au déclencheur push main. Aucun merge direct, aucune
-branche work ou Dependabot vers main, et aucune boucle main vers dev ne sont
-créés.
+Après ce préflight seulement, la GitHub App crée la PR si elle n'existe pas et
+inclut le SHA dev dans son corps. Avant toute fusion ou demande d'auto-merge, le
+workflow relit la PR et dev, puis vérifie à nouveau que la PR est ouverte, non
+brouillon, sans conflit, issue de dev dans ce dépôt, ciblée sur main et attachée
+au SHA dev validé. Il attend de manière bornée si GitHub n'a pas encore calculé
+sa fusionnabilité.
+
+GitHub refuse `enablePullRequestAutoMerge` lorsqu'une PR est déjà dans l'état
+`clean`. Dans ce cas, le workflow appelle directement l'API de fusion avec le
+SHA dev attendu et `merge_method: merge`, exige `merged: true`, puis vérifie le
+SHA du merge commit retourné. Cette fusion reste soumise aux rulesets de main :
+la GitHub App n'est pas un bypass actor et le workflow n'utilise ni privilège
+administrateur ni contournement.
+
+Lorsque la PR est `blocked` parce qu'une exigence est encore en attente, le
+workflow demande à GitHub l'auto-merge avec la méthode MERGE. Une demande déjà
+active est acceptée comme un succès idempotent. Les états `dirty`, `behind`,
+`unstable`, `unknown` persistant et tout autre état inattendu provoquent un
+échec sans fusion. Dans les deux chemins autorisés, la promotion produit
+toujours un merge commit. Le push de ce merge commit réel sur main déclenche une
+nouvelle CI grâce au déclencheur push main. Aucune branche work ou Dependabot
+vers main et aucune boucle main vers dev ne sont créées.
+
+Le test déterministe `.github/scripts/promotion-workflow.test.mjs` extrait et
+exécute le script réel du workflow avec une API GitHub simulée. Il couvre les
+chemins `clean`, `blocked` et idempotent, les changements de SHA ou de dev, les
+conflits et états indéterminés, ainsi que les réponses de fusion refusées.
 
 Activation future, dans cet ordre :
 
@@ -460,8 +481,8 @@ la boucle main vers dev que l'architecture interdit.
 Pour la promotion, la sécurité repose à la place sur la baseline commune, le
 contrôle du SHA dev ayant réussi la CI, la validation de tous les commits propres
 à main, l'unicité de la PR dev vers main, le contrôle obligatoire Quality et une
-nouvelle vérification du SHA dev immédiatement avant la création ou la
-réutilisation de la PR et la demande d'auto-merge.
+nouvelle vérification de la PR et du SHA dev immédiatement avant la fusion REST
+ou la demande d'auto-merge.
 
 ### API GitHub
 
