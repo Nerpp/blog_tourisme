@@ -219,11 +219,25 @@ masquée par des groupes patch ou minor déjà ouverts. Chaque PR est assignée 
 `Nerpp` et reçoit exactement un label de niveau parmi `patch`, `minor` et
 `major`, en plus des labels d'écosystème.
 
-| Niveau | PR créée | Assignation | Quality | Auto-merge | Fusion |
-| --- | --- | --- | --- | --- | --- |
-| Patch | Oui | Nerpp | Obligatoire | Possible après activation | Automatique possible |
-| Minor | Oui | Nerpp | Obligatoire | Non | Manuelle |
-| Major | Oui | Nerpp | Obligatoire | Non | Manuelle avec migration |
+La classification sépare deux décisions. `policyValid=true` signifie que la PR
+est bien une PR Dependabot structurellement cohérente. Cela ne constitue pas une
+autorisation de fusion automatique. `autoMergeEligible=true` signifie, en plus,
+que toutes les mises à jour directes et transitives sont des patches et qu'aucun
+signal de revue humaine n'existe.
+
+| Situation | PR | Classification | Quality | Assignation | Auto-merge | Fusion |
+| --- | --- | --- | --- | --- | --- | --- |
+| Patch entièrement patch, aucun signal anormal | Automatique | Valide, niveau `patch` | Obligatoire | Selon la configuration Dependabot | Possible uniquement après activation | Automatique possible |
+| Patch avec transitive minor ou major | Automatique | Valide, niveau global `minor` ou `major` | Obligatoire | Nerpp | Non | Manuelle |
+| Patch avec changement de mainteneur ou publieur | Automatique | Valide, revue manuelle requise | Obligatoire | Nerpp | Non | Manuelle |
+| Minor | Automatique | Valide, niveau `minor` | Obligatoire | Nerpp | Non | Manuelle |
+| Major | Automatique | Valide, niveau `major` et analyse des breaking changes | Obligatoire | Nerpp | Non | Manuelle avec migration |
+| PR invalide ou incohérente | Automatique si elle prétend provenir de Dependabot | Invalide, workflow rouge | Sans effet sur la décision | Aucune par ce workflow | Non | Bloquée |
+
+Un contrôle `Dependabot policy / Classify Dependabot update` vert signifie que
+la politique a correctement reconnu et classé la PR. Il ne signifie pas que la
+PR est auto-éligible : les sorties `autoMergeEligible` et
+`manualReviewRequired` portent cette seconde décision.
 
 Exemples : `8.1.0 → 8.1.1` est un patch, `8.0 → 8.1` est une mineure et
 `8 → 9` est une majeure. Les mises à jour mineures et majeures sont visibles,
@@ -244,15 +258,18 @@ Dependabot. Il :
    le niveau des changements directs et transitifs avec un script sans réseau ;
 4. compare ce résultat aux métadonnées agrégées, et échoue de manière sûre en
    cas de métadonnées absentes, incohérentes ou de version non interprétable ;
-5. refuse les changements de mainteneur et les chemins inattendus ;
+5. conserve valides mais manuels les changements de mainteneur ou de publieur
+   et les breaking changes documentés, tout en refusant les chemins inattendus ;
 6. limite GitHub Actions aux lignes `uses:` et Docker aux références d'image ;
 7. applique le label global unique et l'assignation même quand l'auto-merge est
    désactivé ;
-8. n'autorise le job d'auto-merge que pour un résultat global `patch` valide ;
-9. revérifie la tête, la mergeabilité et les règles effectives de `dev`, qui
-   doivent imposer Quality et le merge commit ;
-10. demande uniquement un auto-merge `MERGE` avec la GitHub App, puis laisse
-    Quality et le ruleset décider de la fusion réelle.
+8. n'autorise le job d'auto-merge que pour un résultat global `patch` valide,
+   auto-éligible et après activation explicite ;
+9. revérifie la tête, la mergeabilité, le SHA, le succès de `Quality` sur ce SHA
+   et les règles effectives de `dev`, qui doivent imposer Quality et le merge
+   commit ;
+10. ne crée le jeton GitHub App que si ses deux secrets sont présents, puis
+    demande uniquement un auto-merge `MERGE` avec ce jeton.
 
 `fetch-metadata@v3` déduit le champ `directory` depuis le nom de branche. Avec
 la cible non standard `dev`, il représente actuellement la racine `/` par
@@ -267,10 +284,18 @@ plan de compatibilité. Une Quality verte est nécessaire mais ne remplace jamai
 ces revues humaines.
 
 La variable `DEPENDABOT_AUTOMERGE_ENABLED` absente ou différente de `true`
-empêche entièrement le job d'auto-merge, y compris la création du jeton GitHub
-App. La classification et l'assignation restent actives. L'état initial et
-actuel est désactivé : aucun secret n'est créé et aucun déploiement n'est lié à
-ce workflow.
+empêche entièrement le job d'auto-merge. Même après activation, l'absence d'un
+secret GitHub App, une `Quality` non verte ou un SHA différent interdit la
+création du jeton ou la demande de fusion. La classification et l'assignation
+restent actives. L'état initial et actuel est désactivé : aucun secret n'est
+créé et aucun déploiement n'est lié à ce workflow.
+
+L'activation future minimale consiste à vérifier que le ruleset `dev` impose
+uniquement `Quality` et les merge commits, installer la GitHub App limitée à ce
+dépôt, créer ses deux secrets sans les afficher, puis définir
+`DEPENDABOT_AUTOMERGE_ENABLED` exactement à `true`. La première observation doit
+se faire sur une PR ne contenant que des patches ; retirer la variable suffit à
+rendre immédiatement le mécanisme inerte.
 
 Le `GITHUB_TOKEN` écrit uniquement le label et l'assignation de la PR existante.
 Il n'est jamais utilisé pour demander une fusion ni pour créer une PR. GitHub
