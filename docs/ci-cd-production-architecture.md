@@ -434,8 +434,8 @@ Dans Settings, Rules, Rulesets :
 3. interdire deletion et non-fast-forward ;
 4. exiger une PR, zéro approbation obligatoire, résolution des conversations,
    méthode de fusion merge uniquement ;
-5. exiger le status check exact Quality fourni par GitHub Actions, avec branche
-   à jour ;
+5. exiger le status check exact Quality fourni par GitHub Actions, sans exiger
+   que la branche source soit à jour ;
 6. modifier Protect production main, identifiant actuel 18447943, avec les
    mêmes règles sur refs/heads/main ;
 7. vérifier qu'une PR autre que dev vers main échoue dans Quality ;
@@ -450,6 +450,18 @@ Quality et toutes les protections.
 GitHub ne fournit pas dans ce ruleset de filtre universel simple sur la branche
 source d'une PR. La source dev vers main est donc aussi imposée par l'étape
 Quality, et par le workflow de promotion.
+
+`strict_required_status_checks_policy=false` est volontaire pour dev et main
+dans cette architecture. Main contient les merge commits des promotions
+précédentes, qui ne sont pas réinjectés dans dev. Exiger que la branche source
+soit à jour imposerait donc de fusionner régulièrement main dans dev et créerait
+la boucle main vers dev que l'architecture interdit.
+
+Pour la promotion, la sécurité repose à la place sur la baseline commune, le
+contrôle du SHA dev ayant réussi la CI, la validation de tous les commits propres
+à main, l'unicité de la PR dev vers main, le contrôle obligatoire Quality et une
+nouvelle vérification du SHA dev immédiatement avant la création ou la
+réutilisation de la PR et la demande d'auto-merge.
 
 ### API GitHub
 
@@ -489,7 +501,7 @@ Corps cible pour dev :
     {
       "type": "required_status_checks",
       "parameters": {
-        "strict_required_status_checks_policy": true,
+        "strict_required_status_checks_policy": false,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {"context": "Quality", "integration_id": 15368}
@@ -518,8 +530,11 @@ n'est plus le seul verrou.
 Créer une GitHub App dédiée, installée uniquement sur Nerpp/blog_tourisme :
 
 - Metadata : read, implicite ;
-- Contents : write, nécessaire à l'auto-merge ;
-- Pull requests : write ;
+- Contents : read, nécessaire aux lectures des références, commits et
+  comparaisons du dépôt ;
+- Pull requests : write, nécessaire pour créer ou réutiliser la PR dev vers
+  main et demander l'auto-merge MERGE ; ce droit ne permet ni de pousser ni de
+  modifier le contenu du dépôt ;
 - aucun droit Actions, Checks, Secrets, Environments ou Deployments.
 
 La clé privée n'est jamais stockée dans Git. Les secrets Actions alimentent la
