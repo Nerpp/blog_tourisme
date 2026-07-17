@@ -12,6 +12,15 @@ const SUPPORTED_ECOSYSTEMS = new Set([
   'github_actions',
 ]);
 
+const BRANCH_ECOSYSTEM = {
+  composer: 'composer',
+  npm: 'npm_and_yarn',
+  npm_and_yarn: 'npm_and_yarn',
+  docker: 'docker',
+  'github-actions': 'github_actions',
+  github_actions: 'github_actions',
+};
+
 function normalizeLevel(value) {
   const match = String(value ?? '').match(/(?:semver-)?(patch|minor|major)$/);
   return match?.[1] ?? null;
@@ -55,17 +64,28 @@ function normalizeDependency(raw) {
   const previousVersion = raw.prevVersion ?? raw['previous-version'] ?? raw.previousVersion ?? null;
   const newVersion = raw.newVersion ?? raw['new-version'] ?? null;
   const declaredLevel = normalizeLevel(raw.updateType ?? raw['update-type']);
+  const versionLevel = levelFromVersions(previousVersion, newVersion);
   return {
     name: raw.dependencyName ?? raw['dependency-name'] ?? raw.name ?? 'unknown dependency',
     dependencyType: raw.dependencyType ?? raw['dependency-type'] ?? 'unknown',
     directory: raw.directory ?? null,
     packageEcosystem: raw.packageEcosystem ?? raw['package-ecosystem'] ?? null,
     targetBranch: raw.targetBranch ?? raw['target-branch'] ?? null,
+    dependencyGroup: raw.dependencyGroup ?? raw['dependency-group'] ?? null,
     previousVersion,
     newVersion,
-    level: declaredLevel ?? levelFromVersions(previousVersion, newVersion),
+    declaredLevel,
+    versionLevel,
+    level: versionLevel,
     source: 'metadata',
   };
+}
+
+function isExpectedHeadRef(headRef, ecosystem) {
+  const branchEcosystem = BRANCH_ECOSYSTEM[ecosystem];
+  if (!branchEcosystem) return false;
+  return new RegExp(`^dependabot/${branchEcosystem}/dev/[A-Za-z0-9@._/-]+$`).test(String(headRef ?? ''))
+    && !String(headRef).includes('..');
 }
 
 function isTrustedRootDirectory(directory, targetBranch, ecosystem, headRef) {
@@ -75,9 +95,13 @@ function isTrustedRootDirectory(directory, targetBranch, ecosystem, headRef) {
   // directory is reported as "/<target>". Accept that alias only when every
   // immutable branch component agrees; a real nested directory retains an
   // additional path component and is rejected.
-  return Boolean(targetBranch)
+  return targetBranch === 'dev'
     && directory === `/${targetBranch}`
-    && String(headRef ?? '').startsWith(`dependabot/${ecosystem}/${targetBranch}/`);
+    && isExpectedHeadRef(headRef, ecosystem);
+}
+
+function dependencyIsDirect(dependencyType) {
+  return String(dependencyType ?? '').startsWith('direct');
 }
 
 function composerLockChanges(files, errors) {
@@ -96,9 +120,10 @@ function composerLockChanges(files, errors) {
   const headPackages = new Map(packages(headLock).map((dependency) => [dependency.name, dependency.version]));
   const changes = [];
 
-  for (const [name, previousVersion] of basePackages) {
-    if (!headPackages.has(name)) continue;
-    const newVersion = headPackages.get(name);
+  const packageNames = new Set([...basePackages.keys(), ...headPackages.keys()]);
+  for (const name of packageNames) {
+    const previousVersion = basePackages.get(name) ?? null;
+    const newVersion = headPackages.get(name) ?? null;
     const level = levelFromVersions(previousVersion, newVersion);
     if (level) {
       changes.push({
@@ -136,17 +161,22 @@ function npmLockChanges(files, errors) {
   ]));
   const changes = [];
 
-  for (const [path, previousEntry] of Object.entries(baseLock.packages ?? {})) {
-    if (!path || !headLock.packages?.[path]) continue;
-    const nextEntry = headLock.packages[path];
+  const packagePaths = new Set([
+    ...Object.keys(baseLock.packages ?? {}),
+    ...Object.keys(headLock.packages ?? {}),
+  ]);
+  for (const path of packagePaths) {
+    if (!path) continue;
+    const previousEntry = baseLock.packages?.[path] ?? {};
+    const nextEntry = headLock.packages?.[path] ?? {};
     const level = levelFromVersions(previousEntry.version, nextEntry.version);
     if (!level) continue;
-    const name = npmPackageName(path, nextEntry);
+    const name = npmPackageName(path, nextEntry.name ? nextEntry : previousEntry);
     changes.push({
       name,
       dependencyType: direct.has(name) ? 'direct' : 'transitive',
-      previousVersion: previousEntry.version,
-      newVersion: nextEntry.version,
+      previousVersion: previousEntry.version ?? null,
+      newVersion: nextEntry.version ?? null,
       level,
       source: lockName,
     });
@@ -191,6 +221,73 @@ function inspectDeclarativePatch(ecosystem, file, errors) {
   }
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function verifyDeclarativeVersions(ecosystem, changedFiles, metadataChanges, errors) {
+  if (!['docker', 'github-actions', 'github_actions'].includes(ecosystem)) return;
+  const patch = changedFiles.map((file) => file.patch ?? '').join('\n');
+  for (const change of metadataChanges) {
+    let previousReference;
+    let nextReference;
+    if (ecosystem === 'docker') {
+      previousReference = new RegExp(`${escapeRegExp(change.name)}:${escapeRegExp(change.previousVersion)}(?:\\s|$)`);
+      nextReference = new RegExp(`${escapeRegExp(change.name)}:${escapeRegExp(change.newVersion)}(?:\\s|$)`);
+    } else {
+      previousReference = new RegExp(`uses:\\s*${escapeRegExp(change.name)}@v?${escapeRegExp(change.previousVersion)}(?:\\s|$)`);
+      nextReference = new RegExp(`uses:\\s*${escapeRegExp(change.name)}@v?${escapeRegExp(change.newVersion)}(?:\\s|$)`);
+    }
+    if (!previousReference.test(patch) || !nextReference.test(patch)) {
+      errors.push(`real dependency references disagree with metadata for ${change.name}`);
+    }
+  }
+}
+
+function verifyLockedVersions(metadataChanges, lockChanges, errors) {
+  for (const metadataChange of metadataChanges) {
+    const exactMatches = lockChanges.filter((lockChange) => lockChange.name === metadataChange.name
+      && lockChange.previousVersion === metadataChange.previousVersion
+      && lockChange.newVersion === metadataChange.newVersion);
+    if (exactMatches.length === 0) {
+      errors.push(`manifest or lockfile versions disagree with metadata for ${metadataChange.name}`);
+      continue;
+    }
+    if (dependencyIsDirect(metadataChange.dependencyType)
+        && !exactMatches.some((change) => change.dependencyType === 'direct')) {
+      errors.push(`manifest dependency type disagrees with metadata for ${metadataChange.name}`);
+    }
+  }
+}
+
+function compareDependencyNames(dependencyNames, metadataChanges, errors) {
+  const announced = String(dependencyNames ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .sort();
+  const structured = metadataChanges.map((change) => change.name).sort();
+  if (announced.length !== structured.length
+      || announced.some((name, index) => name !== structured[index])) {
+    errors.push('dependency names disagree with updated-dependencies-json');
+  }
+}
+
+function validateDependencyGroup(metadata, metadataChanges, errors) {
+  const announcedGroup = String(metadata.dependencyGroup ?? '').trim();
+  const structuredGroups = new Set(metadataChanges
+    .map((change) => String(change.dependencyGroup ?? '').trim())
+    .filter(Boolean));
+  if (structuredGroups.size > 1
+      || (announcedGroup && structuredGroups.size === 1 && !structuredGroups.has(announcedGroup))
+      || (!announcedGroup && structuredGroups.size > 0)) {
+    errors.push('dependency group metadata is incoherent');
+  }
+  if (metadataChanges.length > 1 && !announcedGroup) {
+    errors.push('a grouped update must announce its dependency group');
+  }
+}
+
 function summarizeDependencies(changes) {
   const unique = new Map();
   for (const change of changes) {
@@ -215,15 +312,20 @@ export function classifyDependabotPolicy(input) {
   const ecosystem = metadata.packageEcosystem;
   const repository = pull.repository;
 
+  if (metadata.verified !== true && metadata.verified !== 'true') {
+    errors.push('Dependabot metadata verification did not succeed');
+  }
   if (pull.actor !== 'dependabot[bot]' || pull.author !== 'dependabot[bot]') {
     errors.push('actor and PR author must both be dependabot[bot]');
   }
   if (pull.baseRef !== 'dev' || pull.baseRepository !== repository) {
     errors.push('base must be dev in this repository');
   }
-  if (!String(pull.headRef ?? '').startsWith('dependabot/') || pull.headRepository !== repository) {
-    errors.push('head must be an internal dependabot branch');
+  if (!isExpectedHeadRef(pull.headRef, ecosystem) || pull.headRepository !== repository) {
+    errors.push('head must be the expected internal dependabot branch for this ecosystem');
   }
+  if (!/^[0-9a-f]{40}$/.test(String(pull.headSha ?? ''))) errors.push('head SHA is missing or malformed');
+  if (!/^[0-9a-f]{40}$/.test(String(pull.baseSha ?? ''))) errors.push('base SHA is missing or malformed');
   if (pull.draft === true) errors.push('draft PRs are not eligible');
   if (!SUPPORTED_ECOSYSTEMS.has(ecosystem)) errors.push(`unsupported ecosystem: ${ecosystem ?? 'missing'}`);
   if (!isTrustedRootDirectory(metadata.directory, metadata.targetBranch, ecosystem, pull.headRef)) {
@@ -256,6 +358,8 @@ export function classifyDependabotPolicy(input) {
     : [];
   if (!Array.isArray(rawDependencies)) errors.push('updated-dependencies-json must be an array');
   if (metadataChanges.length === 0) errors.push('updated-dependencies-json contains no dependency');
+  compareDependencyNames(metadata.dependencyNames, metadataChanges, errors);
+  validateDependencyGroup(metadata, metadataChanges, errors);
   for (const change of metadataChanges) {
     if (change.directory
         && !isTrustedRootDirectory(change.directory, change.targetBranch, change.packageEcosystem, pull.headRef)) {
@@ -267,6 +371,17 @@ export function classifyDependabotPolicy(input) {
     if (change.targetBranch && change.targetBranch !== 'dev') {
       errors.push(`dependency target branch mismatch for ${change.name}`);
     }
+    if (!dependencyIsDirect(change.dependencyType)) {
+      errors.push(`dependency type is missing or unsupported for ${change.name}`);
+    }
+    if (!change.declaredLevel) errors.push(`update type is missing or unsupported for ${change.name}`);
+    if (!change.versionLevel || change.versionLevel === 'unknown') {
+      errors.push(`version cannot be classified for ${change.name}`);
+    }
+    if (change.declaredLevel && change.versionLevel && change.versionLevel !== 'unknown'
+        && change.declaredLevel !== change.versionLevel) {
+      errors.push(`declared update type disagrees with versions for ${change.name}`);
+    }
   }
   const maintainerChanges = metadata.maintainerChanges === true
     || metadata.maintainerChanges === 'true'
@@ -277,7 +392,7 @@ export function classifyDependabotPolicy(input) {
         || raw['maintainer-changes'] === true
         || raw['maintainer-changes'] === 'true';
     });
-  if (maintainerChanges) errors.push('maintainer changes are forbidden');
+  const breakingChanges = /\bbreaking[ -]changes?\b/i.test(String(pull.body ?? ''));
 
   const changedFiles = input.changedFiles ?? [];
   if (changedFiles.length === 0) errors.push('at least one dependency file must change');
@@ -291,11 +406,16 @@ export function classifyDependabotPolicy(input) {
   if (ecosystem === 'npm' || ecosystem === 'npm_and_yarn') {
     lockChanges = npmLockChanges(input.files, errors);
   }
+  if (ecosystem === 'composer' || ecosystem === 'npm' || ecosystem === 'npm_and_yarn') {
+    verifyLockedVersions(metadataChanges, lockChanges, errors);
+  }
+  verifyDeclarativeVersions(ecosystem, changedFiles, metadataChanges, errors);
 
   const aggregateLevel = normalizeLevel(metadata.updateType);
-  const structuredLevels = metadataChanges.map((change) => change.level).filter((level) => LEVEL_RANK[level]);
+  const structuredLevels = metadataChanges.map((change) => change.versionLevel).filter((level) => LEVEL_RANK[level]);
   const lockLevels = lockChanges.map((change) => change.level).filter((level) => LEVEL_RANK[level]);
-  const unknownVersion = [...metadataChanges, ...lockChanges].some((change) => change.level === 'unknown');
+  const unknownVersion = [...metadataChanges, ...lockChanges]
+    .some((change) => !change.level || change.level === 'unknown');
   if (structuredLevels.length > 0 && aggregateLevel
       && highestLevel(structuredLevels) !== aggregateLevel) {
     errors.push('aggregate update type disagrees with updated-dependencies-json');
@@ -304,29 +424,81 @@ export function classifyDependabotPolicy(input) {
   const knownLevels = [...structuredLevels, ...lockLevels];
   if (aggregateLevel) knownLevels.push(aggregateLevel);
   if (!aggregateLevel) errors.push('aggregate update type is missing or unsupported');
-  if (unknownVersion) errors.push('at least one changed version is not semver-compatible');
+  if (unknownVersion) errors.push('at least one changed version is missing or not semver-compatible');
   if (knownLevels.length === 0) errors.push('dependency level cannot be determined');
 
-  const semverLevel = unknownVersion || knownLevels.length === 0
+  const globalUpdateType = unknownVersion || knownLevels.length === 0
     ? 'major'
     : highestLevel(knownLevels);
   const policyValid = errors.length === 0;
-  const autoMergeEligible = policyValid && semverLevel === 'patch';
+  const autoMergeEligible = policyValid
+    && globalUpdateType === 'patch'
+    && !maintainerChanges
+    && !breakingChanges;
+  const manualReviewRequired = policyValid && !autoMergeEligible;
   const allChanges = [...metadataChanges, ...lockChanges];
-  const reason = policyValid
-    ? `Global dependency level is ${semverLevel}; ${autoMergeEligible ? 'patch auto-merge may be activated' : 'manual merge is required'}.`
-    : `Policy rejected: ${[...new Set(errors)].join('; ')}.`;
+  const manualReasons = [];
+  if (globalUpdateType !== 'patch') manualReasons.push(`global update type is ${globalUpdateType}`);
+  if (maintainerChanges) manualReasons.push('a maintainer or publisher change was reported');
+  if (breakingChanges) manualReasons.push('documented breaking changes require human validation');
+  const reason = !policyValid
+    ? `Policy rejected: ${[...new Set(errors)].join('; ')}.`
+    : autoMergeEligible
+      ? 'Policy valid: every direct and transitive update is patch-level and no human-review signal was found.'
+      : `Policy valid; manual review required: ${manualReasons.join('; ')}.`;
 
   return {
-    semverLevel,
+    globalUpdateType,
+    semverLevel: globalUpdateType,
     semverLabels: SEMVER_LABELS,
     autoMergeEligible,
+    manualReviewRequired,
+    maintainerChanges,
+    breakingChanges,
     policyValid,
     reason,
     dependencySummary: summarizeDependencies(allChanges),
     changes: allChanges,
     errors: [...new Set(errors)],
   };
+}
+
+function isPresent(value) {
+  return value === true || (typeof value === 'string' && value.trim() !== '');
+}
+
+function isTrue(value) {
+  return value === true || value === 'true';
+}
+
+export function evaluateAutoMergeGate(input) {
+  const blockers = [];
+  if (!isTrue(input.policyValid)) blockers.push('classification policy is invalid');
+  if (!isTrue(input.autoMergeEligible)) blockers.push('the update is not auto-merge eligible');
+  if (input.activationValue !== 'true') blockers.push('DEPENDABOT_AUTOMERGE_ENABLED is not exactly true');
+  if (!isPresent(input.appId)) blockers.push('the GitHub App id is unavailable');
+  if (!isPresent(input.privateKey)) blockers.push('the GitHub App private key is unavailable');
+  if (!/^[0-9a-f]{40}$/.test(String(input.expectedHeadSha ?? ''))
+      || !/^[0-9a-f]{40}$/.test(String(input.currentHeadSha ?? ''))
+      || input.expectedHeadSha !== input.currentHeadSha) {
+    blockers.push('the pull request head SHA changed or is malformed');
+  }
+  if (input.qualityConclusion !== 'success') blockers.push('Quality is not successful for the expected SHA');
+  return {
+    autoMergeAllowed: blockers.length === 0,
+    reason: blockers.length === 0
+      ? 'All auto-merge gates are satisfied.'
+      : `Auto-merge remains inactive: ${blockers.join('; ')}.`,
+    blockers,
+  };
+}
+
+async function writeOutputs(outputs) {
+  const sanitize = (value) => String(value).replace(/[\r\n]+/g, ' ');
+  await appendFile(
+    process.env.GITHUB_OUTPUT,
+    Object.entries(outputs).map(([key, value]) => `${key}=${sanitize(value)}\n`).join(''),
+  );
 }
 
 async function runCli() {
@@ -336,26 +508,54 @@ async function runCli() {
     directory: process.env.DIRECTORY,
     packageEcosystem: process.env.ECOSYSTEM,
     maintainerChanges: process.env.MAINTAINER_CHANGES,
+    dependencyGroup: process.env.DEPENDENCY_GROUP,
+    verified: process.env.METADATA_VERIFIED,
     targetBranch: process.env.TARGET_BRANCH,
     updateType: process.env.UPDATE_TYPE,
     updatedDependencies: process.env.UPDATED_DEPENDENCIES_JSON,
   };
   const result = classifyDependabotPolicy(snapshot);
   const outputs = {
-    'semver-level': result.semverLevel,
+    globalUpdateType: result.globalUpdateType,
+    autoMergeEligible: String(result.autoMergeEligible),
+    manualReviewRequired: String(result.manualReviewRequired),
+    maintainerChanges: String(result.maintainerChanges),
+    policyValid: String(result.policyValid),
+    'global-update-type': result.globalUpdateType,
+    'semver-level': result.globalUpdateType,
     'auto-merge-eligible': String(result.autoMergeEligible),
+    'manual-review-required': String(result.manualReviewRequired),
+    'maintainer-changes': String(result.maintainerChanges),
     'policy-valid': String(result.policyValid),
     reason: result.reason,
     'dependency-summary': result.dependencySummary,
   };
-  const sanitize = (value) => String(value).replace(/[\r\n]+/g, ' ');
-  await appendFile(
-    process.env.GITHUB_OUTPUT,
-    Object.entries(outputs).map(([key, value]) => `${key}=${sanitize(value)}\n`).join(''),
-  );
+  await writeOutputs(outputs);
+  console.log(JSON.stringify(result, null, 2));
+}
+
+async function runAutoMergeGateCli() {
+  const result = evaluateAutoMergeGate({
+    policyValid: process.env.POLICY_VALID,
+    autoMergeEligible: process.env.AUTO_MERGE_ELIGIBLE,
+    activationValue: process.env.ACTIVATION_VALUE,
+    appId: process.env.GITHUB_APP_ID,
+    privateKey: process.env.GITHUB_APP_PRIVATE_KEY,
+    expectedHeadSha: process.env.EXPECTED_HEAD_SHA,
+    currentHeadSha: process.env.CURRENT_HEAD_SHA,
+    qualityConclusion: process.env.QUALITY_CONCLUSION,
+  });
+  await writeOutputs({
+    'auto-merge-allowed': String(result.autoMergeAllowed),
+    reason: result.reason,
+  });
   console.log(JSON.stringify(result, null, 2));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await runCli();
+  if (process.argv[2] === '--auto-merge-gate') {
+    await runAutoMergeGateCli();
+  } else {
+    await runCli();
+  }
 }

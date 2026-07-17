@@ -219,11 +219,25 @@ masquée par des groupes patch ou minor déjà ouverts. Chaque PR est assignée 
 `Nerpp` et reçoit exactement un label de niveau parmi `patch`, `minor` et
 `major`, en plus des labels d'écosystème.
 
-| Niveau | PR créée | Assignation | Quality | Auto-merge | Fusion |
-| --- | --- | --- | --- | --- | --- |
-| Patch | Oui | Nerpp | Obligatoire | Possible après activation | Automatique possible |
-| Minor | Oui | Nerpp | Obligatoire | Non | Manuelle |
-| Major | Oui | Nerpp | Obligatoire | Non | Manuelle avec migration |
+La classification sépare deux décisions. `policyValid=true` signifie que la PR
+est bien une PR Dependabot structurellement cohérente. Cela ne constitue pas une
+autorisation de fusion automatique. `autoMergeEligible=true` signifie, en plus,
+que toutes les mises à jour directes et transitives sont des patches et qu'aucun
+signal de revue humaine n'existe.
+
+| Situation | PR | Classification | Quality | Assignation | Auto-merge | Fusion |
+| --- | --- | --- | --- | --- | --- | --- |
+| Patch entièrement patch, aucun signal anormal | Automatique | Valide, niveau `patch` | Obligatoire | Selon la configuration Dependabot | Possible uniquement après activation | Automatique possible |
+| Patch avec transitive minor ou major | Automatique | Valide, niveau global `minor` ou `major` | Obligatoire | Nerpp | Non | Manuelle |
+| Patch avec changement de mainteneur ou publieur | Automatique | Valide, revue manuelle requise | Obligatoire | Nerpp | Non | Manuelle |
+| Minor | Automatique | Valide, niveau `minor` | Obligatoire | Nerpp | Non | Manuelle |
+| Major | Automatique | Valide, niveau `major` et analyse des breaking changes | Obligatoire | Nerpp | Non | Manuelle avec migration |
+| PR invalide ou incohérente | Automatique si elle prétend provenir de Dependabot | Invalide, workflow rouge | Sans effet sur la décision | Aucune par ce workflow | Non | Bloquée |
+
+Un contrôle `Dependabot policy / Classify Dependabot update` vert signifie que
+la politique a correctement reconnu et classé la PR. Il ne signifie pas que la
+PR est auto-éligible : les sorties `autoMergeEligible` et
+`manualReviewRequired` portent cette seconde décision.
 
 Exemples : `8.1.0 → 8.1.1` est un patch, `8.0 → 8.1` est une mineure et
 `8 → 9` est une majeure. Les mises à jour mineures et majeures sont visibles,
@@ -244,15 +258,18 @@ Dependabot. Il :
    le niveau des changements directs et transitifs avec un script sans réseau ;
 4. compare ce résultat aux métadonnées agrégées, et échoue de manière sûre en
    cas de métadonnées absentes, incohérentes ou de version non interprétable ;
-5. refuse les changements de mainteneur et les chemins inattendus ;
+5. conserve valides mais manuels les changements de mainteneur ou de publieur
+   et les breaking changes documentés, tout en refusant les chemins inattendus ;
 6. limite GitHub Actions aux lignes `uses:` et Docker aux références d'image ;
 7. applique le label global unique et l'assignation même quand l'auto-merge est
    désactivé ;
-8. n'autorise le job d'auto-merge que pour un résultat global `patch` valide ;
-9. revérifie la tête, la mergeabilité et les règles effectives de `dev`, qui
-   doivent imposer Quality et le merge commit ;
-10. demande uniquement un auto-merge `MERGE` avec la GitHub App, puis laisse
-    Quality et le ruleset décider de la fusion réelle.
+8. n'autorise le job d'auto-merge que pour un résultat global `patch` valide,
+   auto-éligible et après activation explicite ;
+9. revérifie la tête, la mergeabilité, le SHA, le succès de `Quality` sur ce SHA
+   et les règles effectives de `dev`, qui doivent imposer Quality et le merge
+   commit ;
+10. ne crée le jeton GitHub App que si ses deux secrets sont présents, puis
+    demande uniquement un auto-merge `MERGE` avec ce jeton.
 
 `fetch-metadata@v3` déduit le champ `directory` depuis le nom de branche. Avec
 la cible non standard `dev`, il représente actuellement la racine `/` par
@@ -267,10 +284,18 @@ plan de compatibilité. Une Quality verte est nécessaire mais ne remplace jamai
 ces revues humaines.
 
 La variable `DEPENDABOT_AUTOMERGE_ENABLED` absente ou différente de `true`
-empêche entièrement le job d'auto-merge, y compris la création du jeton GitHub
-App. La classification et l'assignation restent actives. L'état initial et
-actuel est désactivé : aucun secret n'est créé et aucun déploiement n'est lié à
-ce workflow.
+empêche entièrement le job d'auto-merge. Même après activation, l'absence d'un
+secret GitHub App, une `Quality` non verte ou un SHA différent interdit la
+création du jeton ou la demande de fusion. La classification et l'assignation
+restent actives. L'état initial et actuel est désactivé : aucun secret n'est
+créé et aucun déploiement n'est lié à ce workflow.
+
+L'activation future minimale consiste à vérifier que le ruleset `dev` impose
+uniquement `Quality` et les merge commits, installer la GitHub App limitée à ce
+dépôt, créer ses deux secrets sans les afficher, puis définir
+`DEPENDABOT_AUTOMERGE_ENABLED` exactement à `true`. La première observation doit
+se faire sur une PR ne contenant que des patches ; retirer la variable suffit à
+rendre immédiatement le mécanisme inerte.
 
 Le `GITHUB_TOKEN` écrit uniquement le label et l'assignation de la PR existante.
 Il n'est jamais utilisé pour demander une fusion ni pour créer une PR. GitHub
@@ -311,12 +336,33 @@ Le préflight en lecture seule :
 - exige des commits dev réellement nouveaux ;
 - recherche l'unique PR ouverte dev vers main et refuse les doublons.
 
-Après ce préflight seulement, la GitHub App crée la PR si elle n'existe pas,
-inclut le SHA dev dans son corps, revalide la tête, puis demande un auto-merge
-MERGE. La PR déclenche Quality. Le push du merge commit réel sur main déclenche
-une nouvelle CI grâce au déclencheur push main. Aucun merge direct, aucune
-branche work ou Dependabot vers main, et aucune boucle main vers dev ne sont
-créés.
+Après ce préflight seulement, la GitHub App crée la PR si elle n'existe pas et
+inclut le SHA dev dans son corps. Avant toute fusion ou demande d'auto-merge, le
+workflow relit la PR et dev, puis vérifie à nouveau que la PR est ouverte, non
+brouillon, sans conflit, issue de dev dans ce dépôt, ciblée sur main et attachée
+au SHA dev validé. Il attend de manière bornée si GitHub n'a pas encore calculé
+sa fusionnabilité.
+
+GitHub refuse `enablePullRequestAutoMerge` lorsqu'une PR est déjà dans l'état
+`clean`. Dans ce cas, le workflow appelle directement l'API de fusion avec le
+SHA dev attendu et `merge_method: merge`, exige `merged: true`, puis vérifie le
+SHA du merge commit retourné. Cette fusion reste soumise aux rulesets de main :
+la GitHub App n'est pas un bypass actor et le workflow n'utilise ni privilège
+administrateur ni contournement.
+
+Lorsque la PR est `blocked` parce qu'une exigence est encore en attente, le
+workflow demande à GitHub l'auto-merge avec la méthode MERGE. Une demande déjà
+active est acceptée comme un succès idempotent. Les états `dirty`, `behind`,
+`unstable`, `unknown` persistant et tout autre état inattendu provoquent un
+échec sans fusion. Dans les deux chemins autorisés, la promotion produit
+toujours un merge commit. Le push de ce merge commit réel sur main déclenche une
+nouvelle CI grâce au déclencheur push main. Aucune branche work ou Dependabot
+vers main et aucune boucle main vers dev ne sont créées.
+
+Le test déterministe `.github/scripts/promotion-workflow.test.mjs` extrait et
+exécute le script réel du workflow avec une API GitHub simulée. Il couvre les
+chemins `clean`, `blocked` et idempotent, les changements de SHA ou de dev, les
+conflits et états indéterminés, ainsi que les réponses de fusion refusées.
 
 Activation future, dans cet ordre :
 
@@ -409,8 +455,8 @@ Dans Settings, Rules, Rulesets :
 3. interdire deletion et non-fast-forward ;
 4. exiger une PR, zéro approbation obligatoire, résolution des conversations,
    méthode de fusion merge uniquement ;
-5. exiger le status check exact Quality fourni par GitHub Actions, avec branche
-   à jour ;
+5. exiger le status check exact Quality fourni par GitHub Actions, sans exiger
+   que la branche source soit à jour ;
 6. modifier Protect production main, identifiant actuel 18447943, avec les
    mêmes règles sur refs/heads/main ;
 7. vérifier qu'une PR autre que dev vers main échoue dans Quality ;
@@ -425,6 +471,18 @@ Quality et toutes les protections.
 GitHub ne fournit pas dans ce ruleset de filtre universel simple sur la branche
 source d'une PR. La source dev vers main est donc aussi imposée par l'étape
 Quality, et par le workflow de promotion.
+
+`strict_required_status_checks_policy=false` est volontaire pour dev et main
+dans cette architecture. Main contient les merge commits des promotions
+précédentes, qui ne sont pas réinjectés dans dev. Exiger que la branche source
+soit à jour imposerait donc de fusionner régulièrement main dans dev et créerait
+la boucle main vers dev que l'architecture interdit.
+
+Pour la promotion, la sécurité repose à la place sur la baseline commune, le
+contrôle du SHA dev ayant réussi la CI, la validation de tous les commits propres
+à main, l'unicité de la PR dev vers main, le contrôle obligatoire Quality et une
+nouvelle vérification de la PR et du SHA dev immédiatement avant la fusion REST
+ou la demande d'auto-merge.
 
 ### API GitHub
 
@@ -464,7 +522,7 @@ Corps cible pour dev :
     {
       "type": "required_status_checks",
       "parameters": {
-        "strict_required_status_checks_policy": true,
+        "strict_required_status_checks_policy": false,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {"context": "Quality", "integration_id": 15368}
@@ -493,9 +551,26 @@ n'est plus le seul verrou.
 Créer une GitHub App dédiée, installée uniquement sur Nerpp/blog_tourisme :
 
 - Metadata : read, implicite ;
-- Contents : write, nécessaire à l'auto-merge ;
-- Pull requests : write ;
+- Contents : write, niveau d'écriture du dépôt exigé par GitHub pour activer
+  l'auto-merge ;
+- Pull requests : write, nécessaire pour créer, réutiliser et gérer la PR dev
+  vers main ;
 - aucun droit Actions, Checks, Secrets, Environments ou Deployments.
+
+Le workflow utilise Pull requests: write pour créer ou réutiliser la PR dev
+vers main et la gérer. La mutation GraphQL qui demande l'auto-merge MERGE exige
+en plus Contents: write, même si le workflow ne pousse aucun commit et ne
+modifie aucun fichier du dépôt.
+
+Contents: write donne techniquement au jeton une capacité d'écriture sur le
+contenu. Son exposition est réduite par :
+
+- une GitHub App dédiée à cette automatisation ;
+- une installation limitée au seul dépôt Nerpp/blog_tourisme ;
+- un jeton d'installation temporaire ;
+- l'absence de checkout authentifié avec ce jeton ;
+- les rulesets de dev et main ;
+- le préflight du workflow avant toute création ou gestion de PR.
 
 La clé privée n'est jamais stockée dans Git. Les secrets Actions alimentent la
 promotion ; les secrets Dependabot de mêmes noms alimentent le workflow
