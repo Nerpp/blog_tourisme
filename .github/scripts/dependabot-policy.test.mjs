@@ -480,13 +480,17 @@ test('malformed SHA is invalid', () => {
 function eligibleGate(overrides = {}) {
   return evaluateAutoMergeGate({
     policyValid: true,
+    globalUpdateType: 'patch',
     autoMergeEligible: true,
+    manualReviewRequired: false,
+    maintainerChanges: false,
     activationValue: 'true',
     appId: '12345',
     privateKey: 'private-key',
     expectedHeadSha: HEAD_SHA,
     currentHeadSha: HEAD_SHA,
     qualityConclusion: 'success',
+    qualityHeadSha: HEAD_SHA,
     ...overrides,
   });
 }
@@ -495,6 +499,32 @@ test('activation variable absent keeps auto-merge inactive', () => {
   const result = eligibleGate({activationValue: undefined});
   assert.equal(result.autoMergeAllowed, false);
   assert.match(result.reason, /DEPENDABOT_AUTOMERGE_ENABLED/);
+});
+
+test('activation variable must be exactly true', () => {
+  const result = eligibleGate({activationValue: 'TRUE'});
+  assert.equal(result.autoMergeAllowed, false);
+  assert.match(result.reason, /DEPENDABOT_AUTOMERGE_ENABLED/);
+});
+
+for (const globalUpdateType of ['minor', 'major']) {
+  test(`${globalUpdateType} classification can never pass the auto-merge gate`, () => {
+    const result = eligibleGate({globalUpdateType});
+    assert.equal(result.autoMergeAllowed, false);
+    assert.match(result.reason, /global update type is not patch/);
+  });
+}
+
+test('manual review requirement can never pass the auto-merge gate', () => {
+  const result = eligibleGate({manualReviewRequired: true});
+  assert.equal(result.autoMergeAllowed, false);
+  assert.match(result.reason, /manual review is required/);
+});
+
+test('maintainer change can never pass the auto-merge gate', () => {
+  const result = eligibleGate({maintainerChanges: true});
+  assert.equal(result.autoMergeAllowed, false);
+  assert.match(result.reason, /maintainer or publisher change/);
 });
 
 test('GitHub App secret absent keeps auto-merge inactive', () => {
@@ -513,6 +543,18 @@ test('non-successful Quality keeps auto-merge inactive', () => {
   const result = eligibleGate({qualityConclusion: 'failure'});
   assert.equal(result.autoMergeAllowed, false);
   assert.match(result.reason, /Quality is not successful/);
+});
+
+test('missing Quality keeps auto-merge inactive', () => {
+  const result = eligibleGate({qualityConclusion: 'missing', qualityHeadSha: ''});
+  assert.equal(result.autoMergeAllowed, false);
+  assert.match(result.reason, /Quality is not successful/);
+});
+
+test('Quality on another SHA keeps auto-merge inactive', () => {
+  const result = eligibleGate({qualityHeadSha: 'c'.repeat(40)});
+  assert.equal(result.autoMergeAllowed, false);
+  assert.match(result.reason, /Quality does not target/);
 });
 
 test('manual classification can never pass the auto-merge gate', () => {

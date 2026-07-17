@@ -264,12 +264,40 @@ Dependabot. Il :
 7. applique le label global unique et l'assignation même quand l'auto-merge est
    désactivé ;
 8. n'autorise le job d'auto-merge que pour un résultat global `patch` valide,
-   auto-éligible et après activation explicite ;
+   auto-éligible, sans revue manuelle ni changement de mainteneur, et après
+   activation explicite ;
 9. revérifie la tête, la mergeabilité, le SHA, le succès de `Quality` sur ce SHA
    et les règles effectives de `dev`, qui doivent imposer Quality et le merge
    commit ;
 10. ne crée le jeton GitHub App que si ses deux secrets sont présents, puis
-    demande uniquement un auto-merge `MERGE` avec ce jeton.
+    fusionne directement une PR `clean` par REST ou demande un auto-merge
+    `MERGE` pour une PR `blocked`.
+
+Immédiatement avant l'action finale, le workflow relit la PR et vérifie encore
+qu'elle est ouverte, non brouillon, écrite par `dependabot[bot]`, issue d'une
+branche interne `dependabot/`, ciblée sur `dev` dans ce dépôt et toujours
+attachée au SHA exact qui a réussi `Quality`. Il attend de manière bornée si
+GitHub n'a pas encore résolu sa mergeabilité et échoue sans fusion pour les
+états `dirty`, `behind`, `unstable`, `unknown` persistant ou inattendus.
+
+GitHub refuse `enablePullRequestAutoMerge` lorsqu'une PR est déjà `clean`. Une
+PR patch `clean` est donc fusionnée directement par l'API REST avec son SHA
+validé et `merge_method: merge`; la réponse et le SHA du merge commit sont
+ensuite vérifiés. Une PR patch `blocked` par une exigence encore en attente
+utilise l'auto-merge GitHub avec `mergeMethod: MERGE`. Une demande déjà active
+est un succès idempotent. Les deux chemins produisent exclusivement des merge
+commits, restent soumis au ruleset de `dev` et n'utilisent aucun bypass ni
+privilège administrateur.
+
+Le merge commit poussé sur `dev` déclenche la CI. Après son succès, le workflow
+de promotion contrôlée peut publier ce nouvel état vers `main`. Les PR minor,
+major, comportant un changement de mainteneur ou tout autre signal de revue
+humaine restent strictement manuelles, même avec une `Quality` verte.
+
+Le test déterministe `.github/scripts/dependabot-workflow.test.mjs` extrait et
+exécute le script final réel avec une API GitHub simulée. Il couvre les chemins
+`clean`, `blocked` et idempotent, les identités ou SHA modifiés, tous les états
+de mergeabilité refusés et les réponses API incomplètes.
 
 `fetch-metadata@v3` déduit le champ `directory` depuis le nom de branche. Avec
 la cible non standard `dev`, il représente actuellement la racine `/` par
@@ -286,9 +314,9 @@ ces revues humaines.
 La variable `DEPENDABOT_AUTOMERGE_ENABLED` absente ou différente de `true`
 empêche entièrement le job d'auto-merge. Même après activation, l'absence d'un
 secret GitHub App, une `Quality` non verte ou un SHA différent interdit la
-création du jeton ou la demande de fusion. La classification et l'assignation
-restent actives. L'état initial et actuel est désactivé : aucun secret n'est
-créé et aucun déploiement n'est lié à ce workflow.
+création du jeton, la fusion REST ou la demande d'auto-merge. La classification
+et l'assignation restent actives. L'état initial et actuel est désactivé : aucun
+secret n'est créé et aucun déploiement n'est lié à ce workflow.
 
 L'activation future minimale consiste à vérifier que le ruleset `dev` impose
 uniquement `Quality` et les merge commits, installer la GitHub App limitée à ce

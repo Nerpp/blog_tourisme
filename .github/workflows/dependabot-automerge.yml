@@ -208,7 +208,7 @@ jobs:
             echo '### Dependabot policy classification'
             printf -- "- Policy valid: \`%s\`\n" "$POLICY_VALID"
             printf -- "- Global level: \`%s\`\n" "$LEVEL"
-            printf -- "- Future auto-merge eligible: \`%s\`\n" "$ELIGIBLE"
+            printf -- "- Automatic merge eligible: \`%s\`\n" "$ELIGIBLE"
             printf -- "- Manual review required: \`%s\`\n" "$MANUAL_REVIEW_REQUIRED"
             printf -- "- Maintainer/publisher changes: \`%s\`\n" "$MAINTAINER_CHANGES"
             printf -- '- Reason: %s\n' "$REASON"
@@ -221,7 +221,7 @@ jobs:
         run: test "$POLICY_VALID" = 'true'
 
   auto-merge:
-    name: Request patch auto-merge
+    name: Merge eligible Dependabot patch
     needs:
       - classify
     if: >-
@@ -229,10 +229,16 @@ jobs:
       needs.classify.outputs.policyValid == 'true' &&
       needs.classify.outputs.globalUpdateType == 'patch' &&
       needs.classify.outputs.autoMergeEligible == 'true' &&
+      needs.classify.outputs.manualReviewRequired == 'false' &&
+      needs.classify.outputs.maintainerChanges == 'false' &&
       vars.DEPENDABOT_AUTOMERGE_ENABLED == 'true' &&
       github.actor == 'dependabot[bot]' &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
+      startsWith(github.event.pull_request.head.ref, 'dependabot/') &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'dev' &&
+      github.event.pull_request.base.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -260,6 +266,7 @@ jobs:
             const repository = `${context.repo.owner}/${context.repo.repo}`;
             if (pull.head.sha !== process.env.EXPECTED_HEAD_SHA
                 || pull.user.login !== 'dependabot[bot]'
+                || pull.state !== 'open'
                 || pull.base.ref !== 'dev'
                 || pull.base.repo.full_name !== repository
                 || pull.head.repo.full_name !== repository
@@ -303,6 +310,7 @@ jobs:
             }
 
             let qualityConclusion = 'missing';
+            let qualityHeadSha = '';
             for (let attempt = 0; attempt < 45; attempt += 1) {
               const {data: checks} = await github.rest.checks.listForRef({
                 ...context.repo,
@@ -314,6 +322,7 @@ jobs:
                 .sort((left, right) => right.id - left.id)[0];
               if (quality?.status === 'completed') {
                 qualityConclusion = quality.conclusion ?? 'unknown';
+                qualityHeadSha = quality.head_sha ?? '';
                 break;
               }
               await new Promise((resolve) => setTimeout(resolve, 10000));
@@ -324,11 +333,15 @@ jobs:
             });
             core.setOutput('current-head-sha', latest.head.sha);
             core.setOutput('quality-conclusion', qualityConclusion);
+            core.setOutput('quality-head-sha', qualityHeadSha);
             if (latest.head.sha !== process.env.EXPECTED_HEAD_SHA) {
-              core.notice('Auto-merge stays inactive because the PR head changed while waiting for Quality.');
+              core.notice('Automatic merge stays inactive because the PR head changed while waiting for Quality.');
             }
             if (qualityConclusion !== 'success') {
-              core.notice(`Auto-merge stays inactive because Quality is ${qualityConclusion}.`);
+              core.notice(`Automatic merge stays inactive because Quality is ${qualityConclusion}.`);
+            }
+            if (qualityHeadSha !== process.env.EXPECTED_HEAD_SHA) {
+              core.notice('Automatic merge stays inactive because Quality does not target the expected PR SHA.');
             }
 
       - name: Evaluate activation, credentials, Quality, and SHA gates
@@ -338,10 +351,14 @@ jobs:
           AUTO_MERGE_ELIGIBLE: ${{ needs.classify.outputs.autoMergeEligible }}
           CURRENT_HEAD_SHA: ${{ steps.immutable.outputs.current-head-sha }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GLOBAL_UPDATE_TYPE: ${{ needs.classify.outputs.globalUpdateType }}
           GITHUB_APP_ID: ${{ secrets.PROMOTION_GITHUB_APP_ID }}
           GITHUB_APP_PRIVATE_KEY: ${{ secrets.PROMOTION_GITHUB_APP_PRIVATE_KEY }}
+          MAINTAINER_CHANGES: ${{ needs.classify.outputs.maintainerChanges }}
+          MANUAL_REVIEW_REQUIRED: ${{ needs.classify.outputs.manualReviewRequired }}
           POLICY_VALID: ${{ needs.classify.outputs.policyValid }}
           QUALITY_CONCLUSION: ${{ steps.immutable.outputs.quality-conclusion }}
+          QUALITY_HEAD_SHA: ${{ steps.immutable.outputs.quality-head-sha }}
         run: node .github/scripts/dependabot-policy.mjs --auto-merge-gate
 
       - name: Create least-privilege GitHub App token
@@ -354,7 +371,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: blog_tourisme
 
-      - name: Request merge-commit auto-merge
+      - name: Merge eligible Dependabot patch safely
         if: steps.auto-merge-gate.outputs.auto-merge-allowed == 'true'
         uses: actions/github-script@v9
         env:
@@ -362,21 +379,70 @@ jobs:
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
-            const {data: pull} = await github.rest.pulls.get({
-              ...context.repo,
-              pull_number: context.payload.pull_request.number,
-            });
-            if (pull.head.sha !== process.env.EXPECTED_HEAD_SHA
-                || pull.base.ref !== 'dev'
-                || pull.user.login !== 'dependabot[bot]') {
-              core.setFailed('The PR changed after policy validation.');
+            const expectedHeadSha = process.env.EXPECTED_HEAD_SHA;
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const pullNumber = context.payload.pull_request.number;
+            let pull;
+
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+              ({data: pull} = await github.rest.pulls.get({
+                ...context.repo,
+                pull_number: pullNumber,
+              }));
+              if (pull.state !== 'open'
+                  || pull.draft
+                  || pull.user.login !== 'dependabot[bot]'
+                  || pull.base.ref !== 'dev'
+                  || pull.base.repo.full_name !== repository
+                  || !pull.head.ref.startsWith('dependabot/')
+                  || pull.head.repo.full_name !== repository
+                  || pull.head.sha !== expectedHeadSha) {
+                core.setFailed('The Dependabot PR identity or SHA changed after validation.');
+                return;
+              }
+
+              const mergeabilityState = pull.mergeable_state ?? 'unknown';
+              if (pull.mergeable !== null && mergeabilityState !== 'unknown') break;
+              if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+
+            const mergeabilityState = pull.mergeable_state ?? 'unknown';
+            if (pull.mergeable !== true || !['clean', 'blocked'].includes(mergeabilityState)) {
+              core.setFailed(`Dependabot PR mergeability is not safe (${mergeabilityState}).`);
               return;
             }
             if (pull.auto_merge) {
               core.notice('Auto-merge is already enabled.');
               return;
             }
-            await github.graphql(
+
+            if (mergeabilityState === 'clean') {
+              const {data: mergeResult} = await github.rest.pulls.merge({
+                ...context.repo,
+                pull_number: pull.number,
+                merge_method: 'merge',
+                sha: expectedHeadSha,
+              });
+              if (mergeResult.merged !== true || !/^[0-9a-f]{40}$/.test(mergeResult.sha ?? '')) {
+                core.setFailed('GitHub did not confirm the Dependabot merge or return a merge commit SHA.');
+                return;
+              }
+
+              const {data: mergedPull} = await github.rest.pulls.get({
+                ...context.repo,
+                pull_number: pull.number,
+              });
+              if (mergedPull.merged !== true
+                  || !mergedPull.merge_commit_sha
+                  || mergedPull.merge_commit_sha !== mergeResult.sha) {
+                core.setFailed('The merged Dependabot PR did not confirm the expected merge commit SHA.');
+                return;
+              }
+              core.notice(`Dependabot PR #${pull.number} merged as ${mergeResult.sha}.`);
+              return;
+            }
+
+            const autoMergeResult = await github.graphql(
               `mutation($pullRequestId: ID!) {
                 enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
                   pullRequest { number }
@@ -384,3 +450,8 @@ jobs:
               }`,
               {pullRequestId: pull.node_id},
             );
+            if (autoMergeResult?.enablePullRequestAutoMerge?.pullRequest?.number !== pull.number) {
+              core.setFailed('GitHub did not confirm the Dependabot auto-merge request.');
+              return;
+            }
+            core.notice(`Auto-merge enabled on blocked Dependabot PR #${pull.number}.`);
