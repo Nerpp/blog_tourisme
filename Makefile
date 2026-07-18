@@ -1,6 +1,7 @@
 COMPOSE ?= docker compose
 
-.PHONY: setup build up composer-install node-install node-build node-dev test-db-reset test test-all quality e2e quality-e2e coverage
+.PHONY: setup build up composer-install node-install node-build node-dev \
+	test-db-reset test test-all quality e2e quality-e2e coverage work-start
 
 setup: build up composer-install node-install node-build
 
@@ -61,3 +62,6 @@ test-all:
 	$(COMPOSE) exec -T -e SKIP_TEST_DB_RESET=1 -e XDEBUG_MODE=coverage php composer test:coverage
 	$(MAKE) test-db-reset
 	$(COMPOSE) exec -T -e SKIP_TEST_DB_RESET=1 php composer test:e2e
+	
+work-start:
+	@COMPOSE="$(COMPOSE)" scripts/work-start.sh

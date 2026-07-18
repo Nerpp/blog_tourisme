@@ -138,7 +138,7 @@ final class GenerateMediaVariantsCommand extends Command
             return $media instanceof MediaAsset ? [$media] : [];
         }
 
-        return array_values($this->mediaAssetRepository->findBy([], ['id' => 'ASC']));
+        return $this->mediaAssetRepository->findBy([], ['id' => 'ASC']);
     }
 
     private function positiveIntOption(mixed $value, string $option): ?int
