@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   quality:
@@ -210,3 +210,216 @@ jobs:
       - name: Stop test services
         if: always()
         run: docker compose down -v --remove-orphans
+
+  deploy:
+    name: Deploy production
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://estela-exploration.fr
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+    env:
+      SSH_HOST: ${{ vars.SSH_HOST }}
+      SSH_PORT: ${{ vars.SSH_PORT }}
+      SSH_USER: ${{ vars.SSH_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      PHP_BIN: ${{ vars.PHP_BIN }}
+      COMPOSER_BIN: ${{ vars.COMPOSER_BIN }}
+
+    steps:
+      - name: Checkout exact main commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: ctype, exif, gd, iconv, intl, mbstring, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install production Composer dependencies
+        run: |
+          composer install \
+            --no-dev \
+            --prefer-dist \
+            --no-interaction \
+            --no-progress \
+            --optimize-autoloader \
+            --classmap-authoritative
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build production assets
+        run: |
+          npm ci
+          npm run build
+          test -f public/build/manifest.json
+
+      - name: Validate deployment variables
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for variable_name in SSH_HOST SSH_PORT SSH_USER DEPLOY_PATH PHP_BIN COMPOSER_BIN; do
+            if [[ -z "${!variable_name:-}" ]]; then
+              echo "::error::The production variable ${variable_name} is not configured."
+              exit 1
+            fi
+          done
+
+          if [[ ! "$SSH_PORT" =~ ^[0-9]+$ ]]; then
+            echo "::error::SSH_PORT must be numeric."
+            exit 1
+          fi
+
+          if [[ "$DEPLOY_PATH" != /* || "$DEPLOY_PATH" == "/" ]]; then
+            echo "::error::DEPLOY_PATH must be an absolute, non-root path."
+            exit 1
+          fi
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+
+          install -d -m 700 "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+
+      - name: Test SSH connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
+
+          ssh \
+            -i "$HOME/.ssh/id_ed25519" \
+            -p "$SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "$SSH_USER@$SSH_HOST" \
+            "test -d $remote_deploy_path"
+
+      - name: Synchronize production files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Excluded paths are protected from transfer and deletion.
+          # Never make rsync delete excluded paths: they hold production data.
+          rsync \
+            --archive \
+            --compress \
+            --delete-delay \
+            --no-owner \
+            --no-group \
+            --exclude='/.env.local' \
+            --exclude='/.env.local.php' \
+            --exclude='/.env.*.local' \
+            --exclude='/config/secrets/prod/*private.php' \
+            --exclude='/config/production/initial-admins.yaml' \
+            --exclude='/public/uploads/' \
+            --exclude='/var/' \
+            --exclude='/.agents/' \
+            --exclude='/.codex/' \
+            --exclude='/.git/' \
+            --exclude='/.github/' \
+            --exclude='/node_modules/' \
+            --exclude='/tests/' \
+            --exclude='/tmp/' \
+            --exclude='/.phpunit.cache/' \
+            --exclude='/.phpunit.result.cache' \
+            --exclude='/coverage/' \
+            --exclude='/.dockerignore' \
+            --exclude='/.env.docker' \
+            --exclude='/docker/' \
+            --exclude='/docker-compose*.yml' \
+            --exclude='/docker-compose*.yaml' \
+            --include='/src/***' \
+            --include='/config/***' \
+            --include='/templates/***' \
+            --include='/migrations/***' \
+            --include='/public/***' \
+            --include='/vendor/***' \
+            --include='/bin/***' \
+            --include='/composer.json' \
+            --include='/composer.lock' \
+            --include='/.env' \
+            --exclude='*' \
+            -e "ssh -i $HOME/.ssh/id_ed25519 -p $SSH_PORT -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+            ./ \
+            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/"
+
+      - name: Finalize production deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          printf -v remote_environment \
+            'DEPLOY_PATH=%q PHP_BIN=%q COMPOSER_BIN=%q' \
+            "$DEPLOY_PATH" \
+            "$PHP_BIN" \
+            "$COMPOSER_BIN"
+
+          ssh \
+            -i "$HOME/.ssh/id_ed25519" \
+            -p "$SSH_PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            "$SSH_USER@$SSH_HOST" \
+            "$remote_environment sh -se" <<'REMOTE_SCRIPT'
+          set -eu
+          cd "$DEPLOY_PATH"
+
+          mkdir -p \
+            var/cache/prod \
+            var/log \
+            public/uploads/avatars \
+            public/uploads/media
+
+          "$COMPOSER_BIN" check-platform-reqs --no-dev
+
+          rm -rf var/cache/prod
+
+          "$PHP_BIN" bin/console doctrine:migrations:migrate \
+            --env=prod \
+            --no-interaction \
+            --allow-no-migration
+
+          "$PHP_BIN" bin/console cache:warmup \
+            --env=prod \
+            --no-debug
+          REMOTE_SCRIPT
+
+      - name: Check production website
+        run: |
+          curl --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 5 \
+            https://estela-exploration.fr/
