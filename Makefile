@@ -1,7 +1,8 @@
 COMPOSE ?= docker compose
 
 .PHONY: setup build up composer-install node-install node-build node-dev \
-	test-db-reset test test-all quality e2e quality-e2e coverage work-start
+	test-db-reset test test-all quality e2e quality-e2e coverage \
+	work-start work-to-dev
 
 setup: build up composer-install node-install node-build
 
@@ -65,3 +66,6 @@ test-all:
 	
 work-start:
 	@COMPOSE="$(COMPOSE)" scripts/work-start.sh
+
+work-to-dev:
+	@COMPOSE="$(COMPOSE)" PR_TITLE="$(PR_TITLE)" scripts/work-to-dev.sh
