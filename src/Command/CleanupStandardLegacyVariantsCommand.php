@@ -140,10 +140,10 @@ final class CleanupStandardLegacyVariantsCommand extends Command
             return $media instanceof MediaAsset ? [$media] : [];
         }
 
-        return array_values($this->mediaAssetRepository->findBy([
+        return $this->mediaAssetRepository->findBy([
             'mediaType' => MediaType::Image,
             'imageType' => ImageType::Standard,
-        ], ['id' => 'ASC']));
+        ], ['id' => 'ASC']);
     }
 
     private function positiveIntOption(mixed $value, string $option): ?int
@@ -170,7 +170,8 @@ final class CleanupStandardLegacyVariantsCommand extends Command
         }
 
         $digits = ltrim($value, '0');
-        if (!ctype_digit($value) || $digits === '' || strlen($digits) > strlen((string) PHP_INT_MAX)
+        if (
+            !ctype_digit($value) || $digits === '' || strlen($digits) > strlen((string) PHP_INT_MAX)
             || (strlen($digits) === strlen((string) PHP_INT_MAX) && strcmp($digits, (string) PHP_INT_MAX) > 0)
         ) {
             throw new InvalidArgumentException(sprintf('L’option %s doit être un entier strictement positif.', $option));
