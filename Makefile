@@ -1,8 +1,9 @@
 COMPOSE ?= docker compose
+SURVEY_AFTER_MERGE ?= 1
 
 .PHONY: setup build up composer-install node-install node-build node-dev \
 	test-db-reset test test-all quality e2e quality-e2e coverage \
-	work-start work-to-dev prod-secrets-sync prod-redeploy
+	work-start work-to-dev prod-secrets-sync prod-redeploy survey
 
 setup: build up composer-install node-install node-build
 
@@ -68,10 +69,18 @@ work-start:
 	@COMPOSE="$(COMPOSE)" scripts/work-start.sh
 
 work-to-dev:
-	@COMPOSE="$(COMPOSE)" PR_TITLE="$(PR_TITLE)" scripts/work-to-dev.sh
+	@COMPOSE="$(COMPOSE)" \
+		PR_TITLE="$(PR_TITLE)" \
+		SURVEY_AFTER_MERGE="$(SURVEY_AFTER_MERGE)" \
+		SURVEY_TIMEOUT="$(SURVEY_TIMEOUT)" \
+		SURVEY_INTERVAL="$(SURVEY_INTERVAL)" \
+		scripts/work-to-dev.sh
 
 prod-secrets-sync:
 	@scripts/prod-secrets-sync.sh
 
 prod-redeploy:
 	@scripts/prod-redeploy.sh
+
+survey:
+	@scripts/survey.sh
