@@ -1,5 +1,8 @@
 FROM php:8.4-fpm-bookworm AS development
 
+ARG XDEBUG_VERSION=3.5.3
+ARG XDEBUG_SHA256=f073de91bea046106abf4d6071c963ea71e58571df6ce58948ceca89d121cb2d
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -35,11 +38,52 @@ RUN apt-get update \
         opcache \
         pdo_mysql \
         zip \
-    && php -r '$gd = gd_info(); if (!extension_loaded("exif") || !function_exists("imagejpeg") || !function_exists("imagepng") || !function_exists("imagewebp") || empty($gd["JPEG Support"]) || empty($gd["PNG Support"]) || empty($gd["WebP Support"])) { fwrite(STDERR, "GD must support JPEG, PNG and WebP; EXIF must be enabled.\n"); exit(1); }' \
-    && pecl channel-update pecl.php.net \
-    && pecl install xdebug \
+    && curl --fail --location --silent --show-error \
+        --retry 5 \
+        --retry-delay 5 \
+        --retry-all-errors \
+        --output "/tmp/xdebug-${XDEBUG_VERSION}.tgz" \
+        "https://xdebug.org/files/xdebug-${XDEBUG_VERSION}.tgz" \
+    && echo "${XDEBUG_SHA256}  /tmp/xdebug-${XDEBUG_VERSION}.tgz" | sha256sum -c - \
+    && tar -xzf "/tmp/xdebug-${XDEBUG_VERSION}.tgz" -C /tmp \
+    && cd "/tmp/xdebug-${XDEBUG_VERSION}" \
+    && phpize \
+    && ./configure --enable-xdebug \
+    && make -j"$(nproc)" \
+    && make install \
+    && cd / \
     && docker-php-ext-enable xdebug \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf "/tmp/xdebug-${XDEBUG_VERSION}.tgz" "/tmp/xdebug-${XDEBUG_VERSION}" \
+    && ldd "$(php-config --extension-dir)"/*.so \
+        | awk '/=> \// { print $(NF-1) }' \
+        | sort -u \
+        | xargs -r readlink -f \
+        | sort -u \
+        | xargs -r dpkg-query --search \
+        | cut -d: -f1 \
+        | sort -u \
+        | xargs -r apt-mark manual \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+        autoconf \
+        dpkg-dev \
+        file \
+        g++ \
+        gcc \
+        libc6-dev \
+        libfreetype6-dev \
+        libicu-dev \
+        libjpeg62-turbo-dev \
+        libonig-dev \
+        libpng-dev \
+        libwebp-dev \
+        libzip-dev \
+        make \
+        pkg-config \
+        re2c \
+    && rm -rf /var/lib/apt/lists/* \
+    && php -r '$gd = gd_info(); if (!extension_loaded("exif") || !extension_loaded("intl") || !extension_loaded("mbstring") || !extension_loaded("pdo_mysql") || !extension_loaded("zip") || !function_exists("imagejpeg") || !function_exists("imagepng") || !function_exists("imagewebp") || empty($gd["JPEG Support"]) || empty($gd["PNG Support"]) || empty($gd["WebP Support"])) { fwrite(STDERR, "Required PHP extensions and GD JPEG, PNG, and WebP support must remain available.\n"); exit(1); }' \
+    && php -r 'exit(extension_loaded("xdebug") ? 0 : 1);' \
+    && php --ri xdebug
 
 ENV XDEBUG_MODE=off
 
