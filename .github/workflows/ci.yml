@@ -10,6 +10,15 @@ on:
       - dev
       - main
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Workflow mode
+        required: true
+        default: quality
+        type: choice
+        options:
+          - quality
+          - redeploy-production
 
 permissions:
   contents: read
@@ -21,6 +30,7 @@ concurrency:
 jobs:
   quality:
     name: Quality
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'quality'
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -214,7 +224,17 @@ jobs:
   deploy:
     name: Deploy production
     needs: quality
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      (
+        (github.event_name == 'push' && needs.quality.result == 'success') ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          inputs.mode == 'redeploy-production' &&
+          needs.quality.result == 'skipped'
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -259,7 +279,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       - name: Build production assets
@@ -321,6 +341,28 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             "$SSH_USER@$SSH_HOST" \
             "test -d $remote_deploy_path"
+
+      - name: Validate production secrets vault
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          vault_dir=config/secrets/prod
+          test -f "$vault_dir/prod.encrypt.public.php"
+          test -f "$vault_dir/prod.list.php"
+
+          shopt -s nullglob
+          for secret_name in \
+            BREVO_MAILER_DSN \
+            OAUTH_GOOGLE_CLIENT_ID \
+            OAUTH_GOOGLE_CLIENT_SECRET
+          do
+            encrypted_files=("$vault_dir/prod.$secret_name."*.php)
+            if (( ${#encrypted_files[@]} != 1 )); then
+              echo "::error::The production vault must contain exactly one encrypted file for $secret_name."
+              exit 1
+            fi
+          done
 
       - name: Synchronize production files
         shell: bash
@@ -395,6 +437,8 @@ jobs:
           set -eu
           cd "$DEPLOY_PATH"
 
+          test -f config/secrets/prod/prod.decrypt.private.php
+
           mkdir -p \
             var/cache/prod \
             var/log \
@@ -413,13 +457,65 @@ jobs:
           "$PHP_BIN" bin/console cache:warmup \
             --env=prod \
             --no-debug
+
+          secrets_output="$(mktemp)"
+          trap 'rm -f "$secrets_output"' EXIT HUP INT TERM
+          chmod 600 "$secrets_output"
+          if ! APP_ENV=prod APP_DEBUG=0 "$PHP_BIN" bin/console secrets:list \
+            --env=prod \
+            --no-debug >"$secrets_output" 2>/dev/null
+          then
+            echo "Unable to read the production secret names." >&2
+            exit 1
+          fi
+
+          for secret_name in \
+            BREVO_MAILER_DSN \
+            OAUTH_GOOGLE_CLIENT_ID \
+            OAUTH_GOOGLE_CLIENT_SECRET
+          do
+            grep -F "$secret_name" "$secrets_output" >/dev/null
+          done
           REMOTE_SCRIPT
 
       - name: Check production website
+        shell: bash
         run: |
-          curl --fail \
-            --silent \
-            --show-error \
-            --retry 3 \
-            --retry-delay 5 \
-            https://estela-exploration.fr/
+          set -euo pipefail
+
+          site_url=https://estela-exploration.fr
+
+          http_status() {
+            curl \
+              --silent \
+              --show-error \
+              --retry 3 \
+              --retry-delay 5 \
+              --output /dev/null \
+              --write-out '%{http_code}' \
+              "$site_url$1"
+          }
+
+          test "$(http_status /)" = 200
+          test "$(http_status /login)" = 200
+
+          headers_file="$(mktemp)"
+          trap 'rm -f "$headers_file"' EXIT HUP INT TERM
+          chmod 600 "$headers_file"
+          google_status="$(
+            curl \
+              --silent \
+              --show-error \
+              --retry 3 \
+              --retry-delay 5 \
+              --output /dev/null \
+              --dump-header "$headers_file" \
+              --write-out '%{http_code}' \
+              "$site_url/connect/google"
+          )"
+
+          test "$google_status" = 302
+          awk '
+            tolower($0) ~ /^location:[[:space:]]*https:\/\/accounts\.google\.com([\/:?]|$)/ { found = 1 }
+            END { exit !found }
+          ' "$headers_file"
