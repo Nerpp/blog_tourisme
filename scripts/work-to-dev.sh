@@ -13,6 +13,33 @@ require_command() {
         || die "la commande '$1' est introuvable."
 }
 
+normalize_survey_after_merge() {
+    local value="$1"
+
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    value="${value,,}"
+
+    case "$value" in
+        1|true|yes|oui|on)
+            SURVEY_AFTER_MERGE_ENABLED=1
+            ;;
+        0|false|no|non|off)
+            SURVEY_AFTER_MERGE_ENABLED=0
+            ;;
+        *)
+            die "SURVEY_AFTER_MERGE doit valoir 1, true, yes, oui, on, 0, false, no, non ou off."
+            ;;
+    esac
+}
+
+require_survey_script() {
+    [[ -f scripts/survey.sh ]] \
+        || die "scripts/survey.sh est absent."
+    [[ -x scripts/survey.sh ]] \
+        || die "scripts/survey.sh n'est pas exécutable."
+}
+
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
     || die "cette commande doit être exécutée dans le dépôt Git."
 
@@ -23,6 +50,15 @@ read -r -a COMPOSE_CMD <<< "${COMPOSE:-docker compose}"
 require_command git
 require_command gh
 require_command make
+
+SURVEY_AFTER_MERGE_RAW="${SURVEY_AFTER_MERGE-1}"
+SURVEY_AFTER_MERGE_ENABLED=''
+normalize_survey_after_merge "$SURVEY_AFTER_MERGE_RAW"
+readonly SURVEY_AFTER_MERGE_ENABLED
+
+if [[ "$SURVEY_AFTER_MERGE_ENABLED" == 1 ]]; then
+    require_survey_script
+fi
 
 echo "Préparation de la promotion work vers dev..."
 
@@ -296,9 +332,6 @@ IFS=$'\t' read -r \
             --jq '[.state, .baseRefName, .headRefName, .headRefOid] | @tsv'
     )"
 
-[[ "$PR_STATE" == "OPEN" ]] \
-    || die "la pull request n'est plus ouverte."
-
 [[ "$PR_BASE" == "dev" ]] \
     || die "la branche cible de la pull request n'est plus dev."
 
@@ -308,48 +341,92 @@ IFS=$'\t' read -r \
 [[ "$PR_HEAD_SHA" == "$HEAD_SHA" ]] \
     || die "work a changé pendant l'exécution. La fusion est annulée."
 
-#
-# Confirmation manuelle
-#
+MERGE_REQUEST_STATUS=0
 
-echo
-echo "Toutes les vérifications requises sont réussies."
-echo "PR #$PR_NUMBER : work → dev"
-echo "Commit vérifié : $HEAD_SHA"
-echo
+case "$PR_STATE" in
+    OPEN)
+        #
+        # Confirmation manuelle
+        #
 
-read -r -p "Fusionner maintenant avec un merge commit ? [o/N] " CONFIRMATION
+        echo
+        echo "Toutes les vérifications requises sont réussies."
+        echo "PR #$PR_NUMBER : work → dev"
+        echo "Commit vérifié : $HEAD_SHA"
+        echo
 
-case "$CONFIRMATION" in
-    o|O|oui|OUI|Oui|y|Y|yes|YES|Yes)
+        read -r -p "Fusionner maintenant avec un merge commit ? [o/N] " CONFIRMATION
+
+        case "$CONFIRMATION" in
+            o|O|oui|OUI|Oui|y|Y|yes|YES|Yes)
+                ;;
+            *)
+                echo
+                echo "Fusion annulée. La pull request reste ouverte."
+                exit 0
+                ;;
+        esac
+
+        #
+        # Fusion GitHub avec le SHA exact
+        #
+
+        echo
+        echo "Fusion de la pull request dans dev..."
+
+        if gh pr merge "$PR_NUMBER" \
+            --repo "$REPOSITORY" \
+            --merge \
+            --match-head-commit "$HEAD_SHA"
+        then
+            MERGE_REQUEST_STATUS=0
+        else
+            MERGE_REQUEST_STATUS=$?
+        fi
+        ;;
+    MERGED)
+        echo
+        echo "La PR #$PR_NUMBER a déjà été fusionnée pendant ce flux."
         ;;
     *)
-        echo
-        echo "Fusion annulée. La pull request reste ouverte."
-        exit 0
+        die "la pull request est dans l'état inattendu '$PR_STATE'."
         ;;
 esac
 
 #
-# Fusion GitHub avec le SHA exact
+# Confirmation GitHub de la fusion et récupération de son SHA exact
 #
 
-echo
-echo "Fusion de la pull request dans dev..."
-
-gh pr merge "$PR_NUMBER" \
-    --repo "$REPOSITORY" \
-    --merge \
-    --match-head-commit "$HEAD_SHA"
-
-git fetch origin dev
-
-MERGE_SHA="$(
+FINAL_PR_DATA="$(
     gh pr view "$PR_NUMBER" \
         --repo "$REPOSITORY" \
-        --json mergeCommit \
-        --jq '.mergeCommit.oid // empty'
-)"
+        --json state,baseRefName,headRefName,headRefOid,mergeCommit \
+        --jq '[.state, .baseRefName, .headRefName, .headRefOid, (.mergeCommit.oid // "-")] | @tsv'
+)" || die "impossible de confirmer l'état final de la PR #$PR_NUMBER."
+
+IFS=$'\t' read -r \
+    FINAL_PR_STATE \
+    FINAL_PR_BASE \
+    FINAL_PR_HEAD_BRANCH \
+    FINAL_PR_HEAD_SHA \
+    MERGE_SHA <<< "$FINAL_PR_DATA"
+
+[[ "$FINAL_PR_BASE" == dev \
+    && "$FINAL_PR_HEAD_BRANCH" == work \
+    && "$FINAL_PR_HEAD_SHA" == "$HEAD_SHA" ]] \
+    || die "l'identité ou le SHA de la PR #$PR_NUMBER a changé après la demande de fusion."
+
+if [[ "$FINAL_PR_STATE" != MERGED ]]; then
+    if [[ "$MERGE_REQUEST_STATUS" -ne 0 ]]; then
+        die "la fusion GitHub a échoué et la PR #$PR_NUMBER n'est pas fusionnée."
+    fi
+    die "GitHub n'a pas confirmé l'état merged de la PR #$PR_NUMBER."
+fi
+
+[[ "$MERGE_SHA" != '-' ]] \
+    || die "GitHub confirme la fusion de la PR #$PR_NUMBER mais mergeCommit.oid est absent."
+[[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]] \
+    || die "le SHA de fusion GitHub '$MERGE_SHA' est invalide."
 
 echo
 echo "Promotion terminée."
@@ -359,3 +436,23 @@ echo "Merge commit dev : ${MERGE_SHA:-en cours de résolution}"
 echo
 echo "La branche locale active reste work."
 echo "La promotion automatique dev vers main pourra maintenant prendre le relais."
+
+if [[ "$SURVEY_AFTER_MERGE_ENABLED" == 0 ]]; then
+    echo
+    echo "Fusion réussie dans dev : $MERGE_SHA"
+    echo "Suivi automatique désactivé."
+    echo "Pour suivre manuellement :"
+    echo "DEV_SHA=$MERGE_SHA make survey"
+    exit 0
+fi
+
+require_survey_script
+
+echo
+echo "Fusion réussie dans dev : $MERGE_SHA"
+echo "Démarrage du suivi CI/CD complet..."
+
+DEV_SHA="$MERGE_SHA" \
+SURVEY_TIMEOUT="${SURVEY_TIMEOUT:-10800}" \
+SURVEY_INTERVAL="${SURVEY_INTERVAL:-10}" \
+scripts/survey.sh
