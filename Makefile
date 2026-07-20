@@ -2,7 +2,7 @@ COMPOSE ?= docker compose
 
 .PHONY: setup build up composer-install node-install node-build node-dev \
 	test-db-reset test test-all quality e2e quality-e2e coverage \
-	work-start work-to-dev
+	work-start work-to-dev prod-secrets-sync prod-redeploy
 
 setup: build up composer-install node-install node-build
 
@@ -69,3 +69,9 @@ work-start:
 
 work-to-dev:
 	@COMPOSE="$(COMPOSE)" PR_TITLE="$(PR_TITLE)" scripts/work-to-dev.sh
+
+prod-secrets-sync:
+	@scripts/prod-secrets-sync.sh
+
+prod-redeploy:
+	@scripts/prod-redeploy.sh

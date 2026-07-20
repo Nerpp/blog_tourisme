@@ -115,7 +115,7 @@ git diff --stat origin/dev...HEAD
 
 echo
 echo "Démarrage des services Docker..."
-"${COMPOSE_CMD[@]}" up -d
+"${COMPOSE_CMD[@]}" up -d mysql php web mailpit
 
 echo
 echo "Exécution de la validation locale complète..."
