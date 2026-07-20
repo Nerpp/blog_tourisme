@@ -357,8 +357,14 @@ case "$PR_STATE" in
 
         read -r -p "Fusionner maintenant avec un merge commit ? [o/N] " CONFIRMATION
 
+        # Supprime les retours chariot et tous les espaces invisibles,
+        # puis normalise la casse.
+        CONFIRMATION="${CONFIRMATION//$'\r'/}"
+        CONFIRMATION="${CONFIRMATION//[[:space:]]/}"
+        CONFIRMATION="${CONFIRMATION,,}"
+
         case "$CONFIRMATION" in
-            o|O|oui|OUI|Oui|y|Y|yes|YES|Yes)
+            o|oui|y|yes)
                 ;;
             *)
                 echo
