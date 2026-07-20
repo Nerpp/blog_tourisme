@@ -13,6 +13,7 @@ on:
 
 permissions:
   actions: read
+  checks: read
   contents: read
   pull-requests: read
 
@@ -154,26 +155,189 @@ jobs:
             core.setOutput('dev-sha', devSha);
             core.setOutput('existing-pr', pulls.length === 1 ? String(pulls[0].number) : '');
 
+      - name: Validate GitHub App client ID
+        if: steps.preflight.outputs.should-promote == 'true'
+        shell: bash
+        env:
+          PROMOTION_GITHUB_APP_CLIENT_ID: ${{ vars.PROMOTION_GITHUB_APP_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${PROMOTION_GITHUB_APP_CLIENT_ID//[[:space:]]/}" ]]; then
+            echo "::error::PROMOTION_GITHUB_APP_CLIENT_ID is not configured."
+            exit 1
+          fi
+
       - name: Create least-privilege GitHub App token
         if: steps.preflight.outputs.should-promote == 'true'
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.PROMOTION_GITHUB_APP_ID }}
+          client-id: ${{ vars.PROMOTION_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.PROMOTION_GITHUB_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: blog_tourisme
+          permission-contents: write
+          permission-pull-requests: write
 
       - name: Create or reuse promotion PR and merge safely
         if: steps.preflight.outputs.should-promote == 'true'
         uses: actions/github-script@v9
         env:
           EXPECTED_DEV_SHA: ${{ steps.preflight.outputs.dev-sha }}
+          CHECKS_READ_TOKEN: ${{ github.token }}
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
             const expectedDevSha = process.env.EXPECTED_DEV_SHA;
             const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const validSha = (sha) => /^[0-9a-f]{40}$/.test(sha ?? '');
+            const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+            const checksGraphql = github.graphql.defaults({
+              headers: {authorization: `Bearer ${process.env.CHECKS_READ_TOKEN}`},
+            });
+
+            if (!validSha(expectedDevSha)) {
+              core.setFailed('EXPECTED_DEV_SHA must contain the validated 40-character dev SHA.');
+              return;
+            }
+
+            const validatePull = (pull, currentDev) => {
+              if (pull.draft
+                  || pull.base.ref !== 'main'
+                  || pull.base.repo.full_name !== repository
+                  || pull.head.ref !== 'dev'
+                  || pull.head.repo.full_name !== repository
+                  || pull.head.sha !== expectedDevSha
+                  || currentDev.object.sha !== expectedDevSha) {
+                throw new Error('The promotion PR or dev SHA changed after preflight.');
+              }
+
+              if (pull.merged === true) {
+                if (!validSha(pull.merge_commit_sha)) {
+                  throw new Error('The merged promotion PR has no valid merge commit SHA.');
+                }
+                return 'merged';
+              }
+              if (pull.state !== 'open') {
+                throw new Error(`Promotion PR #${pull.number} is neither open nor merged.`);
+              }
+              return 'open';
+            };
+
+            const readPullAndDev = async (pullNumber) => {
+              const [{data: pull}, {data: currentDev}] = await Promise.all([
+                github.rest.pulls.get({...context.repo, pull_number: pullNumber}),
+                github.rest.git.getRef({...context.repo, ref: 'heads/dev'}),
+              ]);
+              const state = validatePull(pull, currentDev);
+              return {pull, state};
+            };
+
+            const readPullRequestQuality = async (pullNumber) => {
+              const result = await checksGraphql(
+                `query($owner: String!, $name: String!, $pullNumber: Int!) {
+                  repository(owner: $owner, name: $name) {
+                    pullRequest(number: $pullNumber) {
+                      headRefOid
+                      commits(last: 1) {
+                        nodes {
+                          commit {
+                            oid
+                            statusCheckRollup {
+                              contexts(first: 100) {
+                                nodes {
+                                  __typename
+                                  ... on CheckRun {
+                                    databaseId
+                                    name
+                                    status
+                                    conclusion
+                                    detailsUrl
+                                    checkSuite {
+                                      workflowRun {
+                                        event
+                                        workflow { name }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                {
+                  owner: context.repo.owner,
+                  name: context.repo.repo,
+                  pullNumber,
+                },
+              );
+
+              const pull = result.repository?.pullRequest;
+              const commit = pull?.commits?.nodes?.[0]?.commit;
+              if (pull?.headRefOid !== expectedDevSha || commit?.oid !== expectedDevSha) {
+                throw new Error(`Quality lookup no longer targets dev SHA ${expectedDevSha}.`);
+              }
+
+              const qualityChecks = (commit.statusCheckRollup?.contexts?.nodes ?? [])
+                .filter((check) => check?.__typename === 'CheckRun'
+                  && check.name === 'Quality'
+                  && check.checkSuite?.workflowRun?.event === 'pull_request'
+                  && check.checkSuite?.workflowRun?.workflow?.name === 'CI')
+                .sort((left, right) => (right.databaseId ?? 0) - (left.databaseId ?? 0));
+
+              return qualityChecks[0] ?? null;
+            };
+
+            const waitForQuality = async ({pullNumber, requireSuccess, attempts, delayMs}) => {
+              for (let attempt = 1; attempt <= attempts; attempt += 1) {
+                const quality = await readPullRequestQuality(pullNumber);
+                if (quality) {
+                  if (!['QUEUED', 'IN_PROGRESS', 'COMPLETED'].includes(quality.status)) {
+                    throw new Error(`Quality has unexpected status ${quality.status}.`);
+                  }
+                  if (quality.status === 'COMPLETED' && quality.conclusion !== 'SUCCESS') {
+                    throw new Error(`Quality completed with conclusion ${quality.conclusion ?? 'unknown'}.`);
+                  }
+                  if (!requireSuccess) {
+                    core.notice(`Quality is visible for PR #${pullNumber} (${quality.status}).`);
+                    return quality;
+                  }
+                  if (quality.status === 'COMPLETED') {
+                    core.notice(`Quality succeeded for PR #${pullNumber}.`);
+                    return quality;
+                  }
+                }
+
+                if (attempt < attempts) await sleep(delayMs);
+              }
+
+              if (requireSuccess) {
+                throw new Error(`Quality did not complete successfully within the bounded wait for PR #${pullNumber}.`);
+              }
+              throw new Error(`Quality did not become visible within the bounded wait for PR #${pullNumber}.`);
+            };
+
+            const confirmAutoMergeOrMerge = async (pullNumber) => {
+              for (let attempt = 1; attempt <= 5; attempt += 1) {
+                const verified = await readPullAndDev(pullNumber);
+                if (verified.state === 'merged') {
+                  core.notice(`Promotion PR #${pullNumber} is already merged as ${verified.pull.merge_commit_sha}.`);
+                  return 'merged';
+                }
+                if (verified.pull.auto_merge?.merge_method === 'merge') {
+                  core.notice(`Auto-merge is enabled on promotion PR #${pullNumber}.`);
+                  return 'auto-merge';
+                }
+                if (attempt < 5) await sleep(2000);
+              }
+              throw new Error(`GitHub did not confirm auto-merge on promotion PR #${pullNumber}.`);
+            };
+
             const {data: initialDev} = await github.rest.git.getRef({...context.repo, ref: 'heads/dev'});
             if (initialDev.object.sha !== expectedDevSha) {
               core.setFailed('dev advanced after preflight; a later successful CI run must promote it.');
@@ -194,96 +358,126 @@ jobs:
 
             let pullNumber;
             if (pulls.length === 0) {
-              const {data: createdPull} = await github.rest.pulls.create({
+              const {data: closedPulls} = await github.rest.pulls.list({
                 ...context.repo,
-                head: 'dev',
+                state: 'closed',
                 base: 'main',
-                title: `Promote dev ${expectedDevSha.slice(0, 12)} to main`,
-                body: [
-                  'Automated promotion from `dev` to `main`.',
-                  '',
-                  `Validated dev SHA: \`${expectedDevSha}\``,
-                  '',
-                  'The PR must pass `Quality`; merge method: merge commit.',
-                ].join('\n'),
-                maintainer_can_modify: false,
+                head: `${context.repo.owner}:dev`,
+                sort: 'updated',
+                direction: 'desc',
+                per_page: 100,
               });
-              pullNumber = createdPull.number;
+              const alreadyMerged = closedPulls.filter((pull) =>
+                pull.merged_at && pull.head.sha === expectedDevSha);
+              if (alreadyMerged.length > 1) {
+                core.setFailed('More than one merged promotion PR matches the validated dev SHA.');
+                return;
+              }
+
+              if (alreadyMerged.length === 1) {
+                pullNumber = alreadyMerged[0].number;
+              } else {
+                const {data: createdPull} = await github.rest.pulls.create({
+                  ...context.repo,
+                  head: 'dev',
+                  base: 'main',
+                  title: `Promote dev ${expectedDevSha.slice(0, 12)} to main`,
+                  body: [
+                    'Automated promotion from `dev` to `main`.',
+                    '',
+                    `Validated dev SHA: \`${expectedDevSha}\``,
+                    '',
+                    'The PR must pass `Quality`; merge method: merge commit.',
+                  ].join('\n'),
+                  maintainer_can_modify: false,
+                });
+                pullNumber = createdPull.number;
+              }
             } else {
               pullNumber = pulls[0].number;
             }
 
-            let pull;
-            let currentDev;
-            for (let attempt = 0; attempt < 5; attempt += 1) {
-              [{data: pull}, {data: currentDev}] = await Promise.all([
-                github.rest.pulls.get({...context.repo, pull_number: pullNumber}),
-                github.rest.git.getRef({...context.repo, ref: 'heads/dev'}),
-              ]);
-
-              if (pull.state !== 'open'
-                  || pull.draft
-                  || pull.base.ref !== 'main'
-                  || pull.base.repo.full_name !== repository
-                  || pull.head.ref !== 'dev'
-                  || pull.head.repo.full_name !== repository
-                  || pull.head.sha !== expectedDevSha
-                  || currentDev.object.sha !== expectedDevSha) {
-                core.setFailed('The promotion PR or dev SHA changed after preflight.');
-                return;
-              }
-
-              const mergeabilityState = pull.mergeable_state ?? 'unknown';
-              if (pull.mergeable !== null && mergeabilityState !== 'unknown') break;
-              if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 2000));
-            }
-
-            const mergeabilityState = pull.mergeable_state ?? 'unknown';
-            if (pull.mergeable !== true || !['clean', 'blocked'].includes(mergeabilityState)) {
-              core.setFailed(`Promotion PR mergeability is not safe (${mergeabilityState}).`);
-              return;
-            }
-            if (pull.auto_merge) {
-              core.notice(`Auto-merge is already enabled on PR #${pull.number}.`);
+            let verified = await readPullAndDev(pullNumber);
+            if (verified.state === 'merged') {
+              core.notice(`Promotion PR #${pullNumber} was already merged as ${verified.pull.merge_commit_sha}.`);
               return;
             }
 
-            if (mergeabilityState === 'clean') {
-              const {data: mergeResult} = await github.rest.pulls.merge({
-                ...context.repo,
-                pull_number: pull.number,
-                merge_method: 'merge',
-                sha: expectedDevSha,
-              });
-              if (mergeResult.merged !== true || !/^[0-9a-f]{40}$/.test(mergeResult.sha ?? '')) {
-                core.setFailed('GitHub did not confirm the merge or return a merge commit SHA.');
-                return;
-              }
-
-              const {data: mergedPull} = await github.rest.pulls.get({
-                ...context.repo,
-                pull_number: pull.number,
-              });
-              if (mergedPull.merged !== true
-                  || !mergedPull.merge_commit_sha
-                  || mergedPull.merge_commit_sha !== mergeResult.sha) {
-                core.setFailed('The merged PR did not confirm the expected merge commit SHA.');
-                return;
-              }
-              core.notice(`Promotion PR #${pull.number} merged as ${mergeResult.sha}.`);
+            if (verified.pull.auto_merge) {
+              await confirmAutoMergeOrMerge(pullNumber);
               return;
             }
 
-            const autoMergeResult = await github.graphql(
-              `mutation($pullRequestId: ID!) {
-                enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
+            await waitForQuality({pullNumber, requireSuccess: false, attempts: 15, delayMs: 2000});
+
+            verified = await readPullAndDev(pullNumber);
+            if (verified.state === 'merged') {
+              core.notice(`Promotion PR #${pullNumber} merged before auto-merge activation.`);
+              return;
+            }
+            if (verified.pull.auto_merge) {
+              await confirmAutoMergeOrMerge(pullNumber);
+              return;
+            }
+
+            let autoMergeError = null;
+            try {
+              const autoMergeResult = await github.graphql(
+                `mutation($pullRequestId: ID!, $expectedHeadOid: GitObjectID!) {
+                enablePullRequestAutoMerge(input: {
+                  pullRequestId: $pullRequestId,
+                  mergeMethod: MERGE,
+                  expectedHeadOid: $expectedHeadOid
+                }) {
                   pullRequest { number }
                 }
               }`,
-              {pullRequestId: pull.node_id},
-            );
-            if (autoMergeResult?.enablePullRequestAutoMerge?.pullRequest?.number !== pull.number) {
-              core.setFailed('GitHub did not confirm the auto-merge request.');
+                {
+                  pullRequestId: verified.pull.node_id,
+                  expectedHeadOid: expectedDevSha,
+                },
+              );
+              if (autoMergeResult?.enablePullRequestAutoMerge?.pullRequest?.number !== pullNumber) {
+                throw new Error('GitHub did not confirm the auto-merge request.');
+              }
+            } catch (error) {
+              const status = error.status ?? error.response?.status;
+              if (![405, 422].includes(status)) throw error;
+              autoMergeError = error;
+              core.warning(`Auto-merge activation failed with HTTP ${status}: ${error.message}`);
+            }
+
+            if (!autoMergeError) {
+              await confirmAutoMergeOrMerge(pullNumber);
               return;
             }
-            core.notice(`Auto-merge enabled on blocked promotion PR #${pull.number}.`);
+
+            verified = await readPullAndDev(pullNumber);
+            if (verified.state === 'merged') {
+              core.notice(`Promotion PR #${pullNumber} merged while auto-merge activation was being confirmed.`);
+              return;
+            }
+
+            await waitForQuality({pullNumber, requireSuccess: true, attempts: 80, delayMs: 5000});
+
+            verified = await readPullAndDev(pullNumber);
+            if (verified.state === 'merged') {
+              core.notice(`Promotion PR #${pullNumber} merged after Quality succeeded.`);
+              return;
+            }
+
+            const {data: mergeResult} = await github.rest.pulls.merge({
+              ...context.repo,
+              pull_number: pullNumber,
+              merge_method: 'merge',
+              sha: expectedDevSha,
+            });
+            if (mergeResult.merged !== true || !validSha(mergeResult.sha)) {
+              throw new Error('GitHub did not confirm the fallback merge or return a valid merge commit SHA.');
+            }
+
+            const merged = await readPullAndDev(pullNumber);
+            if (merged.state !== 'merged' || merged.pull.merge_commit_sha !== mergeResult.sha) {
+              throw new Error('The merged PR did not confirm the expected fallback merge commit SHA.');
+            }
+            core.notice(`Promotion PR #${pullNumber} merged after explicit Quality success as ${mergeResult.sha}.`);
