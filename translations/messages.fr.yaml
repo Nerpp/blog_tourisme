@@ -1,0 +1,13 @@
+error:
+    common:
+        back_home: 'Retour à l’accueil'
+        eyebrow: 'Erreur'
+    403:
+        title: 'Accès refusé'
+        message: 'Vous n’avez pas l’autorisation d’accéder à cette page.'
+    404:
+        title: 'Page introuvable'
+        message: 'La page demandée n’existe pas ou n’est plus disponible.'
+    500:
+        title: 'Une erreur est survenue'
+        message: 'Le service rencontre un problème temporaire. Veuillez réessayer dans quelques instants.'

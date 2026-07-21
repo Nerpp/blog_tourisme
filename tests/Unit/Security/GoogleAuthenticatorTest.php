@@ -18,6 +18,7 @@ use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class GoogleAuthenticatorTest extends TestCase
 {
@@ -32,7 +33,7 @@ final class GoogleAuthenticatorTest extends TestCase
     public function testRejectsUnverifiedGoogleEmailWithUserMessage(): void
     {
         $this->expectException(CustomUserMessageAuthenticationException::class);
-        $this->expectExceptionMessage('Votre email doit être vérifié par Google.');
+        $this->expectExceptionMessage('security.google.email_unverified');
 
         $this->invokeFindOrCreateUser($this->authenticator(), new GoogleUser([
             'sub' => 'google-1',
@@ -45,7 +46,7 @@ final class GoogleAuthenticatorTest extends TestCase
     public function testRejectsMissingOrInvalidEmail(): void
     {
         $this->expectException(CustomUserMessageAuthenticationException::class);
-        $this->expectExceptionMessage('Le compte Google ne fournit pas une adresse email valide.');
+        $this->expectExceptionMessage('security.google.invalid_email');
 
         $this->invokeFindOrCreateUser($this->authenticator(), new GoogleUser([
             'sub' => 'google-1',
@@ -57,7 +58,7 @@ final class GoogleAuthenticatorTest extends TestCase
     public function testRejectsStructuredGoogleIdentifier(): void
     {
         $this->expectException(CustomUserMessageAuthenticationException::class);
-        $this->expectExceptionMessage('Le compte Google ne fournit pas une adresse email valide.');
+        $this->expectExceptionMessage('security.google.invalid_email');
 
         $this->invokeFindOrCreateUser($this->authenticator(), new GoogleUser([
             'sub' => ['google-1'],
@@ -177,7 +178,7 @@ final class GoogleAuthenticatorTest extends TestCase
         $repository->method('findOneByEmail')->willReturn($user);
 
         $this->expectException(CustomUserMessageAuthenticationException::class);
-        $this->expectExceptionMessage('Ce compte email est déjà rattaché à un autre compte Google.');
+        $this->expectExceptionMessage('security.google.account_already_linked');
 
         $this->invokeFindOrCreateUser(
             $this->authenticator(userRepository: $repository),
@@ -247,7 +248,7 @@ final class GoogleAuthenticatorTest extends TestCase
 
         $response = $authenticator->onAuthenticationFailure(
             $request,
-            new CustomUserMessageAuthenticationException('Votre email doit être vérifié par Google.'),
+            new CustomUserMessageAuthenticationException('security.google.email_unverified'),
         );
 
         self::assertSame('/login', $response->headers->get('Location'));
@@ -262,6 +263,7 @@ final class GoogleAuthenticatorTest extends TestCase
         ?EntityManagerInterface $entityManager = null,
         ?UserPasswordHasherInterface $passwordHasher = null,
         ?RouterInterface $router = null,
+        ?TranslatorInterface $translator = null,
     ): GoogleAuthenticator {
         if (!$router instanceof RouterInterface) {
             $router = $this->createStub(RouterInterface::class);
@@ -277,7 +279,22 @@ final class GoogleAuthenticatorTest extends TestCase
             $entityManager ?? $this->createStub(EntityManagerInterface::class),
             $passwordHasher ?? $this->createStub(UserPasswordHasherInterface::class),
             $router,
+            $translator ?? $this->translator(),
         );
+    }
+
+    private function translator(): TranslatorInterface
+    {
+        $messages = [
+            'security.google.email_unverified' => 'Votre email doit être vérifié par Google.',
+            'security.google.failed_retry' => 'La connexion Google a échoué. Réessayez ou utilisez votre mot de passe.',
+        ];
+        $translator = $this->createStub(TranslatorInterface::class);
+        $translator
+            ->method('trans')
+            ->willReturnCallback(static fn (string $id): string => $messages[$id] ?? $id);
+
+        return $translator;
     }
 
     private function invokeFindOrCreateUser(GoogleAuthenticator $authenticator, GoogleUser $googleUser): User

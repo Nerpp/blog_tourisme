@@ -1,0 +1,42 @@
+validation:
+    avatar:
+        max_size: 'L’image de profil ne doit pas dépasser 5 Mo.'
+        mime_type: 'Formats acceptés : JPG, PNG ou WebP.'
+    comment:
+        content:
+            required: 'Le commentaire ne peut pas être vide.'
+            too_short: 'Le commentaire doit contenir au moins {{ limit }} caractères.'
+            too_long: 'Le commentaire ne peut pas dépasser {{ limit }} caractères.'
+        honeypot:
+            invalid: 'Votre commentaire n’a pas pu être envoyé.'
+        target:
+            invalid: 'Un commentaire doit être lié soit à un article soit à un lieu.'
+    coordinates:
+        latitude:
+            out_of_range: 'La latitude doit être comprise entre {{ min }} et {{ max }}.'
+        longitude:
+            out_of_range: 'La longitude doit être comprise entre {{ min }} et {{ max }}.'
+    email:
+        required: 'Veuillez saisir votre adresse email.'
+        invalid: 'Veuillez saisir une adresse email valide.'
+    password:
+        mismatch: 'Les mots de passe ne correspondent pas.'
+        required: 'Veuillez saisir un mot de passe.'
+        too_short: 'Le mot de passe doit contenir au moins {{ limit }} caractères.'
+        letter_and_number_required: 'Le mot de passe doit contenir au moins une lettre et un chiffre.'
+        too_weak: 'Votre mot de passe est trop faible. Utilisez une phrase plus longue ou une combinaison plus difficile à deviner.'
+        too_predictable: 'Votre mot de passe est trop prévisible. Utilisez une phrase plus longue, avec plusieurs mots, chiffres ou symboles.'
+        compromised: 'Ce mot de passe est connu dans des fuites de données. Choisissez-en un autre.'
+    prevision_destination:
+        type:
+            required: 'Choisissez un type de sortie prévue.'
+    user:
+        email:
+            unique: 'Cette adresse email est déjà utilisée.'
+        google_id:
+            unique: 'Ce compte Google est déjà associé à un utilisateur.'
+        display_name:
+            required: 'Veuillez choisir un nom affiché.'
+            too_short: 'Le nom affiché doit contenir au moins {{ limit }} caractères.'
+            too_long: 'Le nom affiché ne peut pas dépasser {{ limit }} caractères.'
+            unique: 'Ce nom d’utilisateur est déjà utilisé.'

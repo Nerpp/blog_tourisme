@@ -41,8 +41,8 @@ class RegistrationFormType extends AbstractType
                     new File(
                         maxSize: '5M',
                         mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-                        maxSizeMessage: 'L’image de profil ne doit pas dépasser 5 Mo.',
-                        mimeTypesMessage: 'Formats acceptés : JPG, PNG ou WebP.',
+                        maxSizeMessage: 'validation.avatar.max_size',
+                        mimeTypesMessage: 'validation.avatar.mime_type',
                     ),
                 ],
                 'attr' => [
@@ -53,7 +53,7 @@ class RegistrationFormType extends AbstractType
             ->add('plainPassword', RepeatedType::class, [
                 'type' => PasswordType::class,
                 'mapped' => false,
-                'invalid_message' => 'Les mots de passe ne correspondent pas.',
+                'invalid_message' => 'validation.password.mismatch',
                 'first_options' => [
                     'label' => 'Mot de passe',
                     'help' => 'Utilisez au moins 12 caractères. Une phrase courte avec plusieurs mots est souvent plus sûre qu’un mot simple.',
@@ -62,22 +62,22 @@ class RegistrationFormType extends AbstractType
                     'label' => 'Confirmer le mot de passe',
                 ],
                 'constraints' => [
-                    new NotBlank(message: 'Veuillez saisir un mot de passe.'),
+                    new NotBlank(message: 'validation.password.required'),
                     new Length(
                         min: 12,
                         max: 4096,
-                        minMessage: 'Le mot de passe doit contenir au moins {{ limit }} caractères.',
+                        minMessage: 'validation.password.too_short',
                     ),
                     new Regex(
                         pattern: '/^(?=.*[A-Za-zÀ-ÿ])(?=.*\d).+$/u',
-                        message: 'Le mot de passe doit contenir au moins une lettre et un chiffre.',
+                        message: 'validation.password.letter_and_number_required',
                     ),
                     new PasswordStrength(
                         minScore: PasswordStrength::STRENGTH_STRONG,
-                        message: 'Votre mot de passe est trop faible. Utilisez une phrase plus longue ou une combinaison plus difficile à deviner.',
+                        message: 'validation.password.too_weak',
                     ),
                     new NotCompromisedPassword(
-                        message: 'Ce mot de passe est connu dans des fuites de données. Choisissez-en un autre.',
+                        message: 'validation.password.compromised',
                     ),
                 ],
             ])

@@ -16,9 +16,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: 'app_user')]
 #[ORM\HasLifecycleCallbacks]
-#[UniqueEntity(fields: ['email'], message: 'Cet email est deja utilise.')]
-#[UniqueEntity(fields: ['googleId'], message: 'Ce compte Google est deja associe a un utilisateur.')]
-#[UniqueEntity(fields: ['displayName'], message: 'Ce nom d\'utilisateur est deja utilise.')]
+#[UniqueEntity(fields: ['email'], message: 'validation.user.email.unique')]
+#[UniqueEntity(fields: ['googleId'], message: 'validation.user.google_id.unique')]
+#[UniqueEntity(fields: ['displayName'], message: 'validation.user.display_name.unique')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     use TimestampableTrait;
@@ -47,12 +47,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private bool $isVerified = false;
 
     #[ORM\Column(length: 120, unique: true)]
-    #[Assert\NotBlank(message: 'Veuillez choisir un nom affiché.')]
+    #[Assert\NotBlank(message: 'validation.user.display_name.required')]
     #[Assert\Length(
         min: 3,
         max: 120,
-        minMessage: 'Le nom affiché doit contenir au moins {{ limit }} caractères.',
-        maxMessage: 'Le nom affiché ne peut pas dépasser {{ limit }} caractères.'
+        minMessage: 'validation.user.display_name.too_short',
+        maxMessage: 'validation.user.display_name.too_long'
     )]
     private ?string $displayName = null;
 

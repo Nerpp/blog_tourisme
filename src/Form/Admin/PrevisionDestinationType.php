@@ -27,7 +27,7 @@ final class PrevisionDestinationType extends AbstractType
                     'Visite' => 'Visite',
                 ],
                 'constraints' => [
-                    new NotBlank(message: 'Choisissez un type de sortie prévue.'),
+                    new NotBlank(message: 'validation.prevision_destination.type.required'),
                     new Length(max: 180),
                 ],
             ])
@@ -87,7 +87,7 @@ final class PrevisionDestinationType extends AbstractType
                 'scale' => 7,
                 'attr' => ['step' => 'any'],
                 'constraints' => [
-                    new Range(notInRangeMessage: 'La latitude doit être comprise entre {{ min }} et {{ max }}.', min: -90, max: 90),
+                    new Range(notInRangeMessage: 'validation.coordinates.latitude.out_of_range', min: -90, max: 90),
                 ],
             ])
             ->add('longitude', NumberType::class, [
@@ -97,7 +97,7 @@ final class PrevisionDestinationType extends AbstractType
                 'scale' => 7,
                 'attr' => ['step' => 'any'],
                 'constraints' => [
-                    new Range(notInRangeMessage: 'La longitude doit être comprise entre {{ min }} et {{ max }}.', min: -180, max: 180),
+                    new Range(notInRangeMessage: 'validation.coordinates.longitude.out_of_range', min: -180, max: 180),
                 ],
             ])
             ->add('gpsAccuracy', NumberType::class, [
