@@ -56,7 +56,7 @@ if [[ "$git_operation_in_progress" == true ]]; then
 fi
 
 #
-# Imposition de la branche work
+# Vérification de la branche et du worktree avant toute synchronisation
 #
 
 CURRENT_BRANCH="$(git branch --show-current)"
@@ -64,17 +64,20 @@ CURRENT_BRANCH="$(git branch --show-current)"
 if [[ "$CURRENT_BRANCH" != "work" ]]; then
     echo
     echo "Branche active : ${CURRENT_BRANCH:-HEAD détachée}"
-    echo "Le développement doit être effectué sur la branche work."
+    echo "Arrêt : make work-start doit être exécuté depuis la branche work."
+    echo "Aucun changement de branche automatique n'est effectué."
+    exit 1
+fi
 
-    # Ne transporte jamais automatiquement des modifications
-    # depuis dev, main ou une autre branche vers work.
-    if [[ -n "$(git status --porcelain)" ]]; then
-        echo
-        echo "Passage automatique sur work impossible."
-        echo "La branche actuelle contient des modifications non enregistrées."
-        echo "Effectue un commit ou un stash, puis relance make work-start."
-        exit 1
-    fi
+if [[ -n "$(git status --porcelain)" ]]; then
+    echo
+    echo "Arrêt : le worktree contient des modifications locales :"
+    echo
+    git status --short
+    echo
+    echo "Enregistre ou mets de côté ces modifications manuellement avant de relancer make work-start."
+    echo "Aucun fetch, merge, démarrage Docker ou changement de dépendances n'a été effectué."
+    exit 1
 fi
 
 #
@@ -83,30 +86,38 @@ fi
 
 echo
 echo "Récupération des références distantes..."
-git fetch origin --prune
+git fetch origin
 
 #
-# Passage sur work
+# Synchronisation de work depuis origin/dev
 #
 
-if [[ "$(git branch --show-current)" != "work" ]]; then
-    if git show-ref --verify --quiet refs/heads/work; then
-        echo "Passage sur la branche work..."
-        git switch work
-    elif git show-ref --verify --quiet refs/remotes/origin/work; then
-        echo "Création de la branche locale work depuis origin/work..."
-        git switch --track -c work origin/work
-    else
-        echo
-        echo "Erreur : la branche work est introuvable localement et sur origin."
-        exit 1
-    fi
+if ! git show-ref --verify --quiet refs/remotes/origin/dev; then
+    echo
+    echo "Erreur : la branche distante origin/dev est introuvable."
+    exit 1
 fi
 
-# Garde-fou absolu avant les commandes de développement.
-if [[ "$(git branch --show-current)" != "work" ]]; then
+echo
+echo "Intégration de origin/dev dans work..."
+
+if ! git merge --no-edit origin/dev; then
     echo
-    echo "Erreur : la branche work n'est pas active."
+    echo "Arrêt : la fusion de origin/dev dans work a rencontré des conflits."
+    echo "Inspecte les fichiers concernés avec :"
+    echo "  git status"
+    echo "  git diff --name-only --diff-filter=U"
+    echo
+    echo "Résous les conflits, ajoute les fichiers corrigés avec git add, puis termine avec git commit."
+    echo "Pour annuler cette fusion manuellement : git merge --abort"
+    echo "Docker et les installations de dépendances n'ont pas été lancés."
+    exit 1
+fi
+
+if [[ -n "$(git status --porcelain)" ]]; then
+    echo
+    echo "Arrêt : le worktree n'est plus propre après la synchronisation Git."
+    echo "Docker et les installations de dépendances n'ont pas été lancés."
     exit 1
 fi
 
@@ -116,65 +127,62 @@ echo "Branche active : work"
 #
 # Démarrage de Docker
 #
-# Docker doit toujours démarrer, même lorsque des fichiers de
-# dépendances sont déjà modifiés.
+echo
+echo "Arrêt du service Node avant l'installation des dépendances npm..."
+"${COMPOSE_CMD[@]}" stop node
+
+echo
+echo "Démarrage des services Docker hors Node..."
+"${COMPOSE_CMD[@]}" up -d mysql php web phpmyadmin mailpit
+
+#
+# Installation stricte des dépendances verrouillées
 #
 
 echo
-echo "Démarrage des services Docker..."
-"${COMPOSE_CMD[@]}" up -d
-
-#
-# Contrôle des fichiers de dépendances
-#
-
-SKIP_DEPENDENCY_UPDATE=false
-
-if ! git diff --quiet -- "${DEPENDENCY_FILES[@]}" \
-    || ! git diff --cached --quiet -- "${DEPENDENCY_FILES[@]}"; then
-    SKIP_DEPENDENCY_UPDATE=true
-
-    echo
-    echo "Des modifications de dépendances sont déjà en cours sur work :"
-    echo
-
-    git status --short -- "${DEPENDENCY_FILES[@]}"
-
-    echo
-    echo "Docker est démarré."
-    echo "Les nouvelles mises à jour Composer et npm sont ignorées."
-    echo "Valide ou commit ces fichiers avant de relancer les mises à jour."
-fi
-
-#
-# Mises à jour des dépendances
-#
-
-if [[ "$SKIP_DEPENDENCY_UPDATE" == false ]]; then
-    echo
-    echo "Mise à jour des dépendances Composer — patch uniquement..."
-    "${COMPOSE_CMD[@]}" exec -T php \
-        composer update \
-        --patch-only \
+echo "Installation des dépendances Composer depuis composer.lock..."
+"${COMPOSE_CMD[@]}" exec -T php \
+    composer install \
         --no-interaction \
         --prefer-dist
 
-    echo
-    echo "Validation de la configuration Composer..."
-    "${COMPOSE_CMD[@]}" exec -T php \
-        composer validate \
+echo
+echo "Validation de la configuration Composer..."
+"${COMPOSE_CMD[@]}" exec -T php \
+    composer validate \
         --strict
 
-    echo
-    echo "Mise à jour des dépendances npm autorisées par package.json..."
-    "${COMPOSE_CMD[@]}" run --rm node \
-        npm update \
+echo
+echo "Installation des dépendances npm depuis package-lock.json..."
+if ! "${COMPOSE_CMD[@]}" run --rm node \
+    npm ci \
         --no-audit \
-        --no-fund
-else
+        --no-fund; then
     echo
-    echo "Mises à jour Composer et npm non relancées."
+    echo "Erreur : npm ci a échoué."
+    echo "Le service Node reste arrêté afin de ne pas utiliser un node_modules incomplet."
+    echo "Corrige la cause de l'échec, puis relance make work-start."
+    exit 1
 fi
+
+#
+# Vérification que les installations n'ont modifié aucun verrou
+#
+
+if ! git diff --quiet -- "${DEPENDENCY_FILES[@]}" \
+    || ! git diff --cached --quiet -- "${DEPENDENCY_FILES[@]}"; then
+    echo
+    echo "Erreur : l'installation a modifié un fichier de dépendances suivi par Git :"
+    echo
+    git status --short -- "${DEPENDENCY_FILES[@]}"
+    echo
+    echo "composer.lock et package-lock.json doivent rester identiques aux versions enregistrées sur Git."
+    exit 1
+fi
+
+echo
+echo "Démarrage du service Node après la réussite de npm ci..."
+"${COMPOSE_CMD[@]}" up -d node
 
 #
 # État final
@@ -187,16 +195,7 @@ echo "État des services Docker..."
 echo
 echo "État des fichiers de dépendances :"
 
-if git diff --quiet -- "${DEPENDENCY_FILES[@]}" \
-    && git diff --cached --quiet -- "${DEPENDENCY_FILES[@]}"; then
-    echo "Aucune modification de dépendances."
-else
-    git status --short -- "${DEPENDENCY_FILES[@]}"
-
-    echo
-    echo "Résumé des changements :"
-    git diff --stat -- "${DEPENDENCY_FILES[@]}"
-fi
+echo "composer.lock et package-lock.json sont identiques aux versions enregistrées sur Git."
 
 echo
 echo "Environnement prêt."
