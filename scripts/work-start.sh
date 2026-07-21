@@ -99,12 +99,18 @@ if ! git show-ref --verify --quiet refs/remotes/origin/dev; then
 fi
 
 echo
-echo "Mise à jour de work depuis origin/dev (fast-forward uniquement)..."
+echo "Intégration de origin/dev dans work..."
 
-if ! git merge --ff-only origin/dev; then
+if ! git merge --no-edit origin/dev; then
     echo
-    echo "Arrêt : work et origin/dev ont divergé ; aucun fast-forward n'est possible."
-    echo "Aucun reset, rebase ou stash automatique n'a été effectué."
+    echo "Arrêt : la fusion de origin/dev dans work a rencontré des conflits."
+    echo "Inspecte les fichiers concernés avec :"
+    echo "  git status"
+    echo "  git diff --name-only --diff-filter=U"
+    echo
+    echo "Résous les conflits, ajoute les fichiers corrigés avec git add, puis termine avec git commit."
+    echo "Pour annuler cette fusion manuellement : git merge --abort"
+    echo "Docker et les installations de dépendances n'ont pas été lancés."
     exit 1
 fi
 
