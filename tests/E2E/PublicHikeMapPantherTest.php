@@ -4,10 +4,56 @@ namespace App\Tests\E2E;
 
 use Facebook\WebDriver\Chrome\ChromeDevToolsDriver;
 use Facebook\WebDriver\WebDriverBy;
+use Facebook\WebDriver\WebDriverDimension;
 use Facebook\WebDriver\WebDriverWait;
 
 final class PublicHikeMapPantherTest extends PantherTestCase
 {
+    public function testPublicNavigationStaysAboveLeafletLayersAcrossResponsiveLayouts(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+
+        $client = self::createBrowser();
+        $webDriver = $client->getWebDriver();
+        $this->blockOpenStreetMapRequests($webDriver);
+
+        foreach ([
+            'desktop' => ['width' => 1280, 'height' => 900, 'openMenu' => false],
+            'tablet' => ['width' => 768, 'height' => 900, 'openMenu' => true],
+            'mobile' => ['width' => 390, 'height' => 844, 'openMenu' => true],
+        ] as $viewport => $configuration) {
+            $webDriver->manage()->window()->setSize(new WebDriverDimension(
+                $configuration['width'],
+                $configuration['height'],
+            ));
+            $client->request('GET', '/randonnees/petite-boucle-de-montner');
+
+            $client->waitFor('[data-hike-map-focus][data-point-index="2"]');
+            $webDriver
+                ->findElement(WebDriverBy::cssSelector('[data-hike-map-focus][data-point-index="2"]'))
+                ->click();
+            $client->waitFor('[data-public-hike-map][data-public-hike-map-ready="true"]');
+            $client->waitFor('.leaflet-popup-pane .leaflet-popup-content');
+
+            if ($configuration['openMenu']) {
+                self::assertFalse($webDriver->findElement(WebDriverBy::cssSelector('.js-navbar-collapse'))->isDisplayed());
+                $this->assertLeafletLayersStayBelowNavigation($webDriver, $viewport.' menu closed', false);
+
+                $webDriver->findElement(WebDriverBy::cssSelector('.js-navbar-toggler'))->click();
+                $client->waitFor('.js-navbar-collapse.is-open');
+                self::assertTrue($webDriver->findElement(WebDriverBy::cssSelector('.js-navbar-collapse'))->isDisplayed());
+                $this->assertLeafletLayersStayBelowNavigation($webDriver, $viewport.' menu open', true);
+            } else {
+                self::assertTrue($webDriver->findElement(WebDriverBy::cssSelector('.js-navbar-collapse'))->isDisplayed());
+                self::assertFalse($webDriver->findElement(WebDriverBy::cssSelector('.js-navbar-toggler'))->isDisplayed());
+
+                $this->assertLeafletLayersStayBelowNavigation($webDriver, $viewport.' menu', false);
+            }
+        }
+
+        $this->assertNoBrowserSevereErrors($client);
+    }
+
     public function testSeeThisPointOpensTheMatchingLeafletPopupWithoutExternalNavigation(): void
     {
         $this->skipIfFrontendBuildIsMissing();
@@ -102,6 +148,110 @@ final class PublicHikeMapPantherTest extends PantherTestCase
                 '*://*.openstreetmap.org/*',
             ],
         ]);
+    }
+
+    private function assertLeafletLayersStayBelowNavigation(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $viewportState,
+        bool $menuIsOpen,
+    ): void {
+        foreach ([
+            'control' => '.leaflet-control-zoom-in',
+            'marker' => '.leaflet-marker-icon',
+            'popup' => '.leaflet-popup-pane .leaflet-popup-content',
+        ] as $layer => $selector) {
+            $stack = $this->overlapWithPublicNavigation($webDriver, $selector, $menuIsOpen);
+
+            self::assertTrue(
+                $stack['overlap'],
+                sprintf('%s: the %s must overlap the navigation during the check.', $viewportState, $layer),
+            );
+            self::assertGreaterThanOrEqual(
+                0,
+                $stack['navigationIndex'],
+                sprintf('%s: navigation must be present in the painted stack.', $viewportState),
+            );
+            self::assertGreaterThanOrEqual(
+                0,
+                $stack['layerIndex'],
+                sprintf(
+                    '%s: the %s must be present in the painted stack (%s).',
+                    $viewportState,
+                    $layer,
+                    json_encode($stack),
+                ),
+            );
+            self::assertLessThan(
+                $stack['layerIndex'],
+                $stack['navigationIndex'],
+                sprintf('%s: public navigation must be painted above the Leaflet %s.', $viewportState, $layer),
+            );
+        }
+    }
+
+    /**
+     * @return array{overlap: bool, navigationIndex: int, layerIndex: int, painted: list<string>}
+     */
+    private function overlapWithPublicNavigation(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $layerSelector,
+        bool $menuIsOpen,
+    ): array {
+        /** @var array{overlap: bool, navigationIndex: int, layerIndex: int, painted: list<string>} $stack */
+        $stack = $webDriver->executeScript(<<<'JS'
+            const mapCanvas = document.querySelector('[data-public-hike-map]');
+            const mapRect = mapCanvas?.getBoundingClientRect();
+            const layer = [...document.querySelectorAll(arguments[0])].find((candidate) => {
+                if (!mapRect) {
+                    return false;
+                }
+
+                const candidateRect = candidate.getBoundingClientRect();
+                const candidateCenterX = candidateRect.left + (candidateRect.width / 2);
+                const candidateCenterY = candidateRect.top + (candidateRect.height / 2);
+
+                return candidateRect.width > 0
+                    && candidateRect.height > 0
+                    && candidateCenterX >= mapRect.left
+                    && candidateCenterX <= mapRect.right
+                    && candidateCenterY >= mapRect.top
+                    && candidateCenterY <= mapRect.bottom;
+            });
+            const navigation = document.querySelector(arguments[1] ? '.js-navbar-collapse' : '.site-header');
+            const header = document.querySelector('.site-header');
+
+            if (!layer || !navigation || !header) {
+                return { overlap: false, navigationIndex: -1, layerIndex: -1, painted: [] };
+            }
+
+            const navigationRect = navigation.getBoundingClientRect();
+            let layerRect = layer.getBoundingClientRect();
+            const targetY = navigationRect.top + (navigationRect.height / 2);
+            const layerCenterY = layerRect.top + (layerRect.height / 2);
+
+            window.scrollBy({ top: layerCenterY - targetY, behavior: 'instant' });
+            layerRect = layer.getBoundingClientRect();
+
+            const x = layerRect.left + (layerRect.width / 2);
+            const y = layerRect.top + (layerRect.height / 2);
+            const paintedElements = document.elementsFromPoint(x, y);
+            const navigationIndex = paintedElements.findIndex((element) => element === header || header.contains(element));
+            const layerIndex = paintedElements.findIndex((element) => element === layer || layer.contains(element));
+            const currentNavigationRect = navigation.getBoundingClientRect();
+            const overlap = x >= currentNavigationRect.left
+                && x <= currentNavigationRect.right
+                && y >= currentNavigationRect.top
+                && y <= currentNavigationRect.bottom;
+
+            return {
+                overlap,
+                navigationIndex,
+                layerIndex,
+                painted: paintedElements.map((element) => `${element.tagName}.${element.className || ''}`),
+            };
+        JS, [$layerSelector, $menuIsOpen]);
+
+        return $stack;
     }
 
     private function skipIfFrontendBuildIsMissing(): void
