@@ -128,8 +128,12 @@ echo "Branche active : work"
 # Démarrage de Docker
 #
 echo
-echo "Démarrage des services Docker..."
-"${COMPOSE_CMD[@]}" up -d
+echo "Arrêt du service Node avant l'installation des dépendances npm..."
+"${COMPOSE_CMD[@]}" stop node
+
+echo
+echo "Démarrage des services Docker hors Node..."
+"${COMPOSE_CMD[@]}" up -d mysql php web phpmyadmin mailpit
 
 #
 # Installation stricte des dépendances verrouillées
@@ -150,10 +154,16 @@ echo "Validation de la configuration Composer..."
 
 echo
 echo "Installation des dépendances npm depuis package-lock.json..."
-"${COMPOSE_CMD[@]}" run --rm node \
+if ! "${COMPOSE_CMD[@]}" run --rm node \
     npm ci \
         --no-audit \
-        --no-fund
+        --no-fund; then
+    echo
+    echo "Erreur : npm ci a échoué."
+    echo "Le service Node reste arrêté afin de ne pas utiliser un node_modules incomplet."
+    echo "Corrige la cause de l'échec, puis relance make work-start."
+    exit 1
+fi
 
 #
 # Vérification que les installations n'ont modifié aucun verrou
@@ -169,6 +179,10 @@ if ! git diff --quiet -- "${DEPENDENCY_FILES[@]}" \
     echo "composer.lock et package-lock.json doivent rester identiques aux versions enregistrées sur Git."
     exit 1
 fi
+
+echo
+echo "Démarrage du service Node après la réussite de npm ci..."
+"${COMPOSE_CMD[@]}" up -d node
 
 #
 # État final
