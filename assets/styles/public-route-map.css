@@ -95,6 +95,9 @@
 }
 
 .public-route-map__canvas {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
   width: 100%;
   max-width: 100%;
   min-height: 420px;
