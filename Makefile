@@ -1,7 +1,7 @@
 COMPOSE ?= docker compose
 SURVEY_AFTER_MERGE ?= 1
 
-.PHONY: setup build up composer-install node-install node-build node-dev \
+.PHONY: setup build up composer-install composer-update-patch node-install node-build node-dev \
 	test-db-reset test test-all quality e2e quality-e2e coverage \
 	work-start work-to-dev prod-secrets-sync prod-redeploy survey
 
@@ -15,6 +15,9 @@ up:
 
 composer-install:
 	$(COMPOSE) exec php composer install
+
+composer-update-patch:
+	$(COMPOSE) exec php composer update --patch-only --no-interaction --prefer-dist
 
 node-install:
 	$(COMPOSE) run --rm node npm install
