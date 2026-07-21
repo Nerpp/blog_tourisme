@@ -11,12 +11,14 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Http\Authorization\AccessDeniedHandlerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class AdminAccessDeniedHandler implements AccessDeniedHandlerInterface
 {
     public function __construct(
         private readonly UrlGeneratorInterface $urlGenerator,
         private readonly Security $security,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -31,15 +33,15 @@ final class AdminAccessDeniedHandler implements AccessDeniedHandlerInterface
         }
 
         $user = $this->security->getUser();
-        $message = $user instanceof User
+        $messageKey = $user instanceof User
             && $user->isAdmin()
             && !$user->isVerified()
-                ? 'Veuillez confirmer votre adresse email avant d’accéder à l’administration.'
-                : 'Vous n’avez pas accès à l’administration.';
+                ? 'security.admin.email_verification_required'
+                : 'security.admin.access_denied';
 
         $flashBag = $request->getSession()->getBag('flashes');
         if ($flashBag instanceof FlashBagInterface) {
-            $flashBag->add('warning', $message);
+            $flashBag->add('warning', $this->translator->trans($messageKey, domain: 'security'));
         }
 
         return new RedirectResponse($this->urlGenerator->generate('app_home'));

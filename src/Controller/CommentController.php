@@ -30,11 +30,13 @@ use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class CommentController extends AbstractController
 {
     public function __construct(
         private readonly ActionRateLimiter $actionRateLimiter,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -56,7 +58,7 @@ final class CommentController extends AbstractController
 
         $author = $this->getAuthenticatedUser();
         if ($this->isBannedCommenter($author)) {
-            $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+            $this->addFlash('warning', $this->translator->trans('security.account.suspended', domain: 'security'));
 
             return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comments');
         }
@@ -136,7 +138,7 @@ final class CommentController extends AbstractController
 
         $author = $this->getAuthenticatedUser();
         if ($this->isBannedCommenter($author)) {
-            $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+            $this->addFlash('warning', $this->translator->trans('security.account.suspended', domain: 'security'));
 
             return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comments');
         }
@@ -233,7 +235,7 @@ final class CommentController extends AbstractController
 
         $author = $this->getAuthenticatedUser();
         if ($this->isBannedCommenter($author)) {
-            $this->addFlash('warning', 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+            $this->addFlash('warning', $this->translator->trans('security.account.suspended', domain: 'security'));
 
             return $this->redirectToCommentTarget($parent);
         }

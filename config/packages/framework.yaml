@@ -1,5 +1,11 @@
 framework:
     secret: '%env(APP_SECRET)%'
+    default_locale: fr
+    enabled_locales: [fr, en]
+    set_content_language_from_locale: true
+    translator:
+        default_path: '%kernel.project_dir%/translations'
+        fallbacks: [fr]
     csrf_protection: true
     form: true
     validation:

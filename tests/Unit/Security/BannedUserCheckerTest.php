@@ -15,7 +15,7 @@ final class BannedUserCheckerTest extends TestCase
         $checker = new BannedUserChecker();
 
         $this->expectException(CustomUserMessageAccountStatusException::class);
-        $this->expectExceptionMessage('Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+        $this->expectExceptionMessage('security.account.suspended');
 
         $checker->checkPreAuth($this->user(['ROLE_USER'], banned: true));
     }
@@ -25,7 +25,7 @@ final class BannedUserCheckerTest extends TestCase
         $checker = new BannedUserChecker();
 
         $this->expectException(CustomUserMessageAccountStatusException::class);
-        $this->expectExceptionMessage('Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+        $this->expectExceptionMessage('security.account.suspended');
 
         $checker->checkPostAuth($this->user(['ROLE_USER'], banned: true));
     }
