@@ -49,12 +49,12 @@ class Comment
     private ?Place $place = null;
 
     #[ORM\Column(type: Types::TEXT)]
-    #[Assert\NotBlank(message: 'Le commentaire ne peut pas être vide.')]
+    #[Assert\NotBlank(message: 'validation.comment.content.required')]
     #[Assert\Length(
         min: 10,
         max: 5000,
-        minMessage: 'Le commentaire doit contenir au moins {{ limit }} caractères.',
-        maxMessage: 'Le commentaire ne peut pas dépasser {{ limit }} caractères.',
+        minMessage: 'validation.comment.content.too_short',
+        maxMessage: 'validation.comment.content.too_long',
     )]
     private ?string $content = null;
 
@@ -477,7 +477,7 @@ class Comment
 
         if ($hasArticle === $hasPlace) {
             $context
-                ->buildViolation('Un commentaire doit etre lie soit a un article soit a un lieu.')
+                ->buildViolation('validation.comment.target.invalid')
                 ->atPath('article')
                 ->addViolation();
         }

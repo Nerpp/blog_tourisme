@@ -24,7 +24,7 @@ final class ProfileFormType extends AbstractType
                 'constraints' => [
                     new Length(
                         max: 120,
-                        maxMessage: 'Le nom affiché ne doit pas dépasser {{ limit }} caractères.',
+                        maxMessage: 'validation.user.display_name.too_long',
                     ),
                 ],
             ])
@@ -36,8 +36,8 @@ final class ProfileFormType extends AbstractType
                     new File(
                         maxSize: '5M',
                         mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
-                        maxSizeMessage: 'L’image de profil ne doit pas dépasser 5 Mo.',
-                        mimeTypesMessage: 'Formats acceptés : JPG, PNG ou WebP.',
+                        maxSizeMessage: 'validation.avatar.max_size',
+                        mimeTypesMessage: 'validation.avatar.mime_type',
                     ),
                 ],
                 'attr' => [

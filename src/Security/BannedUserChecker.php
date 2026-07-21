@@ -30,6 +30,6 @@ final class BannedUserChecker implements UserCheckerInterface
             return;
         }
 
-        throw new CustomUserMessageAccountStatusException('Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.');
+        throw new CustomUserMessageAccountStatusException('security.account.suspended');
     }
 }

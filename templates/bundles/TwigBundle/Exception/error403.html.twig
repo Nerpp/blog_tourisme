@@ -1,0 +1,15 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'error.403.title'|trans }} — Estela Explorations{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+
+{% block body %}
+    <main class="page-shell">
+        <header class="page-header">
+            <p>{{ 'error.common.eyebrow'|trans }} 403</p>
+            <h1>{{ 'error.403.title'|trans }}</h1>
+            <p>{{ 'error.403.message'|trans }}</p>
+            <a class="button" href="{{ path('app_home') }}">{{ 'error.common.back_home'|trans }}</a>
+        </header>
+    </main>
+{% endblock %}

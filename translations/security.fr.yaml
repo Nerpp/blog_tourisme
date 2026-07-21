@@ -1,0 +1,12 @@
+security:
+    account:
+        suspended: 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.'
+    admin:
+        access_denied: 'Vous n’avez pas accès à l’administration.'
+        email_verification_required: 'Veuillez confirmer votre adresse email avant d’accéder à l’administration.'
+    google:
+        account_already_linked: 'Ce compte email est déjà rattaché à un autre compte Google.'
+        email_unverified: 'Votre email doit être vérifié par Google.'
+        failed: 'La connexion Google a échoué.'
+        failed_retry: 'La connexion Google a échoué. Réessayez ou utilisez votre mot de passe.'
+        invalid_email: 'Le compte Google ne fournit pas une adresse email valide.'

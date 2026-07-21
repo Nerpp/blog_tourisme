@@ -19,7 +19,7 @@ final class ChangePasswordFormType extends AbstractType
         $builder->add('plainPassword', RepeatedType::class, [
             'type' => PasswordType::class,
             'mapped' => false,
-            'invalid_message' => 'Les mots de passe ne correspondent pas.',
+            'invalid_message' => 'validation.password.mismatch',
             'first_options' => [
                 'label' => 'Nouveau mot de passe',
                 'attr' => ['autocomplete' => 'new-password'],
@@ -29,17 +29,17 @@ final class ChangePasswordFormType extends AbstractType
                 'attr' => ['autocomplete' => 'new-password'],
             ],
             'constraints' => [
-                new NotBlank(message: 'Veuillez saisir un mot de passe.'),
+                new NotBlank(message: 'validation.password.required'),
                 new Length(
                     min: 12,
                     max: 4096,
-                    minMessage: 'Votre mot de passe doit contenir au moins {{ limit }} caractères.',
+                    minMessage: 'validation.password.too_short',
                 ),
                 new PasswordStrength(
                     minScore: PasswordStrength::STRENGTH_MEDIUM,
-                    message: 'Votre mot de passe est trop prévisible. Utilisez une phrase plus longue, avec plusieurs mots, chiffres ou symboles.',
+                    message: 'validation.password.too_predictable',
                 ),
-                new NotCompromisedPassword(message: 'Ce mot de passe est connu dans des fuites de données. Choisissez-en un autre.'),
+                new NotCompromisedPassword(message: 'validation.password.compromised'),
             ],
         ]);
     }

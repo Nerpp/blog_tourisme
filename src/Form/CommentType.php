@@ -33,7 +33,7 @@ class CommentType extends AbstractType
                 'required' => false,
                 'label' => false,
                 'constraints' => [
-                    new Blank(message: 'Votre commentaire n’a pas pu être envoyé.'),
+                    new Blank(message: 'validation.comment.honeypot.invalid'),
                 ],
                 'row_attr' => [
                     'class' => 'comment-honeypot',

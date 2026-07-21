@@ -21,6 +21,7 @@ use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 use Symfony\Component\Security\Http\Authenticator\Passport\Passport;
 use Symfony\Component\Security\Http\Authenticator\Passport\SelfValidatingPassport;
 use Symfony\Component\Security\Http\Util\TargetPathTrait;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class GoogleAuthenticator extends OAuth2Authenticator
 {
@@ -32,6 +33,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly RouterInterface $router,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     public function supports(Request $request): bool
@@ -47,7 +49,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         return new SelfValidatingPassport(new UserBadge($accessToken->getToken(), function () use ($client, $accessToken): User {
             $googleUser = $client->fetchUserFromToken($accessToken);
             if (!$googleUser instanceof GoogleUser) {
-                throw new CustomUserMessageAuthenticationException('La connexion Google a échoué.');
+                throw new CustomUserMessageAuthenticationException('security.google.failed');
             }
 
             return $this->findOrCreateUser($googleUser);
@@ -63,9 +65,10 @@ final class GoogleAuthenticator extends OAuth2Authenticator
 
     public function onAuthenticationFailure(Request $request, AuthenticationException $exception): Response
     {
-        $message = $exception instanceof CustomUserMessageAuthenticationException
-            ? $exception->getMessage()
-            : 'La connexion Google a échoué. Réessayez ou utilisez votre mot de passe.';
+        $messageKey = $exception instanceof CustomUserMessageAuthenticationException
+            ? $exception->getMessageKey()
+            : 'security.google.failed_retry';
+        $message = $this->translator->trans($messageKey, $exception->getMessageData(), 'security');
 
         $flashBag = $request->getSession()->getBag('flashes');
         if ($flashBag instanceof FlashBagInterface) {
@@ -81,14 +84,14 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         $googleId = is_string($rawGoogleId) ? $rawGoogleId : '';
         $email = $googleUser->getEmail();
         if ($googleId === '' || $email === null || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new CustomUserMessageAuthenticationException('Le compte Google ne fournit pas une adresse email valide.');
+            throw new CustomUserMessageAuthenticationException('security.google.invalid_email');
         }
 
         $email = mb_strtolower($email);
         $emailVerified = $googleUser->getEmailVerified() === true;
 
         if (!$emailVerified) {
-            throw new CustomUserMessageAuthenticationException('Votre email doit être vérifié par Google.');
+            throw new CustomUserMessageAuthenticationException('security.google.email_unverified');
         }
 
         $user = $this->userRepository->findOneByGoogleId($googleId);
@@ -109,7 +112,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         }
 
         if ($user->getGoogleId() !== null && $user->getGoogleId() !== $googleId) {
-            throw new CustomUserMessageAuthenticationException('Ce compte email est déjà rattaché à un autre compte Google.');
+            throw new CustomUserMessageAuthenticationException('security.google.account_already_linked');
         }
 
         if ($user->getGoogleId() === null) {
