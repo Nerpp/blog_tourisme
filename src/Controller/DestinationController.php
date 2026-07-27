@@ -21,7 +21,7 @@ use Symfony\Component\Routing\Attribute\Route;
 final class DestinationController extends AbstractController
 {
     #[Route('/destinations', name: 'app_destination_index', methods: ['GET'])]
-    public function index(DestinationRepository $destinationRepository): Response
+    public function index(DestinationRepository $destinationRepository, ArticleRepository $articleRepository): Response
     {
         $rootDestinations = $destinationRepository->findRootDestinations();
         $destinationCounts = $destinationRepository->findCumulativeContentCountsForTree($rootDestinations);
@@ -29,7 +29,11 @@ final class DestinationController extends AbstractController
         return $this->render('destination/index.html.twig', [
             'root_destinations' => $rootDestinations,
             'destination_counts' => $destinationCounts,
-            'destination_summary' => $this->summarizeRootDestinationCounts($rootDestinations, $destinationCounts),
+            'destination_summary' => $this->summarizeRootDestinationCounts(
+                $rootDestinations,
+                $destinationCounts,
+                $articleRepository->countPublicArticles(),
+            ),
             'destination_suggestions' => $destinationRepository->findDestinationSuggestionsForTree($rootDestinations),
         ]);
     }
@@ -579,7 +583,7 @@ final class DestinationController extends AbstractController
      *
      * @return array{places: int, articles: int, hikes: int, city_visits: int, total: int}
      */
-    private function summarizeRootDestinationCounts(array $rootDestinations, array $destinationCounts): array
+    private function summarizeRootDestinationCounts(array $rootDestinations, array $destinationCounts, int $publicArticleCount): array
     {
         $summary = [
             'places' => 0,
@@ -596,11 +600,11 @@ final class DestinationController extends AbstractController
             }
 
             $summary['places'] += $destinationCounts[$id]['places'];
-            $summary['articles'] += $destinationCounts[$id]['articles'];
             $summary['hikes'] += $destinationCounts[$id]['hikes'];
             $summary['city_visits'] += $destinationCounts[$id]['city_visits'];
         }
 
+        $summary['articles'] = $publicArticleCount;
         $summary['total'] = $summary['places'] + $summary['articles'] + $summary['hikes'] + $summary['city_visits'];
 
         return $summary;

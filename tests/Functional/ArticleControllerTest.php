@@ -118,6 +118,35 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
     }
 
+    public function testArticleIndexDisplaysTheTotalPublicCountForAnAdministrator(): void
+    {
+        $client = static::createClient();
+        $token = $this->uniqueToken('public-counter');
+        $admin = $this->createVerifiedAdmin();
+
+        for ($index = 1; $index <= 5; ++$index) {
+            $article = $this->createArticle($admin)
+                ->setTitle(sprintf('Article compteur %s %d', $token, $index));
+            $this->persistAndFlush($article);
+        }
+
+        foreach ([ContentStatus::Draft, ContentStatus::Archived, ContentStatus::PrivateContent] as $index => $status) {
+            $hidden = $this->createArticle($admin)
+                ->setTitle(sprintf('Article compteur masqué %s %d', $token, $index))
+                ->setStatus($status)
+                ->setPublishedAt(null);
+            $this->persistAndFlush($hidden);
+        }
+
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', '/articles?q='.rawurlencode($token));
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('5 articles', trim($crawler->filter('[data-testid="article-count"]')->text()));
+        self::assertCount(5, $crawler->filter('[data-public-list-card]'));
+        self::assertStringNotContainsString('Article compteur masqué', (string) $client->getResponse()->getContent());
+    }
+
     public function testArticleIndexSearchFiltersCaseInsensitively(): void
     {
         $client = static::createClient();

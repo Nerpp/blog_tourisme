@@ -1,4 +1,5 @@
-{% set item_count = items|length %}
+{% set visible_item_count = items|length %}
+{% set item_count = total_item_count|default(visible_item_count) %}
 {% set search_hidden_params = search_hidden_params|default({}) %}
 {% set search_reset_url = search_reset_url|default(search_action) %}
 
@@ -88,12 +89,16 @@
                 <p class="article-index-kicker">{{ results_kicker }}</p>
                 <h2>{{ results_title }}</h2>
             </div>
-            <span class="article-index-count" data-public-list-count>
+            <span
+                class="article-index-count"
+                data-public-list-count
+                {% if count_testid|default(null) %}data-testid="{{ count_testid }}"{% endif %}
+            >
                 {{ item_count }} {{ item_count > 1 ? count_plural : count_singular }}
             </span>
         </div>
 
-        <p class="article-index-empty" {% if item_count > 0 %}hidden{% endif %}>
+        <p class="article-index-empty" {% if visible_item_count > 0 %}hidden{% endif %}>
             {{ search_query ? empty_search_message : empty_initial_message }}
         </p>
 

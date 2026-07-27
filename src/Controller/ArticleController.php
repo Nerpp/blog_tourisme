@@ -29,9 +29,11 @@ final class ArticleController extends AbstractController
         $query = $this->searchQuery($request);
         $categories = $categoryRepository->findUsedForPublicArticles();
         $categorySlug = $this->categorySlug($request, $categories);
+        $articles = $articleRepository->findPublishedForListing($query, categorySlug: $categorySlug);
 
         return $this->render('article/index.html.twig', [
-            'articles' => $articleRepository->findPublishedForListing($query, categorySlug: $categorySlug),
+            'articles' => $articles,
+            'article_count' => $articleRepository->countPublicArticles($query, $categorySlug),
             'categories' => $categories,
             'search_query' => $query,
             'selected_category_slug' => $categorySlug,
