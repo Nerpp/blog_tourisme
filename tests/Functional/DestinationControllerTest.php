@@ -313,7 +313,7 @@ final class DestinationControllerTest extends FunctionalTestCase
 
         $this->persistAndFlush($directArticle, $directLink, $hike, $hikeArticle, $hikeLink, $cityVisit, $cityArticle, $cityVisitLink);
 
-        $client->request('GET', sprintf('/destinations/%s', $city->getSlug()));
+        $crawler = $client->request('GET', sprintf('/destinations/%s', $city->getSlug()));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Article directement lié à Narbonne');
@@ -323,6 +323,14 @@ final class DestinationControllerTest extends FunctionalTestCase
         self::assertSelectorTextContains('body', 'Visite contexte destination');
         self::assertSelectorTextContains('body', 'Histoire');
         self::assertSelectorTextContains('body', 'Légende');
+        self::assertGreaterThanOrEqual(
+            3,
+            $crawler->filter('img[src="/images/placeholders/destination-card-placeholder.webp"]')->count(),
+        );
+        self::assertGreaterThanOrEqual(
+            3,
+            $crawler->filter('picture > img[src="/images/placeholders/destination-card-placeholder.webp"]')->count(),
+        );
     }
 
     public function testAreaDestinationSummarizesDepartmentContentAcrossDescendants(): void

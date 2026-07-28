@@ -1,30 +1,17 @@
 {% set city_visit = item %}
 {% set city_visit_url = path('app_city_visit_show', { slug: city_visit.slug }) %}
 {% set destination_label = city_visit.geographicDestination ? city_visit.geographicDestination.name : (city_visit.destination ? city_visit.destination.name : city_visit.detectedCommuneName) %}
-{% set cover_media = null %}
-{% set image_links = city_visit.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
-{% set cover_image_links = image_links|filter(link => link.role.value == 'cover') %}
-{% if cover_image_links|length > 0 %}
-    {% set cover_media = (cover_image_links|first).mediaAsset %}
-{% elseif image_links|length > 0 %}
-    {% set cover_media = (image_links|first).mediaAsset %}
-{% endif %}
+{% set cover_media = content_image_media(city_visit) %}
 
 <article class="article-list-card" data-public-list-card data-public-content-type="city-visit">
     <a class="article-list-card__visual" href="{{ city_visit_url }}" aria-label="Voir la visite {{ city_visit.title }}">
-        {% if cover_media %}
-            {% include 'public_detail/_responsive_image.html.twig' with {
-                media: cover_media,
-                alt: media_public_alt(cover_media, city_visit, city_visit.title),
-                image_size: 'medium',
-                sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
-                img_class: 'article-list-card__image'
-            } only %}
-        {% else %}
-            <div class="article-list-card__placeholder" role="img" aria-label="Image de visite non disponible">
-                <span>Visite</span>
-            </div>
-        {% endif %}
+        {% include 'public_detail/_responsive_image.html.twig' with {
+            media: cover_media,
+            alt: media_public_alt(cover_media, city_visit, city_visit.title),
+            image_size: 'medium',
+            sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
+            img_class: 'article-list-card__image'
+        } only %}
     </a>
 
     <div class="article-list-card__body">

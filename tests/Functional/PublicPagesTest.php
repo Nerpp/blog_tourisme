@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\MediaAsset;
+use App\Enum\DestinationType;
 use App\Enum\MediaRole;
 use Symfony\Component\Routing\RouterInterface;
 
@@ -68,6 +69,51 @@ final class PublicPagesTest extends FunctionalTestCase
         self::assertSame(0, $crawler->filter('article.home-latest-card picture')->count());
         self::assertSame('eager', $latestImage->attr('loading'));
         self::assertNull($latestImage->attr('fetchpriority'));
+    }
+
+    public function testHomepageDestinationAndLatestCardsUseTheCommonImageFallback(): void
+    {
+        $client = static::createClient();
+        $destination = $this->createDestination('Destination sans image accueil', DestinationType::Area);
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin(), $destination);
+        $hike->setFinishedAt(new \DateTimeImmutable('+20 years'));
+        $this->persistAndFlush($hike);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        $destinationCard = $crawler->filter(sprintf(
+            '.home-destination-card[href="/destinations/%s"]',
+            $destination->getSlug(),
+        ));
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $destinationCard->filter('img.home-destination-card__img')->attr('src'),
+        );
+        self::assertSame(0, $destinationCard->filter('picture')->count());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $crawler->filter('.home-latest-card img.home-latest-card__image')->attr('src'),
+        );
+        self::assertSame(0, $crawler->filter('.home-latest-card picture')->count());
+    }
+
+    public function testPlaceholderPathIsNeverPersistedAsMediaData(): void
+    {
+        $mediaAssets = $this->entityManager()->getRepository(MediaAsset::class)->findAll();
+
+        foreach ($mediaAssets as $mediaAsset) {
+            self::assertInstanceOf(MediaAsset::class, $mediaAsset);
+            $storedMediaData = json_encode([
+                $mediaAsset->getFilePath(),
+                $mediaAsset->getThumbnailPath(),
+                $mediaAsset->getExternalUrl(),
+                $mediaAsset->getMetadata(),
+                $mediaAsset->getVariants(),
+            ], JSON_THROW_ON_ERROR);
+
+            self::assertStringNotContainsString('destination-card-placeholder.webp', $storedMediaData);
+        }
     }
 
     public function testLoginPageIsReachable(): void

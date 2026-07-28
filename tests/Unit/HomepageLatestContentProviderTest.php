@@ -21,6 +21,7 @@ use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
 use App\Service\HomepageLatestContentProvider;
+use App\Service\Media\ContentImageResolver;
 use App\Service\PublicContentUrlResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -160,7 +161,7 @@ final class HomepageLatestContentProviderTest extends TestCase
 
         self::assertIsArray($specialLatest);
         self::assertIsArray($standardLatest);
-        self::assertNull($specialLatest['image']);
+        self::assertSame('/images/placeholders/destination-card-placeholder.webp', $specialLatest['image']);
         self::assertNull($specialLatest['media']);
         self::assertSame('/images/placeholders/destination-card-placeholder.webp', $standardLatest['image']);
         self::assertSame($standardImage, $standardLatest['media']);
@@ -212,6 +213,7 @@ final class HomepageLatestContentProviderTest extends TestCase
             $hikeRepository,
             $cityVisitRepository,
             new PublicContentUrlResolver(new TestUrlGenerator()),
+            new ContentImageResolver(),
         );
     }
 

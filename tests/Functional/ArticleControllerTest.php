@@ -96,6 +96,11 @@ final class ArticleControllerTest extends FunctionalTestCase
             'Article : lire '.$article->getTitle(),
             $crawler->filter('.article-list-card__visual')->attr('aria-label'),
         );
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $crawler->filter('.article-list-card__visual picture > img.article-list-card__image')->attr('src'),
+        );
+        self::assertSame(1, $crawler->filter('.article-list-card__visual > picture')->count());
     }
 
     public function testArticleIndexDoesNotListDraftArticles(): void
@@ -398,6 +403,11 @@ final class ArticleControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertSame(1, $cover->filter('picture.article-show-cover__picture')->count());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $cover->filter('picture.article-show-cover__picture > img.article-show-cover__image')->attr('src'),
+        );
         self::assertSame(0, $crawler->filter('.article-gallery-section')->count());
     }
 
@@ -451,6 +461,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
 
         self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('.article-show-cover > picture.article-show-cover__picture')->count());
         $coverImage = $crawler->filter('.article-show-cover picture img')->first();
         self::assertSame('/uploads/media/variants/article-cover-mobile.webp', $coverImage->attr('src'));
         self::assertSame('eager', $coverImage->attr('loading'));

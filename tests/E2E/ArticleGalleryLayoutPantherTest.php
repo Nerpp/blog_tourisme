@@ -115,12 +115,12 @@ final class ArticleGalleryLayoutPantherTest extends PantherTestCase
             ->setContent('<p>Contenu en préparation.</p>')
             ->setStatus(ContentStatus::Published)
             ->setPublishedAt(new \DateTimeImmutable('-1 hour'));
-        $cover = $this->image('Couverture', '/images/placeholders/destination-card-placeholder.webp', 2200, 1238);
+        $cover = $this->image('Couverture', '/images/home/hero-sea-mountain-desktop.webp', 1920, 1080);
         $inline = $this->image('Illustration verticale', '/images/home/hero-sea-mountain-mobile.webp', 864, 1151);
         $galleryMedia = [
-            $this->image('Galerie une', '/images/placeholders/destination-card-placeholder.webp', 2200, 1238),
+            $this->image('Galerie une', '/images/home/hero-sea-mountain-mobile.webp', 864, 1151),
             $this->image('Galerie deux', '/images/home/hero-sea-mountain-desktop.webp', 1920, 1080),
-            $this->image('Galerie trois', '/images/placeholders/destination-card-placeholder.webp', 2200, 1238),
+            $this->image('Galerie trois', '/images/home/hero-sea-mountain-desktop.webp', 1920, 1080),
         ];
         $article->setFeaturedImage($cover);
         $entityManager->persist($article);

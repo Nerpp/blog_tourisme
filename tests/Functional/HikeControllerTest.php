@@ -28,6 +28,11 @@ final class HikeControllerTest extends FunctionalTestCase
         $card = $crawler->filter('.related-article-card')->first();
         self::assertStringContainsString((string) $article->getTitle(), $card->text());
         self::assertStringContainsString((string) $article->getExcerpt(), $card->text());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $card->filter('picture > img.related-article-card__image')->attr('src'),
+        );
+        self::assertSame(1, $card->filter('.related-article-card__visual > picture')->count());
         $link = $crawler->filter('.related-article-card > a.related-article-card__button');
         self::assertCount(1, $link);
         self::assertSame('Lire l’article', trim($link->text()));
@@ -53,6 +58,11 @@ final class HikeControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertSame(1, $cover->filter('picture.public-detail-cover__picture')->count());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $cover->filter('picture.public-detail-cover__picture > img.public-detail-cover__image')->attr('src'),
+        );
         self::assertSame(0, $crawler->filter('.public-detail-hero .public-detail-meta')->count());
         self::assertStringNotContainsString('étape', $crawler->filter('.public-detail-hero')->text());
     }
@@ -98,6 +108,7 @@ final class HikeControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         $cover = $crawler->filter('.public-detail-cover--media');
         self::assertSame(1, $cover->count());
+        self::assertSame(1, $cover->filter('picture.public-detail-cover__picture')->count());
         self::assertNull($cover->attr('style'));
         $source = $cover->filter('source[type="image/webp"]');
         self::assertSame('/uploads/media/cover-640.webp 640w, /uploads/media/cover-960.webp 960w, /uploads/media/cover-1280.webp 1280w', $source->attr('srcset'));
@@ -160,11 +171,16 @@ final class HikeControllerTest extends FunctionalTestCase
         $draft->setTitle('Randonnée brouillon invisible '.$this->uniqueToken('hike'));
         $this->persistAndFlush($draft);
 
-        $client->request('GET', '/randonnees');
+        $crawler = $client->request('GET', '/randonnees');
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $published->getTitle());
         self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $crawler->filter('.article-list-card__visual picture > img.article-list-card__image')->first()->attr('src'),
+        );
+        self::assertGreaterThanOrEqual(1, $crawler->filter('.article-list-card__visual > picture')->count());
     }
 
     public function testHikeIndexSearchFiltersByTitleAndKeepsQuery(): void
