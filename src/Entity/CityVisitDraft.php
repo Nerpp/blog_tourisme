@@ -2,7 +2,9 @@
 
 namespace App\Entity;
 
+use App\Contract\CommentableContentInterface;
 use App\Entity\Traits\TimestampableTrait;
+use App\Enum\CommentableType;
 use App\Enum\CityVisitDraftStatus;
 use App\Repository\CityVisitDraftRepository;
 use DateTimeImmutable;
@@ -14,7 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: CityVisitDraftRepository::class)]
 #[ORM\Index(name: 'idx_city_visit_draft_status', fields: ['status'])]
 #[ORM\HasLifecycleCallbacks]
-class CityVisitDraft
+class CityVisitDraft implements CommentableContentInterface
 {
     use TimestampableTrait;
 
@@ -31,6 +33,10 @@ class CityVisitDraft
 
     #[ORM\Column(length: 20, enumType: CityVisitDraftStatus::class)]
     private CityVisitDraftStatus $status = CityVisitDraftStatus::Draft;
+
+    #[ORM\OneToOne(inversedBy: 'cityVisit', cascade: ['persist'])]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    private CommentThread $commentThread;
 
     #[ORM\Column(length: 150, nullable: true)]
     private ?string $detectedCommuneName = null;
@@ -85,6 +91,7 @@ class CityVisitDraft
         $this->points = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
         $this->articleLinks = new ArrayCollection();
+        $this->setCommentThread(new CommentThread(CommentableType::CityVisit));
     }
 
     public function __toString(): string
@@ -136,6 +143,39 @@ class CityVisitDraft
     public function isPublished(): bool
     {
         return in_array($this->status, [CityVisitDraftStatus::Finished, CityVisitDraftStatus::Converted], true);
+    }
+
+    public function getCommentableTitle(): string
+    {
+        return (string) $this->title;
+    }
+
+    public function getCommentableType(): CommentableType
+    {
+        return CommentableType::CityVisit;
+    }
+
+    public function getCommentThread(): CommentThread
+    {
+        return $this->commentThread;
+    }
+
+    public function setCommentThread(CommentThread $commentThread): static
+    {
+        if ($commentThread->getContentType() !== CommentableType::CityVisit) {
+            throw new \LogicException('Une visite doit utiliser un fil de commentaires de type city-visit.');
+        }
+
+        $this->commentThread = $commentThread;
+        $commentThread->setCityVisit($this);
+
+        return $this;
+    }
+
+    /** @return Collection<int, Comment> */
+    public function getComments(): Collection
+    {
+        return $this->commentThread->getComments();
     }
 
     public function getDetectedCommuneName(): ?string

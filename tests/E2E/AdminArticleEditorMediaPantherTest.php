@@ -93,15 +93,15 @@ final class AdminArticleEditorMediaPantherTest extends PantherTestCase
             ->setAltText('Image de démonstration pour l’éditeur')
             ->setMediaType(MediaType::Image)
             ->setImageType(ImageType::Standard)
-            ->setFilePath('/images/placeholders/destination-card-placeholder.webp')
-            ->setThumbnailPath('/images/placeholders/destination-card-placeholder.webp')
-            ->setWidth(640)
-            ->setHeight(360)
+            ->setFilePath('/images/home/hero-sea-mountain-desktop.webp')
+            ->setThumbnailPath('/images/home/hero-sea-mountain-desktop.webp')
+            ->setWidth(1920)
+            ->setHeight(1080)
             ->setVariants([
                 'thumb' => [
-                    'webp' => '/images/placeholders/destination-card-placeholder.webp',
-                    'width' => 640,
-                    'height' => 360,
+                    'webp' => '/images/home/hero-sea-mountain-desktop.webp',
+                    'width' => 1920,
+                    'height' => 1080,
                 ],
             ]);
         $link = (new ArticleMedia())

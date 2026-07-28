@@ -29,6 +29,11 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
             'selector' => '.public-detail-cover--media img.public-detail-cover__image',
             'objectFit' => 'cover',
         ],
+        'hike_fallback' => [
+            'path' => '/randonnees/randonnee-sans-media',
+            'selector' => '.public-detail-cover--media img.public-detail-cover__image',
+            'objectFit' => 'cover',
+        ],
     ];
 
     public function testPublicCoversLoadResponsiveWebpWithoutLazyLoadingOnDesktopAndMobile(): void
@@ -54,6 +59,10 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
             self::assertGreaterThan(0.0, $cover['renderedHeight'], $kind);
             self::assertFalse($cover['overflow'], $kind);
             self::assertTrue($cover['insidePicture'], $kind);
+            self::assertSame('absolute', $cover['picturePosition'], $kind);
+            self::assertEqualsWithDelta(0.0, $cover['pictureOffsetTop'], 1.0, $kind);
+            self::assertEqualsWithDelta($cover['coverHeight'], $cover['pictureHeight'], 1.0, $kind);
+            self::assertEqualsWithDelta($cover['pictureHeight'], $cover['imageHeight'], 1.0, $kind);
             if ($page['objectFit'] !== null) {
                 self::assertSame($page['objectFit'], $cover['objectFit'], $kind);
             }
@@ -74,6 +83,10 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
             self::assertSame(390, $cover['viewportWidth'], $kind);
             self::assertLessThanOrEqual(390.0, $cover['renderedWidth'], $kind);
             self::assertFalse($cover['overflow'], $kind);
+            self::assertSame('absolute', $cover['picturePosition'], $kind);
+            self::assertEqualsWithDelta(0.0, $cover['pictureOffsetTop'], 1.0, $kind);
+            self::assertEqualsWithDelta($cover['coverHeight'], $cover['pictureHeight'], 1.0, $kind);
+            self::assertEqualsWithDelta($cover['pictureHeight'], $cover['imageHeight'], 1.0, $kind);
         }
     }
 
@@ -207,7 +220,12 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
      *     viewportWidth: int,
      *     overflow: bool,
      *     insidePicture: bool,
-     *     objectFit: string
+     *     objectFit: string,
+     *     picturePosition: string,
+     *     pictureOffsetTop: float,
+     *     pictureHeight: float,
+     *     imageHeight: float,
+     *     coverHeight: float
      * }
      */
     private function coverData(RemoteWebDriver $driver, string $selector): array
@@ -223,6 +241,8 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
             $result = $driver->executeScript(<<<'JS'
                 const image = arguments[0];
                 const rect = image.getBoundingClientRect();
+                const picture = image.parentElement;
+                const cover = image.closest('.public-detail-cover');
 
                 return {
                     currentSrc: image.currentSrc || '',
@@ -235,8 +255,13 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
                     renderedHeight: rect.height,
                     viewportWidth: window.innerWidth,
                     overflow: document.documentElement.scrollWidth > window.innerWidth,
-                    insidePicture: image.parentElement?.tagName === 'PICTURE',
+                    insidePicture: picture?.tagName === 'PICTURE',
                     objectFit: getComputedStyle(image).objectFit,
+                    picturePosition: picture ? getComputedStyle(picture).position : '',
+                    pictureOffsetTop: picture?.offsetTop ?? -1,
+                    pictureHeight: picture?.offsetHeight ?? 0,
+                    imageHeight: image.offsetHeight,
+                    coverHeight: cover?.clientHeight ?? 0,
                 };
             JS, [$image]);
 
@@ -258,6 +283,11 @@ final class PublicDetailCoverPantherTest extends PantherTestCase
             'overflow' => (bool) $data['overflow'],
             'insidePicture' => (bool) $data['insidePicture'],
             'objectFit' => (string) $data['objectFit'],
+            'picturePosition' => (string) $data['picturePosition'],
+            'pictureOffsetTop' => (float) $data['pictureOffsetTop'],
+            'pictureHeight' => (float) $data['pictureHeight'],
+            'imageHeight' => (float) $data['imageHeight'],
+            'coverHeight' => (float) $data['coverHeight'],
         ];
     }
 

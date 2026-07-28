@@ -7,6 +7,7 @@ use App\Entity\ArticleDestination;
 use App\Entity\ArticleHike;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
+use App\Repository\ArticleRepository;
 use Symfony\Component\DomCrawler\Crawler;
 
 final class DestinationControllerTest extends FunctionalTestCase
@@ -25,6 +26,13 @@ final class DestinationControllerTest extends FunctionalTestCase
     public function testDestinationIndexDisplaysClickablePublicContentCounters(): void
     {
         $client = static::createClient();
+        $relationlessArticle = $this->createArticle();
+        $relationlessArticle->setTitle('Article public sans destination '.$this->uniqueToken('destination-counter'));
+        $this->persistAndFlush($relationlessArticle);
+
+        $articleRepository = static::getContainer()->get(ArticleRepository::class);
+        self::assertInstanceOf(ArticleRepository::class, $articleRepository);
+        $expectedPublicArticleCount = $articleRepository->countPublicArticles();
 
         $crawler = $client->request('GET', '/destinations');
 
@@ -39,7 +47,7 @@ final class DestinationControllerTest extends FunctionalTestCase
         self::assertSame('/articles', $articleLink->attr('href'));
         self::assertSame('/randonnees', $hikeLink->attr('href'));
         self::assertSame('/visites', $cityVisitLink->attr('href'));
-        self::assertMatchesRegularExpression('/\d+/', $articleLink->filter('strong')->text());
+        self::assertSame((string) $expectedPublicArticleCount, trim($articleLink->filter('strong')->text()));
         self::assertMatchesRegularExpression('/\d+/', $hikeLink->filter('strong')->text());
         self::assertMatchesRegularExpression('/\d+/', $cityVisitLink->filter('strong')->text());
     }
@@ -305,7 +313,7 @@ final class DestinationControllerTest extends FunctionalTestCase
 
         $this->persistAndFlush($directArticle, $directLink, $hike, $hikeArticle, $hikeLink, $cityVisit, $cityArticle, $cityVisitLink);
 
-        $client->request('GET', sprintf('/destinations/%s', $city->getSlug()));
+        $crawler = $client->request('GET', sprintf('/destinations/%s', $city->getSlug()));
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Article directement lié à Narbonne');
@@ -315,6 +323,14 @@ final class DestinationControllerTest extends FunctionalTestCase
         self::assertSelectorTextContains('body', 'Visite contexte destination');
         self::assertSelectorTextContains('body', 'Histoire');
         self::assertSelectorTextContains('body', 'Légende');
+        self::assertGreaterThanOrEqual(
+            3,
+            $crawler->filter('img[src="/images/placeholders/destination-card-placeholder.webp"]')->count(),
+        );
+        self::assertGreaterThanOrEqual(
+            3,
+            $crawler->filter('picture > img[src="/images/placeholders/destination-card-placeholder.webp"]')->count(),
+        );
     }
 
     public function testAreaDestinationSummarizesDepartmentContentAcrossDescendants(): void

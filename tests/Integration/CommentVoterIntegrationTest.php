@@ -102,7 +102,7 @@ final class CommentVoterIntegrationTest extends IntegrationTestCase
 
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setContent('Commentaire voter suffisamment long.')
             ->setStatus($status);
 

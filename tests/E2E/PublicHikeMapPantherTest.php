@@ -75,10 +75,14 @@ final class PublicHikeMapPantherTest extends PantherTestCase
             'assets/app.js',
             'assets/entries/public-detail.js',
             'assets/entries/related-articles.js',
+            'assets/styles/comments.css',
         );
         $this->assertPageHasBuiltScripts($client, 'assets/app.js', 'assets/entries/public-detail.js');
-        $this->assertPageDoesNotHaveBuiltScripts($client, 'assets/entries/related-articles.js');
-        $this->assertPageDoesNotHaveBuiltAssets($client, 'assets/entries/public-listing.js', 'assets/entries/comments.js');
+        $this->assertPageDoesNotHaveBuiltScripts($client, 'assets/entries/related-articles.js', 'assets/entries/comments.js');
+        $this->assertPageRequestedBuiltStyles($client, 'assets/styles/comments.css');
+        $this->assertPageDidNotRequestBuiltScripts($client, 'assets/entries/comments.js');
+        $this->assertPageDoesNotHaveBuiltAssets($client, 'assets/entries/public-listing.js');
+        self::assertSelectorExists('.comments-section');
 
         $trigger = $webDriver->findElement(WebDriverBy::cssSelector('[data-hike-map-focus][data-point-index="2"]'));
         $mapSelector = (string) $trigger->getAttribute('href');

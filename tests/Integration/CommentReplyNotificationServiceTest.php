@@ -147,7 +147,7 @@ final class CommentReplyNotificationServiceTest extends IntegrationTestCase
         CommentStatus $status = CommentStatus::Approved,
     ): Comment {
         $comment = (new Comment())
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setAuthor($author)
             ->setParent($parent)
             ->setContent($content)

@@ -80,6 +80,20 @@ class ArticleRepository extends ServiceEntityRepository
         return $this->sortArticlesByIdList($articles, $articleIds);
     }
 
+    public function countPublicArticles(?string $query = null, ?string $categorySlug = null): int
+    {
+        $queryBuilder = $this->applyCategoryFilter(
+            $this->applySearch($this->createPublicListingIdQueryBuilder(), $query),
+            $categorySlug,
+        );
+
+        return (int) $queryBuilder
+            ->select('COUNT(DISTINCT a.id)')
+            ->resetDQLPart('orderBy')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /** @return list<Article> */
     public function findPublishedSuggestions(string $query, int $limit = 8): array
     {
@@ -232,7 +246,6 @@ class ArticleRepository extends ServiceEntityRepository
     {
         $queryBuilder = $this->createQueryBuilder('a')
             ->select('a.id')
-            ->leftJoin('a.category', 'category')
             ->orderBy('a.publishedAt', 'DESC')
             ->addOrderBy('a.id', 'DESC');
 
@@ -261,7 +274,8 @@ class ArticleRepository extends ServiceEntityRepository
         }
 
         return $queryBuilder
-            ->andWhere('category.slug = :publicCategorySlug')
+            ->innerJoin('a.category', 'publicCategory')
+            ->andWhere('publicCategory.slug = :publicCategorySlug')
             ->setParameter('publicCategorySlug', $normalizedCategorySlug);
     }
 

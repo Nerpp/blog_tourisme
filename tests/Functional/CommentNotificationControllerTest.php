@@ -4,6 +4,8 @@ namespace App\Tests\Functional;
 
 use App\Entity\Comment;
 use App\Entity\CommentReplyNotification;
+use App\Entity\CommentThread;
+use App\Enum\CommentableType;
 use App\Enum\CommentStatus;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
@@ -100,7 +102,7 @@ final class CommentNotificationControllerTest extends FunctionalTestCase
         $place = $this->createPublishedPlace();
         $comment = (new Comment())
             ->setAuthor($this->createUser())
-            ->setPlace($place)
+            ->setThread($place->getCommentThread())
             ->setContent('Commentaire approuvé sur un lieu pour une notification.')
             ->setStatus(CommentStatus::Approved)
             ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
@@ -115,17 +117,39 @@ final class CommentNotificationControllerTest extends FunctionalTestCase
         self::assertTrue($this->refresh($notification)->isRead());
     }
 
+    public function testHikeAndCityVisitNotificationsUseTheirPublicUrls(): void
+    {
+        $client = static::createClient();
+        $recipient = $this->createUser();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createPublishedHike($admin);
+        $cityVisit = $this->createPublishedCityVisit($admin);
+        $hikeComment = $this->createComment($this->createUser(), $hike);
+        $cityComment = $this->createComment($this->createUser(), $cityVisit);
+        $hikeNotification = $this->createCommentReplyNotification($recipient, $hikeComment);
+        $cityNotification = $this->createCommentReplyNotification($recipient, $cityComment);
+        $client->loginUser($recipient);
+
+        $client->request('GET', sprintf('/notifications/commentaires/%d', $hikeNotification->getId()));
+        self::assertResponseRedirects(sprintf('/randonnees/%s#comment-%d', $hike->getSlug(), $hikeComment->getId()));
+
+        $client->request('GET', sprintf('/notifications/commentaires/%d', $cityNotification->getId()));
+        self::assertResponseRedirects(sprintf('/visites-de-ville/%s#comment-%d', $cityVisit->getSlug(), $cityComment->getId()));
+    }
+
     public function testOpenNotificationForApprovedOrphanCommentRedirectsHome(): void
     {
         $client = static::createClient();
         $recipient = $this->createUser();
+        $thread = new CommentThread(CommentableType::Article);
         $comment = (new Comment())
             ->setAuthor($this->createUser())
+            ->setThread($thread)
             ->setContent('Commentaire approuvé sans cible publique.')
             ->setStatus(CommentStatus::Approved)
             ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
             ->setApprovedAt(new \DateTimeImmutable('-1 hour'));
-        $this->persistAndFlush($comment);
+        $this->persistAndFlush($thread, $comment);
         $notification = $this->createCommentReplyNotification($recipient, $comment);
         $client->loginUser($recipient);
 

@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\DataFixtures;
 
+use App\Contract\CommentableContentInterface;
 use App\Entity\Article;
+use App\Entity\CityVisitDraft;
 use App\Entity\Comment;
+use App\Entity\HikeDraft;
 use App\Entity\Place;
 use App\Entity\User;
 use App\Enum\CommentStatus;
@@ -35,6 +38,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
     public const ARTICLE_SECOND_REPLY_REFERENCE = 'comment.article.second-reply';
     public const PLACE_CERET_APPROVED_REFERENCE = 'comment.place.ceret-approved';
     public const PLACE_PAULILLES_APPROVED_REFERENCE = 'comment.place.paulilles-approved';
+    public const HIKE_APPROVED_REFERENCE = 'comment.hike.approved';
+    public const CITY_VISIT_APPROVED_REFERENCE = 'comment.city-visit.approved';
 
     public function load(ObjectManager $manager): void
     {
@@ -45,7 +50,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $approvedArticleComment = (new Comment())
             ->setAuthor($trusted)
-            ->setArticle($this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE))
+            ->setThread($this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE)->getCommentThread())
             ->setContent('Itinéraire testé hors saison : la montee au Fort Saint-Elme vaut vraiment l effort pour la vue.')
             ->setStatus(CommentStatus::Approved)
             ->setApprovedAt(new DateTimeImmutable('-7 days 10:00'))
@@ -60,7 +65,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $reply = (new Comment())
             ->setAuthor($admin)
-            ->setArticle($this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE))
+            ->setThread($this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE)->getCommentThread())
             ->setParent($approvedArticleComment)
             ->setContent('Merci pour le retour ! Le matin reste effectivement le meilleur moment pour profiter du panorama.')
             ->setStatus(CommentStatus::Approved)
@@ -76,7 +81,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $pendingArticleComment = (new Comment())
             ->setAuthor($user)
-            ->setArticle($this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE))
+            ->setThread($this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE)->getCommentThread())
             ->setContent('Est-ce que cet itineraire reste facile avec une poussette sur la partie vers le fort ?')
             ->setStatus(CommentStatus::Pending)
             ->setSpamScore(12)
@@ -88,7 +93,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $spamComment = (new Comment())
             ->setAuthor($user)
-            ->setArticle($this->getArticle(ArticleFixtures::BEST_PO_REFERENCE))
+            ->setThread($this->getArticle(ArticleFixtures::BEST_PO_REFERENCE)->getCommentThread())
             ->setContent('Casino crypto facile argent rapide cliquez ici pour gagner maintenant avec une offre douteuse.')
             ->setStatus(CommentStatus::Spam)
             ->setModerationReason('Score de spam eleve avec mots-cles promotionnels interdits.')
@@ -103,7 +108,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $deletedComment = (new Comment())
             ->setAuthor($user)
-            ->setArticle($this->getArticle(ArticleFixtures::FORT_SAINT_ELME_REFERENCE))
+            ->setThread($this->getArticle(ArticleFixtures::FORT_SAINT_ELME_REFERENCE)->getCommentThread())
             ->setContent('Commentaire supprimé par son auteur.')
             ->setStatus(CommentStatus::Deleted)
             ->setModeratedAt(new DateTimeImmutable('-4 days 15:00'))
@@ -116,7 +121,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $fortComment = (new Comment())
             ->setAuthor($trusted)
-            ->setPlace($this->getPlace(PlaceFixtures::FORT_SAINT_ELME_REFERENCE))
+            ->setThread($this->getPlace(PlaceFixtures::FORT_SAINT_ELME_REFERENCE)->getCommentThread())
             ->setContent('Tres belle visite, surtout pour les points de vue sur Collioure et Port-Vendres.')
             ->setStatus(CommentStatus::Approved)
             ->setApprovedAt(new DateTimeImmutable('-3 days 11:00'))
@@ -131,7 +136,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $plageComment = (new Comment())
             ->setAuthor($trusted)
-            ->setPlace($this->getPlace(PlaceFixtures::PLAGE_BORAMAR_REFERENCE))
+            ->setThread($this->getPlace(PlaceFixtures::PLAGE_BORAMAR_REFERENCE)->getCommentThread())
             ->setContent('Parfait pour une pause en fin de journee, mais il faut arriver tot en ete.')
             ->setStatus(CommentStatus::Approved)
             ->setApprovedAt(new DateTimeImmutable('-2 days 17:00'))
@@ -146,7 +151,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $lacPendingComment = (new Comment())
             ->setAuthor($user)
-            ->setPlace($this->getPlace(PlaceFixtures::LAC_BOUILLOUSES_REFERENCE))
+            ->setThread($this->getPlace(PlaceFixtures::LAC_BOUILLOUSES_REFERENCE)->getCommentThread())
             ->setContent('Les navettes sont-elles obligatoires en septembre pour acceder au lac ?')
             ->setStatus(CommentStatus::Pending)
             ->setSpamScore(8)
@@ -157,8 +162,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $popularComment = $this->approvedComment(
             author: $user,
-            article: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
-            content: 'Nous avons suivi ce parcours avec deux pauses et le timing etait parfait. Le passage par le port puis la montee progressive donne une bonne lecture de Collioure.',
+            content: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
+            body: 'Nous avons suivi ce parcours avec deux pauses et le timing etait parfait. Le passage par le port puis la montee progressive donne une bonne lecture de Collioure.',
             approvedAt: new DateTimeImmutable('-6 days 09:00'),
             admin: $admin,
         );
@@ -167,8 +172,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $pinnedComment = $this->approvedComment(
             author: $admin,
-            article: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
-            content: 'Note admin : en ete, partez tot et prevoyez de l eau. Ce commentaire est epingle pour tester la mise en avant.',
+            content: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
+            body: 'Note admin : en ete, partez tot et prevoyez de l eau. Ce commentaire est epingle pour tester la mise en avant.',
             approvedAt: new DateTimeImmutable('-5 days 12:00'),
             admin: $admin,
         )
@@ -179,8 +184,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $heartComment = $this->approvedComment(
             author: $trusted,
-            article: $this->getArticle(ArticleFixtures::BEST_PO_REFERENCE),
-            content: 'La selection donne envie de combiner mer et montagne sur trois jours, surtout avec le lac en fin de sejour.',
+            content: $this->getArticle(ArticleFixtures::BEST_PO_REFERENCE),
+            body: 'La selection donne envie de combiner mer et montagne sur trois jours, surtout avec le lac en fin de sejour.',
             approvedAt: new DateTimeImmutable('-5 days 15:00'),
             admin: $admin,
         )
@@ -191,8 +196,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $mentionComment = $this->approvedComment(
             author: $user,
-            article: $this->getArticle(ArticleFixtures::MEDITERRANEAN_HIKE_REFERENCE),
-            content: 'Merci @Randonneur Confiance pour les conseils sur l eau, c est exactement le point que je voulais verifier avant une sortie en mai.',
+            content: $this->getArticle(ArticleFixtures::MEDITERRANEAN_HIKE_REFERENCE),
+            body: 'Merci @Randonneur Confiance pour les conseils sur l eau, c est exactement le point que je voulais verifier avant une sortie en mai.',
             approvedAt: new DateTimeImmutable('-4 days 09:00'),
             admin: $admin,
         );
@@ -201,8 +206,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $longComment = $this->approvedComment(
             author: $noAvatar,
-            article: $this->getArticle(ArticleFixtures::LONG_ARTICLE_REFERENCE),
-            content: str_repeat('Retour tres detaille sur la cote Vermeille avec un accent sur les horaires, les pauses, les parkings et les alternatives sans voiture. ', 8),
+            content: $this->getArticle(ArticleFixtures::LONG_ARTICLE_REFERENCE),
+            body: str_repeat('Retour tres detaille sur la cote Vermeille avec un accent sur les horaires, les pauses, les parkings et les alternatives sans voiture. ', 8),
             approvedAt: new DateTimeImmutable('-3 days 10:00'),
             admin: $admin,
         );
@@ -211,8 +216,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $secondReply = $this->approvedComment(
             author: $trusted,
-            article: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
-            content: 'Je confirme, la poussette n est pas adaptee pour la montee vers le fort. Mieux vaut rester sur le front de mer avec de jeunes enfants.',
+            content: $this->getArticle(ArticleFixtures::COLLIOURE_ONE_DAY_REFERENCE),
+            body: 'Je confirme, la poussette n est pas adaptee pour la montee vers le fort. Mieux vaut rester sur le front de mer avec de jeunes enfants.',
             approvedAt: new DateTimeImmutable('-2 days 11:00'),
             admin: $admin,
         )->setParent($approvedArticleComment);
@@ -221,7 +226,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $ceretComment = (new Comment())
             ->setAuthor($trusted)
-            ->setPlace($this->getPlace(PlaceFixtures::MARCHE_CERET_REFERENCE))
+            ->setThread($this->getPlace(PlaceFixtures::MARCHE_CERET_REFERENCE)->getCommentThread())
             ->setContent('Le marche de Céret est un bon test pour les visites de ville et les lieux culturels hors littoral.')
             ->setStatus(CommentStatus::Approved)
             ->setApprovedAt(new DateTimeImmutable('-2 days 12:00'))
@@ -236,7 +241,7 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
 
         $paulillesComment = (new Comment())
             ->setAuthor($user)
-            ->setPlace($this->getPlace(PlaceFixtures::PLAGE_PAULILLES_REFERENCE))
+            ->setThread($this->getPlace(PlaceFixtures::PLAGE_PAULILLES_REFERENCE)->getCommentThread())
             ->setContent('Question pratique : le site reste-t-il agréable en semaine hors saison pour une pause après randonnée ?')
             ->setStatus(CommentStatus::Approved)
             ->setApprovedAt(new DateTimeImmutable('-1 day 12:00'))
@@ -249,6 +254,26 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
         $manager->persist($paulillesComment);
         $this->addReference(self::PLACE_PAULILLES_APPROVED_REFERENCE, $paulillesComment);
 
+        $hikeComment = $this->approvedComment(
+            author: $trusted,
+            content: $this->getHike(HikeFixtures::CANIGOU_REFERENCE),
+            body: 'Le parcours est très lisible et les étapes GPS rendent la préparation de la randonnée vraiment pratique.',
+            approvedAt: new DateTimeImmutable('-1 day 10:00'),
+            admin: $admin,
+        );
+        $manager->persist($hikeComment);
+        $this->addReference(self::HIKE_APPROVED_REFERENCE, $hikeComment);
+
+        $cityVisitComment = $this->approvedComment(
+            author: $user,
+            content: $this->getCityVisit(CityVisitFixtures::COLLIOURE_REFERENCE),
+            body: 'Cette visite à pied relie bien les principaux points du centre et donne envie de poursuivre la découverte.',
+            approvedAt: new DateTimeImmutable('-1 day 09:00'),
+            admin: $admin,
+        );
+        $manager->persist($cityVisitComment);
+        $this->addReference(self::CITY_VISIT_APPROVED_REFERENCE, $cityVisitComment);
+
         $manager->flush();
     }
 
@@ -258,6 +283,8 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
             UserFixtures::class,
             ArticleFixtures::class,
             PlaceFixtures::class,
+            HikeFixtures::class,
+            CityVisitFixtures::class,
         ];
     }
 
@@ -276,12 +303,28 @@ final class CommentFixtures extends Fixture implements DependentFixtureInterface
         return $this->getReference($reference, Place::class);
     }
 
-    private function approvedComment(User $author, Article $article, string $content, DateTimeImmutable $approvedAt, User $admin): Comment
+    private function getHike(string $reference): HikeDraft
+    {
+        return $this->getReference($reference, HikeDraft::class);
+    }
+
+    private function getCityVisit(string $reference): CityVisitDraft
+    {
+        return $this->getReference($reference, CityVisitDraft::class);
+    }
+
+    private function approvedComment(
+        User $author,
+        CommentableContentInterface $content,
+        string $body,
+        DateTimeImmutable $approvedAt,
+        User $admin,
+    ): Comment
     {
         return (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
-            ->setContent($content)
+            ->setThread($content->getCommentThread())
+            ->setContent($body)
             ->setStatus(CommentStatus::Approved)
             ->setApprovedAt($approvedAt)
             ->setPublishedAt($approvedAt->modify('-5 minutes'))

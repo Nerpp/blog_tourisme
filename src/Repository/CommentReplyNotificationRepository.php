@@ -39,12 +39,15 @@ class CommentReplyNotificationRepository extends ServiceEntityRepository
     {
         /** @var list<CommentReplyNotification> $notifications */
         $notifications = $this->createQueryBuilder('n')
-            ->addSelect('c', 'a', 'triggered_by', 'article', 'place')
+            ->addSelect('c', 'a', 'triggered_by', 'thread', 'article', 'place', 'hike', 'city_visit')
             ->innerJoin('n.comment', 'c')
             ->leftJoin('c.author', 'a')
             ->leftJoin('n.triggeredBy', 'triggered_by')
-            ->leftJoin('c.article', 'article')
-            ->leftJoin('c.place', 'place')
+            ->leftJoin('c.thread', 'thread')
+            ->leftJoin('thread.article', 'article')
+            ->leftJoin('thread.place', 'place')
+            ->leftJoin('thread.hike', 'hike')
+            ->leftJoin('thread.cityVisit', 'city_visit')
             ->andWhere('n.recipient = :recipient')
             ->andWhere('c.status = :approved')
             ->setParameter('recipient', $recipient)

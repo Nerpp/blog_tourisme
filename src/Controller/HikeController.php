@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\HikeDraft;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
+use App\Service\CommentSectionProvider;
 use App\Service\Hike\HikeGpxExporter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -55,7 +56,12 @@ final class HikeController extends AbstractController
     }
 
     #[Route('/randonnees/{slug}', name: 'app_hike_show', methods: ['GET'])]
-    public function show(string $slug, HikeDraftRepository $hikeDraftRepository): Response
+    public function show(
+        string $slug,
+        Request $request,
+        HikeDraftRepository $hikeDraftRepository,
+        CommentSectionProvider $commentSectionProvider,
+    ): Response
     {
         $hike = $hikeDraftRepository->findOneBySlugWithRelations($slug);
 
@@ -71,6 +77,9 @@ final class HikeController extends AbstractController
         $response = $this->render('hike/show.html.twig', [
             'hike' => $hike,
             'is_preview' => $isPreview,
+            'comment_section' => $isPreview
+                ? null
+                : $commentSectionProvider->provide($hike, $request, $this->getUser()),
         ]);
 
         if ($isPreview) {

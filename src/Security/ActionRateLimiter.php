@@ -22,7 +22,7 @@ final class ActionRateLimiter
 
     public function consumeCommentCreate(Request $request, User $user): RateLimit
     {
-        return $this->consume($this->commentCreateLimiter, $request, $user, 'comment_create');
+        return $this->consume($this->commentCreateLimiter, $request, $user, 'comment_create', false);
     }
 
     public function consumeCommentReport(Request $request, User $user): RateLimit
@@ -35,14 +35,22 @@ final class ActionRateLimiter
         return $this->consume($this->adminUploadLimiter, $request, $user, 'admin_upload');
     }
 
-    private function consume(RateLimiterFactoryInterface $limiter, Request $request, ?User $user, string $scope): RateLimit
+    private function consume(
+        RateLimiterFactoryInterface $limiter,
+        Request $request,
+        ?User $user,
+        string $scope,
+        bool $includeRoute = true,
+    ): RateLimit
     {
         $userKey = $user instanceof User
             ? sprintf('user:%s', $user->getId() ?? sha1($user->getUserIdentifier()))
             : 'anonymous';
         $ipKey = $request->getClientIp() ?? 'unknown-ip';
         $route = $request->attributes->get('_route');
-        $routeKey = is_string($route) && $route !== '' ? $route : $request->getPathInfo();
+        $routeKey = !$includeRoute
+            ? $scope
+            : (is_string($route) && $route !== '' ? $route : $request->getPathInfo());
 
         return $limiter
             ->create(hash('sha256', sprintf('%s|%s|%s|%s', $scope, $userKey, $ipKey, $routeKey)))

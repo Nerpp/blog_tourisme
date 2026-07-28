@@ -1,13 +1,19 @@
+{% set media = media|default(null) %}
 {% set image_mode = image_mode|default('responsive') %}
 {% set image_size = image_mode == 'card_thumbnail' ? 'thumb' : image_size|default('thumb') %}
 {% set display_profile = display_profile|default(null) %}
-{% set image_src = display_profile ? media_display_image_url(media, display_profile) : media_image_url(media, image_size) %}
-{% set is_standard_image = media.mediaType.value == 'image' and media.imageType and media.imageType.value == 'standard' %}
-{% set avif_srcset = is_standard_image ? null : media_image_srcset(media, 'avif') %}
-{% set webp_srcset = display_profile ? media_display_image_srcset(media, display_profile) : media_image_srcset(media, 'webp') %}
-{% set fallback_srcset = is_standard_image ? null : media_image_srcset(media, 'fallback') %}
+{% set placeholder_src = asset('images/placeholders/destination-card-placeholder.webp') %}
+{% set resolved_image_src = media ? (display_profile ? media_display_image_url(media, display_profile) : media_image_url(media, image_size)) : null %}
+{% set image_src = resolved_image_src ?: placeholder_src %}
+{% set is_standard_image = not media or (media.mediaType.value == 'image' and media.imageType and media.imageType.value == 'standard') %}
+{% set avif_srcset = media and not is_standard_image ? media_image_srcset(media, 'avif') : null %}
+{% set webp_srcset = media ? (display_profile ? media_display_image_srcset(media, display_profile) : media_image_srcset(media, 'webp')) : null %}
+{% set fallback_srcset = media and not is_standard_image ? media_image_srcset(media, 'fallback') : null %}
 {% set img_srcset = is_standard_image ? webp_srcset : fallback_srcset %}
-{% set dimensions = display_profile ? media_display_image_dimensions(media, display_profile) : media_image_dimensions(media, image_size) %}
+{% set dimensions = media
+    ? (display_profile ? media_display_image_dimensions(media, display_profile) : media_image_dimensions(media, image_size))
+    : { width: 2200, height: 1238 }
+%}
 
 {% if image_src %}
     {% if image_mode == 'card_thumbnail' %}

@@ -96,6 +96,11 @@ final class ArticleControllerTest extends FunctionalTestCase
             'Article : lire '.$article->getTitle(),
             $crawler->filter('.article-list-card__visual')->attr('aria-label'),
         );
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $crawler->filter('.article-list-card__visual picture > img.article-list-card__image')->attr('src'),
+        );
+        self::assertSame(1, $crawler->filter('.article-list-card__visual > picture')->count());
     }
 
     public function testArticleIndexDoesNotListDraftArticles(): void
@@ -116,6 +121,35 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $published->getTitle());
         self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
+    }
+
+    public function testArticleIndexDisplaysTheTotalPublicCountForAnAdministrator(): void
+    {
+        $client = static::createClient();
+        $token = $this->uniqueToken('public-counter');
+        $admin = $this->createVerifiedAdmin();
+
+        for ($index = 1; $index <= 5; ++$index) {
+            $article = $this->createArticle($admin)
+                ->setTitle(sprintf('Article compteur %s %d', $token, $index));
+            $this->persistAndFlush($article);
+        }
+
+        foreach ([ContentStatus::Draft, ContentStatus::Archived, ContentStatus::PrivateContent] as $index => $status) {
+            $hidden = $this->createArticle($admin)
+                ->setTitle(sprintf('Article compteur masqué %s %d', $token, $index))
+                ->setStatus($status)
+                ->setPublishedAt(null);
+            $this->persistAndFlush($hidden);
+        }
+
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', '/articles?q='.rawurlencode($token));
+
+        self::assertResponseIsSuccessful();
+        self::assertSame('5 articles', trim($crawler->filter('[data-testid="article-count"]')->text()));
+        self::assertCount(5, $crawler->filter('[data-public-list-card]'));
+        self::assertStringNotContainsString('Article compteur masqué', (string) $client->getResponse()->getContent());
     }
 
     public function testArticleIndexSearchFiltersCaseInsensitively(): void
@@ -369,6 +403,11 @@ final class ArticleControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertSame(1, $cover->filter('picture.article-show-cover__picture')->count());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $cover->filter('picture.article-show-cover__picture > img.article-show-cover__image')->attr('src'),
+        );
         self::assertSame(0, $crawler->filter('.article-gallery-section')->count());
     }
 
@@ -422,6 +461,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
 
         self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('.article-show-cover > picture.article-show-cover__picture')->count());
         $coverImage = $crawler->filter('.article-show-cover picture img')->first();
         self::assertSame('/uploads/media/variants/article-cover-mobile.webp', $coverImage->attr('src'));
         self::assertSame('eager', $coverImage->attr('loading'));

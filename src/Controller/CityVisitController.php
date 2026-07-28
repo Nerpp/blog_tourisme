@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\CityVisitDraft;
 use App\Repository\CityVisitDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
+use App\Service\CommentSectionProvider;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -53,7 +54,12 @@ final class CityVisitController extends AbstractController
     }
 
     #[Route('/visites-de-ville/{slug}', name: 'app_city_visit_show', methods: ['GET'])]
-    public function show(string $slug, CityVisitDraftRepository $cityVisitDraftRepository): Response
+    public function show(
+        string $slug,
+        Request $request,
+        CityVisitDraftRepository $cityVisitDraftRepository,
+        CommentSectionProvider $commentSectionProvider,
+    ): Response
     {
         $cityVisit = $cityVisitDraftRepository->findOneBySlugWithRelations($slug);
 
@@ -69,6 +75,9 @@ final class CityVisitController extends AbstractController
         $response = $this->render('city_visit/show.html.twig', [
             'city_visit' => $cityVisit,
             'is_preview' => $isPreview,
+            'comment_section' => $isPreview
+                ? null
+                : $commentSectionProvider->provide($cityVisit, $request, $this->getUser()),
         ]);
 
         if ($isPreview) {

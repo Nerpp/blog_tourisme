@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Article;
 use App\Entity\Comment;
+use App\Entity\CommentThread;
 use App\Entity\Place;
 use App\Entity\User;
 use App\Enum\CommentReportStatus;
@@ -24,17 +25,35 @@ class CommentRepository extends ServiceEntityRepository
     /** @return list<Comment> */
     public function findApprovedForArticle(Article $article, ?User $viewer = null, string $sort = 'recent'): array
     {
-        $commentIds = $this->findVisibleRootIds('article', $article, $sort);
-
-        return $this->findVisibleCommentsByRootIds($commentIds);
+        return $this->findApprovedForThread($article->getCommentThread(), $viewer, $sort);
     }
 
     /** @return list<Comment> */
     public function findApprovedForPlace(Place $place, ?User $viewer = null, string $sort = 'recent'): array
     {
-        $commentIds = $this->findVisibleRootIds('place', $place, $sort);
+        return $this->findApprovedForThread($place->getCommentThread(), $viewer, $sort);
+    }
+
+    /** @return list<Comment> */
+    public function findApprovedForThread(CommentThread $thread, ?User $viewer = null, string $sort = 'recent'): array
+    {
+        $commentIds = $this->findVisibleRootIds($thread, $sort);
 
         return $this->findVisibleCommentsByRootIds($commentIds);
+    }
+
+    public function countVisibleForThread(CommentThread $thread): int
+    {
+        return (int) $this->createQueryBuilder('c')
+            ->select('COUNT(c.id)')
+            ->leftJoin('c.parent', 'parent')
+            ->andWhere('c.thread = :thread')
+            ->andWhere('c.status = :approved')
+            ->andWhere('c.parent IS NULL OR parent.status = :approved')
+            ->setParameter('thread', $thread)
+            ->setParameter('approved', CommentStatus::Approved)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     /** @return list<Comment> */
@@ -237,19 +256,16 @@ class CommentRepository extends ServiceEntityRepository
         return (int) $queryBuilder->getQuery()->getSingleScalarResult() > 0;
     }
 
-    /**
-     * @param 'article'|'place' $targetField
-     * @return list<int>
-     */
-    private function findVisibleRootIds(string $targetField, Article|Place $target, string $sort): array
+    /** @return list<int> */
+    private function findVisibleRootIds(CommentThread $thread, string $sort): array
     {
         $queryBuilder = $this->createQueryBuilder('c')
             ->select('c.id')
             ->leftJoin('c.likes', 'sort_like')
-            ->andWhere(sprintf('c.%s = :target', $targetField))
+            ->andWhere('c.thread = :thread')
             ->andWhere('c.parent IS NULL')
             ->andWhere('c.status = :approved')
-            ->setParameter('target', $target)
+            ->setParameter('thread', $thread)
             ->setParameter('approved', CommentStatus::Approved)
             ->groupBy('c.id')
             ->addGroupBy('c.pinnedAt')
@@ -346,10 +362,13 @@ class CommentRepository extends ServiceEntityRepository
     private function createModerationQueryBuilder(): QueryBuilder
     {
         return $this->createQueryBuilder('c')
-            ->select('DISTINCT c, author, article, place, reports, reporter')
+            ->select('DISTINCT c, author, thread, article, place, hike, city_visit, reports, reporter')
             ->leftJoin('c.author', 'author')
-            ->leftJoin('c.article', 'article')
-            ->leftJoin('c.place', 'place')
+            ->leftJoin('c.thread', 'thread')
+            ->leftJoin('thread.article', 'article')
+            ->leftJoin('thread.place', 'place')
+            ->leftJoin('thread.hike', 'hike')
+            ->leftJoin('thread.cityVisit', 'city_visit')
             ->leftJoin('c.reports', 'reports')
             ->leftJoin('reports.reporter', 'reporter');
     }

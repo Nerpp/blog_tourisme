@@ -71,6 +71,7 @@ final class PublicNavigationPantherTest extends PantherTestCase
             'assets/entries/public-listing.js',
             'assets/entries/public-detail.js',
             'assets/entries/comments.js',
+            'assets/styles/comments.css',
         );
         $this->assertNoBrowserSevereErrors($client);
 

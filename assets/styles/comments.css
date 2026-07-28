@@ -6,6 +6,10 @@
   background: #fff;
 }
 
+.public-detail-comments {
+  padding-bottom: 64px;
+}
+
 .avatar--comment {
   width: 36px;
   height: 36px;

@@ -254,8 +254,7 @@ final class AdminPlaceControllerTest extends FunctionalTestCase
         $place->setFeaturedImage($media);
         $article = $this->createArticle($admin);
         $comment = $this->createComment($admin, $article)
-            ->setArticle(null)
-            ->setPlace($place);
+            ->setThread($place->getCommentThread());
         $this->persistAndFlush($place, $comment);
         $placeId = $place->getId();
         $mediaId = $media->getId();
@@ -273,6 +272,6 @@ final class AdminPlaceControllerTest extends FunctionalTestCase
         self::assertNull($this->entityManager()->find(\App\Entity\MediaAsset::class, $mediaId));
         $storedComment = $this->entityManager()->find(\App\Entity\Comment::class, $commentId);
         self::assertInstanceOf(\App\Entity\Comment::class, $storedComment);
-        self::assertNull($storedComment->getPlace());
+        self::assertNull($storedComment->getThread()?->getContent());
     }
 }

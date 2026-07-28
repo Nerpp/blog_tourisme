@@ -49,6 +49,7 @@ final class PublicListingsPantherTest extends PantherTestCase
             'assets/entries/public-detail.js',
             'assets/entries/article-show.js',
             'assets/entries/comments.js',
+            'assets/styles/comments.css',
         );
 
         $webDriver = $client->getWebDriver();

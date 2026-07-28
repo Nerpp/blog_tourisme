@@ -8,12 +8,10 @@ use App\Entity\HikeDraft;
 use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\HikeDraftStatus;
-use App\Enum\ImageType;
-use App\Enum\MediaRole;
-use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
+use App\Service\Media\ContentImageResolver;
 
 /**
  * @phpstan-type LatestContentItem array{
@@ -32,13 +30,12 @@ use App\Repository\HikeDraftRepository;
  */
 final readonly class HomepageLatestContentProvider
 {
-    private const IMAGE_PLACEHOLDER = '/images/placeholders/destination-card-placeholder.webp';
-
     public function __construct(
         private ArticleRepository $articleRepository,
         private HikeDraftRepository $hikeDraftRepository,
         private CityVisitDraftRepository $cityVisitDraftRepository,
         private PublicContentUrlResolver $urlResolver,
+        private ContentImageResolver $contentImageResolver,
     ) {}
 
     /** @return LatestContentItem|null */
@@ -79,7 +76,7 @@ final readonly class HomepageLatestContentProvider
         if ($linkedHike instanceof HikeDraft) {
             $hikeUrl = $this->urlResolver->hikeUrl($linkedHike);
             if ($hikeUrl !== null) {
-                $media = $this->mainImageFromLinks($linkedHike->getMediaLinks());
+                $media = $this->contentImageResolver->resolve($linkedHike, standardOnly: true);
 
                 return [
                     'type' => 'hike',
@@ -101,7 +98,7 @@ final readonly class HomepageLatestContentProvider
         if ($linkedCityVisit instanceof CityVisitDraft) {
             $cityVisitUrl = $this->urlResolver->cityVisitUrl($linkedCityVisit);
             if ($cityVisitUrl !== null) {
-                $media = $this->mainImageFromLinks($linkedCityVisit->getMediaLinks());
+                $media = $this->contentImageResolver->resolve($linkedCityVisit, standardOnly: true);
 
                 return [
                     'type' => 'city_visit',
@@ -119,7 +116,7 @@ final readonly class HomepageLatestContentProvider
             }
         }
 
-        $media = $this->mainImageFromLinks($article->getMediaLinks(), $article->getFeaturedImage());
+        $media = $this->contentImageResolver->resolve($article, standardOnly: true);
 
         return [
             'type' => 'article',
@@ -146,7 +143,7 @@ final readonly class HomepageLatestContentProvider
             return null;
         }
 
-        $media = $this->mainImageFromLinks($hike->getMediaLinks());
+        $media = $this->contentImageResolver->resolve($hike, standardOnly: true);
 
         return [
             'type' => 'hike',
@@ -173,7 +170,7 @@ final readonly class HomepageLatestContentProvider
             return null;
         }
 
-        $media = $this->mainImageFromLinks($cityVisit->getMediaLinks());
+        $media = $this->contentImageResolver->resolve($cityVisit, standardOnly: true);
 
         return [
             'type' => 'city_visit',
@@ -217,37 +214,10 @@ final readonly class HomepageLatestContentProvider
         return null;
     }
 
-    /** @param iterable<object> $mediaLinks */
-    private function mainImageFromLinks(iterable $mediaLinks, ?MediaAsset $featuredImage = null): ?MediaAsset
-    {
-        $fallback = $featuredImage instanceof MediaAsset && $this->isStandardImage($featuredImage)
-            ? $featuredImage
-            : null;
-
-        foreach ($mediaLinks as $mediaLink) {
-            if (!method_exists($mediaLink, 'getMediaAsset') || !method_exists($mediaLink, 'getRole')) {
-                continue;
-            }
-
-            $media = $mediaLink->getMediaAsset();
-            if (!$media instanceof MediaAsset || !$this->isStandardImage($media)) {
-                continue;
-            }
-
-            if ($mediaLink->getRole() === MediaRole::Cover) {
-                return $media;
-            }
-
-            $fallback ??= $media;
-        }
-
-        return $fallback;
-    }
-
-    private function resolveMediaPath(?MediaAsset $mediaAsset): ?string
+    private function resolveMediaPath(?MediaAsset $mediaAsset): string
     {
         if ($mediaAsset === null) {
-            return null;
+            return '/'.ContentImageResolver::PLACEHOLDER_ASSET;
         }
 
         $variants = $mediaAsset->getVariants();
@@ -259,12 +229,6 @@ final readonly class HomepageLatestContentProvider
 
         return is_string($variantPath) && $variantPath !== ''
             ? $variantPath
-            : self::IMAGE_PLACEHOLDER;
-    }
-
-    private function isStandardImage(MediaAsset $mediaAsset): bool
-    {
-        return $mediaAsset->getMediaType() === MediaType::Image
-            && $mediaAsset->getImageType() === ImageType::Standard;
+            : '/'.ContentImageResolver::PLACEHOLDER_ASSET;
     }
 }

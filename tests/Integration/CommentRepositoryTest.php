@@ -150,11 +150,11 @@ final class CommentRepositoryTest extends IntegrationTestCase
 
         $probe = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setContent((string) $existing->getContent());
         $emptyProbe = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setContent('   ');
 
         self::assertTrue($this->repository()->hasRecentDuplicate($probe, $since));
@@ -190,7 +190,7 @@ final class CommentRepositoryTest extends IntegrationTestCase
 
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setParent($parent)
             ->setContent($content.' '.$this->uniqueToken('comment'))
             ->setStatus($status);

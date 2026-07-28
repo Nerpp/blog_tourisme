@@ -80,14 +80,14 @@ class DestinationRepository extends ServiceEntityRepository
         $childrenMap = $this->buildChildrenMap($destinations);
         $directCounts = [];
         $places = $this->countPublishedPlacesByDestinationIds($destinationIds);
-        $articles = $this->countPublishedArticlesByDestinationIds($destinationIds);
+        $articleIds = $this->findPublishedArticleIdsByDestinationIds($destinationIds);
         $hikes = $this->countPublicHikesByDestinationIds($destinationIds);
         $cityVisits = $this->countPublicCityVisitsByDestinationIds($destinationIds);
 
         foreach ($destinationIds as $destinationId) {
             $directCounts[$destinationId] = [
                 'places' => $places[$destinationId] ?? 0,
-                'articles' => $articles[$destinationId] ?? 0,
+                'articles' => 0,
                 'hikes' => $hikes[$destinationId] ?? 0,
                 'city_visits' => $cityVisits[$destinationId] ?? 0,
                 'total' => 0,
@@ -99,8 +99,16 @@ class DestinationRepository extends ServiceEntityRepository
         }
 
         $memo = [];
+        $articleIdMemo = [];
         foreach ($destinationIds as $destinationId) {
-            $this->computeCumulativeCounts($destinationId, $childrenMap, $directCounts, $memo);
+            $this->computeCumulativeCounts(
+                $destinationId,
+                $childrenMap,
+                $directCounts,
+                $articleIds,
+                $memo,
+                $articleIdMemo,
+            );
         }
 
         return $memo;
@@ -464,19 +472,18 @@ class DestinationRepository extends ServiceEntityRepository
     /**
      * @param list<int> $destinationIds
      *
-     * @return array<int, int>
+     * @return array<int, array<int, true>>
      */
-    private function countPublishedArticlesByDestinationIds(array $destinationIds): array
+    private function findPublishedArticleIdsByDestinationIds(array $destinationIds): array
     {
-        /** @var list<array{destination_id: int|string, content_count: int|string}> $rows */
+        /** @var list<array{destination_id: int|string, article_id: int|string}> $rows */
         $rows = $this->getEntityManager()->getConnection()->executeQuery(
             <<<'SQL'
-                SELECT ad.destination_id, COUNT(DISTINCT a.id) AS content_count
+                SELECT ad.destination_id, a.id AS article_id
                 FROM article_destination ad
                 INNER JOIN article a ON a.id = ad.article_id
                 WHERE ad.destination_id IN (:destinationIds)
                 AND a.status = :status
-                GROUP BY ad.destination_id
             SQL,
             [
                 'destinationIds' => $destinationIds,
@@ -487,7 +494,13 @@ class DestinationRepository extends ServiceEntityRepository
             ],
         )->fetchAllAssociative();
 
-        return $this->mapCountRowsByDestinationId($rows);
+        $articleIds = [];
+
+        foreach ($rows as $row) {
+            $articleIds[(int) $row['destination_id']][(int) $row['article_id']] = true;
+        }
+
+        return $articleIds;
     }
 
     /**
@@ -573,11 +586,20 @@ class DestinationRepository extends ServiceEntityRepository
     /**
      * @param array<int, list<int>> $childrenMap
      * @param array<int, array{places: int, articles: int, hikes: int, city_visits: int, total: int}> $directCounts
+     * @param array<int, array<int, true>> $directArticleIds
      * @param array<int, array{places: int, articles: int, hikes: int, city_visits: int, total: int}> $memo
+     * @param array<int, array<int, true>> $articleIdMemo
      *
      * @return array{places: int, articles: int, hikes: int, city_visits: int, total: int}
      */
-    private function computeCumulativeCounts(int $destinationId, array $childrenMap, array $directCounts, array &$memo): array
+    private function computeCumulativeCounts(
+        int $destinationId,
+        array $childrenMap,
+        array $directCounts,
+        array $directArticleIds,
+        array &$memo,
+        array &$articleIdMemo,
+    ): array
     {
         if (isset($memo[$destinationId])) {
             return $memo[$destinationId];
@@ -590,16 +612,29 @@ class DestinationRepository extends ServiceEntityRepository
             'city_visits' => 0,
             'total' => 0,
         ];
+        $articleIds = $directArticleIds[$destinationId] ?? [];
 
         foreach ($childrenMap[$destinationId] ?? [] as $childId) {
-            $childCounts = $this->computeCumulativeCounts($childId, $childrenMap, $directCounts, $memo);
+            $childCounts = $this->computeCumulativeCounts(
+                $childId,
+                $childrenMap,
+                $directCounts,
+                $directArticleIds,
+                $memo,
+                $articleIdMemo,
+            );
             $counts['places'] += $childCounts['places'];
-            $counts['articles'] += $childCounts['articles'];
             $counts['hikes'] += $childCounts['hikes'];
             $counts['city_visits'] += $childCounts['city_visits'];
+
+            foreach (array_keys($articleIdMemo[$childId] ?? []) as $articleId) {
+                $articleIds[$articleId] = true;
+            }
         }
 
+        $counts['articles'] = count($articleIds);
         $counts['total'] = $counts['places'] + $counts['articles'] + $counts['hikes'] + $counts['city_visits'];
+        $articleIdMemo[$destinationId] = $articleIds;
         $memo[$destinationId] = $counts;
 
         return $counts;

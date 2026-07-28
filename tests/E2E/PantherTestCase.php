@@ -52,7 +52,7 @@ abstract class PantherTestCase extends BasePantherTestCase
             'HOME' => '/tmp',
             'XDG_CACHE_HOME' => '/tmp/panther-cache',
             'XDG_CONFIG_HOME' => '/tmp/panther-config',
-            'PANTHER_CHROME_BINARY' => '/usr/bin/chromium',
+            'PANTHER_CHROME_BINARY' => '/opt/chrome-for-testing/chrome-linux64/chrome',
         ];
 
         foreach ($defaults as $name => $default) {
@@ -163,6 +163,41 @@ abstract class PantherTestCase extends BasePantherTestCase
         );
     }
 
+    protected function assertPageRequestedBuiltStyles(Client $client, string ...$entries): void
+    {
+        $requestedAssetUrls = $this->requestedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            foreach ($this->manifestStyleUrls($entry) as $assetUrl) {
+                self::assertContains($assetUrl, $requestedAssetUrls, sprintf('Expected stylesheet request "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+    }
+
+    protected function assertPageRequestedBuiltScripts(Client $client, string ...$entries): void
+    {
+        $requestedAssetUrls = $this->requestedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            $assetUrl = $this->manifestScriptUrl($entry);
+            if ($assetUrl !== null) {
+                self::assertContains($assetUrl, $requestedAssetUrls, sprintf('Expected script request "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+    }
+
+    protected function assertPageDidNotRequestBuiltScripts(Client $client, string ...$entries): void
+    {
+        $requestedAssetUrls = $this->requestedBuildAssetUrls($client->getWebDriver());
+
+        foreach ($entries as $entry) {
+            $assetUrl = $this->manifestScriptUrl($entry);
+            if ($assetUrl !== null) {
+                self::assertNotContains($assetUrl, $requestedAssetUrls, sprintf('Unexpected script request "%s" for entry "%s".', $assetUrl, $entry));
+            }
+        }
+    }
+
     protected function assertPageDoesNotHaveBuiltScripts(Client $client, string ...$entries): void
     {
         $renderedAssetUrls = $this->renderedBuildAssetUrls($client->getWebDriver());
@@ -231,12 +266,31 @@ abstract class PantherTestCase extends BasePantherTestCase
     /**
      * @return list<string>
      */
+    private function requestedBuildAssetUrls(RemoteWebDriver $webDriver): array
+    {
+        /** @var list<string> $urls */
+        $urls = $webDriver->executeScript(<<<'JS'
+            return performance.getEntriesByType('resource')
+                .map((entry) => new URL(entry.name).pathname)
+                .filter((path) => path.startsWith('/build/'));
+        JS);
+
+        return array_values(array_unique($urls));
+    }
+
+    /**
+     * @return list<string>
+     */
     private function manifestStyleUrls(string $entry): array
     {
         $chunk = $this->manifest()[$entry] ?? null;
         self::assertIsArray($chunk, sprintf('Missing Vite manifest entry "%s".', $entry));
 
         $urls = [];
+
+        if (isset($chunk['file']) && is_string($chunk['file']) && str_ends_with($chunk['file'], '.css')) {
+            $urls[] = '/build/'.$chunk['file'];
+        }
 
         foreach ($chunk['css'] ?? [] as $cssFile) {
             self::assertIsString($cssFile);

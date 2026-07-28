@@ -2,7 +2,7 @@ COMPOSE ?= docker compose
 SURVEY_AFTER_MERGE ?= 1
 
 .PHONY: setup build up composer-install composer-update-patch node-install node-build node-dev \
-	test-db-reset test test-all quality e2e quality-e2e coverage \
+	test-db-reset test test-all quality panther-doctor panther-browser-check e2e quality-e2e coverage \
 	work-start work-to-dev prod-secrets-sync prod-redeploy survey
 
 setup: build up composer-install node-install node-build
@@ -39,11 +39,21 @@ quality:
 	$(MAKE) test-db-reset
 	$(COMPOSE) exec -e SKIP_TEST_DB_RESET=1 php composer quality
 
+panther-doctor:
+	$(COMPOSE) exec -T php timeout --signal=TERM --kill-after=2s 15s sh /var/www/html/scripts/panther-doctor.sh
+
+panther-browser-check:
+	$(COMPOSE) exec -T php timeout --signal=TERM --kill-after=2s 25s sh /var/www/html/scripts/panther-browser-check.sh
+
 e2e:
+	$(MAKE) panther-doctor
+	$(MAKE) panther-browser-check
 	$(MAKE) test-db-reset
 	$(COMPOSE) exec -e SKIP_TEST_DB_RESET=1 php composer test:e2e
 
 quality-e2e:
+	$(MAKE) panther-doctor
+	$(MAKE) panther-browser-check
 	$(MAKE) test-db-reset
 	$(COMPOSE) exec -e SKIP_TEST_DB_RESET=1 php composer quality
 	$(MAKE) test-db-reset
@@ -54,6 +64,8 @@ coverage:
 	$(COMPOSE) exec -e SKIP_TEST_DB_RESET=1 -e XDEBUG_MODE=coverage php composer test:coverage
 
 test-all:
+	$(MAKE) panther-doctor
+	$(MAKE) panther-browser-check
 	$(COMPOSE) exec -T php composer validate --strict
 	$(COMPOSE) exec -T php composer audit
 	$(COMPOSE) exec -T php php bin/console lint:container

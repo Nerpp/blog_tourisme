@@ -90,7 +90,7 @@ final class CommentLikeRepositoryTest extends IntegrationTestCase
     {
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setContent($content)
             ->setStatus(CommentStatus::Approved)
             ->setPublishedAt(new \DateTimeImmutable('-1 hour'))

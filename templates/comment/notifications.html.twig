@@ -1,4 +1,5 @@
 {% extends 'layouts/comments.html.twig' %}
+{% set comment_styles_required = true %}
 
 {% block title %}Notifications commentaires - Blog Tourisme{% endblock %}
 
@@ -25,6 +26,7 @@
                 {% for notification in notifications %}
                     {% set comment = notification.comment %}
                     {% set author = notification.triggeredBy ?: comment.author %}
+                    {% set target = comment.thread.content|default(null) %}
                     {% set is_unread = notification.id in unread_notification_ids %}
                     <article class="comment-notification {{ notification.id in unread_notification_ids ? 'is-unread' : '' }}">
                         <div>
@@ -38,10 +40,8 @@
                             </p>
                             <p class="comment-notification__meta">
                                 {{ notification.createdAt ? notification.createdAt|date('d/m/Y H:i') : '' }}
-                                {% if comment.article %}
-                                    · {{ comment.article.title }}
-                                {% elseif comment.place %}
-                                    · {{ comment.place.name }}
+                                {% if target %}
+                                    · {{ target.commentableTitle }}
                                 {% endif %}
                             </p>
                             <p class="comment-notification__excerpt">

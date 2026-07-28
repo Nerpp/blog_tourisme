@@ -5,6 +5,7 @@ namespace App\Twig;
 use App\Entity\MediaAsset;
 use App\Enum\ImageType;
 use App\Enum\MediaType;
+use App\Service\Media\ContentImageResolver;
 use App\Service\Media\MediaSeoTextService;
 use Symfony\Component\Asset\Packages;
 use Twig\Extension\AbstractExtension;
@@ -50,8 +51,6 @@ final class MediaImageExtension extends AbstractExtension
         'content' => ['thumb', 'mobile', 'medium', 'large'],
         'thumbnail' => ['thumb', 'mobile', 'medium'],
     ];
-    private const IMAGE_PLACEHOLDER = '/images/placeholders/destination-card-placeholder.webp';
-
     public function __construct(
         private readonly Packages $packages,
         private readonly MediaSeoTextService $mediaSeoTextService,
@@ -106,7 +105,7 @@ final class MediaImageExtension extends AbstractExtension
                 $this->variantPath($media->getVariants(), $size, 'webp')
                     ?? $media->getThumbnailPath()
                     ?? $media->getExternalUrl()
-                    ?? self::IMAGE_PLACEHOLDER,
+                    ?? '/'.ContentImageResolver::PLACEHOLDER_ASSET,
             );
         }
 
@@ -115,7 +114,7 @@ final class MediaImageExtension extends AbstractExtension
                 ?? $media->getThumbnailPath()
                 ?? $media->getExternalUrl()
                 ?? $this->specialImageFilePath($media)
-                ?? self::IMAGE_PLACEHOLDER,
+                ?? '/'.ContentImageResolver::PLACEHOLDER_ASSET,
         );
     }
 
@@ -131,7 +130,7 @@ final class MediaImageExtension extends AbstractExtension
                 ?? $this->specialImageFilePath($media)
                 ?? $media->getExternalUrl()
                 ?? $media->getThumbnailPath()
-                ?? self::IMAGE_PLACEHOLDER,
+                ?? '/'.ContentImageResolver::PLACEHOLDER_ASSET,
         );
     }
 

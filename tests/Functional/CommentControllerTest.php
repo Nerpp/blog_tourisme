@@ -50,7 +50,7 @@ final class CommentControllerTest extends FunctionalTestCase
         );
 
         $comment = $this->entityManager()->getRepository(Comment::class)->findOneBy([
-            'article' => $article,
+            'thread' => $article->getCommentThread(),
             'author' => $author,
         ]);
         self::assertInstanceOf(Comment::class, $comment);
@@ -86,7 +86,7 @@ final class CommentControllerTest extends FunctionalTestCase
         );
 
         $comment = $this->entityManager()->getRepository(Comment::class)->findOneBy([
-            'place' => $place,
+            'thread' => $place->getCommentThread(),
             'author' => $author,
         ]);
         self::assertInstanceOf(Comment::class, $comment);
@@ -105,7 +105,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['place' => $place]);
+        $before = $repository->count(['thread' => $place->getCommentThread()]);
 
         $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
             'comment' => [
@@ -114,7 +114,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/places/%s#comments', $place->getSlug()));
-        self::assertSame($before, $repository->count(['place' => $place]));
+        self::assertSame($before, $repository->count(['thread' => $place->getCommentThread()]));
     }
 
     public function testPlaceCommentWithoutSubmittedFormIsRejected(): void
@@ -125,14 +125,14 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['place' => $place]);
+        $before = $repository->count(['thread' => $place->getCommentThread()]);
 
         $client->request('POST', sprintf('/places/%s/comments', $place->getSlug()), [
             'content' => 'Payload de lieu sans nom de formulaire commentaire.',
         ]);
 
         self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
-        self::assertSame($before, $repository->count(['place' => $place]));
+        self::assertSame($before, $repository->count(['thread' => $place->getCommentThread()]));
     }
 
     public function testUnverifiedUserCannotPostArticleComment(): void
@@ -143,7 +143,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['article' => $article]);
+        $before = $repository->count(['thread' => $article->getCommentThread()]);
 
         $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
             'comment' => [
@@ -152,7 +152,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
-        self::assertSame($before, $repository->count(['article' => $article]));
+        self::assertSame($before, $repository->count(['thread' => $article->getCommentThread()]));
     }
 
     public function testArticleCommentWithoutSubmittedFormIsRejected(): void
@@ -163,14 +163,14 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['article' => $article]);
+        $before = $repository->count(['thread' => $article->getCommentThread()]);
 
         $client->request('POST', sprintf('/articles/%s/comments', $article->getSlug()), [
             'content' => 'Payload sans nom de formulaire commentaire.',
         ]);
 
         self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
-        self::assertSame($before, $repository->count(['article' => $article]));
+        self::assertSame($before, $repository->count(['thread' => $article->getCommentThread()]));
     }
 
     public function testCommentingUnknownArticleReturnsNotFound(): void
@@ -398,7 +398,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['article' => $article]);
+        $before = $repository->count(['thread' => $article->getCommentThread()]);
 
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
         self::assertResponseIsSuccessful();
@@ -411,7 +411,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
-        self::assertSame($before, $repository->count(['article' => $article]));
+        self::assertSame($before, $repository->count(['thread' => $article->getCommentThread()]));
     }
 
     public function testInvalidPlaceCommentIsRejected(): void
@@ -422,7 +422,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['place' => $place]);
+        $before = $repository->count(['thread' => $place->getCommentThread()]);
 
         $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
         self::assertResponseIsSuccessful();
@@ -435,7 +435,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
-        self::assertSame($before, $repository->count(['place' => $place]));
+        self::assertSame($before, $repository->count(['thread' => $place->getCommentThread()]));
     }
 
     public function testHoneypotFilledArticleCommentIsRejected(): void
@@ -446,7 +446,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['article' => $article]);
+        $before = $repository->count(['thread' => $article->getCommentThread()]);
 
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
         self::assertResponseIsSuccessful();
@@ -460,7 +460,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
-        self::assertSame($before, $repository->count(['article' => $article]));
+        self::assertSame($before, $repository->count(['thread' => $article->getCommentThread()]));
     }
 
     public function testCommentWithTooManyLinksIsRejected(): void
@@ -471,7 +471,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['article' => $article]);
+        $before = $repository->count(['thread' => $article->getCommentThread()]);
 
         $crawler = $client->request('GET', sprintf('/articles/%s', $article->getSlug()));
         self::assertResponseIsSuccessful();
@@ -484,7 +484,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
-        self::assertSame($before, $repository->count(['article' => $article]));
+        self::assertSame($before, $repository->count(['thread' => $article->getCommentThread()]));
     }
 
     public function testPlaceCommentWithTooManyLinksIsRejected(): void
@@ -495,7 +495,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $client->loginUser($author);
         $repository = $this->entityManager()->getRepository(Comment::class);
         self::assertInstanceOf(CommentRepository::class, $repository);
-        $before = $repository->count(['place' => $place]);
+        $before = $repository->count(['thread' => $place->getCommentThread()]);
 
         $crawler = $client->request('GET', sprintf('/places/%s', $place->getSlug()));
         self::assertResponseIsSuccessful();
@@ -508,7 +508,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/places/%s#comment-form', $place->getSlug()));
-        self::assertSame($before, $repository->count(['place' => $place]));
+        self::assertSame($before, $repository->count(['thread' => $place->getCommentThread()]));
     }
 
     public function testRecentDuplicateCommentIsRejected(): void
@@ -541,7 +541,7 @@ final class CommentControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/articles/%s#comment-form', $article->getSlug()));
-        self::assertSame(1, $repository->count(['article' => $article, 'author' => $author]));
+        self::assertSame(1, $repository->count(['thread' => $article->getCommentThread(), 'author' => $author]));
     }
 
     public function testCommentContentIsEscapedOnPublicPage(): void
@@ -1200,7 +1200,7 @@ final class CommentControllerTest extends FunctionalTestCase
 
         self::assertResponseRedirects(sprintf('/articles/%s#comments', $article->getSlug()));
         self::assertSame(0, $this->entityManager()->getRepository(Comment::class)->count([
-            'article' => $article,
+            'thread' => $article->getCommentThread(),
             'author' => $author,
         ]));
     }
@@ -1250,7 +1250,7 @@ final class CommentControllerTest extends FunctionalTestCase
             'website' => '',
         ]);
 
-        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $parent->getArticle()?->getSlug(), $parent->getId()));
+        self::assertResponseRedirects(sprintf('/articles/%s#comment-%d', $parent->getThread()?->getContent()?->getSlug(), $parent->getId()));
         $reply = $this->entityManager()->getRepository(Comment::class)->findOneBy([
             'parent' => $parent,
             'author' => $replyAuthor,
@@ -1287,7 +1287,7 @@ final class CommentControllerTest extends FunctionalTestCase
         $place = $this->createPublishedPlace();
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setPlace($place)
+            ->setThread($place->getCommentThread())
             ->setContent('Commentaire de lieu à supprimer définitivement.')
             ->setStatus(CommentStatus::Approved)
             ->setPublishedAt(new \DateTimeImmutable('-1 hour'))
@@ -1316,14 +1316,6 @@ final class CommentControllerTest extends FunctionalTestCase
             ->setContent('Réponse fonctionnelle assez longue.')
             ->setStatus($status);
         $parent->getChildren()->add($reply);
-
-        if ($parent->getArticle() !== null) {
-            $reply->setArticle($parent->getArticle());
-        }
-
-        if ($parent->getPlace() !== null) {
-            $reply->setPlace($parent->getPlace());
-        }
 
         if ($status === CommentStatus::Approved) {
             $reply
