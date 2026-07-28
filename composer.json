@@ -96,7 +96,6 @@
             "APP_ENV=test php vendor/bin/phpunit --testsuite Functional"
         ],
         "test:e2e": [
-            "sh scripts/panther-doctor.sh",
             "@test:db:reset",
             "APP_ENV=test php vendor/bin/phpunit --testsuite E2E"
         ],

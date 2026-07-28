@@ -6,11 +6,32 @@ EXPECTED_BROWSER=/opt/chrome-for-testing/chrome-linux64/chrome
 EXPECTED_DRIVER=/opt/chrome-for-testing/chromedriver
 PROJECT_ROOT="${PANTHER_PROJECT_ROOT:-/var/www/html}"
 VERSION_FILE="$PROJECT_ROOT/docker/panther-browser-version.env"
+VERSION_COMMAND_TIMEOUT_SECONDS="${PANTHER_VERSION_COMMAND_TIMEOUT_SECONDS:-5}"
+candidate_file=''
+browser_output_file=''
+driver_output_file=''
 
 fail() {
     printf 'Erreur : %s\n' "$*" >&2
     exit 1
 }
+
+cleanup() {
+    for temporary_file in "$candidate_file" "$browser_output_file" "$driver_output_file"; do
+        if [ -n "$temporary_file" ]; then
+            rm -f "$temporary_file"
+        fi
+    done
+
+    candidate_file=''
+    browser_output_file=''
+    driver_output_file=''
+}
+
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 extract_version() {
     printf '%s\n' "$1" | sed -n 's/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'
@@ -22,6 +43,14 @@ extract_major() {
 
 [ -f "$VERSION_FILE" ] \
     || fail "Source de version Panther introuvable : $VERSION_FILE"
+
+case "$VERSION_COMMAND_TIMEOUT_SECONDS" in
+    ''|*[!0-9]*) fail 'PANTHER_VERSION_COMMAND_TIMEOUT_SECONDS doit être un entier positif.' ;;
+esac
+[ "$VERSION_COMMAND_TIMEOUT_SECONDS" -ge 1 ] \
+    || fail 'PANTHER_VERSION_COMMAND_TIMEOUT_SECONDS doit être supérieur ou égal à 1.'
+command -v timeout >/dev/null 2>&1 \
+    || fail "La commande 'timeout' est requise par le diagnostic Panther."
 
 # shellcheck disable=SC1090
 . "$VERSION_FILE"
@@ -60,7 +89,8 @@ if [ -n "${PANTHER_CHROME_DRIVER_BINARY:-}" ]; then
 fi
 
 candidate_file="$(mktemp)"
-trap 'rm -f "$candidate_file"' EXIT HUP INT TERM
+browser_output_file="$(mktemp)"
+driver_output_file="$(mktemp)"
 
 record_candidate() {
     candidate="$1"
@@ -90,10 +120,18 @@ unique_driver_count="$(cut -f2 "$candidate_file" | sort -u | sed '/^$/d' | wc -l
 [ "$unique_driver_count" -eq 1 ] \
     || fail "Plusieurs ChromeDriver concurrents peuvent être sélectionnés par Panther ($unique_driver_count binaires distincts)."
 
-browser_output="$("$browser_binary" --version 2>&1)" \
-    || fail "Impossible d’exécuter le navigateur : $browser_binary"
-driver_output="$("$driver_binary" --version 2>&1)" \
-    || fail "Impossible d’exécuter ChromeDriver : $driver_binary"
+if ! timeout --signal=TERM --kill-after=1s "${VERSION_COMMAND_TIMEOUT_SECONDS}s" \
+    "$browser_binary" --version > "$browser_output_file" 2>&1; then
+    fail "Impossible d’obtenir la version du navigateur en ${VERSION_COMMAND_TIMEOUT_SECONDS} secondes : $browser_binary"
+fi
+
+if ! timeout --signal=TERM --kill-after=1s "${VERSION_COMMAND_TIMEOUT_SECONDS}s" \
+    "$driver_binary" --version > "$driver_output_file" 2>&1; then
+    fail "Impossible d’obtenir la version de ChromeDriver en ${VERSION_COMMAND_TIMEOUT_SECONDS} secondes : $driver_binary"
+fi
+
+browser_output="$(head -n 1 "$browser_output_file")"
+driver_output="$(head -n 1 "$driver_output_file")"
 browser_version="$(extract_version "$browser_output")"
 driver_version="$(extract_version "$driver_output")"
 browser_major="$(extract_major "$browser_version")"
@@ -120,3 +158,4 @@ if [ "$browser_version" != "$CHROME_FOR_TESTING_VERSION" ] \
 fi
 
 printf 'Résultat : compatible, couple Chrome for Testing %s.\n' "$CHROME_FOR_TESTING_VERSION"
+exit 0

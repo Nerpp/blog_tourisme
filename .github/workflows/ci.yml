@@ -82,15 +82,17 @@ jobs:
         run: make node-build
 
       - name: Diagnose Panther browser
+        timeout-minutes: 2
         run: |
           docker compose exec -T php sh -lc 'set -eu; id; pwd; umask; env | sort | grep -E "^(PANTHER|HOME|XDG_|TMP|CI=)" || true'
-          docker compose exec -T php sh scripts/panther-doctor.sh
+          timeout --signal=TERM --kill-after=5s 20s make panther-doctor
           docker compose exec -T php sh -lc 'set -eu; test "$PANTHER_CHROME_BINARY" = /opt/chrome-for-testing/chrome-linux64/chrome; test "$(command -v chromedriver)" = /opt/chrome-for-testing/chromedriver'
           docker compose exec -T php sh -lc 'set -eu; ls -ld /tmp "$HOME" "${XDG_CACHE_HOME:-/missing}" "${XDG_CONFIG_HOME:-/missing}" 2>/dev/null || true'
           docker compose exec -T php sh -lc 'set -eu; df -h /dev/shm /tmp || true'
           docker compose exec -T php sh -lc 'set -eu; find /tmp -maxdepth 2 \( -type d -name "panther*" -o -name "chrome*" \) 2>/dev/null | head -100 || true'
 
       - name: Check Chromium directories
+        timeout-minutes: 2
         run: |
           docker compose exec -T php sh -lc '
             set -eux
@@ -139,27 +141,9 @@ jobs:
             cat /sys/fs/cgroup/pids.max 2>/dev/null || true
           '
 
-      - name: Launch Chromium directly
-        run: |
-          docker compose exec -T php bash -lc '
-            set -u
-
-            "$PANTHER_CHROME_BINARY" \
-              --headless=new \
-              --no-sandbox \
-              --disable-dev-shm-usage \
-              --disable-gpu \
-              --no-first-run \
-              --no-default-browser-check \
-              --user-data-dir=/tmp/panther-profile \
-              --dump-dom about:blank \
-              2>&1 | tee /tmp/panther-chromium-direct.log
-
-            chromium_status=${PIPESTATUS[0]}
-            echo "Chromium direct exit code: ${chromium_status}"
-
-            exit "${chromium_status}"
-          '
+      - name: Check Panther browser startup
+        timeout-minutes: 2
+        run: timeout --signal=TERM --kill-after=5s 30s make panther-browser-check
 
       - name: Diagnose Symfony login route
         run: |
@@ -173,6 +157,7 @@ jobs:
           docker compose exec -T php ls -lh public/build/manifest.json
 
       - name: Run Panther smoke test
+        timeout-minutes: 5
         run: |
           make test-db-reset
           docker compose exec -T \
@@ -181,7 +166,7 @@ jobs:
             -e XDG_CACHE_HOME=/tmp/panther-cache \
             -e XDG_CONFIG_HOME=/tmp/panther-config \
             -e CHROME_LOG_FILE=/tmp/panther-chrome.log \
-            php sh -lc 'mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && sh scripts/panther-doctor.sh && php vendor/bin/phpunit tests/E2E/LoginPantherTest.php'
+            php sh -lc 'mkdir -p "$HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && timeout --signal=TERM --kill-after=2s 15s sh scripts/panther-doctor.sh && timeout --signal=TERM --kill-after=10s 60s php vendor/bin/phpunit tests/E2E/LoginPantherTest.php'
 
       - name: Run merge gate
         run: make test-all
@@ -195,7 +180,7 @@ jobs:
           docker compose exec -T php sh -lc 'find /tmp -maxdepth 3 \( -name "*chrome*" -o -name "*panther*" \) -ls 2>/dev/null' > tmp/ci-artifacts/panther-tmp-files.txt || true
           docker compose cp php:/tmp/panther-chromedriver.log tmp/ci-artifacts/panther-chromedriver.log || true
           docker compose cp php:/tmp/panther-chrome.log tmp/ci-artifacts/panther-chrome.log || true
-          docker compose cp php:/tmp/panther-chromium-direct.log tmp/ci-artifacts/panther-chromium-direct.log || true
+          docker compose cp php:/tmp/panther-browser-check.log tmp/ci-artifacts/panther-browser-check.log || true
           docker compose cp php:/tmp/panther-login-failure.html tmp/ci-artifacts/panther-login-failure.html || true
           docker compose cp php:/tmp/panther-login-failure.png tmp/ci-artifacts/panther-login-failure.png || true
 

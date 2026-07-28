@@ -52,8 +52,32 @@ docker compose exec -T -e SKIP_TEST_DB_RESET=1 php composer test:e2e
 `make panther-doctor` affiche la configuration, les chemins et versions exacts,
 les versions majeures et tous les pilotes sélectionnables. Il échoue si le
 couple installé ne correspond pas à la version commune ou si plusieurs pilotes
-sont ambigus. La commande est exécutée avant chaque suite E2E et ne réalise
-aucun accès réseau.
+sont ambigus. Il exécute uniquement le navigateur et le pilote avec `--version`,
+chacun sous un timeout de cinq secondes : aucune session navigateur ou serveur
+ChromeDriver n’est démarré. Les cibles Make `e2e`, `quality-e2e` et `test-all`
+orchestrent ce prérequis une seule fois, avant le contrôle de démarrage et les
+opérations longues. Le script Composer `test:e2e` ne le relance pas. Le doctor
+ne réalise aucun accès réseau.
+
+Le contrôle de démarrage réel est volontairement séparé :
+
+```bash
+time make panther-browser-check
+```
+
+Il lance Chrome seul, en mode headless, sur `about:blank` avec `--dump-dom`,
+un port DevTools éphémère, un groupe de processus et un profil temporaires. Il
+considère le navigateur prêt lorsque DevTools écoute, puis l’arrête volontairement
+au lieu de dépendre de la fin naturelle de `--dump-dom`. L’attente interne est
+limitée à 15 secondes par défaut (60 au maximum) et la cible Make à 25 secondes.
+Un trap envoie d’abord `TERM`, puis `KILL` si nécessaire, au groupe Chrome et
+supprime le profil. Le journal `/tmp/panther-browser-check.log` reste affiché et
+disponible pour la CI. Ce contrôle ne lance jamais ChromeDriver.
+
+Les messages DBus, GCM ou Vulkan peuvent apparaître dans un conteneur headless
+sans constituer à eux seuls un échec. Ils ne sont pas masqués : le code de sortie,
+le timeout et l’intégralité du journal restent utilisés pour détecter un vrai
+problème de démarrage.
 
 Une mise à jour est toujours volontaire :
 
