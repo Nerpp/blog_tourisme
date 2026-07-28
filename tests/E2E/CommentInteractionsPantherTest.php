@@ -16,8 +16,10 @@ final class CommentInteractionsPantherTest extends PantherTestCase
         $this->loginAsFixtureUser($client);
         $client->request('GET', '/articles/que-faire-a-collioure-en-une-journee');
         $client->waitFor('[data-comment-replies-toggle]');
-        $this->assertPageHasBuiltStyles($client, 'assets/app.js', 'assets/entries/comments.js', 'assets/entries/article-show.js');
+        $this->assertPageHasBuiltStyles($client, 'assets/app.js', 'assets/styles/comments.css', 'assets/entries/article-show.js');
         $this->assertPageHasBuiltScripts($client, 'assets/app.js', 'assets/entries/comments.js', 'assets/entries/article-show.js');
+        $this->assertPageRequestedBuiltStyles($client, 'assets/styles/comments.css');
+        $this->assertPageRequestedBuiltScripts($client, 'assets/entries/comments.js');
 
         $webDriver = $client->getWebDriver();
 
@@ -106,9 +108,11 @@ final class CommentInteractionsPantherTest extends PantherTestCase
         self::assertSelectorNotExists('[data-comment-replies-toggle]');
         self::assertSelectorNotExists('[data-comment-reply-panel]');
         self::assertSelectorNotExists('[data-comment-reply-form]');
-        $this->assertPageHasBuiltStyles($client, 'assets/app.js', 'assets/entries/comments.js');
+        $this->assertPageHasBuiltStyles($client, 'assets/app.js', 'assets/styles/comments.css');
         $this->assertPageHasBuiltScripts($client, 'assets/app.js');
         $this->assertPageDoesNotHaveBuiltScripts($client, 'assets/entries/comments.js');
+        $this->assertPageRequestedBuiltStyles($client, 'assets/styles/comments.css');
+        $this->assertPageDidNotRequestBuiltScripts($client, 'assets/entries/comments.js');
         $this->assertNoBrowserSevereErrors($client);
     }
 

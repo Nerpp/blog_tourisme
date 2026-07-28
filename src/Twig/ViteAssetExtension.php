@@ -45,6 +45,10 @@ final class ViteAssetExtension extends AbstractExtension
     {
         $entry = $this->normalizeEntryName($entryName);
 
+        if (str_ends_with($entry, '.css')) {
+            throw new RuntimeException(sprintf('Vite entry "%s" is a stylesheet and cannot be rendered as a module script.', $entry));
+        }
+
         if ($this->useDevServer()) {
             $server = $this->getDevServerUrl();
 
@@ -226,7 +230,13 @@ final class ViteAssetExtension extends AbstractExtension
      */
     private function collectCssFiles(array $manifest, array $chunk, array &$seen = []): array
     {
-        $files = $chunk['css'] ?? [];
+        $files = [];
+
+        if (isset($chunk['file']) && str_ends_with($chunk['file'], '.css')) {
+            $files[] = $chunk['file'];
+        }
+
+        $files = array_merge($files, $chunk['css'] ?? []);
 
         foreach ($chunk['imports'] ?? [] as $import) {
             if (isset($seen[$import]) || !isset($manifest[$import])) {

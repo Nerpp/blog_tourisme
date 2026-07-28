@@ -2,7 +2,7 @@ COMPOSE ?= docker compose
 SURVEY_AFTER_MERGE ?= 1
 
 .PHONY: setup build up composer-install composer-update-patch node-install node-build node-dev \
-	test-db-reset test test-all quality e2e quality-e2e coverage \
+	test-db-reset test test-all quality panther-doctor e2e quality-e2e coverage \
 	work-start work-to-dev prod-secrets-sync prod-redeploy survey
 
 setup: build up composer-install node-install node-build
@@ -39,7 +39,11 @@ quality:
 	$(MAKE) test-db-reset
 	$(COMPOSE) exec -e SKIP_TEST_DB_RESET=1 php composer quality
 
+panther-doctor:
+	$(COMPOSE) exec -T php sh scripts/panther-doctor.sh
+
 e2e:
+	$(MAKE) panther-doctor
 	$(MAKE) test-db-reset
 	$(COMPOSE) exec -e SKIP_TEST_DB_RESET=1 php composer test:e2e
 
@@ -65,6 +69,7 @@ test-all:
 	$(COMPOSE) exec -T php php bin/console doctrine:migrations:status --env=test
 	$(COMPOSE) exec -T php php bin/console doctrine:schema:validate --env=test
 	$(COMPOSE) exec -T -e SKIP_TEST_DB_RESET=1 -e XDEBUG_MODE=coverage php composer test:coverage
+	$(MAKE) panther-doctor
 	$(MAKE) test-db-reset
 	$(COMPOSE) exec -T -e SKIP_TEST_DB_RESET=1 php composer test:e2e
 	

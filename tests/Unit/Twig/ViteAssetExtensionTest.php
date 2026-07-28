@@ -96,6 +96,33 @@ final class ViteAssetExtensionTest extends TestCase
         self::assertSame('', $extension->entryDeferredStyleTags('missing-style'));
     }
 
+    public function testProductionStylesheetEntryCreatesLinkTagsWithoutPretendingToBeJavaScript(): void
+    {
+        $this->writeManifest([
+            'assets/styles/comments.css' => [
+                'file' => 'assets/comments-123.css',
+                'src' => 'assets/styles/comments.css',
+                'isEntry' => true,
+            ],
+        ]);
+
+        $extension = new ViteAssetExtension($this->workspace, 'prod');
+
+        self::assertSame(
+            '<link rel="stylesheet" href="/build/assets/comments-123.css">',
+            $extension->entryLinkTags('assets/styles/comments.css'),
+        );
+        self::assertSame(
+            '<link rel="stylesheet" href="/build/assets/comments-123.css" media="print" onload="this.onload=null;this.media=\'all\'">'.
+            '<noscript><link rel="stylesheet" href="/build/assets/comments-123.css"></noscript>',
+            $extension->entryDeferredStyleTags('assets/styles/comments.css'),
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('is a stylesheet and cannot be rendered as a module script');
+        $extension->entryScriptTags('assets/styles/comments.css');
+    }
+
     public function testThrowsWhenManifestIsMissingInvalidOrEntryIsAbsent(): void
     {
         $extension = new ViteAssetExtension($this->workspace, 'prod');

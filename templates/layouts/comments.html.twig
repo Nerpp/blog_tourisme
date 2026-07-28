@@ -1,7 +1,10 @@
 {% extends 'base.html.twig' %}
 
 {% block layout_stylesheets %}
-    {{ vite_entry_link_tags('assets/entries/comments.js') }}
+    {% set rendered_comment_section = comment_section|default(null) %}
+    {% if comment_styles_required|default(rendered_comment_section is not null) %}
+        {{ vite_entry_link_tags('assets/styles/comments.css') }}
+    {% endif %}
 {% endblock %}
 
 {% block layout_javascripts %}

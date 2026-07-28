@@ -18,6 +18,7 @@ docker compose exec php composer test:integration
 docker compose exec php composer test:functional
 docker compose exec php composer test:e2e
 docker compose exec php composer test:panther
+make panther-doctor
 docker compose exec php composer quality
 docker compose exec php composer quality:e2e
 docker compose exec -e XDEBUG_MODE=coverage php composer test:coverage
@@ -25,6 +26,54 @@ docker compose exec -e XDEBUG_MODE=coverage php composer test:coverage:clover
 ```
 
 `composer test` lance uniquement les suites `Unit`, `Integration` et `Functional`. Les tests E2E/Panther restent explicites via `composer test:e2e`, `composer test:panther` ou `composer quality:e2e`.
+
+## Navigateur Panther reproductible
+
+La version complète commune de Chrome for Testing et ChromeDriver, ainsi que
+les empreintes SHA-256 des deux archives officielles, sont définies dans
+`docker/panther-browser-version.env`. Les archives `linux64` sont téléchargées
+et vérifiées uniquement pendant la construction de l’image PHP.
+
+Panther 2.4 ne lit plus `PANTHER_CHROME_DRIVER_BINARY` : le navigateur est fixé
+par `PANTHER_CHROME_BINARY` et ChromeDriver est résolu dans le `PATH`. L’image
+place uniquement `/opt/chrome-for-testing/chromedriver` en tête du `PATH` et
+n’installe pas de pilote concurrent via APT ou dans `drivers/`.
+
+Après un changement de version ou sur une nouvelle machine :
+
+```bash
+docker compose build --no-cache php
+docker compose up -d --force-recreate php
+make panther-doctor
+make test-db-reset
+docker compose exec -T -e SKIP_TEST_DB_RESET=1 php composer test:e2e
+```
+
+`make panther-doctor` affiche la configuration, les chemins et versions exacts,
+les versions majeures et tous les pilotes sélectionnables. Il échoue si le
+couple installé ne correspond pas à la version commune ou si plusieurs pilotes
+sont ambigus. La commande est exécutée avant chaque suite E2E et ne réalise
+aucun accès réseau.
+
+Une mise à jour est toujours volontaire :
+
+```bash
+scripts/update-panther-browser.sh 150.0.7871.124
+```
+
+Le script exige une version complète, vérifie dans les métadonnées officielles
+que Chrome et ChromeDriver `linux64` existent, télécharge les archives pour en
+calculer les empreintes, puis modifie uniquement
+`docker/panther-browser-version.env`. Il ne reconstruit pas l’image, ne lance
+aucun test et n’effectue aucune opération Git.
+
+## Assets commentaires
+
+`assets/styles/comments.css` est une entrée Vite de styles autonome.
+`assets/entries/comments.js` contient uniquement les interactions de réponses.
+Une page qui rend le composant commentaire charge le CSS ; le JavaScript n’est
+chargé que si des interactions de réponse sont présentes. La page de
+notifications conserve ainsi les styles sans télécharger le script.
 
 ## Base de test
 
