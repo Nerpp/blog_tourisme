@@ -133,6 +133,7 @@ final class HikeStudioController extends AbstractController
             $this->entityManager->remove($articleLink);
         }
 
+        $hikeDraft->getCommentThread()->detachContent($hikeDraft);
         $this->entityManager->remove($hikeDraft);
         $this->entityManager->flush();
 

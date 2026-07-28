@@ -4,30 +4,23 @@ namespace App\Tests\Unit\Entity;
 
 use App\Entity\Article;
 use App\Entity\Comment;
-use App\Entity\Place;
 use App\Entity\User;
 use App\Enum\CommentStatus;
 use PHPUnit\Framework\TestCase;
 
 final class CommentTest extends TestCase
 {
-    public function testChangingTargetKeepsArticleAndPlaceMutuallyExclusive(): void
+    public function testReplyInheritsItsParentsThreadAndRejectsAnotherThread(): void
     {
-        $article = new Article();
-        $place = new Place();
-        $comment = new Comment();
+        $firstArticle = new Article();
+        $secondArticle = new Article();
+        $parent = (new Comment())->setThread($firstArticle->getCommentThread());
+        $reply = (new Comment())->setParent($parent);
 
-        $comment->setArticle($article);
-        self::assertSame($article, $comment->getArticle());
-        self::assertNull($comment->getPlace());
+        self::assertSame($firstArticle->getCommentThread(), $reply->getThread());
 
-        $comment->setPlace($place);
-        self::assertSame($place, $comment->getPlace());
-        self::assertNull($comment->getArticle());
-
-        $comment->setArticle($article);
-        self::assertSame($article, $comment->getArticle());
-        self::assertNull($comment->getPlace());
+        $this->expectException(\InvalidArgumentException::class);
+        $reply->setThread($secondArticle->getCommentThread());
     }
 
     public function testCommentCannotBecomeItsOwnParent(): void

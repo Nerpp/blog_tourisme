@@ -351,7 +351,7 @@ final class AdminCommentModerationControllerTest extends FunctionalTestCase
         $parent = $this->createComment($this->createUser(), $article);
         $reply = (new Comment())
             ->setAuthor($this->createUser())
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setParent($parent)
             ->setContent('Réponse fonctionnelle assez longue.')
             ->setStatus(CommentStatus::Approved)

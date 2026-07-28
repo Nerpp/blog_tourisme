@@ -131,5 +131,11 @@
                 </div>
             </div>
         </section>
+
+        {% if comment_section %}
+            <div class="public-detail-container public-detail-comments">
+                {% include 'partials/_comments.html.twig' with { comment_section: comment_section } only %}
+            </div>
+        {% endif %}
     </main>
 {% endblock %}

@@ -7,6 +7,7 @@ use App\Entity\CommentReplyNotification;
 use App\Entity\User;
 use App\Enum\CommentStatus;
 use App\Repository\CommentReplyNotificationRepository;
+use App\Service\CommentTargetUrlGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -18,6 +19,11 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_USER')]
 final class CommentNotificationController extends AbstractController
 {
+    public function __construct(
+        private readonly CommentTargetUrlGenerator $urlGenerator,
+    ) {
+    }
+
     #[Route('/notifications/commentaires', name: 'app_comment_notifications', methods: ['GET'])]
     public function index(
         CommentReplyNotificationRepository $notificationRepository,
@@ -71,7 +77,11 @@ final class CommentNotificationController extends AbstractController
         $notification->markRead();
         $entityManager->flush();
 
-        return $this->redirect($this->commentUrl($comment));
+        $url = $this->commentUrl($comment);
+
+        return $url === null
+            ? $this->redirectToRoute('app_home')
+            : $this->redirect($url);
     }
 
     private function getAuthenticatedUser(): User
@@ -84,24 +94,16 @@ final class CommentNotificationController extends AbstractController
         return $user;
     }
 
-    private function commentUrl(?Comment $comment): string
+    private function commentUrl(?Comment $comment): ?string
     {
         if (!$comment instanceof Comment) {
-            return $this->generateUrl('app_home');
+            return null;
         }
 
         $fragment = $comment->getStatus() === CommentStatus::Approved && $comment->getId() !== null
             ? 'comment-'.$comment->getId()
             : 'comments';
 
-        if ($comment->getArticle() !== null) {
-            return $this->generateUrl('app_article_show', ['slug' => $comment->getArticle()->getSlug()]).'#'.$fragment;
-        }
-
-        if ($comment->getPlace() !== null) {
-            return $this->generateUrl('app_place_show', ['slug' => $comment->getPlace()->getSlug()]).'#'.$fragment;
-        }
-
-        return $this->generateUrl('app_home');
+        return $this->urlGenerator->forComment($comment, $fragment);
     }
 }

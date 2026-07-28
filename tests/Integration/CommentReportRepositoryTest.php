@@ -86,7 +86,7 @@ final class CommentReportRepositoryTest extends IntegrationTestCase
         $now = new DateTimeImmutable();
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setContent('Commentaire signalé '.$this->uniqueToken('report-comment'))
             ->setStatus(CommentStatus::Approved)
             ->setApprovedAt($now)

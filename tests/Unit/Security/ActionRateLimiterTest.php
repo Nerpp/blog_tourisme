@@ -13,7 +13,7 @@ use Symfony\Component\RateLimiter\Reservation;
 
 final class ActionRateLimiterTest extends TestCase
 {
-    public function testCommentCreateUsesStableUserIdClientIpAndRouteKey(): void
+    public function testCommentCreateUsesOneStableKeyAcrossGenericAndLegacyRoutes(): void
     {
         $factory = new CollectingRateLimiterFactory($this->acceptedRateLimit());
         $limiter = $this->limiter(commentCreateFactory: $factory);
@@ -22,9 +22,13 @@ final class ActionRateLimiterTest extends TestCase
         $user = $this->user('reader@example.test', 42);
 
         self::assertSame($factory->rateLimit, $limiter->consumeCommentCreate($request, $user));
-        self::assertSame([
-            hash('sha256', 'comment_create|user:42|203.0.113.10|app_comment_create'),
-        ], $factory->keys);
+
+        $legacyRequest = new Request(server: ['REMOTE_ADDR' => '203.0.113.10']);
+        $legacyRequest->attributes->set('_route', 'app_article_comment_create');
+        self::assertSame($factory->rateLimit, $limiter->consumeCommentCreate($legacyRequest, $user));
+
+        $expectedKey = hash('sha256', 'comment_create|user:42|203.0.113.10|comment_create');
+        self::assertSame([$expectedKey, $expectedKey], $factory->keys);
     }
 
     public function testCommentReportFallsBackToUserIdentifierWhenUserHasNoId(): void

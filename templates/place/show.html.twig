@@ -14,15 +14,8 @@
 {% endblock %}
 
 {% block page_javascripts %}
-    {% set comment_thread_items = comments|default([]) %}
-    {% set has_comment_reply_forms = app.user and app.user.verified is defined and app.user.verified and comment_thread_items|filter(comment => comment.parent is null and comment.status.value == 'approved')|length > 0 %}
-    {% set has_comment_replies = comment_thread_items|filter(comment => comment.parent is null and (comment.children|filter(child => child.status.value == 'approved' or (app.user and child.author.id == app.user.id and child.status.value in ['pending', 'rejected']))|length) > 0)|length > 0 %}
-
     {% if has_related_articles %}
         {{ vite_entry_script_tags('assets/entries/related-articles.js') }}
-    {% endif %}
-    {% if has_comment_reply_forms or has_comment_replies %}
-        {{ vite_entry_script_tags('assets/entries/comments.js') }}
     {% endif %}
 {% endblock %}
 
@@ -116,14 +109,7 @@
         </aside>
 
         <div class="full-span">
-            {% include 'partials/_comments.html.twig' with {
-                comments: comments,
-                comment_form: comment_form,
-                comments_count: comments_count,
-                comments_sort: comments_sort,
-                comment_like_counts: comment_like_counts,
-                liked_comment_ids: liked_comment_ids
-            } %}
+            {% include 'partials/_comments.html.twig' with { comment_section: comment_section } only %}
         </div>
     </main>
 {% endblock %}

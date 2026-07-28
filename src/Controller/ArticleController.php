@@ -4,13 +4,9 @@ namespace App\Controller;
 
 use App\Entity\Article;
 use App\Entity\Category;
-use App\Entity\Comment;
-use App\Entity\User;
-use App\Form\CommentType;
 use App\Repository\ArticleRepository;
 use App\Repository\CategoryRepository;
-use App\Repository\CommentRepository;
-use App\Service\CommentReactionViewService;
+use App\Service\CommentSectionProvider;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -68,8 +64,7 @@ final class ArticleController extends AbstractController
         string $slug,
         Request $request,
         ArticleRepository $articleRepository,
-        CommentRepository $commentRepository,
-        CommentReactionViewService $reactionViewService,
+        CommentSectionProvider $commentSectionProvider,
     ): Response
     {
         $article = $articleRepository->findPublishedBySlug($slug);
@@ -77,27 +72,10 @@ final class ArticleController extends AbstractController
             throw $this->createNotFoundException('Article introuvable.');
         }
 
-        $commentForm = $this->getUser() === null
-            ? null
-            : $this->createForm(CommentType::class, new Comment(), [
-                'action' => $this->generateUrl('app_article_comment_create', ['slug' => $article->getSlug()]),
-                'method' => 'POST',
-            ])->createView();
-
-        $viewer = $this->getUser();
-        $commentSort = $this->commentSort($request);
-        $comments = $commentRepository->findApprovedForArticle($article, $viewer instanceof User ? $viewer : null, $commentSort);
-        $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
-
         return $this->render('article/show.html.twig', [
             'article' => $article,
             'return_context' => $this->resolveReturnContext($request, $article),
-            'comments' => $comments,
-            'comment_form' => $commentForm,
-            'comments_sort' => $commentSort,
-            'comments_count' => $reactionContext['comment_count'],
-            'comment_like_counts' => $reactionContext['like_counts'],
-            'liked_comment_ids' => $reactionContext['liked_comment_ids'],
+            'comment_section' => $commentSectionProvider->provide($article, $request, $this->getUser()),
         ]);
     }
 
@@ -148,13 +126,6 @@ final class ArticleController extends AbstractController
         }
 
         return null;
-    }
-
-    private function commentSort(Request $request): string
-    {
-        $sort = $request->query->getString('comments_sort', 'recent');
-
-        return in_array($sort, ['recent', 'popular'], true) ? $sort : 'recent';
     }
 
     private function searchQuery(Request $request): string

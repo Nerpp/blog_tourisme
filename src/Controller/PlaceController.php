@@ -2,15 +2,11 @@
 
 namespace App\Controller;
 
-use App\Entity\Comment;
-use App\Entity\User;
-use App\Form\CommentType;
 use App\Repository\CategoryRepository;
-use App\Repository\CommentRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\PlaceRepository;
 use App\Repository\TagRepository;
-use App\Service\CommentReactionViewService;
+use App\Service\CommentSectionProvider;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -58,8 +54,7 @@ final class PlaceController extends AbstractController
         string $slug,
         Request $request,
         PlaceRepository $placeRepository,
-        CommentRepository $commentRepository,
-        CommentReactionViewService $reactionViewService,
+        CommentSectionProvider $commentSectionProvider,
     ): Response
     {
         $place = $placeRepository->findPublishedBySlug($slug);
@@ -67,33 +62,9 @@ final class PlaceController extends AbstractController
             throw $this->createNotFoundException('Lieu introuvable.');
         }
 
-        $commentForm = $this->getUser() === null
-            ? null
-            : $this->createForm(CommentType::class, new Comment(), [
-                'action' => $this->generateUrl('app_place_comment_create', ['slug' => $place->getSlug()]),
-                'method' => 'POST',
-            ])->createView();
-
-        $viewer = $this->getUser();
-        $commentSort = $this->commentSort($request);
-        $comments = $commentRepository->findApprovedForPlace($place, $viewer instanceof User ? $viewer : null, $commentSort);
-        $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
-
         return $this->render('place/show.html.twig', [
             'place' => $place,
-            'comments' => $comments,
-            'comment_form' => $commentForm,
-            'comments_sort' => $commentSort,
-            'comments_count' => $reactionContext['comment_count'],
-            'comment_like_counts' => $reactionContext['like_counts'],
-            'liked_comment_ids' => $reactionContext['liked_comment_ids'],
+            'comment_section' => $commentSectionProvider->provide($place, $request, $this->getUser()),
         ]);
-    }
-
-    private function commentSort(Request $request): string
-    {
-        $sort = $request->query->getString('comments_sort', 'recent');
-
-        return in_array($sort, ['recent', 'popular'], true) ? $sort : 'recent';
     }
 }

@@ -96,7 +96,7 @@ final class CommentModerationIntegrationTest extends IntegrationTestCase
     {
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
+            ->setThread($article->getCommentThread())
             ->setContent($content)
             ->setStatus($status);
 

@@ -2,7 +2,9 @@
 
 namespace App\Entity;
 
+use App\Contract\CommentableContentInterface;
 use App\Entity\Traits\TimestampableTrait;
+use App\Enum\CommentableType;
 use App\Enum\ContentStatus;
 use App\Repository\ArticleRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -16,7 +18,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_article_author', fields: ['author'])]
 #[ORM\Index(name: 'idx_article_category', fields: ['category'])]
 #[ORM\HasLifecycleCallbacks]
-class Article
+class Article implements CommentableContentInterface
 {
     use TimestampableTrait;
 
@@ -47,6 +49,10 @@ class Article
 
     #[ORM\Column(length: 20, enumType: ContentStatus::class)]
     private ContentStatus $status = ContentStatus::Draft;
+
+    #[ORM\OneToOne(inversedBy: 'article', cascade: ['persist'])]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    private CommentThread $commentThread;
 
     #[ORM\ManyToOne(targetEntity: MediaAsset::class, inversedBy: 'featuredArticles')]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
@@ -93,11 +99,6 @@ class Article
     #[ORM\OneToMany(mappedBy: 'article', targetEntity: ArticleTag::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $tagLinks;
 
-    /** @var Collection<int, Comment> */
-    #[ORM\OneToMany(mappedBy: 'article', targetEntity: Comment::class)]
-    #[ORM\OrderBy(['publishedAt' => 'ASC', 'createdAt' => 'ASC'])]
-    private Collection $comments;
-
     public function __construct()
     {
         $this->destinationLinks = new ArrayCollection();
@@ -106,7 +107,7 @@ class Article
         $this->cityVisitLinks = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
         $this->tagLinks = new ArrayCollection();
-        $this->comments = new ArrayCollection();
+        $this->setCommentThread(new CommentThread(CommentableType::Article));
     }
 
     public function getId(): ?int
@@ -199,6 +200,38 @@ class Article
     public function setStatus(ContentStatus $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->status === ContentStatus::Published;
+    }
+
+    public function getCommentableTitle(): string
+    {
+        return (string) $this->title;
+    }
+
+    public function getCommentableType(): CommentableType
+    {
+        return CommentableType::Article;
+    }
+
+    public function getCommentThread(): CommentThread
+    {
+        return $this->commentThread;
+    }
+
+    public function setCommentThread(CommentThread $commentThread): static
+    {
+        if ($commentThread->getContentType() !== CommentableType::Article) {
+            throw new \LogicException('Un article doit utiliser un fil de commentaires de type article.');
+        }
+
+        $this->commentThread = $commentThread;
+        $commentThread->setArticle($this);
 
         return $this;
     }
@@ -302,6 +335,6 @@ class Article
     /** @return Collection<int, Comment> */
     public function getComments(): Collection
     {
-        return $this->comments;
+        return $this->commentThread->getComments();
     }
 }

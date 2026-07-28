@@ -131,6 +131,7 @@ final class CityVisitStudioController extends AbstractController
             $this->entityManager->remove($articleLink);
         }
 
+        $cityVisitDraft->getCommentThread()->detachContent($cityVisitDraft);
         $this->entityManager->remove($cityVisitDraft);
         $this->entityManager->flush();
 
