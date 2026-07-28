@@ -51,6 +51,11 @@ final class CityVisitControllerTest extends FunctionalTestCase
         $cover = $crawler->filter('.public-detail-cover')->first();
         self::assertSame('', $cover->attr('aria-label') ?? '');
         self::assertSame('', $cover->attr('role') ?? '');
+        self::assertSame(1, $cover->filter('picture.public-detail-cover__picture')->count());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $cover->filter('picture.public-detail-cover__picture > img.public-detail-cover__image')->attr('src'),
+        );
         self::assertStringNotContainsString('étape', $crawler->filter('.public-detail-hero')->text());
     }
 
@@ -74,6 +79,7 @@ final class CityVisitControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         $cover = $crawler->filter('.public-detail-cover--media');
         self::assertSame(1, $cover->count());
+        self::assertSame(1, $cover->filter('picture.public-detail-cover__picture')->count());
         self::assertSame('/uploads/media/visit-640.webp 640w, /uploads/media/visit-960.webp 960w, /uploads/media/visit-1280.webp 1280w', $cover->filter('source[type="image/webp"]')->attr('srcset'));
         $image = $cover->filter('img.public-detail-cover__image');
         self::assertSame('/uploads/media/visit-1280.jpg', $image->attr('src'));
@@ -92,11 +98,16 @@ final class CityVisitControllerTest extends FunctionalTestCase
         $draft->setTitle('Visite brouillon invisible '.$this->uniqueToken('visit'));
         $this->persistAndFlush($draft);
 
-        $client->request('GET', '/visites');
+        $crawler = $client->request('GET', '/visites');
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $published->getTitle());
         self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $crawler->filter('.article-list-card__visual picture > img.article-list-card__image')->first()->attr('src'),
+        );
+        self::assertGreaterThanOrEqual(1, $crawler->filter('.article-list-card__visual > picture')->count());
     }
 
     public function testCityVisitIndexSearchFiltersByTitleAndKeepsQuery(): void

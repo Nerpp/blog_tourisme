@@ -1,6 +1,9 @@
 <section class="comments-section" id="comments">
-    {% set visible_count = comments_count|default(0) %}
-    {% set current_sort = comments_sort|default('recent') %}
+    {% set comments = comment_section.comments|default([]) %}
+    {% set visible_count = comment_section.count|default(0) %}
+    {% set current_sort = comment_section.sort|default('recent') %}
+    {% set comment_like_counts = comment_section.likeCounts|default({}) %}
+    {% set liked_comment_ids = comment_section.likedCommentIds|default([]) %}
 
     <header class="comments-header">
         <h2 class="comments-count">
@@ -20,7 +23,7 @@
         </form>
     </header>
 
-    {% include 'partials/_comment_form.html.twig' with { comment_form: comment_form|default(null) } %}
+    {% include 'partials/_comment_form.html.twig' with { comment_form: comment_section.form|default(null) } %}
 
     {% set top_level_comments = [] %}
     {% for comment in comments %}

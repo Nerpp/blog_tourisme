@@ -2,6 +2,7 @@
 
 namespace App\Tests\Functional;
 
+use App\Contract\CommentableContentInterface;
 use App\Entity\Article;
 use App\Entity\Category;
 use App\Entity\CityVisitDraft;
@@ -124,13 +125,18 @@ abstract class FunctionalTestCase extends WebTestCase
         return $article;
     }
 
-    protected function createComment(User $author, Article $article, CommentStatus $status = CommentStatus::Approved): Comment
+    protected function createComment(
+        User $author,
+        CommentableContentInterface $content,
+        CommentStatus $status = CommentStatus::Approved,
+        ?string $body = null,
+    ): Comment
     {
         $now = new \DateTimeImmutable('-1 hour');
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setArticle($article)
-            ->setContent('Commentaire fonctionnel assez long.')
+            ->setThread($content->getCommentThread())
+            ->setContent($body ?? 'Commentaire fonctionnel assez long.')
             ->setStatus($status);
 
         if ($status === CommentStatus::Approved) {
@@ -142,6 +148,31 @@ abstract class FunctionalTestCase extends WebTestCase
         $this->persistAndFlush($comment);
 
         return $comment;
+    }
+
+    protected function createCommentReply(
+        User $author,
+        Comment $parent,
+        CommentStatus $status = CommentStatus::Approved,
+        ?string $body = null,
+    ): Comment {
+        $now = new \DateTimeImmutable('-30 minutes');
+        $reply = (new Comment())
+            ->setAuthor($author)
+            ->setParent($parent)
+            ->setContent($body ?? 'Réponse fonctionnelle assez longue.')
+            ->setStatus($status);
+        $parent->getChildren()->add($reply);
+
+        if ($status === CommentStatus::Approved) {
+            $reply
+                ->setPublishedAt($now)
+                ->setApprovedAt($now);
+        }
+
+        $this->persistAndFlush($reply);
+
+        return $reply;
     }
 
     protected function createHikeDraft(User $admin, ?Destination $destination = null): HikeDraft
@@ -355,6 +386,11 @@ abstract class FunctionalTestCase extends WebTestCase
         return $notification;
     }
 
+    /**
+     * @template T of object
+     * @param T $entity
+     * @return T
+     */
     protected function refresh(object $entity): object
     {
         if (method_exists($entity, 'getId')) {

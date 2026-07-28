@@ -2,7 +2,9 @@
 
 namespace App\Entity;
 
+use App\Contract\CommentableContentInterface;
 use App\Entity\Traits\TimestampableTrait;
+use App\Enum\CommentableType;
 use App\Enum\HikeDraftStatus;
 use App\Repository\HikeDraftRepository;
 use DateTimeImmutable;
@@ -14,7 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: HikeDraftRepository::class)]
 #[ORM\Index(name: 'idx_hike_draft_status', fields: ['status'])]
 #[ORM\HasLifecycleCallbacks]
-class HikeDraft
+class HikeDraft implements CommentableContentInterface
 {
     use TimestampableTrait;
 
@@ -31,6 +33,10 @@ class HikeDraft
 
     #[ORM\Column(length: 20, enumType: HikeDraftStatus::class)]
     private HikeDraftStatus $status = HikeDraftStatus::Draft;
+
+    #[ORM\OneToOne(inversedBy: 'hike', cascade: ['persist'])]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    private CommentThread $commentThread;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
@@ -82,6 +88,7 @@ class HikeDraft
         $this->points = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
         $this->articleLinks = new ArrayCollection();
+        $this->setCommentThread(new CommentThread(CommentableType::Hike));
     }
 
     public function __toString(): string
@@ -133,6 +140,39 @@ class HikeDraft
     public function isPublished(): bool
     {
         return in_array($this->status, [HikeDraftStatus::Finished, HikeDraftStatus::Converted], true);
+    }
+
+    public function getCommentableTitle(): string
+    {
+        return (string) $this->title;
+    }
+
+    public function getCommentableType(): CommentableType
+    {
+        return CommentableType::Hike;
+    }
+
+    public function getCommentThread(): CommentThread
+    {
+        return $this->commentThread;
+    }
+
+    public function setCommentThread(CommentThread $commentThread): static
+    {
+        if ($commentThread->getContentType() !== CommentableType::Hike) {
+            throw new \LogicException('Une randonnée doit utiliser un fil de commentaires de type hike.');
+        }
+
+        $this->commentThread = $commentThread;
+        $commentThread->setHike($this);
+
+        return $this;
+    }
+
+    /** @return Collection<int, Comment> */
+    public function getComments(): Collection
+    {
+        return $this->commentThread->getComments();
     }
 
     public function getCreatedBy(): ?User

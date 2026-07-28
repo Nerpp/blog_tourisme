@@ -17,6 +17,7 @@ use App\Enum\ContentStatus;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\ImageType;
+use App\Enum\MediaRole;
 use App\Enum\MediaType;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
@@ -25,6 +26,7 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
 use App\Repository\PlaceRepository;
 use App\Service\HomepageDestinationMediaResolver;
+use App\Service\Media\ContentImageResolver;
 use PHPUnit\Framework\TestCase;
 
 final class HomepageDestinationMediaResolverTest extends TestCase
@@ -82,7 +84,7 @@ final class HomepageDestinationMediaResolverTest extends TestCase
         $hike = $this->hike(new \DateTimeImmutable('-1 day'), $specialCover);
         $coverLink = $hike->getMediaLinks()->first();
         self::assertInstanceOf(HikeDraftMedia::class, $coverLink);
-        $coverLink->setRole(\App\Enum\MediaRole::Cover);
+        $coverLink->setRole(MediaRole::Cover);
         $hike->getMediaLinks()->add(
             (new HikeDraftMedia())
                 ->setHikeDraft($hike)
@@ -133,7 +135,13 @@ final class HomepageDestinationMediaResolverTest extends TestCase
         $placeRepository = $this->createStub(PlaceRepository::class);
         $placeRepository->method('findLatestPublishedWithMediaByDestination')->willReturn($place);
 
-        return new HomepageDestinationMediaResolver($articleRepository, $hikeRepository, $cityVisitRepository, $placeRepository);
+        return new HomepageDestinationMediaResolver(
+            $articleRepository,
+            $hikeRepository,
+            $cityVisitRepository,
+            $placeRepository,
+            new ContentImageResolver(),
+        );
     }
 
     private function destination(): Destination
@@ -159,7 +167,13 @@ final class HomepageDestinationMediaResolverTest extends TestCase
             ->setFeaturedImage($featuredImage);
 
         foreach ($linkedMedia as $index => $media) {
-            $article->getMediaLinks()->add((new ArticleMedia())->setArticle($article)->setMediaAsset($media)->setPosition($index));
+            $article->getMediaLinks()->add(
+                (new ArticleMedia())
+                    ->setArticle($article)
+                    ->setMediaAsset($media)
+                    ->setPosition($index)
+                    ->setRole(MediaRole::Gallery),
+            );
         }
 
         return $article;
@@ -216,6 +230,7 @@ final class HomepageDestinationMediaResolverTest extends TestCase
         return (new MediaAsset())
             ->setMediaType(MediaType::Image)
             ->setImageType(ImageType::Standard)
-            ->setFilePath($path);
+            ->setFilePath($path)
+            ->setThumbnailPath($path);
     }
 }

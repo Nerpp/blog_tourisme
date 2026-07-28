@@ -114,11 +114,8 @@ final class AdminPlaceController extends AbstractController
             $this->entityManager->remove($tagLink);
         }
 
-        foreach ($place->getComments() as $comment) {
-            $comment->setPlace(null);
-        }
-
         $place->setFeaturedImage(null);
+        $place->getCommentThread()->detachContent($place);
         $this->entityManager->remove($place);
 
         try {

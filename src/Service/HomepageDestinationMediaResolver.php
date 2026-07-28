@@ -8,13 +8,11 @@ use App\Entity\Destination;
 use App\Entity\HikeDraft;
 use App\Entity\MediaAsset;
 use App\Entity\Place;
-use App\Enum\ImageType;
-use App\Enum\MediaRole;
-use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CityVisitDraftRepository;
 use App\Repository\HikeDraftRepository;
 use App\Repository\PlaceRepository;
+use App\Service\Media\ContentImageResolver;
 
 final readonly class HomepageDestinationMediaResolver
 {
@@ -23,6 +21,7 @@ final readonly class HomepageDestinationMediaResolver
         private HikeDraftRepository $hikeDraftRepository,
         private CityVisitDraftRepository $cityVisitDraftRepository,
         private PlaceRepository $placeRepository,
+        private ContentImageResolver $contentImageResolver,
     ) {
     }
 
@@ -73,7 +72,7 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        return $this->mainImageFromLinks($article->getMediaLinks(), $article->getFeaturedImage());
+        return $this->contentImageResolver->resolve($article, standardOnly: true);
     }
 
     private function firstHikeMedia(?HikeDraft $hike): ?MediaAsset
@@ -82,7 +81,7 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        return $this->mainImageFromLinks($hike->getMediaLinks());
+        return $this->contentImageResolver->resolve($hike, standardOnly: true);
     }
 
     private function firstCityVisitMedia(?CityVisitDraft $cityVisit): ?MediaAsset
@@ -91,7 +90,7 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        return $this->mainImageFromLinks($cityVisit->getMediaLinks());
+        return $this->contentImageResolver->resolve($cityVisit, standardOnly: true);
     }
 
     private function firstPlaceMedia(?Place $place): ?MediaAsset
@@ -100,39 +99,6 @@ final readonly class HomepageDestinationMediaResolver
             return null;
         }
 
-        return $this->mainImageFromLinks($place->getMediaLinks(), $place->getFeaturedImage());
-    }
-
-    /** @param iterable<object> $mediaLinks */
-    private function mainImageFromLinks(iterable $mediaLinks, ?MediaAsset $featuredImage = null): ?MediaAsset
-    {
-        $fallback = $featuredImage instanceof MediaAsset && $this->isStandardImage($featuredImage)
-            ? $featuredImage
-            : null;
-
-        foreach ($mediaLinks as $mediaLink) {
-            if (!method_exists($mediaLink, 'getMediaAsset') || !method_exists($mediaLink, 'getRole')) {
-                continue;
-            }
-
-            $media = $mediaLink->getMediaAsset();
-            if (!$media instanceof MediaAsset || !$this->isStandardImage($media)) {
-                continue;
-            }
-
-            if ($mediaLink->getRole() === MediaRole::Cover) {
-                return $media;
-            }
-
-            $fallback ??= $media;
-        }
-
-        return $fallback;
-    }
-
-    private function isStandardImage(MediaAsset $media): bool
-    {
-        return $media->getMediaType() === MediaType::Image
-            && $media->getImageType() === ImageType::Standard;
+        return $this->contentImageResolver->resolve($place, standardOnly: true);
     }
 }

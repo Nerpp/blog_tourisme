@@ -2,8 +2,11 @@
 
 namespace App\Tests\Integration;
 
+use App\Entity\Article;
+use App\Entity\ArticleDestination;
 use App\Entity\Destination;
 use App\Entity\HikeDraft;
+use App\Enum\ContentStatus;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Repository\DestinationRepository;
@@ -77,6 +80,36 @@ final class DestinationRepositoryIntegrationTest extends IntegrationTestCase
         self::assertNotSame($firstHike->getGeographicDestination()?->getId(), $secondHike->getGeographicDestination()?->getId());
     }
 
+    public function testCumulativeArticleCountsDeduplicateAnArticleLinkedToSeveralDescendants(): void
+    {
+        $country = $this->destination('Pays articles uniques', DestinationType::Country);
+        $department = $this->destination('Département articles uniques', DestinationType::Department, $country, '95');
+        $firstCity = $this->destination('Première ville articles uniques', DestinationType::City, $department, '95001');
+        $secondCity = $this->destination('Seconde ville articles uniques', DestinationType::City, $department, '95002');
+        $article = $this->article('Article multi-destinations repo');
+        $this->entityManager->persist(
+            (new ArticleDestination())
+                ->setArticle($article)
+                ->setDestination($firstCity),
+        );
+        $this->entityManager->persist(
+            (new ArticleDestination())
+                ->setArticle($article)
+                ->setDestination($secondCity),
+        );
+        $this->entityManager->flush();
+        $this->entityManager->clear();
+
+        $storedCountry = $this->repository()->findBySlug((string) $country->getSlug());
+        self::assertInstanceOf(Destination::class, $storedCountry);
+        $counts = $this->repository()->findCumulativeContentCountsForTree([$storedCountry]);
+
+        self::assertSame(1, $counts[(int) $firstCity->getId()]['articles'] ?? null);
+        self::assertSame(1, $counts[(int) $secondCity->getId()]['articles'] ?? null);
+        self::assertSame(1, $counts[(int) $department->getId()]['articles'] ?? null);
+        self::assertSame(1, $counts[(int) $country->getId()]['articles'] ?? null);
+    }
+
     private function destination(
         string $name,
         DestinationType $type,
@@ -109,6 +142,22 @@ final class DestinationRepositoryIntegrationTest extends IntegrationTestCase
         $this->entityManager->persist($hike);
 
         return $hike;
+    }
+
+    private function article(string $title): Article
+    {
+        $token = $this->uniqueToken('article-repo');
+        $article = (new Article())
+            ->setTitle($title.' '.$token)
+            ->setSlug('article-repo-'.$token)
+            ->setExcerpt('Extrait de test')
+            ->setContent('<p>Contenu de test.</p>')
+            ->setStatus(ContentStatus::Published)
+            ->setPublishedAt(new \DateTimeImmutable('-1 hour'));
+
+        $this->entityManager->persist($article);
+
+        return $article;
     }
 
     private function repository(): DestinationRepository

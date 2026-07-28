@@ -2,7 +2,9 @@
 
 namespace App\Entity;
 
+use App\Contract\CommentableContentInterface;
 use App\Entity\Traits\TimestampableTrait;
+use App\Enum\CommentableType;
 use App\Enum\ContentStatus;
 use App\Enum\PlaceDifficulty;
 use App\Enum\PriceType;
@@ -19,7 +21,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_place_category', fields: ['category'])]
 #[ORM\Index(name: 'idx_place_coordinates', fields: ['latitude', 'longitude'])]
 #[ORM\HasLifecycleCallbacks]
-class Place
+class Place implements CommentableContentInterface
 {
     use TimestampableTrait;
 
@@ -69,6 +71,10 @@ class Place
     #[ORM\Column(length: 20, enumType: ContentStatus::class)]
     private ContentStatus $status = ContentStatus::Draft;
 
+    #[ORM\OneToOne(inversedBy: 'place', cascade: ['persist'])]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    private CommentThread $commentThread;
+
     #[ORM\ManyToOne(targetEntity: MediaAsset::class, inversedBy: 'featuredPlaces')]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
     private ?MediaAsset $featuredImage = null;
@@ -95,17 +101,12 @@ class Place
     #[ORM\OneToMany(mappedBy: 'place', targetEntity: PlaceTag::class, cascade: ['persist'], orphanRemoval: true)]
     private Collection $tagLinks;
 
-    /** @var Collection<int, Comment> */
-    #[ORM\OneToMany(mappedBy: 'place', targetEntity: Comment::class)]
-    #[ORM\OrderBy(['publishedAt' => 'ASC', 'createdAt' => 'ASC'])]
-    private Collection $comments;
-
     public function __construct()
     {
         $this->articleLinks = new ArrayCollection();
         $this->mediaLinks = new ArrayCollection();
         $this->tagLinks = new ArrayCollection();
-        $this->comments = new ArrayCollection();
+        $this->setCommentThread(new CommentThread(CommentableType::Place));
     }
 
     public function getId(): ?int
@@ -274,6 +275,38 @@ class Place
         return $this;
     }
 
+    public function isPublished(): bool
+    {
+        return $this->status === ContentStatus::Published;
+    }
+
+    public function getCommentableTitle(): string
+    {
+        return (string) $this->name;
+    }
+
+    public function getCommentableType(): CommentableType
+    {
+        return CommentableType::Place;
+    }
+
+    public function getCommentThread(): CommentThread
+    {
+        return $this->commentThread;
+    }
+
+    public function setCommentThread(CommentThread $commentThread): static
+    {
+        if ($commentThread->getContentType() !== CommentableType::Place) {
+            throw new \LogicException('Un lieu doit utiliser un fil de commentaires de type place.');
+        }
+
+        $this->commentThread = $commentThread;
+        $commentThread->setPlace($this);
+
+        return $this;
+    }
+
     public function getFeaturedImage(): ?MediaAsset
     {
         return $this->featuredImage;
@@ -343,6 +376,6 @@ class Place
     /** @return Collection<int, Comment> */
     public function getComments(): Collection
     {
-        return $this->comments;
+        return $this->commentThread->getComments();
     }
 }

@@ -2,24 +2,27 @@
 
 namespace App\Controller;
 
+use App\Contract\CommentableContentInterface;
 use App\Entity\Comment;
 use App\Entity\CommentLike;
 use App\Entity\CommentReport;
 use App\Entity\User;
+use App\Enum\CommentableType;
 use App\Enum\CommentReportReason;
 use App\Enum\CommentStatus;
 use App\Form\CommentType;
-use App\Repository\ArticleRepository;
 use App\Repository\CommentLikeRepository;
 use App\Repository\CommentReportRepository;
-use App\Repository\PlaceRepository;
 use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\CommentVoter;
 use App\Service\CommentDeletionService;
+use App\Service\CommentableContentResolver;
+use App\Service\CommentManager;
 use App\Service\CommentModerationService;
 use App\Service\CommentReplyNotificationService;
 use App\Service\CommentSpamGuard;
+use App\Service\CommentTargetUrlGenerator;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -37,50 +40,56 @@ final class CommentController extends AbstractController
     public function __construct(
         private readonly ActionRateLimiter $actionRateLimiter,
         private readonly TranslatorInterface $translator,
+        private readonly CommentableContentResolver $contentResolver,
+        private readonly CommentTargetUrlGenerator $urlGenerator,
     ) {
     }
 
-    #[Route('/articles/{slug}/comments', name: 'app_article_comment_create', methods: ['POST'])]
+    #[Route('/comments/{type}/{slug}', name: 'app_comment_create', requirements: ['type' => 'article|place|hike|city-visit'], methods: ['POST'])]
+    #[Route('/articles/{slug}/comments', name: 'app_article_comment_create', defaults: ['type' => 'article'], methods: ['POST'])]
+    #[Route('/places/{slug}/comments', name: 'app_place_comment_create', defaults: ['type' => 'place'], methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
-    public function createForArticle(
+    public function create(
+        string $type,
         string $slug,
         Request $request,
-        ArticleRepository $articleRepository,
-        EntityManagerInterface $entityManager,
-        CommentModerationService $moderationService,
-        CommentReplyNotificationService $notificationService,
-        CommentSpamGuard $spamGuard,
+        CommentManager $commentManager,
     ): RedirectResponse {
-        $article = $articleRepository->findPublishedBySlug($slug);
-        if ($article === null) {
-            throw $this->createNotFoundException('Article introuvable.');
+        $commentableType = CommentableType::tryFrom($type);
+        $content = $commentableType instanceof CommentableType
+            ? $this->contentResolver->resolvePublic($commentableType, $slug)
+            : null;
+
+        if ($content === null) {
+            throw $this->createNotFoundException('Contenu commentable introuvable.');
         }
 
         $author = $this->getAuthenticatedUser();
         if ($this->isBannedCommenter($author)) {
             $this->addFlash('warning', $this->translator->trans('security.account.suspended', domain: 'security'));
 
-            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comments');
+            return $this->redirect($this->urlGenerator->forContent($content));
         }
 
         if (!$this->canUseCommentActions($author)) {
             $this->addFlash('warning', 'Votre email doit être confirmé pour publier un commentaire.');
 
-            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comments');
+            return $this->redirect($this->urlGenerator->forContent($content));
         }
 
         if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentCreate($request, $author))) {
-            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comments');
+            return $this->redirect($this->urlGenerator->forContent($content));
         }
 
-        $comment = (new Comment())
-            ->setArticle($article)
-            ->setAuthor($author)
-            ->setIpAddress($request->getClientIp())
-            ->setUserAgent($request->headers->get('User-Agent'));
+        $comment = $commentManager->createForContent(
+            $content,
+            $author,
+            $request->getClientIp(),
+            $request->headers->get('User-Agent'),
+        );
 
         $form = $this->createForm(CommentType::class, $comment, [
-            'action' => $this->generateUrl('app_article_comment_create', ['slug' => $article->getSlug()]),
+            'action' => $this->urlGenerator->createAction($content),
             'method' => 'POST',
         ]);
         $form->handleRequest($request);
@@ -88,116 +97,30 @@ final class CommentController extends AbstractController
         if (!$form->isSubmitted()) {
             $this->addFlash('error', 'Formulaire non soumis.');
 
-            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
+            return $this->redirect($this->urlGenerator->forContent($content, 'comment-form'));
         }
 
         if ($form->isValid()) {
-            if (($spamMessage = $spamGuard->validate($comment)) !== null) {
+            if (($spamMessage = $commentManager->publish($comment)) !== null) {
                 $this->addFlash('error', $spamMessage);
 
-                return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
+                return $this->redirect($this->urlGenerator->forContent($content, 'comment-form'));
             }
-
-            $moderationService->moderateNew($comment);
-            $entityManager->persist($comment);
-            if ($comment->getStatus() === CommentStatus::Approved) {
-                $notificationService->createForApprovedComment($comment);
-            }
-            $entityManager->flush();
 
             if ($comment->getStatus() !== CommentStatus::Approved) {
                 $this->addFlash('warning', 'Votre commentaire a été bloqué par l’anti-spam.');
 
-                return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
+                return $this->redirect($this->urlGenerator->forContent($content, 'comment-form'));
             }
 
             $this->addFlash('success', 'Votre commentaire a été publié.');
-            return $this->redirectToCommentTarget($comment);
+
+            return $this->redirect($this->urlGenerator->forContent($content, $this->commentFragment($comment)));
         }
 
         $this->addCommentFormErrorFlashes($form);
 
-        return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $article->getSlug()], 'comment-form');
-    }
-
-    #[Route('/places/{slug}/comments', name: 'app_place_comment_create', methods: ['POST'])]
-    #[IsGranted('ROLE_USER')]
-    public function createForPlace(
-        string $slug,
-        Request $request,
-        PlaceRepository $placeRepository,
-        EntityManagerInterface $entityManager,
-        CommentModerationService $moderationService,
-        CommentReplyNotificationService $notificationService,
-        CommentSpamGuard $spamGuard,
-    ): RedirectResponse {
-        $place = $placeRepository->findPublishedBySlug($slug);
-        if ($place === null) {
-            throw $this->createNotFoundException('Lieu introuvable.');
-        }
-
-        $author = $this->getAuthenticatedUser();
-        if ($this->isBannedCommenter($author)) {
-            $this->addFlash('warning', $this->translator->trans('security.account.suspended', domain: 'security'));
-
-            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comments');
-        }
-
-        if (!$this->canUseCommentActions($author)) {
-            $this->addFlash('warning', 'Votre email doit être confirmé pour publier un commentaire.');
-
-            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comments');
-        }
-
-        if (!$this->acceptRateLimit($this->actionRateLimiter->consumeCommentCreate($request, $author))) {
-            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comments');
-        }
-
-        $comment = (new Comment())
-            ->setPlace($place)
-            ->setAuthor($author)
-            ->setIpAddress($request->getClientIp())
-            ->setUserAgent($request->headers->get('User-Agent'));
-
-        $form = $this->createForm(CommentType::class, $comment, [
-            'action' => $this->generateUrl('app_place_comment_create', ['slug' => $place->getSlug()]),
-            'method' => 'POST',
-        ]);
-        $form->handleRequest($request);
-
-        if (!$form->isSubmitted()) {
-            $this->addFlash('error', 'Formulaire non soumis.');
-
-            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
-        }
-
-        if ($form->isValid()) {
-            if (($spamMessage = $spamGuard->validate($comment)) !== null) {
-                $this->addFlash('error', $spamMessage);
-
-                return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
-            }
-
-            $moderationService->moderateNew($comment);
-            $entityManager->persist($comment);
-            if ($comment->getStatus() === CommentStatus::Approved) {
-                $notificationService->createForApprovedComment($comment);
-            }
-            $entityManager->flush();
-
-            if ($comment->getStatus() !== CommentStatus::Approved) {
-                $this->addFlash('warning', 'Votre commentaire a été bloqué par l’anti-spam.');
-
-                return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
-            }
-
-            $this->addFlash('success', 'Votre commentaire a été publié.');
-            return $this->redirectToCommentTarget($comment);
-        }
-
-        $this->addCommentFormErrorFlashes($form);
-
-        return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $place->getSlug()], 'comment-form');
+        return $this->redirect($this->urlGenerator->forContent($content, 'comment-form'));
     }
 
     #[Route('/comments/{id}/reply', name: 'app_comment_reply', methods: ['POST'])]
@@ -205,15 +128,14 @@ final class CommentController extends AbstractController
     public function reply(
         Comment $parent,
         Request $request,
-        EntityManagerInterface $entityManager,
-        CommentModerationService $moderationService,
-        CommentReplyNotificationService $notificationService,
-        CommentSpamGuard $spamGuard,
+        CommentManager $commentManager,
         ValidatorInterface $validator,
     ): RedirectResponse {
         if (!$this->isCsrfTokenValid('reply-comment-'.$parent->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
+
+        $this->assertPublicCommentTarget($parent);
 
         if (trim($request->request->getString('website')) !== '') {
             $this->addFlash('error', 'Votre réponse n’a pas pu être envoyée.');
@@ -250,14 +172,13 @@ final class CommentController extends AbstractController
             return $this->redirectToCommentTarget($parent);
         }
 
-        $reply = (new Comment())
-            ->setAuthor($author)
-            ->setParent($parent)
-            ->setArticle($parent->getArticle())
-            ->setPlace($parent->getPlace())
-            ->setContent(trim($request->request->getString('content')))
-            ->setIpAddress($request->getClientIp())
-            ->setUserAgent($request->headers->get('User-Agent'));
+        $reply = $commentManager->createReply(
+            $parent,
+            $author,
+            $request->request->getString('content'),
+            $request->getClientIp(),
+            $request->headers->get('User-Agent'),
+        );
 
         $violations = $validator->validate($reply);
         if (count($violations) > 0) {
@@ -271,18 +192,11 @@ final class CommentController extends AbstractController
             return $this->redirectToCommentTarget($parent);
         }
 
-        if (($spamMessage = $spamGuard->validate($reply)) !== null) {
+        if (($spamMessage = $commentManager->publish($reply)) !== null) {
             $this->addFlash('error', $spamMessage);
 
             return $this->redirectToCommentTarget($parent);
         }
-
-        $moderationService->moderateNew($reply);
-        $entityManager->persist($reply);
-        if ($reply->getStatus() === CommentStatus::Approved) {
-            $notificationService->createForApprovedComment($reply);
-        }
-        $entityManager->flush();
 
         if ($reply->getStatus() !== CommentStatus::Approved) {
             $this->addFlash('warning', 'Votre réponse a été bloquée par l’anti-spam.');
@@ -310,6 +224,8 @@ final class CommentController extends AbstractController
         if (!$this->isCsrfTokenValid('edit-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
+
+        $this->assertPublicCommentTarget($comment);
 
         $previousStatus = $comment->getStatus();
         $previousContent = $comment->getContent();
@@ -372,6 +288,8 @@ final class CommentController extends AbstractController
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
 
+        $this->assertPublicCommentTarget($comment);
+
         $redirect = $this->redirectAfterPhysicalDelete($comment);
         $deletionService->deletePhysically($comment);
         $entityManager->flush();
@@ -392,6 +310,8 @@ final class CommentController extends AbstractController
         if (!$this->isCsrfTokenValid('like-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
+
+        $this->assertPublicCommentTarget($comment);
 
         if ($comment->getStatus() !== CommentStatus::Approved) {
             $this->addFlash('warning', 'Vous ne pouvez aimer qu’un commentaire publié.');
@@ -430,6 +350,8 @@ final class CommentController extends AbstractController
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
 
+        $this->assertPublicCommentTarget($comment);
+
         if ($comment->getStatus() !== CommentStatus::Approved) {
             $this->addFlash('warning', 'Vous ne pouvez mettre un cœur qu’à un commentaire publié.');
 
@@ -449,6 +371,8 @@ final class CommentController extends AbstractController
         if (!$this->isCsrfTokenValid('pin-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
+
+        $this->assertPublicCommentTarget($comment);
 
         if ($comment->getParent() !== null) {
             $this->addFlash('warning', 'Seuls les commentaires principaux peuvent être épinglés.');
@@ -480,6 +404,8 @@ final class CommentController extends AbstractController
         if (!$this->isCsrfTokenValid('report-comment-'.$comment->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Jeton CSRF invalide.');
         }
+
+        $this->assertPublicCommentTarget($comment);
 
         $reporter = $this->getAuthenticatedUser();
         if ($reportRepository->findOneByCommentAndReporter($comment, $reporter) !== null) {
@@ -528,42 +454,33 @@ final class CommentController extends AbstractController
 
     private function redirectToCommentTarget(Comment $comment): RedirectResponse
     {
-        $fragment = $this->commentFragment($comment);
+        $content = $this->assertPublicCommentTarget($comment);
 
-        if ($comment->getArticle() !== null) {
-            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $comment->getArticle()->getSlug()], $fragment);
-        }
-
-        if ($comment->getPlace() !== null) {
-            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $comment->getPlace()->getSlug()], $fragment);
-        }
-
-        return $this->redirectToRoute('app_home');
+        return $this->redirect($this->urlGenerator->forContent($content, $this->commentFragment($comment)));
     }
 
     private function redirectAfterPhysicalDelete(Comment $comment): RedirectResponse
     {
+        $content = $this->assertPublicCommentTarget($comment);
         $fragment = 'comments';
         $parent = $comment->getParent();
         if ($parent instanceof Comment && $parent->getId() !== null) {
             $fragment = 'comment-'.$parent->getId();
         }
 
-        if ($comment->getArticle() !== null) {
-            return $this->redirectToRouteWithFragment('app_article_show', ['slug' => $comment->getArticle()->getSlug()], $fragment);
-        }
-
-        if ($comment->getPlace() !== null) {
-            return $this->redirectToRouteWithFragment('app_place_show', ['slug' => $comment->getPlace()->getSlug()], $fragment);
-        }
-
-        return $this->redirectToRoute('app_home');
+        return $this->redirect($this->urlGenerator->forContent($content, $fragment));
     }
 
-    /** @param array<string, mixed> $parameters */
-    private function redirectToRouteWithFragment(string $route, array $parameters, string $fragment): RedirectResponse
+    private function assertPublicCommentTarget(Comment $comment): CommentableContentInterface
     {
-        return $this->redirect($this->generateUrl($route, $parameters).'#'.$fragment);
+        $thread = $comment->getThread();
+        $content = $thread === null ? null : $this->contentResolver->resolvePublicThread($thread);
+
+        if (!$content instanceof CommentableContentInterface) {
+            throw $this->createNotFoundException('Le contenu associé à ce commentaire n’est pas public.');
+        }
+
+        return $content;
     }
 
     private function commentFragment(Comment $comment): string

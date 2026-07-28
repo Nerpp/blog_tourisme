@@ -23,12 +23,10 @@
     <section class="admin-card-list">
         {% for comment in comments %}
             {% set status_label = status_labels[comment.status.value] ?? comment.status.value %}
-            {% set target = comment.article ?: comment.place %}
+            {% set target = comment.thread.content|default(null) %}
             {% set target_public_url = null %}
-            {% if comment.article and comment.article.slug is not empty and comment.article.status.value == 'published' %}
-                {% set target_public_url = path('app_article_show', { slug: comment.article.slug }) %}
-            {% elseif comment.place and comment.place.slug is not empty and comment.place.status.value == 'published' %}
-                {% set target_public_url = path('app_place_show', { slug: comment.place.slug }) %}
+            {% if target and target.slug is not empty and target.published %}
+                {% set target_public_url = path(target.commentableType.publicRoute, { slug: target.slug }) %}
             {% endif %}
             {% set pending_reports = comment.reports|filter(report => report.status.value == 'pending') %}
             {% set reviewed_reports = comment.reports|filter(report => report.status.value != 'pending') %}
@@ -73,10 +71,8 @@
                 <div class="admin-grid">
                     <div>
                         <span class="admin-label">Contexte</span><br>
-                        {% if comment.article %}
-                            Article : {{ comment.article.title }}
-                        {% elseif comment.place %}
-                            Repérage : {{ comment.place.name }}
+                        {% if target %}
+                            {{ target.commentableType.label }} : {{ target.commentableTitle }}
                         {% else %}
                             -
                         {% endif %}

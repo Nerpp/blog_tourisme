@@ -6,8 +6,6 @@ ARG XDEBUG_SHA256=f073de91bea046106abf4d6071c963ea71e58571df6ce58948ceca89d121cb
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        chromium \
-        chromium-driver \
         curl \
         default-mysql-client \
         ffmpeg \
@@ -85,8 +83,58 @@ RUN apt-get update \
     && php -r 'exit(extension_loaded("xdebug") ? 0 : 1);' \
     && php --ri xdebug
 
-ENV XDEBUG_MODE=off
+COPY docker/panther-browser-version.env /tmp/panther-browser-version.env
 
+RUN set -eu; \
+    . /tmp/panther-browser-version.env; \
+    architecture="$(dpkg --print-architecture)"; \
+    if [ "$architecture" != "amd64" ]; then \
+        echo "Architecture Panther non prise en charge : $architecture (linux64/amd64 attendu)." >&2; \
+        exit 1; \
+    fi; \
+    chrome_archive=/tmp/chrome-linux64.zip; \
+    driver_archive=/tmp/chromedriver-linux64.zip; \
+    base_url="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64"; \
+    curl --fail --location --silent --show-error \
+        --retry 5 \
+        --retry-delay 5 \
+        --retry-all-errors \
+        --output "$chrome_archive" \
+        "$base_url/chrome-linux64.zip"; \
+    curl --fail --location --silent --show-error \
+        --retry 5 \
+        --retry-delay 5 \
+        --retry-all-errors \
+        --output "$driver_archive" \
+        "$base_url/chromedriver-linux64.zip"; \
+    echo "${CHROME_FOR_TESTING_CHROME_SHA256}  ${chrome_archive}" | sha256sum -c -; \
+    echo "${CHROME_FOR_TESTING_DRIVER_SHA256}  ${driver_archive}" | sha256sum -c -; \
+    install -d -m 0755 /opt/chrome-for-testing /tmp/chromedriver-extract; \
+    unzip -q "$chrome_archive" -d /opt/chrome-for-testing; \
+    unzip -q "$driver_archive" -d /tmp/chromedriver-extract; \
+    install -m 0755 \
+        /tmp/chromedriver-extract/chromedriver-linux64/chromedriver \
+        /opt/chrome-for-testing/chromedriver; \
+    install -m 0644 \
+        /tmp/panther-browser-version.env \
+        /opt/chrome-for-testing/version.env; \
+    /opt/chrome-for-testing/chrome-linux64/chrome --version; \
+    /opt/chrome-for-testing/chromedriver --version; \
+    if ldd /opt/chrome-for-testing/chrome-linux64/chrome | grep -q 'not found'; then \
+        echo 'Une dépendance de Chrome for Testing est introuvable.' >&2; \
+        exit 1; \
+    fi; \
+    rm -rf \
+        "$chrome_archive" \
+        "$driver_archive" \
+        /tmp/chromedriver-extract \
+        /tmp/panther-browser-version.env
+
+ENV XDEBUG_MODE=off \
+    PANTHER_CHROME_BINARY=/opt/chrome-for-testing/chrome-linux64/chrome \
+    PATH=/opt/chrome-for-testing:${PATH}
+
+COPY docker/php/profile.d/panther-browser.sh /etc/profile.d/panther-browser.sh
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY docker/php/conf.d/app.ini /usr/local/etc/php/conf.d/app.ini
 COPY docker/php/entrypoint.sh /usr/local/bin/app-entrypoint
@@ -97,26 +145,3 @@ WORKDIR /var/www/html
 
 ENTRYPOINT ["app-entrypoint"]
 CMD ["php-fpm"]
-
-FROM development AS ci
-
-ARG CHROME_FOR_TESTING_VERSION=145.0.7632.117
-ARG CHROME_HEADLESS_SHELL_SHA256=187692424c038e5481495f2475e5fcf1b4125e33df9ae39ba86bd0a3d8569acf
-ARG CHROMEDRIVER_SHA256=7f397fa71614b2d97dcb06a87f3297c91725042803654d6c7fedcd10387a5df8
-
-RUN curl -fsSLo /tmp/chrome-headless-shell-linux64.zip \
-        "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-headless-shell-linux64.zip" \
-    && curl -fsSLo /tmp/chromedriver-linux64.zip \
-        "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chromedriver-linux64.zip" \
-    && echo "${CHROME_HEADLESS_SHELL_SHA256}  /tmp/chrome-headless-shell-linux64.zip" | sha256sum -c - \
-    && echo "${CHROMEDRIVER_SHA256}  /tmp/chromedriver-linux64.zip" | sha256sum -c - \
-    && mkdir -p /opt/chrome-for-testing /opt/chromedriver \
-    && unzip -q /tmp/chrome-headless-shell-linux64.zip -d /opt/chrome-for-testing \
-    && unzip -q /tmp/chromedriver-linux64.zip -d /tmp/chromedriver \
-    && install -m 0755 /tmp/chromedriver/chromedriver-linux64/chromedriver /opt/chromedriver/chromedriver \
-    && ln -s /opt/chromedriver/chromedriver /usr/local/bin/chromedriver \
-    && /opt/chrome-for-testing/chrome-headless-shell-linux64/chrome-headless-shell --version \
-    && /opt/chromedriver/chromedriver --version \
-    && rm -rf /tmp/chrome-headless-shell-linux64.zip /tmp/chromedriver-linux64.zip /tmp/chromedriver
-
-COPY --chmod=0755 docker/php/chrome-for-testing /usr/local/bin/chrome-for-testing

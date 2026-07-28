@@ -35,32 +35,17 @@
     {% set related_title = (article.placeLinks|first).place.name %}
 {% endif %}
 
-{% set cover_media = null %}
-{% set image_links = article.mediaLinks|filter(link => link.mediaAsset.mediaType.value == 'image') %}
-{% set cover_image_links = image_links|filter(link => link.role.value == 'cover') %}
-{% if cover_image_links|length > 0 %}
-    {% set cover_media = (cover_image_links|first).mediaAsset %}
-{% elseif article.featuredImage and article.featuredImage.mediaType.value == 'image' %}
-    {% set cover_media = article.featuredImage %}
-{% elseif image_links|length > 0 %}
-    {% set cover_media = (image_links|first).mediaAsset %}
-{% endif %}
+{% set cover_media = content_image_media(article) %}
 
 <article class="article-list-card" data-public-list-card data-public-content-type="article">
     <a class="article-list-card__visual" href="{{ article_url }}" aria-label="Article : lire {{ article.title }}">
-        {% if cover_media %}
-            {% include 'public_detail/_responsive_image.html.twig' with {
-                media: cover_media,
-                alt: media_public_alt(cover_media, article, article.title),
-                image_size: 'thumb',
-                sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
-                img_class: 'article-list-card__image'
-            } only %}
-        {% else %}
-            <div class="article-list-card__placeholder" role="img" aria-label="Image d'article non disponible">
-                <span>Article</span>
-            </div>
-        {% endif %}
+        {% include 'public_detail/_responsive_image.html.twig' with {
+            media: cover_media,
+            alt: media_public_alt(cover_media, article, article.title),
+            image_size: 'thumb',
+            sizes: '(min-width: 1180px) 33vw, (min-width: 760px) 50vw, 100vw',
+            img_class: 'article-list-card__image'
+        } only %}
     </a>
 
     <div class="article-list-card__body">

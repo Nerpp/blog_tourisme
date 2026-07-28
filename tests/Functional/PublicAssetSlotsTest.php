@@ -154,7 +154,7 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         $this->assertRenderedAssets(
             $crawler,
-            ['assets/app.js', 'assets/entries/public-detail.js'],
+            ['assets/app.js', 'assets/entries/public-detail.js', 'assets/entries/comments.js'],
             ['assets/app.js', 'assets/entries/public-detail.js'],
             ['assets/entries/related-articles.js', 'assets/entries/public-listing.js', 'assets/entries/article-show.js', 'assets/entries/comments.js'],
         );
@@ -297,7 +297,7 @@ final class PublicAssetSlotsTest extends FunctionalTestCase
         $now = new \DateTimeImmutable('-1 hour');
         $comment = (new Comment())
             ->setAuthor($author)
-            ->setPlace($place)
+            ->setThread($place->getCommentThread())
             ->setContent('Commentaire fonctionnel assez long pour un lieu.')
             ->setStatus(CommentStatus::Approved)
             ->setPublishedAt($now)

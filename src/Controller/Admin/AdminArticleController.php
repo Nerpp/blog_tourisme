@@ -18,13 +18,12 @@ use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 use App\Repository\CategoryRepository;
 use App\Repository\CityVisitDraftRepository;
-use App\Repository\CommentRepository;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\Article\ArticleContentSanitizer;
 use App\Service\CommentDeletionService;
-use App\Service\CommentReactionViewService;
+use App\Service\CommentSectionProvider;
 use App\Service\ImageUploadSecurity;
 use App\Service\Media\ImageVariantGenerator;
 use App\Service\Media\ImageMetadataSanitizer;
@@ -178,21 +177,12 @@ final class AdminArticleController extends AbstractController
     #[Route('/admin/articles/{id}/preview', name: 'admin_articles_preview', requirements: ['id' => '\d+'], methods: ['GET'])]
     public function preview(
         Article $article,
-        CommentRepository $commentRepository,
-        CommentReactionViewService $reactionViewService,
+        Request $request,
+        CommentSectionProvider $commentSectionProvider,
     ): Response {
-        $viewer = $this->getUser();
-        $comments = $commentRepository->findApprovedForArticle($article, $viewer instanceof User ? $viewer : null, 'recent');
-        $reactionContext = $reactionViewService->buildContext($comments, $viewer instanceof User ? $viewer : null);
-
         $response = $this->render('article/show.html.twig', [
             'article' => $article,
-            'comments' => $comments,
-            'comment_form' => null,
-            'comments_sort' => 'recent',
-            'comments_count' => $reactionContext['comment_count'],
-            'comment_like_counts' => $reactionContext['like_counts'],
-            'liked_comment_ids' => $reactionContext['liked_comment_ids'],
+            'comment_section' => $commentSectionProvider->provide($article, $request, $this->getUser(), false),
         ]);
         $response->headers->set('Cache-Control', 'private, no-store');
         $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
@@ -243,6 +233,7 @@ final class AdminArticleController extends AbstractController
             }
         }
 
+        $article->getCommentThread()->detachContent($article);
         $this->entityManager->remove($article);
         $this->entityManager->flush();
         $this->cleanupDetachedMedia($orphanCandidates, false);

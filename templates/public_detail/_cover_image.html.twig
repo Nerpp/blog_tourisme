@@ -1,9 +1,10 @@
-{% set fallback_src = media_cover_image_url(media, 'medium', 'fallback') %}
-{% set webp_srcset = media_cover_image_srcset(media, 'webp') %}
-{% set fallback_srcset = media_cover_image_srcset(media, 'fallback') %}
-{% set is_standard_image = media.mediaType.value == 'image' and media.imageType and media.imageType.value == 'standard' %}
+{% set media = media|default(null) %}
+{% set fallback_src = media ? media_cover_image_url(media, 'medium', 'fallback') : asset('images/placeholders/destination-card-placeholder.webp') %}
+{% set webp_srcset = media ? media_cover_image_srcset(media, 'webp') : null %}
+{% set fallback_srcset = media ? media_cover_image_srcset(media, 'fallback') : null %}
+{% set is_standard_image = not media or (media.mediaType.value == 'image' and media.imageType and media.imageType.value == 'standard') %}
 {% set img_srcset = is_standard_image ? webp_srcset : fallback_srcset %}
-{% set dimensions = media_cover_image_dimensions(media, 'medium') %}
+{% set dimensions = media ? media_cover_image_dimensions(media, 'medium') : { width: 2200, height: 1238 } %}
 
 {% if fallback_src %}
     <picture class="public-detail-cover__picture">

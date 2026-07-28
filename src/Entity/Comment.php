@@ -19,8 +19,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 #[ORM\Index(name: 'idx_comment_published_at', fields: ['publishedAt'])]
 #[ORM\Index(name: 'idx_comment_approved_at', fields: ['approvedAt'])]
 #[ORM\Index(name: 'idx_comment_author', fields: ['author'])]
-#[ORM\Index(name: 'idx_comment_article', fields: ['article'])]
-#[ORM\Index(name: 'idx_comment_place', fields: ['place'])]
+#[ORM\Index(name: 'idx_comment_thread', fields: ['thread'])]
 #[ORM\Index(name: 'idx_comment_parent', fields: ['parent'])]
 #[ORM\Index(name: 'idx_comment_reported_count', fields: ['reportedCount'])]
 #[ORM\Index(name: 'idx_comment_admin_hearted_by', fields: ['adminHeartedBy'])]
@@ -40,13 +39,9 @@ class Comment
     #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
     private ?User $author = null;
 
-    #[ORM\ManyToOne(targetEntity: Article::class, inversedBy: 'comments')]
-    #[ORM\JoinColumn(onDelete: 'RESTRICT')]
-    private ?Article $article = null;
-
-    #[ORM\ManyToOne(targetEntity: Place::class, inversedBy: 'comments')]
-    #[ORM\JoinColumn(onDelete: 'RESTRICT')]
-    private ?Place $place = null;
+    #[ORM\ManyToOne(targetEntity: CommentThread::class, inversedBy: 'comments')]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    private ?CommentThread $thread = null;
 
     #[ORM\Column(type: Types::TEXT)]
     #[Assert\NotBlank(message: 'validation.comment.content.required')]
@@ -156,34 +151,18 @@ class Comment
         return $this;
     }
 
-    public function getArticle(): ?Article
+    public function getThread(): ?CommentThread
     {
-        return $this->article;
+        return $this->thread;
     }
 
-    public function setArticle(?Article $article): static
+    public function setThread(CommentThread $thread): static
     {
-        $this->article = $article;
-
-        if ($article !== null) {
-            $this->place = null;
+        if ($this->parent instanceof self && !$this->sameThread($thread, $this->parent->getThread())) {
+            throw new \InvalidArgumentException('Une réponse doit appartenir au même fil que son commentaire parent.');
         }
 
-        return $this;
-    }
-
-    public function getPlace(): ?Place
-    {
-        return $this->place;
-    }
-
-    public function setPlace(?Place $place): static
-    {
-        $this->place = $place;
-
-        if ($place !== null) {
-            $this->article = null;
-        }
+        $this->thread = $thread;
 
         return $this;
     }
@@ -221,6 +200,17 @@ class Comment
     {
         if ($parent === $this) {
             return $this;
+        }
+
+        if ($parent instanceof self) {
+            $parentThread = $parent->getThread();
+            if ($this->thread instanceof CommentThread && !$this->sameThread($this->thread, $parentThread)) {
+                throw new \InvalidArgumentException('Une réponse doit appartenir au même fil que son commentaire parent.');
+            }
+
+            if (!$this->thread instanceof CommentThread && $parentThread instanceof CommentThread) {
+                $this->thread = $parentThread;
+            }
         }
 
         $this->parent = $parent;
@@ -472,14 +462,33 @@ class Comment
     #[Assert\Callback]
     public function validateTarget(ExecutionContextInterface $context): void
     {
-        $hasArticle = $this->article !== null;
-        $hasPlace = $this->place !== null;
-
-        if ($hasArticle === $hasPlace) {
+        if (!$this->thread instanceof CommentThread) {
             $context
                 ->buildViolation('validation.comment.target.invalid')
-                ->atPath('article')
+                ->atPath('thread')
+                ->addViolation();
+
+            return;
+        }
+
+        if ($this->parent instanceof self && !$this->sameThread($this->thread, $this->parent->getThread())) {
+            $context
+                ->buildViolation('validation.comment.target.invalid')
+                ->atPath('parent')
                 ->addViolation();
         }
+    }
+
+    private function sameThread(CommentThread $left, ?CommentThread $right): bool
+    {
+        if (!$right instanceof CommentThread) {
+            return false;
+        }
+
+        if ($left === $right) {
+            return true;
+        }
+
+        return $left->getId() !== null && $left->getId() === $right->getId();
     }
 }
