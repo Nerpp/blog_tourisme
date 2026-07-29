@@ -1,5 +1,6 @@
 parameters:
     vite_dev_server_url: ''
+    app.media.standard_webp_quality: 78
 
 services:
     _defaults:
@@ -18,6 +19,10 @@ services:
             $projectDir: '%kernel.project_dir%'
             $environment: '%kernel.environment%'
             $devServerUrl: '%env(default:vite_dev_server_url:VITE_DEV_SERVER_URL)%'
+
+    App\Service\Media\ImageVariantGenerator:
+        arguments:
+            $standardWebpQuality: '%app.media.standard_webp_quality%'
 
     App\Service\CommentModerationService:
         arguments:

@@ -40,6 +40,17 @@ final class ArticlePublicPerformanceTest extends TestCase
         self::assertStringContainsString('initPublicDetailGallery', $galleryEntry);
     }
 
+    public function testPublicGallerySizesMatchItsDesktopGridColumns(): void
+    {
+        $template = file_get_contents(dirname(__DIR__, 3).'/templates/public_detail/_image_gallery.html.twig');
+        self::assertIsString($template);
+
+        self::assertStringContainsString('(min-width: 1180px) 460px', $template);
+        self::assertStringContainsString('(min-width: 900px) calc(50vw - 110px)', $template);
+        self::assertStringContainsString('(min-width: 1180px) 220px', $template);
+        self::assertStringContainsString('(min-width: 900px) calc(25vw - 60px)', $template);
+    }
+
     public function testHashedArticleWebpsHaveAnImmutableNginxCacheRule(): void
     {
         $nginx = file_get_contents(dirname(__DIR__, 3).'/docker/nginx/default.conf');
@@ -48,6 +59,26 @@ final class ArticlePublicPerformanceTest extends TestCase
         self::assertStringContainsString('article_[a-f0-9]{24}_(inline|display|cover|source)', $nginx);
         self::assertMatchesRegularExpression(
             '/location[^\n]+article_\[a-f0-9\]\{24\}[^\{]+\{[^}]*max-age=31536000, immutable/s',
+            $nginx,
+        );
+    }
+
+    public function testApacheAndNginxCacheHashedAssetsWithoutFreezingUnversionedImages(): void
+    {
+        $projectDir = dirname(__DIR__, 3);
+        $apache = file_get_contents($projectDir.'/public/.htaccess');
+        $nginx = file_get_contents($projectDir.'/docker/nginx/default.conf');
+        self::assertIsString($apache);
+        self::assertIsString($nginx);
+
+        self::assertStringContainsString('max-age=31536000, immutable', $apache);
+        self::assertStringContainsString('media_[a-f0-9]{20}', $apache);
+        self::assertStringContainsString('article_[a-f0-9]{24}', $apache);
+        self::assertStringContainsString('destination-card-placeholder(-[0-9]+)?', $apache);
+        self::assertStringContainsString('max-age=604800, stale-while-revalidate=86400', $apache);
+        self::assertStringContainsString('location ^~ /images/placeholders/', $nginx);
+        self::assertMatchesRegularExpression(
+            '/location \^~ \/images\/placeholders\/[^}]+expires 7d;[^}]+max-age=604800/s',
             $nginx,
         );
     }

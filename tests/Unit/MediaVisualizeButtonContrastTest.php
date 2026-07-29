@@ -28,6 +28,20 @@ final class MediaVisualizeButtonContrastTest extends TestCase
         }
     }
 
+    public function testLightPublicDetailSectionLabelsMeetWcagAaContrast(): void
+    {
+        $css = file_get_contents(dirname(__DIR__, 2).'/assets/styles/public-detail.css');
+        self::assertIsString($css);
+
+        foreach (['.media-kicker', '.media-description'] as $selector) {
+            self::assertGreaterThanOrEqual(
+                4.5,
+                $this->contrastRatio($this->cssColor($css, $selector, 'color'), '#fefefe'),
+                sprintf('%s must meet WCAG AA contrast on light public detail sections.', $selector),
+            );
+        }
+    }
+
     private function cssColor(string $css, string $selector, string $property): string
     {
         $selectorPattern = preg_quote($selector, '/');

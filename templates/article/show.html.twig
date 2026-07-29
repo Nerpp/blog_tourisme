@@ -7,7 +7,7 @@
    still select the best candidate from srcset, including 1280 px on dense screens. #}
 {% set article_cover_image_size = 'mobile' %}
 {% set article_cover_image = article_cover_media ? media_image_url(article_cover_media, article_cover_image_size) : asset('images/placeholders/destination-card-placeholder.webp') %}
-{% set article_cover_srcset = article_cover_media ? media_image_srcset(article_cover_media, 'webp') : null %}
+{% set article_cover_srcset = article_cover_media ? media_image_srcset(article_cover_media, 'webp') : media_placeholder_srcset() %}
 {% set article_cover_sizes = '(min-width: 1360px) 760px, (min-width: 981px) 56vw, (min-width: 641px) calc(100vw - 32px), calc(100vw - 24px)' %}
 {% set gallery_media_links = article.mediaLinks|filter(link => link.role.value == 'gallery') %}
 
