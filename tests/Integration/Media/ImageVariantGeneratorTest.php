@@ -32,6 +32,11 @@ final class ImageVariantGeneratorTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    public function testStandardWebpQualityIsCentralizedInContainerConfiguration(): void
+    {
+        self::assertSame(78, $this->generator()->standardWebpQuality());
+    }
+
     public function testGeneratesCoreAndSecondaryWebpVariantsForStandardImage(): void
     {
         $source = TestImageFactory::createJpeg(TestImageFactory::publicMediaDirectory(), 2000, 1000);

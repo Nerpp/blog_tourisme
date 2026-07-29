@@ -55,7 +55,7 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         $this->trackVariantFiles($media->getVariants());
     }
 
-    public function testGeneratesSecondaryVariantsFromRetainedLargeWebpWithoutChangingCoreVariants(): void
+    public function testRegeneratesAllStandardVariantsFromRetainedLargeWebp(): void
     {
         $retained = TestImageFactory::createWebp(TestImageFactory::publicMediaDirectory().'/variants', 1920, 960);
         $this->files[] = $retained;
@@ -78,13 +78,20 @@ final class MediaVariantServiceTest extends IntegrationTestCase
         self::assertTrue($service->supports($media));
         self::assertFalse($service->hasUsableVariants($media));
         self::assertSame('generated', $service->generateForMedia($media)['status']);
-        foreach ($coreVariants as $name => $variant) {
-            self::assertSame($variant, $media->getVariants()[$name]);
+        self::assertSame($retainedPath, $media->getVariants()['source']['path'] ?? null);
+        self::assertSame('image/webp', $media->getMimeType());
+        self::assertSame(1920, $media->getWidth());
+        self::assertSame(960, $media->getHeight());
+        foreach (['thumb', 'mobile', 'medium', 'large'] as $size) {
+            self::assertNotSame($coreVariants[$size]['webp'], $media->getVariants()[$size]['webp'] ?? null);
+            self::assertStringStartsWith('/uploads/media/variants/media_', $media->getVariants()[$size]['webp'] ?? '');
         }
         foreach (['thumbnail320', 'thumbnail480', 'content640', 'content768', 'content960'] as $size) {
             self::assertArrayHasKey($size, $media->getVariants());
             self::assertArrayHasKey('webp', $media->getVariants()[$size]);
         }
+        self::assertSame($media->getVariants()['thumb']['webp'] ?? null, $media->getThumbnailPath());
+        self::assertFileExists($retained);
         self::assertTrue($service->hasUsableVariants($media));
         $this->trackVariantFiles($media->getVariants());
     }

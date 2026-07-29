@@ -209,11 +209,16 @@
   align-items: center;
   gap: 10px;
   margin: 0 0 18px;
-  color: #7ed6a7;
+  color: #12615c;
   font-size: 0.78rem;
   font-weight: 950;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.public-detail-kicker,
+.media-section--dark .media-kicker {
+  color: #7ed6a7;
 }
 
 .public-detail-kicker::before,
@@ -360,7 +365,7 @@
 .media-description {
   max-width: 620px;
   margin: 12px 0 0;
-  color: rgba(24, 50, 42, 0.64);
+  color: #5f6f6a;
   line-height: 1.7;
 }
 

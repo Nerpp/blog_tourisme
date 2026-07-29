@@ -14,6 +14,14 @@ use App\Enum\MediaType;
 final readonly class ContentImageResolver
 {
     public const PLACEHOLDER_ASSET = 'images/placeholders/destination-card-placeholder.webp';
+    public const PLACEHOLDER_WIDTH = 2200;
+    public const PLACEHOLDER_HEIGHT = 1238;
+    /** @var array<int, string> */
+    public const PLACEHOLDER_VARIANTS = [
+        480 => 'images/placeholders/destination-card-placeholder-480.webp',
+        960 => 'images/placeholders/destination-card-placeholder-960.webp',
+        1600 => 'images/placeholders/destination-card-placeholder-1600.webp',
+    ];
 
     public function resolve(
         object $content,

@@ -90,10 +90,26 @@ final class PublicPagesTest extends FunctionalTestCase
             '/images/placeholders/destination-card-placeholder.webp',
             $destinationCard->filter('img.home-destination-card__img')->attr('src'),
         );
+        self::assertStringContainsString(
+            'destination-card-placeholder-480.webp 480w',
+            (string) $destinationCard->filter('img.home-destination-card__img')->attr('srcset'),
+        );
+        self::assertSame(
+            '(min-width: 1180px) 360px, (min-width: 760px) 50vw, 100vw',
+            $destinationCard->filter('img.home-destination-card__img')->attr('sizes'),
+        );
         self::assertSame(0, $destinationCard->filter('picture')->count());
         self::assertSame(
             '/images/placeholders/destination-card-placeholder.webp',
             $crawler->filter('.home-latest-card img.home-latest-card__image')->attr('src'),
+        );
+        self::assertStringContainsString(
+            'destination-card-placeholder-960.webp 960w',
+            (string) $crawler->filter('.home-latest-card img.home-latest-card__image')->attr('srcset'),
+        );
+        self::assertSame(
+            '(min-width: 1180px) 420px, (min-width: 760px) 45vw, 100vw',
+            $crawler->filter('.home-latest-card img.home-latest-card__image')->attr('sizes'),
         );
         self::assertSame(0, $crawler->filter('.home-latest-card picture')->count());
     }
