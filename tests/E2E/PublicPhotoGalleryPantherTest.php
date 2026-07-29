@@ -137,7 +137,7 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         $desktopSource = $this->currentSourceForSelector($desktopDriver, '.journey-gallery img[srcset]');
 
         self::assertStringEndsWith('.webp', $desktopSource);
-        self::assertStringContainsString('_content768.webp', $desktopSource);
+        self::assertStringContainsString('_content640.webp', $desktopSource);
     }
 
     public function testPanoramaBundleLoadsOnlyWhenTheImmersiveGalleryOpens(): void

@@ -63,6 +63,17 @@ final class HikeControllerTest extends FunctionalTestCase
             '/images/placeholders/destination-card-placeholder.webp',
             $cover->filter('picture.public-detail-cover__picture > img.public-detail-cover__image')->attr('src'),
         );
+        $placeholderSrcset = '/images/placeholders/destination-card-placeholder-480.webp 480w, '
+            .'/images/placeholders/destination-card-placeholder-960.webp 960w, '
+            .'/images/placeholders/destination-card-placeholder-1600.webp 1600w';
+        self::assertSame(
+            $placeholderSrcset,
+            $cover->filter('picture.public-detail-cover__picture > img.public-detail-cover__image')->attr('srcset'),
+        );
+        self::assertSame(
+            $placeholderSrcset,
+            $crawler->filter('link[rel="preload"][as="image"]')->attr('imagesrcset'),
+        );
         self::assertSame(0, $crawler->filter('.public-detail-hero .public-detail-meta')->count());
         self::assertStringNotContainsString('étape', $crawler->filter('.public-detail-hero')->text());
     }

@@ -47,6 +47,11 @@ final class MediaVariantService
         return $this->imageVariantGenerator->supportsWebp();
     }
 
+    public function standardWebpQuality(): int
+    {
+        return $this->imageVariantGenerator->standardWebpQuality();
+    }
+
     public function supports(MediaAsset $media): bool
     {
         return match ($media->getMediaType()) {
@@ -221,37 +226,10 @@ final class MediaVariantService
     {
         $previousVariants = $this->normalizeVariants($media->getVariants());
         $filePath = $media->getFilePath();
-
-        if ($filePath !== null && $this->localPublicFileExists($filePath)) {
-            $variants = $this->normalizeVariants(
-                $this->imageVariantGenerator->generateStandard($filePath, $filePath),
-            );
-            $media->setVariants($variants);
-
-            $source = $variants['source'] ?? null;
-            if (is_array($source)) {
-                $media
-                    ->setMimeType(is_string($source['mimeType'] ?? null) ? $source['mimeType'] : $media->getMimeType())
-                    ->setWidth(is_numeric($source['width'] ?? null) ? (int) $source['width'] : $media->getWidth())
-                    ->setHeight(is_numeric($source['height'] ?? null) ? (int) $source['height'] : $media->getHeight());
-            }
-
-            $thumbnailPath = $this->variantPath($variants, 'thumb', 'webp');
-            if ($thumbnailPath !== null) {
-                $media->setThumbnailPath($thumbnailPath);
-            }
-
-            $this->standardLegacyVariantCleanupService->cleanup($media, legacyVariants: $previousVariants);
-
-            return [
-                'status' => 'generated',
-                'generated' => true,
-                'message' => null,
-            ];
-        }
-
-        $retainedSourcePath = $this->standardGenerationSourcePath($media);
-        if ($retainedSourcePath === null) {
+        $generationSourcePath = $filePath !== null && $this->localPublicFileExists($filePath)
+            ? $filePath
+            : $this->standardGenerationSourcePath($media);
+        if ($generationSourcePath === null) {
             return [
                 'status' => 'error',
                 'generated' => false,
@@ -262,12 +240,26 @@ final class MediaVariantService
         $sourceMetadata = $previousVariants['source'] ?? null;
         $basenameSeed = is_array($sourceMetadata) && is_string($sourceMetadata['path'] ?? null)
             ? $sourceMetadata['path']
-            : $retainedSourcePath;
-        $secondaryVariants = $this->normalizeVariants(
-            $this->imageVariantGenerator->generateStandardSecondary($retainedSourcePath, $basenameSeed),
+            : $generationSourcePath;
+        $variants = $this->normalizeVariants(
+            $this->imageVariantGenerator->generateStandard($generationSourcePath, $basenameSeed),
         );
+        $media->setVariants($variants);
 
-        $media->setVariants(array_replace($previousVariants, $secondaryVariants));
+        $source = $variants['source'] ?? null;
+        if (is_array($source)) {
+            $media
+                ->setMimeType(is_string($source['mimeType'] ?? null) ? $source['mimeType'] : $media->getMimeType())
+                ->setWidth(is_numeric($source['width'] ?? null) ? (int) $source['width'] : $media->getWidth())
+                ->setHeight(is_numeric($source['height'] ?? null) ? (int) $source['height'] : $media->getHeight());
+        }
+
+        $thumbnailPath = $this->variantPath($variants, 'thumb', 'webp');
+        if ($thumbnailPath !== null) {
+            $media->setThumbnailPath($thumbnailPath);
+        }
+
+        $this->standardLegacyVariantCleanupService->cleanup($media, legacyVariants: $previousVariants);
 
         return [
             'status' => 'generated',

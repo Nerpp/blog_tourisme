@@ -16,6 +16,7 @@
     {% set cover_fallback_srcset = media_cover_image_srcset(cover_media, 'fallback') %}
 {% else %}
     {% set cover_image = asset('images/placeholders/destination-card-placeholder.webp') %}
+    {% set cover_webp_srcset = media_placeholder_srcset() %}
 {% endif %}
 
 {% block title %}{{ city_visit.title }} - Visite de ville{% endblock %}

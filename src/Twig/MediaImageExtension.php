@@ -71,6 +71,8 @@ final class MediaImageExtension extends AbstractExtension
             new TwigFunction('media_display_image_url', [$this, 'displayUrl']),
             new TwigFunction('media_display_image_srcset', [$this, 'displaySrcset']),
             new TwigFunction('media_display_image_dimensions', [$this, 'displayDimensions']),
+            new TwigFunction('media_placeholder_srcset', [$this, 'placeholderSrcset']),
+            new TwigFunction('media_placeholder_dimensions', [$this, 'placeholderDimensions']),
             new TwigFunction('media_public_title', [$this, 'publicTitle']),
             new TwigFunction('media_public_alt', [$this, 'publicAlt']),
         ];
@@ -83,6 +85,25 @@ final class MediaImageExtension extends AbstractExtension
         }
 
         return $this->mediaSeoTextService->publicTitle($media, $context, $fallbackTitle);
+    }
+
+    public function placeholderSrcset(): string
+    {
+        $entries = [];
+        foreach (ContentImageResolver::PLACEHOLDER_VARIANTS as $width => $path) {
+            $entries[] = sprintf('%s %dw', $this->toPublicUrl('/'.$path), $width);
+        }
+
+        return implode(', ', $entries);
+    }
+
+    /** @return array{width: int, height: int} */
+    public function placeholderDimensions(): array
+    {
+        return [
+            'width' => ContentImageResolver::PLACEHOLDER_WIDTH,
+            'height' => ContentImageResolver::PLACEHOLDER_HEIGHT,
+        ];
     }
 
     public function publicAlt(?MediaAsset $media, object|string|null $context = null, ?string $fallbackTitle = null): string

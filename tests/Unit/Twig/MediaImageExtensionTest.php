@@ -34,9 +34,24 @@ final class MediaImageExtensionTest extends TestCase
             'media_display_image_url',
             'media_display_image_srcset',
             'media_display_image_dimensions',
+            'media_placeholder_srcset',
+            'media_placeholder_dimensions',
             'media_public_title',
             'media_public_alt',
         ], $functionNames);
+    }
+
+    public function testCommonPlaceholderProvidesResponsiveCandidatesAndStableDimensions(): void
+    {
+        $extension = $this->extension();
+
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder-480.webp 480w, '
+            .'/images/placeholders/destination-card-placeholder-960.webp 960w, '
+            .'/images/placeholders/destination-card-placeholder-1600.webp 1600w',
+            $extension->placeholderSrcset(),
+        );
+        self::assertSame(['width' => 2200, 'height' => 1238], $extension->placeholderDimensions());
     }
 
     public function testImageUrlPrefersRequestedVariantAndFallsBackToPlaceholderForStandardWithoutVariants(): void

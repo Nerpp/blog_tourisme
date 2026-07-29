@@ -19,6 +19,8 @@ final class ImageVariantGenerator
     private const ARTICLE_COVER_WEBP_QUALITY = 80;
     private const ARTICLE_SOURCE_WEBP_QUALITY = 82;
     private const LEGACY_VARIANT_PIPELINE_VERSION = 'responsive-cover-v2';
+    private const STANDARD_VARIANT_PIPELINE_VERSION = 'standard-responsive-v2';
+    private const STANDARD_SECONDARY_PIPELINE_VERSION = 'secondary-display-v2';
 
     /** @var array<string, int> */
     private const LEGACY_SIZES = [
@@ -62,7 +64,16 @@ final class ImageVariantGenerator
 
     public function __construct(
         private readonly ParameterBagInterface $parameterBag,
+        private readonly int $standardWebpQuality,
     ) {
+        if ($this->standardWebpQuality < 1 || $this->standardWebpQuality > 100) {
+            throw new InvalidArgumentException('La qualité WebP standard doit être comprise entre 1 et 100.');
+        }
+    }
+
+    public function standardWebpQuality(): int
+    {
+        return $this->standardWebpQuality;
     }
 
     public function supportsWebp(): bool
@@ -416,7 +427,10 @@ final class ImageVariantGenerator
         if (!is_string($contentHash)) {
             throw new InvalidArgumentException('L’image source ne peut pas être identifiée.');
         }
-        $baseName = 'media_'.substr(hash('sha256', $seed.'|'.filesize($sourceFile).'|'.$contentHash), 0, 20);
+        $baseName = 'media_'.substr(hash(
+            'sha256',
+            $seed.'|'.filesize($sourceFile).'|'.$contentHash.'|'.self::STANDARD_VARIANT_PIPELINE_VERSION.'|q'.$this->standardWebpQuality,
+        ), 0, 20);
         $variants = [
             'source' => [
                 'path' => $publicSourcePath,
@@ -458,7 +472,7 @@ final class ImageVariantGenerator
                     $sizeName,
                     $targetWidth,
                     $targetHeight,
-                    self::WEBP_QUALITY,
+                    $this->standardWebpQuality,
                 );
                 $variantsByDimensions[$dimensionKey] = $variant;
                 $variants[$sizeName] = $variant;
@@ -535,7 +549,7 @@ final class ImageVariantGenerator
         $seed = $basenameSeed ?: $publicSourcePath;
         $baseName = 'media_'.substr(hash(
             'sha256',
-            $seed.'|'.filesize($sourceFile).'|'.$contentHash.'|secondary-display-v1',
+            $seed.'|'.filesize($sourceFile).'|'.$contentHash.'|'.self::STANDARD_SECONDARY_PIPELINE_VERSION,
         ), 0, 20);
         $sourceImage = $this->createImage($sourceFile, $mimeType);
         $variants = [];
