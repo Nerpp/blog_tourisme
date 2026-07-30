@@ -13,6 +13,14 @@
     {% endif %}
 {% endblock %}
 
+{% block canonical %}
+    {% if not is_preview %}{{ parent() }}{% endif %}
+{% endblock %}
+
+{% block open_graph_url %}
+    {% if not is_preview %}{{ parent() }}{% endif %}
+{% endblock %}
+
 {% block layout_stylesheets %}
     {{ parent() }}
     {{ vite_entry_link_tags('assets/entries/public-detail.js') }}

@@ -3,6 +3,7 @@
 namespace App\Security;
 
 use App\Entity\User;
+use App\Service\Seo\PublicUrlGenerator;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,6 +16,7 @@ final class EmailVerifier
     public function __construct(
         private readonly VerifyEmailHelperInterface $verifyEmailHelper,
         private readonly MailerInterface $mailer,
+        private readonly PublicUrlGenerator $publicUrlGenerator,
         #[Autowire('%env(MAILER_FROM)%')]
         private readonly string $mailerFrom,
     ) {
@@ -27,11 +29,13 @@ final class EmailVerifier
             throw new \LogicException('User must be persisted before sending a confirmation email.');
         }
 
-        $signatureComponents = $this->verifyEmailHelper->generateSignature(
-            'app_verify_email',
-            (string) $userId,
-            (string) $user->getEmail(),
-            ['id' => $userId],
+        $signatureComponents = $this->publicUrlGenerator->withConfiguredRouterContext(
+            fn () => $this->verifyEmailHelper->generateSignature(
+                'app_verify_email',
+                (string) $userId,
+                (string) $user->getEmail(),
+                ['id' => $userId],
+            ),
         );
 
         $email = (new TemplatedEmail())

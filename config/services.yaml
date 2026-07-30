@@ -1,6 +1,8 @@
 parameters:
     vite_dev_server_url: ''
     app.media.standard_webp_quality: 78
+    app.public_url_default: 'https://estela-exploration.fr'
+    app.public_url: '%env(default:app.public_url_default:APP_PUBLIC_URL)%'
 
 services:
     _defaults:
@@ -23,6 +25,10 @@ services:
     App\Service\Media\ImageVariantGenerator:
         arguments:
             $standardWebpQuality: '%app.media.standard_webp_quality%'
+
+    App\Service\Seo\PublicUrlGenerator:
+        arguments:
+            $publicBaseUrl: '%app.public_url%'
 
     App\Service\CommentModerationService:
         arguments:

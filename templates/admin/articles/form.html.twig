@@ -22,6 +22,8 @@
             <input type="hidden" name="_submission_token" value="{{ article_submission_token }}">
         {% endif %}
 
+        <div class="admin-form-errors">{{ form_errors(article_form) }}</div>
+
         <div class="article-admin-layout">
             <div class="article-admin-main">
                 <section class="admin-card article-admin-section">
@@ -30,12 +32,26 @@
                     <div class="admin-form-grid">
                         <div class="admin-field admin-field--full">
                             <label for="article-title">Titre</label>
-                            <input id="article-title" name="title" value="{{ article.title }}" required>
+                            <input
+                                id="article-title"
+                                name="{{ article_form.title.vars.full_name }}"
+                                value="{{ article.title }}"
+                                maxlength="180"
+                                {% if article_form.title.vars.errors|length %}aria-invalid="true" aria-describedby="article-title-errors"{% endif %}
+                            >
+                            <div id="article-title-errors" class="admin-field-errors">{{ form_errors(article_form.title) }}</div>
                         </div>
 
                         <div class="admin-field admin-field--full">
                             <label for="article-excerpt">Résumé</label>
-                            <textarea id="article-excerpt" name="excerpt" rows="4">{{ article.excerpt }}</textarea>
+                            <textarea
+                                id="article-excerpt"
+                                name="{{ article_form.excerpt.vars.full_name }}"
+                                rows="4"
+                                maxlength="1000"
+                                {% if article_form.excerpt.vars.errors|length %}aria-invalid="true" aria-describedby="article-excerpt-errors"{% endif %}
+                            >{{ article.excerpt }}</textarea>
+                            <div id="article-excerpt-errors" class="admin-field-errors">{{ form_errors(article_form.excerpt) }}</div>
                         </div>
                     </div>
                 </section>
@@ -64,9 +80,11 @@
                         <textarea
                             id="article-content"
                             class="article-editor-source"
-                            name="content"
+                            name="{{ article_form.content.vars.full_name }}"
                             data-article-editor-source
+                            {% if article_form.content.vars.errors|length %}aria-invalid="true" aria-describedby="article-content-errors"{% endif %}
                         >{{ article.content }}</textarea>
+                        <div id="article-content-errors" class="admin-field-errors">{{ form_errors(article_form.content) }}</div>
                         <span class="admin-muted">Mise en forme autorisée : titres, gras, italique, listes, citations, liens et images liées à l’article. Le HTML est nettoyé côté serveur.</span>
                     </div>
                 </section>
@@ -79,13 +97,15 @@
                         <input
                             id="article-gallery-images"
                             type="file"
-                            name="galleryImages[]"
+                            name="{{ article_form.galleryImages.vars.full_name }}"
                             accept="image/jpeg,image/png,image/webp"
                             multiple
                             aria-describedby="article-gallery-images-help"
+                            {% if article_form.galleryImages.vars.errors|length %}aria-invalid="true"{% endif %}
                             data-article-file-input="gallery"
                         >
                         <span id="article-gallery-images-help" class="admin-muted">Formats acceptés : JPG, PNG, WebP. Taille maximum : 30 Mo par photo. Les images sont renommées, nettoyées et optimisées automatiquement.</span>
+                        <div class="admin-field-errors">{{ form_errors(article_form.galleryImages) }}</div>
                         <div class="article-upload-preview" data-article-file-preview="gallery" aria-live="polite"></div>
                         <input type="hidden" name="newCoverImageIndex" value="" data-article-new-cover-index>
                     </div>
@@ -190,23 +210,22 @@
                 <section class="admin-card article-admin-section">
                     <h2>Publication</h2>
 
-                    <div class="admin-field">
-                        <label for="article-status">Statut</label>
-                        <select id="article-status" name="status">
-                            {% for value, label in status_options %}
-                                <option value="{{ value }}" {% if article.status.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                    <p class="admin-muted">Statut actuel : <strong>{{ status_options[article.status.value] ?? article.status.value }}</strong></p>
+                    <p class="admin-muted">Le statut est déterminé uniquement par l’action choisie ci-dessous.</p>
 
                     <div class="admin-field">
                         <label for="article-category">Catégorie</label>
-                        <select id="article-category" name="category">
+                        <select
+                            id="article-category"
+                            name="{{ article_form.category.vars.full_name }}"
+                            {% if article_form.category.vars.errors|length %}aria-invalid="true" aria-describedby="article-category-errors"{% endif %}
+                        >
                             <option value="">Non renseignée</option>
                             {% for category in categories %}
                                 <option value="{{ category.id }}" {% if article.category and article.category.id == category.id %}selected{% endif %}>{{ category.name }}</option>
                             {% endfor %}
                         </select>
+                        <div id="article-category-errors" class="admin-field-errors">{{ form_errors(article_form.category) }}</div>
                     </div>
 
                     {% if article.slug %}
@@ -331,8 +350,24 @@
                 </section>
 
                 <div class="admin-actions">
-                    <button class="admin-button" type="submit" data-article-submit-button>
-                        <span data-article-submit-label>{{ submit_label }}</span>
+                    <button
+                        class="admin-button admin-button--secondary"
+                        type="submit"
+                        name="{{ article_form.saveDraft.vars.full_name }}"
+                        value="1"
+                        data-article-submit-button
+                    >
+                        <span data-article-submit-label>Enregistrer comme brouillon</span>
+                        <span class="admin-button__spinner" aria-hidden="true"></span>
+                    </button>
+                    <button
+                        class="admin-button"
+                        type="submit"
+                        name="{{ article_form.publish.vars.full_name }}"
+                        value="1"
+                        data-article-submit-button
+                    >
+                        <span data-article-submit-label>Publier l’article</span>
                         <span class="admin-button__spinner" aria-hidden="true"></span>
                     </button>
                     {% if article.id %}

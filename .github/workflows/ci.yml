@@ -383,6 +383,7 @@ jobs:
             --include='/src/***' \
             --include='/config/***' \
             --include='/templates/***' \
+            --include='/translations/***' \
             --include='/migrations/***' \
             --include='/public/***' \
             --include='/vendor/***' \

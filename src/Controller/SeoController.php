@@ -7,13 +7,18 @@ use App\Repository\CityVisitDraftRepository;
 use App\Repository\DestinationRepository;
 use App\Repository\HikeDraftRepository;
 use App\Repository\PlaceRepository;
+use App\Service\Seo\PublicUrlGenerator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 final class SeoController extends AbstractController
 {
+    public function __construct(
+        private readonly PublicUrlGenerator $publicUrlGenerator,
+    ) {
+    }
+
     #[Route('/plan-du-site', name: 'app_sitemap_html', methods: ['GET'])]
     public function htmlSitemap(): Response
     {
@@ -90,7 +95,7 @@ final class SeoController extends AbstractController
             '',
             'Disallow: /admin/',
             '',
-            'Sitemap: '.$this->generateUrl('app_sitemap_xml', referenceType: UrlGeneratorInterface::ABSOLUTE_URL),
+            'Sitemap: '.$this->publicUrlGenerator->generate('app_sitemap_xml'),
             '',
         ]);
 
@@ -109,7 +114,7 @@ final class SeoController extends AbstractController
         array $parameters = [],
         ?\DateTimeInterface $lastModifiedAt = null,
     ): void {
-        $url = $this->generateUrl($route, $parameters, UrlGeneratorInterface::ABSOLUTE_URL);
+        $url = $this->publicUrlGenerator->generate($route, $parameters);
         $entries[$url] = [
             'loc' => $url,
             'lastmod' => $lastModifiedAt?->format(\DateTimeInterface::ATOM),

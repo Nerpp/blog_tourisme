@@ -62,6 +62,15 @@ final class AdminArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(1, $crawler->filter('.article-admin-sidebar--sticky[data-article-sticky-sidebar]')->count());
+        self::assertSame(1, $crawler->filter('button[name="saveDraft"]')->count());
+        self::assertSame('Enregistrer comme brouillon', trim($crawler->filter('button[name="saveDraft"]')->text()));
+        self::assertSame(1, $crawler->filter('button[name="publish"]')->count());
+        self::assertSame('Publier l’article', trim($crawler->filter('button[name="publish"]')->text()));
+        self::assertSame(0, $crawler->filter('select[name="status"], input[name="status"]')->count());
+        self::assertSame(0, $crawler->filter('[name="seoTitle"], [name="seoDescription"], [name="canonicalUrl"]')->count());
+        self::assertStringNotContainsString('Titre SEO', $crawler->text());
+        self::assertStringNotContainsString('Méta-description', $crawler->text());
+        self::assertStringNotContainsString('URL canonique', $crawler->text());
         $previewButton = $crawler->filter('button[data-article-quick-preview]');
         self::assertSame(1, $previewButton->count());
         self::assertNotNull($previewButton->attr('disabled'));
@@ -84,6 +93,10 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
 
         self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('[name="seoTitle"], [name="seoDescription"], [name="canonicalUrl"]')->count());
+        self::assertStringNotContainsString('Titre SEO', $crawler->text());
+        self::assertStringNotContainsString('Méta-description', $crawler->text());
+        self::assertStringNotContainsString('URL canonique', $crawler->text());
         $previewLink = $crawler->filter('a[data-article-quick-preview]');
         self::assertSame(sprintf('/admin/articles/%d/preview', $article->getId()), $previewLink->attr('href'));
         self::assertSame('_blank', $previewLink->attr('target'));
@@ -96,6 +109,15 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertSame((string) $article->getTitle(), trim($previewCrawler->filter('.article-show-title')->text()));
         self::assertStringContainsString('Version enregistrée uniquement.', $previewCrawler->filter('.article-content')->text());
         self::assertStringNotContainsString('Version-locale-non-enregistree', $previewCrawler->filter('.article-show-title, .article-content')->text());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $previewCrawler->filter('.article-show-cover img')->attr('src'),
+        );
+        self::assertSame(
+            'https://estela-exploration.fr/images/placeholders/destination-card-placeholder.webp',
+            $previewCrawler->filter('meta[property="og:image"]')->attr('content'),
+        );
+        self::assertStringNotContainsString('/admin/', (string) $previewCrawler->filter('meta[property="og:image"]')->attr('content'));
         self::assertSame('noindex, nofollow', $client->getResponse()->headers->get('X-Robots-Tag'));
         self::assertStringContainsString('no-store', (string) $client->getResponse()->headers->get('Cache-Control'));
     }
@@ -151,6 +173,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             'title' => 'Article invalide avec randonnée',
             'content' => '',
             'status' => ContentStatus::Draft->value,
+            'publish' => '1',
             'linkedContentType' => 'hike',
             'linkedHike' => (string) $hike->getId(),
             'linkedCityVisit' => (string) $cityVisit->getId(),
@@ -310,6 +333,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             'title' => $title,
             'content' => '<p>Contenu article fonctionnel minimal.</p>',
             'status' => ContentStatus::Draft->value,
+            'saveDraft' => '1',
             'linkedContentType' => 'none',
             'articleRole' => 'related',
         ]);
@@ -319,6 +343,212 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertInstanceOf(Article::class, $article);
         self::assertSame($admin->getId(), $article->getAuthor()?->getId());
         self::assertSame(ContentStatus::Draft, $article->getStatus());
+        self::assertNull($article->getPublishedAt());
+        self::assertNotSame('', (string) $article->getSlug());
+
+        $client->request('GET', '/articles/'.$article->getSlug());
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testVerifiedAdminCanCreateAnEntirelyEmptyDraft(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $articleCount = $this->entityManager()->getRepository(Article::class)->count([]);
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', '/admin/articles/new');
+
+        $client->request('POST', '/admin/articles/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
+            'title' => '',
+            'excerpt' => '',
+            'content' => '',
+            'category' => '',
+            'saveDraft' => '1',
+            'linkedContentType' => 'none',
+            'articleRole' => 'related',
+        ]);
+
+        self::assertResponseRedirects('/admin/articles');
+        self::assertSame($articleCount + 1, $this->entityManager()->getRepository(Article::class)->count([]));
+        $article = $this->entityManager()->getRepository(Article::class)->findOneBy(['title' => ''], ['id' => 'DESC']);
+        self::assertInstanceOf(Article::class, $article);
+        self::assertSame($admin->getId(), $article->getAuthor()?->getId());
+        self::assertSame(ContentStatus::Draft, $article->getStatus());
+        self::assertSame('', $article->getContent());
+        self::assertNull($article->getCategory());
+        self::assertNull($article->getSeoTitle());
+        self::assertNull($article->getSeoDescription());
+        self::assertNull($article->getFeaturedImage());
+        self::assertNull($article->getPublishedAt());
+        self::assertMatchesRegularExpression('/^brouillon(?:-\d+)?$/', (string) $article->getSlug());
+
+        $firstSlug = $article->getSlug();
+        $crawler = $client->request('GET', '/admin/articles/new');
+        $client->request('POST', '/admin/articles/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
+            'saveDraft' => '1',
+        ]);
+        self::assertResponseRedirects('/admin/articles');
+        $drafts = $this->entityManager()->getRepository(Article::class)->findBy(['title' => ''], ['id' => 'DESC'], 2);
+        self::assertCount(2, $drafts);
+        self::assertNotSame($firstSlug, $drafts[0]->getSlug());
+    }
+
+    public function testIncompleteArticleCannotBePublishedAndDisplaysFrenchFieldErrors(): void
+    {
+        $client = static::createClient();
+        $client->loginUser($this->createVerifiedAdmin());
+        $articleCount = $this->entityManager()->getRepository(Article::class)->count([]);
+        $crawler = $client->request('GET', '/admin/articles/new');
+
+        $crawler = $client->request('POST', '/admin/articles/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
+            'title' => '',
+            'excerpt' => '',
+            'content' => '',
+            'category' => '',
+            'publish' => '1',
+            'linkedContentType' => 'none',
+            'articleRole' => 'related',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($articleCount, $this->entityManager()->getRepository(Article::class)->count([]));
+        self::assertStringContainsString('Le titre est obligatoire pour publier l’article.', $crawler->text());
+        self::assertStringContainsString('Le contenu de l’article est obligatoire pour le publier.', $crawler->text());
+        self::assertStringContainsString('Le résumé est obligatoire pour publier l’article.', $crawler->text());
+        self::assertStringContainsString('La catégorie est obligatoire pour publier l’article.', $crawler->text());
+        self::assertStringNotContainsString('Une image de couverture est obligatoire', $crawler->text());
+        self::assertStringNotContainsString('titre SEO', $crawler->text());
+        self::assertStringNotContainsString('méta-description', $crawler->text());
+        self::assertSame(1, $crawler->filter('#article-title[aria-invalid="true"]')->count());
+        self::assertSame(1, $crawler->filter('#article-content[aria-invalid="true"]')->count());
+    }
+
+    public function testMarkupAndMediaTokensWithoutEditorialTextCannotBePublished(): void
+    {
+        $client = static::createClient();
+        $category = $this->createCategory(CategoryType::Article);
+        $title = 'Article sans texte éditorial '.$this->uniqueToken('article');
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', '/admin/articles/new');
+
+        $crawler = $client->request('POST', '/admin/articles/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
+            'title' => $title,
+            'excerpt' => 'Résumé complet mais contenu principal vide.',
+            'content' => '<p>&nbsp;</p>[[media:123]]',
+            'category' => (string) $category->getId(),
+            'publish' => '1',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Le contenu de l’article doit contenir du texte pour être publié.', $crawler->text());
+        self::assertNull($this->entityManager()->getRepository(Article::class)->findOneBy(['title' => $title]));
+    }
+
+    public function testCompleteArticleWithoutImageIsPublishedAndAccessibleWithFallbacks(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $category = $this->createCategory(CategoryType::Article);
+        $title = 'Article complet à publier '.$this->uniqueToken('article');
+        $client->loginUser($admin);
+        $crawler = $client->request('GET', '/admin/articles/new');
+
+        $client->request('POST', '/admin/articles/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
+            'title' => $title,
+            'excerpt' => 'Résumé complet destiné aux listes publiques.',
+            'content' => '<h2>Un article finalisé</h2><p>Le contenu éditorial est prêt pour la publication.</p>',
+            'category' => (string) $category->getId(),
+            'publish' => '1',
+            'status' => ContentStatus::Draft->value,
+            'linkedContentType' => 'none',
+            'articleRole' => 'related',
+        ]);
+
+        self::assertResponseRedirects('/admin/articles');
+        $article = $this->entityManager()->getRepository(Article::class)->findOneBy(['title' => $title]);
+        self::assertInstanceOf(Article::class, $article);
+        self::assertSame(ContentStatus::Published, $article->getStatus());
+        self::assertNotNull($article->getPublishedAt());
+        self::assertNotSame('', (string) $article->getSlug());
+        self::assertNull($article->getFeaturedImage());
+        self::assertCount(0, $article->getMediaLinks());
+        self::assertNull($article->getSeoTitle());
+        self::assertNull($article->getSeoDescription());
+        self::assertNull($article->getCanonicalUrl());
+
+        $publicCrawler = $client->request('GET', '/articles/'.$article->getSlug());
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($title, (string) $client->getResponse()->getContent());
+        self::assertSame($title.' - Blog Tourisme', trim((string) preg_replace('/\s+/u', ' ', $publicCrawler->filter('title')->text())));
+        self::assertSame('Résumé complet destiné aux listes publiques.', $publicCrawler->filter('meta[name="description"]')->attr('content'));
+        self::assertSame(
+            'https://estela-exploration.fr/articles/'.$article->getSlug(),
+            $publicCrawler->filter('link[rel="canonical"]')->attr('href'),
+        );
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $publicCrawler->filter('.article-show-cover img')->attr('src'),
+        );
+        self::assertSame(
+            'https://estela-exploration.fr/images/placeholders/destination-card-placeholder.webp',
+            $publicCrawler->filter('meta[property="og:image"]')->attr('content'),
+        );
+    }
+
+    public function testForgedPublishedStatusWithoutPublishButtonStillCreatesDraft(): void
+    {
+        $client = static::createClient();
+        $title = 'Article statut forcé '.$this->uniqueToken('article');
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', '/admin/articles/new');
+
+        $client->request('POST', '/admin/articles/new', [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
+            'title' => $title,
+            'status' => ContentStatus::Published->value,
+            'saveDraft' => '1',
+        ]);
+
+        self::assertResponseRedirects('/admin/articles');
+        $article = $this->entityManager()->getRepository(Article::class)->findOneBy(['title' => $title]);
+        self::assertInstanceOf(Article::class, $article);
+        self::assertSame(ContentStatus::Draft, $article->getStatus());
+        self::assertNull($article->getPublishedAt());
+    }
+
+    public function testIncompleteDraftCannotBeForcedToPublishedDuringEdit(): void
+    {
+        $client = static::createClient();
+        $article = $this->createDraftArticle();
+        $article->setExcerpt(null)->setCategory(null);
+        $this->persistAndFlush($article);
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
+
+        $crawler = $client->request('POST', sprintf('/admin/articles/%d/edit', $article->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => (string) $article->getTitle(),
+            'content' => (string) $article->getContent(),
+            'status' => ContentStatus::Published->value,
+            'publish' => '1',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Le résumé est obligatoire pour publier l’article.', $crawler->text());
+        $article = $this->refresh($article);
+        self::assertSame(ContentStatus::Draft, $article->getStatus());
+        self::assertNull($article->getPublishedAt());
     }
 
     public function testVerifiedAdminCanCreateAndEditArticleWithCategory(): void
@@ -375,6 +605,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
 
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
+        $category = $this->createCategory(CategoryType::Article);
         $title = 'Article illustré '.$this->uniqueToken('article');
         $client->loginUser($admin);
         $crawler = $client->request('GET', '/admin/articles/new');
@@ -390,7 +621,10 @@ final class AdminArticleControllerTest extends FunctionalTestCase
                 '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
                 '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
                 'title' => $title,
+                'excerpt' => 'Résumé de l’article illustré.',
                 'content' => '<p>Contenu article fonctionnel avec illustrations.</p>',
+                'category' => (string) $category->getId(),
+                'publish' => '1',
                 'status' => ContentStatus::Published->value,
                 'linkedContentType' => 'none',
                 'articleRole' => 'related',
@@ -407,6 +641,8 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertResponseRedirects('/admin/articles');
         $article = $this->entityManager()->getRepository(Article::class)->findOneBy(['title' => $title]);
         self::assertInstanceOf(Article::class, $article);
+        self::assertSame(ContentStatus::Published, $article->getStatus());
+        self::assertNotNull($article->getPublishedAt());
         self::assertCount(2, $article->getMediaLinks());
 
         $coverLinks = $article->getMediaLinks()->filter(fn (ArticleMedia $link): bool => $link->getRole() === MediaRole::Cover);
@@ -463,7 +699,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertGreaterThan(0, $galleryMedia->getFileSize());
     }
 
-    public function testEmptyArticleContentIsRejected(): void
+    public function testDraftWithoutContentIsAccepted(): void
     {
         $client = static::createClient();
         $client->loginUser($this->createVerifiedAdmin());
@@ -474,11 +710,15 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
             'title' => 'Article sans contenu',
             'content' => '',
+            'saveDraft' => '1',
             'status' => ContentStatus::Draft->value,
         ]);
 
-        self::assertResponseIsSuccessful();
-        self::assertNull($this->entityManager()->getRepository(Article::class)->findOneBy(['title' => 'Article sans contenu']));
+        self::assertResponseRedirects('/admin/articles');
+        $article = $this->entityManager()->getRepository(Article::class)->findOneBy(['title' => 'Article sans contenu']);
+        self::assertInstanceOf(Article::class, $article);
+        self::assertSame('', $article->getContent());
+        self::assertSame(ContentStatus::Draft, $article->getStatus());
     }
 
     public function testDeletingNewResponsiveArticleImageRemovesEveryGeneratedFile(): void
@@ -568,6 +808,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             'category' => (string) $category->getId(),
             'content' => '',
             'status' => ContentStatus::Draft->value,
+            'publish' => '1',
             'linkedContentType' => 'none',
             'articleRole' => 'related',
         ]);
@@ -648,8 +889,11 @@ final class AdminArticleControllerTest extends FunctionalTestCase
     {
         $client = static::createClient();
         $article = $this->createArticle();
+        $article->setCategory($this->createCategory(CategoryType::Article));
+        $this->persistAndFlush($article);
         $previousTitle = $article->getTitle();
         $previousContent = $article->getContent();
+        $previousPublishedAt = $article->getPublishedAt();
         $client->loginUser($this->createVerifiedAdmin());
 
         $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
@@ -658,14 +902,57 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $client->request('POST', sprintf('/admin/articles/%d/edit', $article->getId()), [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
             'title' => 'Article édition invalide',
+            'excerpt' => (string) $article->getExcerpt(),
             'content' => '',
+            'category' => (string) $article->getCategory()?->getId(),
             'status' => ContentStatus::Draft->value,
+            'publish' => '1',
         ]);
 
         self::assertResponseIsSuccessful();
-        $article = $this->refresh($article);
+        self::assertStringContainsString('Article édition invalide', (string) $client->getResponse()->getContent());
+        $articleId = $article->getId();
+        $this->entityManager()->clear();
+        $article = $this->entityManager()->find(Article::class, $articleId);
+        self::assertInstanceOf(Article::class, $article);
         self::assertSame($previousTitle, $article->getTitle());
         self::assertSame($previousContent, $article->getContent());
+        self::assertSame(ContentStatus::Published, $article->getStatus());
+        self::assertSame(
+            $previousPublishedAt?->format('Y-m-d H:i:s'),
+            $article->getPublishedAt()?->format('Y-m-d H:i:s'),
+        );
+    }
+
+    public function testEditingPublishedArticleWithPublishButtonPreservesFirstPublicationDate(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle();
+        $article->setCategory($this->createCategory(CategoryType::Article));
+        $this->persistAndFlush($article);
+        $publishedAt = $article->getPublishedAt();
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', sprintf('/admin/articles/%d/edit', $article->getId()));
+
+        $client->request('POST', sprintf('/admin/articles/%d/edit', $article->getId()), [
+            '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
+            'title' => (string) $article->getTitle(),
+            'excerpt' => (string) $article->getExcerpt(),
+            'content' => '<p>Contenu publié mis à jour sans changer sa date initiale.</p>',
+            'category' => (string) $article->getCategory()?->getId(),
+            'publish' => '1',
+        ]);
+
+        self::assertResponseRedirects('/admin/articles');
+        $article = $this->refresh($article);
+        self::assertSame(ContentStatus::Published, $article->getStatus());
+        self::assertNull($article->getFeaturedImage());
+        self::assertCount(0, $article->getMediaLinks());
+        self::assertSame(
+            $publishedAt?->format('Y-m-d H:i:s'),
+            $article->getPublishedAt()?->format('Y-m-d H:i:s'),
+        );
+        self::assertStringContainsString('mis à jour', (string) $article->getContent());
     }
 
     public function testVerifiedAdminCanEditDraftArticleAndSwitchLinkedContent(): void
@@ -868,11 +1155,15 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         }
     }
 
-    public function testDeletingArticleCoverClearsFeaturedImageAndPublicCover(): void
+    public function testDeletingLastImageKeepsArticlePublishedAndUsesPlaceholder(): void
     {
         $client = static::createClient();
         $article = $this->createDraftArticle();
-        $article->setStatus(ContentStatus::Published)->setPublishedAt(new \DateTimeImmutable('-1 hour'));
+        $article
+            ->setCategory($this->createCategory(CategoryType::Article))
+            ->setStatus(ContentStatus::Published)
+            ->setPublishedAt(new \DateTimeImmutable('-1 hour'));
+        $publishedAt = $article->getPublishedAt();
         $media = $this->createStoredArticleImageMedia('Image couverture à supprimer');
         $link = $this->linkArticleMedia($article, $media, MediaRole::Cover, 0);
         $article->setFeaturedImage($media);
@@ -885,8 +1176,11 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $client->request('POST', sprintf('/admin/articles/%d/edit', $article->getId()), [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
             'title' => (string) $article->getTitle(),
+            'excerpt' => (string) $article->getExcerpt(),
             'content' => (string) $article->getContent(),
+            'category' => (string) $article->getCategory()?->getId(),
             'status' => ContentStatus::Published->value,
+            'publish' => '1',
             'linkedContentType' => 'none',
             'articleRole' => 'related',
             'removeMediaLinks' => [$link->getId()],
@@ -897,11 +1191,17 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $storedArticle = $this->entityManager()->find(Article::class, $article->getId());
         self::assertInstanceOf(Article::class, $storedArticle);
         self::assertNull($storedArticle->getFeaturedImage());
+        self::assertCount(0, $storedArticle->getMediaLinks());
+        self::assertSame(ContentStatus::Published, $storedArticle->getStatus());
+        self::assertSame($publishedAt?->format('Y-m-d H:i:s'), $storedArticle->getPublishedAt()?->format('Y-m-d H:i:s'));
         self::assertNull($this->entityManager()->find(MediaAsset::class, $media->getId()));
 
-        $client->request('GET', sprintf('/articles/%s', $storedArticle->getSlug()));
+        $publicCrawler = $client->request('GET', sprintf('/articles/%s', $storedArticle->getSlug()));
         self::assertResponseIsSuccessful();
-        self::assertStringNotContainsString((string) ($media->getVariants()['medium']['webp'] ?? ''), (string) $client->getResponse()->getContent());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $publicCrawler->filter('.article-show-cover img')->attr('src'),
+        );
     }
 
     public function testLegacyFeaturedImageIsManagedAndDeletedFromArticleImagesSection(): void
@@ -1097,6 +1397,10 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $article = $this->createDraftArticle('Article avec réglages média '.$this->uniqueToken('article'));
         $article->setStatus(ContentStatus::Published)->setPublishedAt(new \DateTimeImmutable('-1 hour'));
+        $article
+            ->setCategory($this->createCategory(CategoryType::Article))
+            ->setSeoTitle('Article avec réglages média')
+            ->setSeoDescription('Description SEO complète pour conserver la publication pendant la modification.');
         $cover = $this->createImageMedia('Couverture distincte');
         $article->setFeaturedImage($cover);
         $media = $this->createImageMedia('Légende éditoriale conservée')
@@ -1130,7 +1434,10 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $client->request('POST', sprintf('/admin/articles/%d/edit', $article->getId()), [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
             'title' => (string) $article->getTitle(),
+            'excerpt' => (string) $article->getExcerpt(),
             'content' => $content,
+            'category' => (string) $article->getCategory()?->getId(),
+            'publish' => '1',
             'status' => ContentStatus::Published->value,
             'linkedContentType' => 'none',
             'articleRole' => 'related',
@@ -1201,7 +1508,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertNotNull($this->entityManager()->find(ArticleMedia::class, $galleryLinkId));
     }
 
-    public function testInvalidArticleImageUploadIsIgnored(): void
+    public function testInvalidArticleImageUploadIsRejectedEvenForDraft(): void
     {
         $client = static::createClient();
         $article = $this->createDraftArticle();
@@ -1234,13 +1541,14 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             }
         }
 
-        self::assertResponseRedirects('/admin/articles');
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Chaque image doit être au format JPG, PNG ou WebP.', (string) $client->getResponse()->getContent());
         $article = $this->refresh($article);
         self::assertNull($article->getFeaturedImage());
         self::assertCount(0, $article->getMediaLinks());
     }
 
-    public function testArticleFormHasNoSeparateCoverUploadBlock(): void
+    public function testArticleImageUploadIsPresentOptionalAndHasNoSeparateCoverBlock(): void
     {
         $client = static::createClient();
         $article = $this->createDraftArticle();
@@ -1251,6 +1559,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             self::assertResponseIsSuccessful();
             self::assertSame(0, $crawler->filter('input[name="coverImage"], input[name="removeCover"], #article-cover-image')->count());
             self::assertSame(1, $crawler->filter('input[name="galleryImages[]"]')->count());
+            self::assertNull($crawler->filter('input[name="galleryImages[]"]')->attr('required'));
             self::assertStringNotContainsString('Importer / remplacer', $crawler->text());
         }
     }
@@ -1314,13 +1623,15 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $client->loginUser($this->createVerifiedAdmin());
         $title = 'Article correction soumission '.$this->uniqueToken('article');
+        $invalidTitle = str_repeat('A', 181);
         $crawler = $client->request('GET', '/admin/articles/new');
         self::assertResponseIsSuccessful();
         $payload = [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
             '_submission_token' => $this->inputValue($crawler, 'input[name="_submission_token"]'),
-            'title' => $title,
+            'title' => $invalidTitle,
             'content' => '',
+            'saveDraft' => '1',
             'status' => ContentStatus::Draft->value,
             'linkedContentType' => 'none',
             'articleRole' => 'related',
@@ -1328,9 +1639,9 @@ final class AdminArticleControllerTest extends FunctionalTestCase
 
         $client->request('POST', '/admin/articles/new', $payload);
         self::assertResponseIsSuccessful();
-        self::assertNull($this->entityManager()->getRepository(Article::class)->findOneBy(['title' => $title]));
+        self::assertNull($this->entityManager()->getRepository(Article::class)->findOneBy(['title' => $invalidTitle]));
 
-        $payload['content'] = '<p>Contenu corrigé après erreur de validation.</p>';
+        $payload['title'] = $title;
         $client->request('POST', '/admin/articles/new', $payload);
         self::assertResponseRedirects('/admin/articles');
         self::assertCount(1, $this->entityManager()->getRepository(Article::class)->findBy(['title' => $title]));

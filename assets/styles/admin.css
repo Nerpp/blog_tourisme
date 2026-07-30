@@ -465,6 +465,28 @@ a {
     font: inherit;
 }
 
+.admin-field [aria-invalid="true"] {
+    border-color: var(--admin-danger);
+    box-shadow: 0 0 0 2px rgba(163, 49, 49, 0.12);
+}
+
+.admin-form-errors:empty,
+.admin-field-errors:empty {
+    display: none;
+}
+
+.admin-form-errors ul,
+.admin-field-errors ul {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: var(--admin-radius);
+    background: var(--admin-danger-soft);
+    color: var(--admin-danger);
+    font-size: 0.9rem;
+    font-weight: 700;
+    list-style: none;
+}
+
 .article-admin-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);

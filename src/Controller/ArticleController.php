@@ -6,6 +6,7 @@ use App\Entity\Article;
 use App\Entity\Category;
 use App\Repository\ArticleRepository;
 use App\Repository\CategoryRepository;
+use App\Service\Article\ArticleSeoMetadataProvider;
 use App\Service\CommentSectionProvider;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -65,6 +66,7 @@ final class ArticleController extends AbstractController
         Request $request,
         ArticleRepository $articleRepository,
         CommentSectionProvider $commentSectionProvider,
+        ArticleSeoMetadataProvider $articleSeoMetadataProvider,
     ): Response
     {
         $article = $articleRepository->findPublishedBySlug($slug);
@@ -74,6 +76,7 @@ final class ArticleController extends AbstractController
 
         return $this->render('article/show.html.twig', [
             'article' => $article,
+            'article_seo' => $articleSeoMetadataProvider->provide($article),
             'return_context' => $this->resolveReturnContext($request, $article),
             'comment_section' => $commentSectionProvider->provide($article, $request, $this->getUser()),
         ]);

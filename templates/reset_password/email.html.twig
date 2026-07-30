@@ -1,6 +1,6 @@
 {% extends 'emails/base.html.twig' %}
 
-{% set resetLink = url('app_reset_password', { token: reset_token.token }) %}
+{% set resetLink = public_route_url('app_reset_password', { token: reset_token.token }) %}
 
 {% block subject %}Réinitialisation de votre mot de passe - Estela Explorations{% endblock %}
 {% block preheader %}Votre lien sécurisé de réinitialisation est disponible.{% endblock %}
