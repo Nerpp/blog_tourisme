@@ -114,6 +114,26 @@ final class PublicPagesTest extends FunctionalTestCase
         self::assertSame(0, $crawler->filter('.home-latest-card picture')->count());
     }
 
+    public function testLatestPublishedArticleWithoutMediaUsesHomepagePlaceholder(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $article
+            ->setTitle('Dernier article sans image accueil')
+            ->setPublishedAt(new \DateTimeImmutable('+30 years'));
+        $this->persistAndFlush($article);
+
+        $crawler = $client->request('GET', '/');
+
+        self::assertResponseIsSuccessful();
+        $latestCard = $crawler->filter('article.home-latest-card');
+        self::assertStringContainsString('Dernier article sans image accueil', $latestCard->text());
+        self::assertSame(
+            '/images/placeholders/destination-card-placeholder.webp',
+            $latestCard->filter('img.home-latest-card__image')->attr('src'),
+        );
+    }
+
     public function testPlaceholderPathIsNeverPersistedAsMediaData(): void
     {
         $mediaAssets = $this->entityManager()->getRepository(MediaAsset::class)->findAll();

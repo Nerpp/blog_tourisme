@@ -474,10 +474,15 @@ const initSubmitLock = (form) => {
 
         isSubmitting = true;
         form.setAttribute('aria-busy', 'true');
+        const submitter = event.submitter;
 
         submitButtons.forEach((button) => {
             button.dataset.originalLabel = button.textContent?.trim() || '';
-            button.disabled = true;
+            // Le bouton cliqué doit rester activé jusqu'à la construction de la
+            // requête afin que Symfony puisse sélectionner le bon groupe de validation.
+            if (button !== submitter) {
+                button.disabled = true;
+            }
             button.setAttribute('aria-busy', 'true');
 
             const label = button.querySelector('[data-article-submit-label]');

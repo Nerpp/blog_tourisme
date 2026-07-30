@@ -15,6 +15,7 @@ use App\Enum\ContentStatus;
 use App\Enum\ImageType;
 use App\Enum\MediaRole;
 use App\Enum\MediaType;
+use App\Form\Admin\ArticleType;
 use App\Repository\ArticleRepository;
 use App\Repository\CategoryRepository;
 use App\Repository\CityVisitDraftRepository;
@@ -22,6 +23,8 @@ use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\Article\ArticleContentSanitizer;
+use App\Service\Article\ArticlePublisher;
+use App\Service\Article\ArticleSeoMetadataProvider;
 use App\Service\CommentDeletionService;
 use App\Service\CommentSectionProvider;
 use App\Service\ImageUploadSecurity;
@@ -30,11 +33,13 @@ use App\Service\Media\ImageMetadataSanitizer;
 use App\Service\Media\MediaDeletionService;
 use App\Service\Media\MediaSeoTextService;
 use App\Service\PublicationNotificationMailer;
-use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\Form\ClickableInterface;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -42,6 +47,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 
 #[IsGranted(AdminAccessVoter::ACCESS)]
 final class AdminArticleController extends AbstractController
@@ -60,6 +66,7 @@ final class AdminArticleController extends AbstractController
         private readonly SluggerInterface $slugger,
         private readonly CategoryRepository $categoryRepository,
         private readonly ArticleContentSanitizer $articleContentSanitizer,
+        private readonly ArticlePublisher $articlePublisher,
         private readonly CommentDeletionService $commentDeletionService,
         private readonly ImageUploadSecurity $imageUploadSecurity,
         private readonly ImageVariantGenerator $imageVariantGenerator,
@@ -88,6 +95,18 @@ final class AdminArticleController extends AbstractController
     ): Response {
         $article = new Article();
         $articleSubmissionToken = $this->articleSubmissionToken($request);
+        $user = $this->getUser();
+        if ($user instanceof User) {
+            $article->setAuthor($user);
+        }
+        if ($request->isMethod('POST')) {
+            $submittedTitle = trim($request->request->getString('title'));
+            $article->setSlug($this->createUniqueSlug($submittedTitle !== '' ? $submittedTitle : 'brouillon', Article::class));
+        }
+        $categories = $this->categoryRepository->findArticleCategories();
+        $form = $this->createForm(ArticleType::class, $article, [
+            'article_categories' => $categories,
+        ]);
 
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('admin_article_form', $request->request->getString('_token'))) {
@@ -100,36 +119,51 @@ final class AdminArticleController extends AbstractController
 
                 return $this->redirectToRoute('admin_articles_index');
             }
+        }
 
-            if ($this->updateArticleFromRequest($article, $request)) {
-                $shouldNotifyPublication = $article->getPublishedAt() !== null && $article->getStatus() === ContentStatus::Published;
-                $article->setSlug($this->createUniqueSlug($article->getTitle() ?? 'article', Article::class));
+        $form->handleRequest($request);
+        if ($form->isSubmitted()) {
+            $this->prepareArticleForValidation($article, null, ContentStatus::Draft);
+
+            if ($form->isValid()) {
                 $this->syncArticleRelations($article, $request);
                 $orphanCandidates = $this->handleArticleMediaFromRequest($article, $request);
-                $user = $this->getUser();
-                if ($user instanceof User) {
-                    $article->setAuthor($user);
+
+                $publishButton = $form->get('publish');
+                $isPublication = $publishButton instanceof ClickableInterface && $publishButton->isClicked();
+                if ($isPublication) {
+                    $violations = $this->articlePublisher->publish($article);
+                    $this->addArticleViolationsToForm($form, $violations);
+                } else {
+                    $article
+                        ->setStatus(ContentStatus::Draft)
+                        ->setPublishedAt(null);
                 }
 
-                $this->entityManager->persist($article);
-                $this->entityManager->flush();
-                $this->completeArticleSubmission($request, $articleSubmissionToken, $article);
-                $this->cleanupDetachedMedia($orphanCandidates);
-                $this->notifyNewPublication($article, $shouldNotifyPublication);
-                $this->addFlash('success', 'Article créé.');
+                if (count($violations ?? []) === 0) {
+                    $this->entityManager->persist($article);
+                    $this->entityManager->flush();
+                    $this->completeArticleSubmission($request, $articleSubmissionToken, $article);
+                    $this->cleanupDetachedMedia($orphanCandidates);
+                    $this->notifyNewPublication($article, $isPublication);
+                    $this->addFlash(
+                        'success',
+                        $isPublication ? 'L’article a bien été publié.' : 'Le brouillon a bien été enregistré.',
+                    );
 
-                return $this->redirectToRoute('admin_articles_index');
+                    return $this->redirectToRoute('admin_articles_index');
+                }
             }
         }
 
         return $this->render('admin/articles/form.html.twig', [
             'article' => $article,
-            'categories' => $this->categoryRepository->findArticleCategories(),
+            'article_form' => $form->createView(),
+            'categories' => $categories,
             ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository, $request),
             'status_options' => $this->statusLabels(),
             'role_options' => $this->roleLabels(),
             'title' => 'Nouvel article',
-            'submit_label' => 'Créer l’article',
             'article_submission_token' => $articleSubmissionToken,
         ]);
     }
@@ -142,35 +176,70 @@ final class AdminArticleController extends AbstractController
         CityVisitDraftRepository $cityVisitDraftRepository,
     ): Response {
         $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $article);
+        $categories = $this->categoryRepository->findArticleCategories();
+        $previousTitle = $article->getTitle();
+        $previousStatus = $article->getStatus();
+        $previousCategory = $article->getCategory();
+        $wasPublished = $previousStatus === ContentStatus::Published && $article->getPublishedAt() !== null;
+        $user = $this->getUser();
+        if ($article->getAuthor() === null && $user instanceof User) {
+            $article->setAuthor($user);
+        }
+        $form = $this->createForm(ArticleType::class, $article, [
+            'article_categories' => $categories,
+        ]);
 
         if ($request->isMethod('POST')) {
             if (!$this->isCsrfTokenValid('admin_article_'.$article->getId(), $request->request->getString('_token'))) {
                 throw $this->createAccessDeniedException('Jeton CSRF invalide.');
             }
+        }
 
-            $wasPublished = $article->getStatus() === ContentStatus::Published && $article->getPublishedAt() !== null;
-            if ($this->updateArticleFromRequest($article, $request)) {
-                $isPublished = $article->getStatus() === ContentStatus::Published;
-                $shouldNotifyPublication = !$wasPublished && $isPublished;
+        $form->handleRequest($request);
+        if ($form->isSubmitted()) {
+            if (!$request->request->has('category')) {
+                $article->setCategory($previousCategory);
+            }
+
+            $this->prepareArticleForValidation($article, $previousTitle, $previousStatus);
+
+            if ($form->isValid()) {
                 $this->syncArticleRelations($article, $request);
                 $orphanCandidates = $this->handleArticleMediaFromRequest($article, $request);
-                $this->entityManager->flush();
-                $this->cleanupDetachedMedia($orphanCandidates);
-                $this->notifyNewPublication($article, $shouldNotifyPublication);
-                $this->addFlash('success', 'Article enregistré.');
 
-                return $this->redirectToRoute('admin_articles_index');
+                $publishButton = $form->get('publish');
+                $isPublication = $publishButton instanceof ClickableInterface && $publishButton->isClicked();
+                if ($isPublication) {
+                    $violations = $this->articlePublisher->publish($article);
+                    $this->addArticleViolationsToForm($form, $violations);
+                } else {
+                    $article
+                        ->setStatus(ContentStatus::Draft)
+                        ->setPublishedAt(null);
+                }
+
+                if (count($violations ?? []) === 0) {
+                    $this->entityManager->flush();
+                    $this->cleanupDetachedMedia($orphanCandidates);
+                    $this->notifyNewPublication($article, !$wasPublished && $isPublication);
+                    $this->addFlash(
+                        'success',
+                        $isPublication ? 'L’article a bien été publié.' : 'Le brouillon a bien été enregistré.',
+                    );
+
+                    return $this->redirectToRoute('admin_articles_index');
+                }
             }
         }
 
         return $this->render('admin/articles/form.html.twig', [
             'article' => $article,
-            'categories' => $this->categoryRepository->findArticleCategories(),
+            'article_form' => $form->createView(),
+            'categories' => $categories,
             ...$this->articleRelationFormData($article, $hikeDraftRepository, $cityVisitDraftRepository, $request),
             'status_options' => $this->statusLabels(),
             'role_options' => $this->roleLabels(),
             'title' => 'Modifier l’article',
-            'submit_label' => 'Enregistrer',
         ]);
     }
 
@@ -179,9 +248,11 @@ final class AdminArticleController extends AbstractController
         Article $article,
         Request $request,
         CommentSectionProvider $commentSectionProvider,
+        ArticleSeoMetadataProvider $articleSeoMetadataProvider,
     ): Response {
         $response = $this->render('article/show.html.twig', [
             'article' => $article,
+            'article_seo' => $articleSeoMetadataProvider->provide($article),
             'comment_section' => $commentSectionProvider->provide($article, $request, $this->getUser(), false),
         ]);
         $response->headers->set('Cache-Control', 'private, no-store');
@@ -253,46 +324,45 @@ final class AdminArticleController extends AbstractController
         ];
     }
 
-    private function updateArticleFromRequest(Article $article, Request $request): bool
+    private function prepareArticleForValidation(
+        Article $article,
+        ?string $previousTitle,
+        ContentStatus $previousStatus,
+    ): void
     {
-        $previousTitle = $article->getTitle();
-        $previousStatus = $article->getStatus();
-        $title = trim($request->request->getString('title'));
-        $rawContent = trim($request->request->getString('content'));
+        $title = trim((string) $article->getTitle());
+        $rawContent = trim((string) $article->getContent());
         $content = $this->articleContentSanitizer->sanitize($rawContent);
-        $status = ContentStatus::tryFrom($request->request->getString('status')) ?? ContentStatus::Draft;
-
-        if ($request->request->has('category')) {
-            $categoryId = $this->nullableInt($request->request->get('category'));
-            $article->setCategory($categoryId !== null ? $this->categoryRepository->findOneArticleCategoryById($categoryId) : null);
-        }
-
-        if ($title === '' || $rawContent === '' || $this->plainContent($content) === '') {
-            $this->addFlash('error', 'Le titre et le contenu sont obligatoires.');
-
-            return false;
-        }
 
         $article
             ->setTitle($title)
-            ->setExcerpt($this->nullIfBlank($request->request->getString('excerpt')))
-            ->setContent($content)
-            ->setStatus($status);
-
-        if ($status === ContentStatus::Published && $article->getPublishedAt() === null) {
-            $article->setPublishedAt(new DateTimeImmutable());
-        }
+            ->setExcerpt($this->nullIfBlank((string) $article->getExcerpt()))
+            ->setContent($content);
 
         if (
-            $article->getId() !== null
-            && $previousStatus !== ContentStatus::Published
-            && $status !== ContentStatus::Published
-            && $title !== $previousTitle
+            $article->getSlug() === null
+            || trim((string) $article->getSlug()) === ''
+            || (
+                $article->getId() !== null
+                && $previousStatus !== ContentStatus::Published
+                && $title !== $previousTitle
+            )
         ) {
-            $article->setSlug($this->createUniqueSlug($title, Article::class, $article));
+            $article->setSlug($this->createUniqueSlug($title !== '' ? $title : 'brouillon', Article::class, $article));
         }
+    }
 
-        return true;
+    /** @param FormInterface<Article> $form */
+    private function addArticleViolationsToForm(FormInterface $form, ConstraintViolationListInterface $violations): void
+    {
+        foreach ($violations as $violation) {
+            $fieldName = match ((string) $violation->getPropertyPath()) {
+                'slug' => 'title',
+                default => (string) $violation->getPropertyPath(),
+            };
+            $target = $fieldName !== '' && $form->has($fieldName) ? $form->get($fieldName) : $form;
+            $target->addError(new FormError((string) $violation->getMessage()));
+        }
     }
 
     private function notifyNewPublication(Article $article, bool $shouldNotify): void
@@ -405,12 +475,14 @@ final class AdminArticleController extends AbstractController
     {
         $baseSlug = strtolower((string) $this->slugger->slug($name));
         $baseSlug = trim($baseSlug, '-') ?: 'contenu';
+        $baseSlug = mb_substr($baseSlug, 0, 180);
         $slug = $baseSlug;
         $suffix = 2;
         $repository = $this->entityManager->getRepository($entityClass);
 
         while (($existing = $repository->findOneBy(['slug' => $slug])) !== null && (!$currentArticle instanceof Article || $existing->getId() !== $currentArticle->getId())) {
-            $slug = sprintf('%s-%d', $baseSlug, $suffix);
+            $suffixText = '-'.$suffix;
+            $slug = mb_substr($baseSlug, 0, 180 - mb_strlen($suffixText)).$suffixText;
             ++$suffix;
         }
 
@@ -1053,13 +1125,6 @@ final class AdminArticleController extends AbstractController
         }
 
         return $ids;
-    }
-
-    private function plainContent(string $html): string
-    {
-        $withoutMediaTokens = preg_replace('/\[\[media:\d+\]\]/', '', $html) ?? $html;
-
-        return trim(html_entity_decode(strip_tags($withoutMediaTokens), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
     /** @param list<MediaAsset> $orphanCandidates */

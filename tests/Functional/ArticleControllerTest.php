@@ -16,6 +16,63 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class ArticleControllerTest extends FunctionalTestCase
 {
+    public function testArticleSeoAlwaysFollowsTitleExcerptSlugAndIgnoresLegacyColumns(): void
+    {
+        $client = static::createClient();
+        $article = $this->createArticle($this->createUser());
+        $article
+            ->setTitle('Titre éditorial automatique')
+            ->setSlug('titre-editorial-automatique')
+            ->setExcerpt("<p>Résumé&nbsp; public\navec <strong>du HTML</strong> et des espaces.</p>")
+            ->setSeoTitle('Ancien titre SEO manuel')
+            ->setSeoDescription('Ancienne méta-description manuelle')
+            ->setCanonicalUrl('https://legacy.example/article-manuel');
+        $this->persistAndFlush($article);
+
+        $crawler = $client->request('GET', '/articles/titre-editorial-automatique');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(
+            'Titre éditorial automatique - Blog Tourisme',
+            trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('title')->text())),
+        );
+        self::assertSame(
+            'Résumé public avec du HTML et des espaces.',
+            $crawler->filter('meta[name="description"]')->attr('content'),
+        );
+        self::assertSame(
+            'http://localhost/articles/titre-editorial-automatique',
+            $crawler->filter('link[rel="canonical"]')->attr('href'),
+        );
+        self::assertSame('Titre éditorial automatique', $crawler->filter('meta[property="og:title"]')->attr('content'));
+        self::assertSame(
+            'http://localhost/images/placeholders/destination-card-placeholder.webp',
+            $crawler->filter('meta[property="og:image"]')->attr('content'),
+        );
+
+        $article
+            ->setTitle('Titre éditorial modifié')
+            ->setExcerpt('<p>Nouveau résumé <em>immédiatement visible</em>.</p>')
+            ->setSlug('titre-editorial-modifie');
+        $this->persistAndFlush($article);
+
+        $crawler = $client->request('GET', '/articles/titre-editorial-modifie');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(
+            'Titre éditorial modifié - Blog Tourisme',
+            trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('title')->text())),
+        );
+        self::assertSame(
+            'Nouveau résumé immédiatement visible.',
+            $crawler->filter('meta[name="description"]')->attr('content'),
+        );
+        self::assertSame(
+            'http://localhost/articles/titre-editorial-modifie',
+            $crawler->filter('link[rel="canonical"]')->attr('href'),
+        );
+    }
+
     public function testArticleReturnContextIsShownOnlyForTheLinkedPublicSource(): void
     {
         $client = static::createClient();
@@ -415,7 +472,8 @@ final class ArticleControllerTest extends FunctionalTestCase
     {
         $client = static::createClient();
         $article = $this->createArticle($this->createUser());
-        $media = $this->createImageMedia('Photo de galerie après la prose');
+        $media = $this->createImageMedia('Photo de galerie après la prose')
+            ->setThumbnailPath('/uploads/media/article-gallery-fallback.webp');
         $link = (new ArticleMedia())
             ->setArticle($article)
             ->setMediaAsset($media)
@@ -433,6 +491,11 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertSame(0, $crawler->filter('.article-content .article-gallery-section')->count());
         self::assertSame(1, $crawler->filter('.article-gallery-section .journey-gallery-card')->count());
         self::assertSame(1, $crawler->filter('.article-gallery-section .gallery-modal')->count());
+        self::assertSame('/uploads/media/article-gallery-fallback.webp', $crawler->filter('.article-show-cover img')->attr('src'));
+        self::assertSame(
+            'http://localhost/uploads/media/article-gallery-fallback.webp',
+            $crawler->filter('meta[property="og:image"]')->attr('content'),
+        );
     }
 
     public function testPublishedArticleCoverIsAHighPriorityResponsiveImage(): void
@@ -464,6 +527,10 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertSame(1, $crawler->filter('.article-show-cover > picture.article-show-cover__picture')->count());
         $coverImage = $crawler->filter('.article-show-cover picture img')->first();
         self::assertSame('/uploads/media/variants/article-cover-mobile.webp', $coverImage->attr('src'));
+        self::assertSame(
+            'http://localhost/uploads/media/variants/article-cover-mobile.webp',
+            $crawler->filter('meta[property="og:image"]')->attr('content'),
+        );
         self::assertSame('eager', $coverImage->attr('loading'));
         self::assertSame('high', $coverImage->attr('fetchpriority'));
         self::assertSame('async', $coverImage->attr('decoding'));
