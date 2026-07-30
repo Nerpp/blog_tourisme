@@ -5,9 +5,12 @@ namespace App\Tests\Functional;
 use App\Enum\ContentStatus;
 use DOMDocument;
 use DOMXPath;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class SeoControllerTest extends FunctionalTestCase
 {
+    private const string PUBLIC_ORIGIN = 'https://estela-exploration.fr';
+
     public function testFooterContainsOnlyExpectedPublicNavigationAndIsAbsentFromAdmin(): void
     {
         $client = static::createClient();
@@ -46,7 +49,7 @@ final class SeoControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('h1', 'Plan du site');
-        self::assertSame(1, $crawler->filter('link[rel="canonical"][href="http://localhost/plan-du-site"]')->count());
+        self::assertSame(1, $crawler->filter('link[rel="canonical"][href="'.self::PUBLIC_ORIGIN.'/plan-du-site"]')->count());
 
         $mainLinks = $this->linksByText($crawler->filter('main.site-map-page'));
         self::assertSame('/', $mainLinks['Accueil'] ?? null);
@@ -79,7 +82,7 @@ final class SeoControllerTest extends FunctionalTestCase
         $place = $this->createPublishedPlace($destination, $this->createCategory());
         $draftPlace = $this->createPlace($destination);
 
-        $client->request('GET', 'https://estela.example/sitemap.xml');
+        $client->request('GET', 'https://untrusted.example/sitemap.xml');
 
         self::assertResponseIsSuccessful();
         self::assertSame('application/xml; charset=UTF-8', $client->getResponse()->headers->get('Content-Type'));
@@ -94,29 +97,32 @@ final class SeoControllerTest extends FunctionalTestCase
         foreach ($xpath->query('//sm:url/sm:loc') ?: [] as $location) {
             $locations[] = $location->textContent;
         }
+        foreach ($locations as $location) {
+            self::assertStringStartsWith(self::PUBLIC_ORIGIN.'/', $location);
+        }
 
         foreach ([
-            'https://estela.example/',
-            'https://estela.example/destinations',
-            'https://estela.example/randonnees',
-            'https://estela.example/visites',
-            'https://estela.example/articles',
-            'https://estela.example/places',
-            'https://estela.example/plan-du-site',
-            'https://estela.example/destinations/'.$destination->getSlug(),
-            'https://estela.example/articles/'.$article->getSlug(),
-            'https://estela.example/randonnees/'.$hike->getSlug(),
-            'https://estela.example/visites-de-ville/'.$cityVisit->getSlug(),
-            'https://estela.example/places/'.$place->getSlug(),
+            self::PUBLIC_ORIGIN.'/',
+            self::PUBLIC_ORIGIN.'/destinations',
+            self::PUBLIC_ORIGIN.'/randonnees',
+            self::PUBLIC_ORIGIN.'/visites',
+            self::PUBLIC_ORIGIN.'/articles',
+            self::PUBLIC_ORIGIN.'/places',
+            self::PUBLIC_ORIGIN.'/plan-du-site',
+            self::PUBLIC_ORIGIN.'/destinations/'.$destination->getSlug(),
+            self::PUBLIC_ORIGIN.'/articles/'.$article->getSlug(),
+            self::PUBLIC_ORIGIN.'/randonnees/'.$hike->getSlug(),
+            self::PUBLIC_ORIGIN.'/visites-de-ville/'.$cityVisit->getSlug(),
+            self::PUBLIC_ORIGIN.'/places/'.$place->getSlug(),
         ] as $expectedLocation) {
             self::assertContains($expectedLocation, $locations);
         }
 
         foreach ([
-            'https://estela.example/articles/'.$draftArticle->getSlug(),
-            'https://estela.example/randonnees/'.$draftHike->getSlug(),
-            'https://estela.example/visites-de-ville/'.$draftCityVisit->getSlug(),
-            'https://estela.example/places/'.$draftPlace->getSlug(),
+            self::PUBLIC_ORIGIN.'/articles/'.$draftArticle->getSlug(),
+            self::PUBLIC_ORIGIN.'/randonnees/'.$draftHike->getSlug(),
+            self::PUBLIC_ORIGIN.'/visites-de-ville/'.$draftCityVisit->getSlug(),
+            self::PUBLIC_ORIGIN.'/places/'.$draftPlace->getSlug(),
         ] as $excludedLocation) {
             self::assertNotContains($excludedLocation, $locations);
         }
@@ -128,10 +134,12 @@ final class SeoControllerTest extends FunctionalTestCase
         self::assertStringNotContainsString('/profile', $content);
         self::assertStringNotContainsString('/notifications', $content);
         self::assertStringNotContainsString('localhost', $content);
+        self::assertStringNotContainsString('untrusted.example', $content);
+        self::assertStringNotContainsString('https://www.', $content);
         self::assertStringNotContainsString('<changefreq>', $content);
         self::assertStringNotContainsString('<priority>', $content);
 
-        $articleLocation = 'https://estela.example/articles/'.$article->getSlug();
+        $articleLocation = self::PUBLIC_ORIGIN.'/articles/'.$article->getSlug();
         $lastModifiedNodes = $xpath->query(sprintf(
             '//sm:url[sm:loc="%s"]/sm:lastmod',
             $articleLocation,
@@ -141,10 +149,10 @@ final class SeoControllerTest extends FunctionalTestCase
         self::assertSame($article->getUpdatedAt()?->format(\DateTimeInterface::ATOM), $lastModifiedNodes->item(0)?->textContent);
     }
 
-    public function testRobotsUsesCurrentRequestHostAndAdvertisesSitemap(): void
+    public function testRobotsUsesConfiguredPublicOriginAndAdvertisesSitemap(): void
     {
         $client = static::createClient();
-        $client->request('GET', 'https://estela.example/robots.txt');
+        $client->request('GET', 'https://untrusted.example/robots.txt');
 
         self::assertResponseIsSuccessful();
         self::assertSame('text/plain; charset=UTF-8', $client->getResponse()->headers->get('Content-Type'));
@@ -152,8 +160,80 @@ final class SeoControllerTest extends FunctionalTestCase
         self::assertStringContainsString("User-agent: *\n", $content);
         self::assertStringContainsString("Allow: /\n", $content);
         self::assertStringContainsString("Disallow: /admin/\n", $content);
-        self::assertStringContainsString('Sitemap: https://estela.example/sitemap.xml', $content);
+        self::assertStringContainsString('Sitemap: '.self::PUBLIC_ORIGIN.'/sitemap.xml', $content);
         self::assertStringNotContainsString('localhost', $content);
+        self::assertStringNotContainsString('untrusted.example', $content);
+    }
+
+    public function testCanonicalAndOpenGraphUrlIgnoreHostSchemeFrontControllerAndTrackingParameters(): void
+    {
+        $client = static::createClient();
+
+        $crawler = $client->request('GET', 'http://untrusted.example/?utm_source=test&gclid=tracking');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('link[rel="canonical"]')->count());
+        self::assertSame(self::PUBLIC_ORIGIN.'/', $crawler->filter('link[rel="canonical"]')->attr('href'));
+        self::assertSame(self::PUBLIC_ORIGIN.'/', $crawler->filter('meta[property="og:url"]')->attr('content'));
+
+        $crawler = $client->request('GET', 'http://untrusted.example/randonnees?utm_medium=email&fbclid=tracking');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('link[rel="canonical"]')->count());
+        self::assertSame(self::PUBLIC_ORIGIN.'/randonnees', $crawler->filter('link[rel="canonical"]')->attr('href'));
+        self::assertSame(self::PUBLIC_ORIGIN.'/randonnees', $crawler->filter('meta[property="og:url"]')->attr('content'));
+    }
+
+    #[DataProvider('canonicalRedirectProvider')]
+    public function testProductionVariantsRedirectInOneHopAndPreserveTheQueryString(string $requestedUrl, string $expectedUrl): void
+    {
+        $client = static::createClient();
+        $client->request('GET', $requestedUrl);
+
+        self::assertResponseRedirects($expectedUrl, 308);
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function canonicalRedirectProvider(): iterable
+    {
+        yield 'http' => [
+            'http://estela-exploration.fr/articles?utm_source=test',
+            self::PUBLIC_ORIGIN.'/articles?utm_source=test',
+        ];
+        yield 'www' => [
+            'https://www.estela-exploration.fr/randonnees?source=newsletter',
+            self::PUBLIC_ORIGIN.'/randonnees?source=newsletter',
+        ];
+        yield 'front controller' => [
+            'https://estela-exploration.fr/index.php/?gclid=tracking',
+            self::PUBLIC_ORIGIN.'/?gclid=tracking',
+        ];
+        yield 'combined www and front controller' => [
+            'http://www.estela-exploration.fr/index.php/articles?source=newsletter',
+            self::PUBLIC_ORIGIN.'/articles?source=newsletter',
+        ];
+    }
+
+    public function testAuthenticationAndResetPagesAreNoindexFollowWithoutCanonical(): void
+    {
+        $client = static::createClient();
+
+        foreach (['/login', '/register', '/reset-password', '/reset-password/check-email'] as $path) {
+            $crawler = $client->request('GET', $path);
+
+            self::assertResponseIsSuccessful();
+            self::assertSame(1, $crawler->filter('meta[name="robots"][content="noindex, follow"]')->count(), $path);
+            self::assertSame(0, $crawler->filter('meta[name="robots"][content*="nofollow"]')->count(), $path);
+            self::assertSame(0, $crawler->filter('link[rel="canonical"]')->count(), $path);
+            self::assertSame(0, $crawler->filter('meta[property="og:url"]')->count(), $path);
+        }
+
+        $client->loginUser($this->createVerifiedAdmin());
+        $crawler = $client->request('GET', '/profile');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('meta[name="robots"][content="noindex, follow"]')->count());
+        self::assertSame(0, $crawler->filter('link[rel="canonical"]')->count());
     }
 
     /** @return array<string, string> */

@@ -38,21 +38,13 @@
 	{% endif %}
 {% endfor %}
 
-{% block title %}
-	{{ article.seoTitle ?: article.title }}
-	- Blog Tourisme
+{% block title %}{{ article_seo.title }} - Blog Tourisme{% endblock %}
+{% block meta_description %}{{ article_seo.description }}{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ article_seo.canonical }}">
 {% endblock %}
-{% block meta_description %}
-	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
-{% endblock %}
-{% block canonical %}<link rel="canonical" href="{{ article.canonicalUrl ?: url('app_article_show', { slug: article.slug }) }}">
-{% endblock %}
-{% block open_graph_title %}
-	{{ article.seoTitle ?: article.title }}
-{% endblock %}
-{% block open_graph_description %}
-	{{ article.seoDescription ?: article.excerpt ?: 'Article tourisme publie sur Blog Tourisme.' }}
-{% endblock %}
+{% block open_graph_title %}{{ article_seo.title }}{% endblock %}
+{% block open_graph_description %}{{ article_seo.description }}{% endblock %}
+{% block open_graph_image %}<meta property="og:image" content="{{ public_url(article_cover_image) }}">{% endblock %}
 
 {% block page_stylesheets %}
 	{{ vite_entry_link_tags('assets/entries/article-show.js') }}

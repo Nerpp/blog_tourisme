@@ -59,8 +59,6 @@ L apres-midi, montez vers le Fort Saint-Elme. La marche demande un peu d energie
 TEXT,
             status: ContentStatus::Published,
             featuredImage: $this->getMedia(MediaAssetFixtures::COLLIOURE_STANDARD_REFERENCE),
-            seoTitle: 'Que faire à Collioure en une journée ?',
-            seoDescription: 'Itinéraire pour visiter Collioure en une journée : Château Royal, Fort Saint-Elme, plage de Boramar et conseils pratiques.',
             publishedAt: $basePublishedAt,
         );
         $manager->persist($collioureOneDay);
@@ -101,8 +99,6 @@ Pour changer completement d ambiance, prenez la direction du lac des Bouillouses
 TEXT,
             status: ContentStatus::Published,
             featuredImage: $this->getMedia(MediaAssetFixtures::COLLIOURE_PANORAMA_REFERENCE),
-            seoTitle: 'Les plus beaux lieux des Pyrénées-Orientales',
-            seoDescription: 'Selection de sites incontournables dans les Pyrénées-Orientales : Collioure, Orgues d Ille-sur-Têt et lac des Bouillouses.',
             publishedAt: $basePublishedAt->modify('+2 days'),
         );
         $manager->persist($bestPlaces);
@@ -142,8 +138,6 @@ Pour une experience plus confortable, privilegiez le matin ou la fin de journee.
 TEXT,
             status: ContentStatus::Published,
             featuredImage: $this->getMedia(MediaAssetFixtures::FORT_SAINT_ELME_360_REFERENCE),
-            seoTitle: 'Visiter le Fort Saint-Elme a Collioure',
-            seoDescription: 'Guide de visite du Fort Saint-Elme : acces, duree, points de vue et patrimoine catalan.',
             publishedAt: $basePublishedAt->modify('+4 days'),
         );
         $manager->persist($fortArticle);
@@ -179,8 +173,6 @@ Les sections restent a completer avec des temps de trajet, des conseils saisonni
 TEXT,
             status: ContentStatus::Draft,
             featuredImage: $this->getMedia(MediaAssetFixtures::PORT_COLLIOURE_WIDE_REFERENCE),
-            seoTitle: 'Idées de week-end autour de Perpignan',
-            seoDescription: 'Brouillon de conseils pour organiser un week-end autour de Perpignan.',
         );
         $manager->persist($draft);
         $this->addReference(self::PERPIGNAN_WEEKEND_DRAFT_REFERENCE, $draft);
@@ -211,8 +203,6 @@ Avant de partir, verifiez le denivele reel, la disponibilite des points d eau et
 TEXT,
             status: ContentStatus::Published,
             featuredImage: $this->getMedia(MediaAssetFixtures::RANDONNEE_REFERENCE),
-            seoTitle: 'Préparer une randonnée méditerranéenne',
-            seoDescription: 'Conseils pratiques pour marcher sous climat méditerranéen : eau, chaleur, vent, horaires et sécurité.',
             publishedAt: $basePublishedAt->modify('+5 days'),
         );
         $manager->persist($hikePrep);
@@ -245,8 +235,6 @@ Pour tester les pages publiques, cet article relie volontairement une destinatio
 TEXT,
             status: ContentStatus::Published,
             featuredImage: $this->getMedia(MediaAssetFixtures::MER_REFERENCE),
-            seoTitle: 'Les Albères entre mer et montagne',
-            seoDescription: 'Criques, vignes, sentiers et villages pour decouvrir les Albères autour de Banyuls-sur-Mer.',
             publishedAt: $basePublishedAt->modify('+6 days'),
         );
         $manager->persist($alberes);
@@ -273,8 +261,6 @@ TEXT,
             content: 'Ce contenu publie sans image sert de cas limite pour les cartes, les listes d articles et les balises sociales. Il donne aussi un point de test pour les destinations avec contenu indirect.',
             status: ContentStatus::Published,
             featuredImage: null,
-            seoTitle: 'Séjour sans voiture dans les Pyrénées-Orientales',
-            seoDescription: 'Conseils pour organiser un séjour sans voiture et tester les fallbacks image du site.',
             publishedAt: $basePublishedAt->modify('+7 days'),
         );
         $manager->persist($noImage);
@@ -296,8 +282,6 @@ TEXT,
             content: $this->longContent(),
             status: ContentStatus::Published,
             featuredImage: $this->getMedia(MediaAssetFixtures::COTE_VERMEILLE_180_REFERENCE),
-            seoTitle: 'Grand guide de la côte Vermeille',
-            seoDescription: 'Guide complet de test pour organiser un premier séjour sur la côte Vermeille.',
             publishedAt: $basePublishedAt->modify('+8 days'),
         );
         $manager->persist($longArticle);
@@ -326,8 +310,6 @@ TEXT,
             content: 'Le modèle Article ne possède pas de statut scheduled. Cette fixture utilise archived pour tester un contenu non public avec une date future.',
             status: ContentStatus::Archived,
             featuredImage: $this->getMedia(MediaAssetFixtures::VILLAGE_REFERENCE),
-            seoTitle: 'Fête d’été sur la côte Vermeille',
-            seoDescription: 'Fixture non publique datee dans le futur pour tester les statuts et filtres.',
             publishedAt: new DateTimeImmutable('2026-08-15 09:00:00'),
         );
         $manager->persist($archivedFuture);
@@ -363,8 +345,6 @@ TEXT,
         string $content,
         ContentStatus $status,
         ?MediaAsset $featuredImage,
-        string $seoTitle,
-        string $seoDescription,
         ?DateTimeImmutable $publishedAt = null,
     ): Article {
         return (new Article())
@@ -376,8 +356,6 @@ TEXT,
             ->setContent($content)
             ->setStatus($status)
             ->setFeaturedImage($featuredImage)
-            ->setSeoTitle($seoTitle)
-            ->setSeoDescription($seoDescription)
             ->setPublishedAt($publishedAt);
     }
 

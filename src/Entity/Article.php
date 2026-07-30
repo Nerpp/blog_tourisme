@@ -11,8 +11,16 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 #[ORM\Entity(repositoryClass: ArticleRepository::class)]
+#[UniqueEntity(
+    fields: ['slug'],
+    message: 'Ce slug est déjà utilisé par un autre article.',
+    groups: ['publish'],
+)]
 #[ORM\Index(name: 'idx_article_status', fields: ['status'])]
 #[ORM\Index(name: 'idx_article_published_at', fields: ['publishedAt'])]
 #[ORM\Index(name: 'idx_article_author', fields: ['author'])]
@@ -29,22 +37,48 @@ class Article implements CommentableContentInterface
 
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'articles')]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    #[Assert\NotNull(message: 'Un auteur doit être associé à l’article.', groups: ['Default'])]
     private ?User $author = null;
 
     #[ORM\ManyToOne(targetEntity: Category::class, inversedBy: 'articles')]
     #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    #[Assert\NotNull(message: 'La catégorie est obligatoire pour publier l’article.', groups: ['publish'])]
     private ?Category $category = null;
 
     #[ORM\Column(length: 180)]
+    #[Assert\Length(
+        max: 180,
+        maxMessage: 'Le titre ne peut pas dépasser {{ limit }} caractères.',
+        groups: ['Default'],
+    )]
+    #[Assert\NotBlank(message: 'Le titre est obligatoire pour publier l’article.', groups: ['publish'])]
     private ?string $title = null;
 
     #[ORM\Column(length: 180, unique: true)]
+    #[Assert\Length(
+        max: 180,
+        maxMessage: 'Le slug ne peut pas dépasser {{ limit }} caractères.',
+        groups: ['Default'],
+    )]
+    #[Assert\NotBlank(message: 'Un slug valide est obligatoire pour publier l’article.', groups: ['publish'])]
     private ?string $slug = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Assert\Length(
+        max: 1000,
+        maxMessage: 'Le résumé ne peut pas dépasser {{ limit }} caractères.',
+        groups: ['Default'],
+    )]
+    #[Assert\NotBlank(message: 'Le résumé est obligatoire pour publier l’article.', groups: ['publish'])]
     private ?string $excerpt = null;
 
     #[ORM\Column(type: Types::TEXT)]
+    #[Assert\Length(
+        max: 200000,
+        maxMessage: 'Le contenu ne peut pas dépasser {{ limit }} caractères.',
+        groups: ['Default'],
+    )]
+    #[Assert\NotBlank(message: 'Le contenu de l’article est obligatoire pour le publier.', groups: ['publish'])]
     private ?string $content = null;
 
     #[ORM\Column(length: 20, enumType: ContentStatus::class)]
@@ -294,6 +328,25 @@ class Article implements CommentableContentInterface
         $this->publishedAt = $publishedAt;
 
         return $this;
+    }
+
+    #[Assert\Callback(groups: ['publish'])]
+    public function validatePublicationContent(ExecutionContextInterface $context): void
+    {
+        $rawContent = (string) $this->content;
+        if (trim($rawContent) === '') {
+            return;
+        }
+
+        $content = preg_replace('/\[\[media:\d+\]\]/', '', $rawContent) ?? $rawContent;
+        $plainContent = html_entity_decode(strip_tags($content), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $plainContent = preg_replace('/[\s\x{00A0}]+/u', '', $plainContent) ?? $plainContent;
+
+        if ($plainContent === '') {
+            $context->buildViolation('Le contenu de l’article doit contenir du texte pour être publié.')
+                ->atPath('content')
+                ->addViolation();
+        }
     }
 
     /** @return Collection<int, ArticleDestination> */
