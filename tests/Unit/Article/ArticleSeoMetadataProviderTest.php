@@ -4,8 +4,10 @@ namespace App\Tests\Unit\Article;
 
 use App\Entity\Article;
 use App\Service\Article\ArticleSeoMetadataProvider;
+use App\Service\Seo\PublicUrlGenerator;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Routing\RouterInterface;
 
 final class ArticleSeoMetadataProviderTest extends TestCase
 {
@@ -18,17 +20,17 @@ final class ArticleSeoMetadataProviderTest extends TestCase
             ->setSeoTitle('Ancien titre SEO à ignorer')
             ->setSeoDescription('Ancienne description SEO à ignorer')
             ->setCanonicalUrl('https://legacy.example/article');
-        $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
-        $urlGenerator->expects(self::once())
+        $router = $this->createMock(RouterInterface::class);
+        $router->expects(self::once())
             ->method('generate')
             ->with(
                 'app_article_show',
                 ['slug' => 'titre-public-article'],
-                UrlGeneratorInterface::ABSOLUTE_URL,
+                UrlGeneratorInterface::ABSOLUTE_PATH,
             )
-            ->willReturn('https://example.test/articles/titre-public-article');
+            ->willReturn('/articles/titre-public-article');
 
-        $metadata = (new ArticleSeoMetadataProvider($urlGenerator))->provide($article);
+        $metadata = (new ArticleSeoMetadataProvider(new PublicUrlGenerator($router, 'https://example.test')))->provide($article);
 
         self::assertSame('Titre public de l’article', $metadata['title']);
         self::assertSame('Un résumé avec du HTML.', $metadata['description']);
@@ -41,10 +43,10 @@ final class ArticleSeoMetadataProviderTest extends TestCase
             ->setTitle('Article long')
             ->setSlug('article-long')
             ->setExcerpt(str_repeat('description éditoriale complète ', 12));
-        $urlGenerator = $this->createStub(UrlGeneratorInterface::class);
-        $urlGenerator->method('generate')->willReturn('https://example.test/articles/article-long');
+        $router = $this->createStub(RouterInterface::class);
+        $router->method('generate')->willReturn('/articles/article-long');
 
-        $description = (new ArticleSeoMetadataProvider($urlGenerator))->provide($article)['description'];
+        $description = (new ArticleSeoMetadataProvider(new PublicUrlGenerator($router, 'https://example.test')))->provide($article)['description'];
 
         self::assertLessThanOrEqual(160, mb_strlen($description));
         self::assertStringEndsWith('…', $description);

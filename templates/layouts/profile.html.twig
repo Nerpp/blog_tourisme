@@ -1,5 +1,9 @@
 {% extends 'base.html.twig' %}
 
+{% block robots %}<meta name="robots" content="noindex, follow">{% endblock %}
+{% block canonical %}{% endblock %}
+{% block open_graph_url %}{% endblock %}
+
 {% block layout_stylesheets %}
     {{ vite_entry_link_tags('assets/entries/profile.js') }}
 {% endblock %}

@@ -9,6 +9,7 @@ use App\Enum\ContentStatus;
 use App\Repository\PublicationNotificationLogRepository;
 use App\Repository\UserRepository;
 use App\Service\PublicationNotificationMailer;
+use App\Service\Seo\PublicUrlGenerator;
 use DateTimeImmutable;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
@@ -20,7 +21,7 @@ use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
-use Symfony\Component\Routing\RequestContext;
+use Symfony\Component\Routing\RouterInterface;
 
 final class PublicationNotificationMailerTest extends TestCase
 {
@@ -189,7 +190,7 @@ final class PublicationNotificationMailerTest extends TestCase
             $userRepository,
             $notificationLogRepository,
             $entityManager,
-            $this->urlGenerator(),
+            $this->publicUrlGenerator(),
             $logger,
             'no-reply@example.test',
         );
@@ -224,36 +225,18 @@ final class PublicationNotificationMailerTest extends TestCase
         return $user;
     }
 
-    private function urlGenerator(): UrlGeneratorInterface
+    private function publicUrlGenerator(): PublicUrlGenerator
     {
-        return new class implements UrlGeneratorInterface {
-            private RequestContext $context;
+        $router = $this->createStub(RouterInterface::class);
+        $router->method('generate')->willReturnCallback(static function (string $name, array $parameters, int $referenceType): string {
+            self::assertSame(UrlGeneratorInterface::ABSOLUTE_PATH, $referenceType);
 
-            public function __construct()
-            {
-                $this->context = new RequestContext();
-            }
+            return $name === 'app_profile'
+                ? '/profil'
+                : sprintf('/articles/%s', $parameters['slug'] ?? '');
+        });
 
-            /** @param array<string, mixed> $parameters */
-            public function generate(string $name, array $parameters = [], int $referenceType = self::ABSOLUTE_PATH): string
-            {
-                if ($name === 'app_profile') {
-                    return 'https://example.test/profil';
-                }
-
-                return sprintf('https://example.test/articles/%s', $parameters['slug'] ?? '');
-            }
-
-            public function setContext(RequestContext $context): void
-            {
-                $this->context = $context;
-            }
-
-            public function getContext(): RequestContext
-            {
-                return $this->context;
-            }
-        };
+        return new PublicUrlGenerator($router, 'https://example.test');
     }
 
     private function setEntityId(object $entity, int $id): void

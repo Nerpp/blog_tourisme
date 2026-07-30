@@ -12,13 +12,13 @@ use App\Enum\ContentStatus;
 use App\Enum\HikeDraftStatus;
 use App\Repository\PublicationNotificationLogRepository;
 use App\Repository\UserRepository;
+use App\Service\Seo\PublicUrlGenerator;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mailer\MailerInterface;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Throwable;
 
 final class PublicationNotificationMailer
@@ -28,7 +28,7 @@ final class PublicationNotificationMailer
         private readonly UserRepository $userRepository,
         private readonly PublicationNotificationLogRepository $notificationLogRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly PublicUrlGenerator $publicUrlGenerator,
         private readonly LoggerInterface $logger,
         #[Autowire('%env(MAILER_FROM)%')]
         private readonly string $from,
@@ -79,7 +79,7 @@ final class PublicationNotificationMailer
 
         $sentCount = 0;
         $errorCount = 0;
-        $profileUrl = $this->urlGenerator->generate('app_profile', [], UrlGeneratorInterface::ABSOLUTE_URL);
+        $profileUrl = $this->publicUrlGenerator->generate('app_profile');
 
         foreach ($recipients as $user) {
             try {
@@ -146,7 +146,7 @@ final class PublicationNotificationMailer
                 'id' => $content->getId(),
                 'title' => (string) $content->getTitle(),
                 'summary' => $this->plainSummary($content->getExcerpt() ?? $content->getContent()),
-                'url' => $this->urlGenerator->generate('app_article_show', ['slug' => $slug], UrlGeneratorInterface::ABSOLUTE_URL),
+                'url' => $this->publicUrlGenerator->generate('app_article_show', ['slug' => $slug]),
                 'isPublished' => $content->getStatus() === ContentStatus::Published && $content->getPublishedAt() !== null && $slug !== null,
             ];
         }
@@ -160,7 +160,7 @@ final class PublicationNotificationMailer
                 'id' => $content->getId(),
                 'title' => (string) $content->getTitle(),
                 'summary' => $this->plainSummary($content->getNotes() ?? $this->locationSummary($content->getDetectedCommuneName(), $content->getDetectedDepartmentName(), $content->getDetectedRegionName())),
-                'url' => $this->urlGenerator->generate('app_hike_show', ['slug' => $slug], UrlGeneratorInterface::ABSOLUTE_URL),
+                'url' => $this->publicUrlGenerator->generate('app_hike_show', ['slug' => $slug]),
                 'isPublished' => in_array($content->getStatus(), [HikeDraftStatus::Finished, HikeDraftStatus::Converted], true) && $content->getFinishedAt() !== null && $slug !== null,
             ];
         }
@@ -174,7 +174,7 @@ final class PublicationNotificationMailer
                 'id' => $content->getId(),
                 'title' => (string) $content->getTitle(),
                 'summary' => $this->plainSummary($content->getNotes() ?? $this->locationSummary($content->getDetectedCommuneName(), $content->getDetectedDepartmentName(), $content->getDetectedRegionName())),
-                'url' => $this->urlGenerator->generate('app_city_visit_show', ['slug' => $slug], UrlGeneratorInterface::ABSOLUTE_URL),
+                'url' => $this->publicUrlGenerator->generate('app_city_visit_show', ['slug' => $slug]),
                 'isPublished' => in_array($content->getStatus(), [CityVisitDraftStatus::Finished, CityVisitDraftStatus::Converted], true) && $content->getFinishedAt() !== null && $slug !== null,
             ];
         }

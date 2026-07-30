@@ -8,10 +8,13 @@ final class GoogleControllerTest extends FunctionalTestCase
     {
         $client = static::createClient();
 
-        $client->request('GET', '/connect/google');
+        $client->request('GET', 'http://untrusted.example/connect/google');
 
         self::assertResponseRedirects(null, 302);
-        self::assertStringContainsString('accounts.google.com', $client->getResponse()->headers->get('Location') ?? '');
+        $location = $client->getResponse()->headers->get('Location') ?? '';
+        self::assertStringContainsString('accounts.google.com', $location);
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
+        self::assertSame('https://estela-exploration.fr/connect/google/check', $query['redirect_uri'] ?? null);
     }
 
     public function testGoogleCallbackWithoutAuthenticatorDataRedirectsToLogin(): void

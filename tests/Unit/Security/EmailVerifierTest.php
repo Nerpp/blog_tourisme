@@ -4,10 +4,13 @@ namespace App\Tests\Unit\Security;
 
 use App\Entity\User;
 use App\Security\EmailVerifier;
+use App\Service\Seo\PublicUrlGenerator;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Routing\RequestContext;
+use Symfony\Component\Routing\RouterInterface;
 use SymfonyCasts\Bundle\VerifyEmail\Exception\InvalidSignatureException;
 use SymfonyCasts\Bundle\VerifyEmail\Exception\VerifyEmailExceptionInterface;
 use SymfonyCasts\Bundle\VerifyEmail\Model\VerifyEmailSignatureComponents;
@@ -48,7 +51,7 @@ final class EmailVerifierTest extends TestCase
                 return true;
             }));
 
-        (new EmailVerifier($helper, $mailer, 'no-reply@example.test'))->sendEmailConfirmation($user);
+        (new EmailVerifier($helper, $mailer, $this->publicUrlGenerator(), 'no-reply@example.test'))->sendEmailConfirmation($user);
     }
 
     public function testSendEmailConfirmationRequiresPersistedUser(): void
@@ -59,6 +62,7 @@ final class EmailVerifierTest extends TestCase
         (new EmailVerifier(
             new FakeVerifyEmailHelper(),
             $this->createStub(MailerInterface::class),
+            $this->publicUrlGenerator(),
             'no-reply@example.test',
         ))->sendEmailConfirmation((new User())->setEmail('test@example.test')->setDisplayName('Test')->setPassword('x'));
     }
@@ -75,7 +79,7 @@ final class EmailVerifierTest extends TestCase
 
         $helper = new FakeVerifyEmailHelper();
 
-        (new EmailVerifier($helper, $this->createStub(MailerInterface::class), 'no-reply@example.test'))
+        (new EmailVerifier($helper, $this->createStub(MailerInterface::class), $this->publicUrlGenerator(), 'no-reply@example.test'))
             ->handleEmailConfirmation($request, $user);
 
         self::assertTrue($user->isVerified());
@@ -96,7 +100,7 @@ final class EmailVerifierTest extends TestCase
         $this->expectException(InvalidSignatureException::class);
 
         try {
-            (new EmailVerifier($helper, $this->createStub(MailerInterface::class), 'no-reply@example.test'))
+            (new EmailVerifier($helper, $this->createStub(MailerInterface::class), $this->publicUrlGenerator(), 'no-reply@example.test'))
                 ->handleEmailConfirmation(Request::create('/verify?id=123&signature=bad'), $user);
         } finally {
             self::assertFalse($user->isVerified());
@@ -107,6 +111,14 @@ final class EmailVerifierTest extends TestCase
     {
         $property = new \ReflectionProperty($entity, 'id');
         $property->setValue($entity, $id);
+    }
+
+    private function publicUrlGenerator(): PublicUrlGenerator
+    {
+        $router = $this->createStub(RouterInterface::class);
+        $router->method('getContext')->willReturn(new RequestContext());
+
+        return new PublicUrlGenerator($router, 'https://estela-exploration.fr');
     }
 }
 

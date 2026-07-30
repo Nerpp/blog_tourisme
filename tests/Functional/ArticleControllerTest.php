@@ -29,7 +29,7 @@ final class ArticleControllerTest extends FunctionalTestCase
             ->setCanonicalUrl('https://legacy.example/article-manuel');
         $this->persistAndFlush($article);
 
-        $crawler = $client->request('GET', '/articles/titre-editorial-automatique');
+        $crawler = $client->request('GET', 'http://untrusted.example/articles/titre-editorial-automatique?utm_source=test');
 
         self::assertResponseIsSuccessful();
         self::assertSame(
@@ -41,12 +41,17 @@ final class ArticleControllerTest extends FunctionalTestCase
             $crawler->filter('meta[name="description"]')->attr('content'),
         );
         self::assertSame(
-            'http://localhost/articles/titre-editorial-automatique',
+            'https://estela-exploration.fr/articles/titre-editorial-automatique',
             $crawler->filter('link[rel="canonical"]')->attr('href'),
+        );
+        self::assertSame(1, $crawler->filter('link[rel="canonical"]')->count());
+        self::assertSame(
+            'https://estela-exploration.fr/articles/titre-editorial-automatique',
+            $crawler->filter('meta[property="og:url"]')->attr('content'),
         );
         self::assertSame('Titre éditorial automatique', $crawler->filter('meta[property="og:title"]')->attr('content'));
         self::assertSame(
-            'http://localhost/images/placeholders/destination-card-placeholder.webp',
+            'https://estela-exploration.fr/images/placeholders/destination-card-placeholder.webp',
             $crawler->filter('meta[property="og:image"]')->attr('content'),
         );
 
@@ -56,7 +61,7 @@ final class ArticleControllerTest extends FunctionalTestCase
             ->setSlug('titre-editorial-modifie');
         $this->persistAndFlush($article);
 
-        $crawler = $client->request('GET', '/articles/titre-editorial-modifie');
+        $crawler = $client->request('GET', '/articles/titre-editorial-modifie?fbclid=tracking');
 
         self::assertResponseIsSuccessful();
         self::assertSame(
@@ -68,7 +73,7 @@ final class ArticleControllerTest extends FunctionalTestCase
             $crawler->filter('meta[name="description"]')->attr('content'),
         );
         self::assertSame(
-            'http://localhost/articles/titre-editorial-modifie',
+            'https://estela-exploration.fr/articles/titre-editorial-modifie',
             $crawler->filter('link[rel="canonical"]')->attr('href'),
         );
     }
@@ -493,7 +498,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         self::assertSame(1, $crawler->filter('.article-gallery-section .gallery-modal')->count());
         self::assertSame('/uploads/media/article-gallery-fallback.webp', $crawler->filter('.article-show-cover img')->attr('src'));
         self::assertSame(
-            'http://localhost/uploads/media/article-gallery-fallback.webp',
+            'https://estela-exploration.fr/uploads/media/article-gallery-fallback.webp',
             $crawler->filter('meta[property="og:image"]')->attr('content'),
         );
     }
@@ -528,7 +533,7 @@ final class ArticleControllerTest extends FunctionalTestCase
         $coverImage = $crawler->filter('.article-show-cover picture img')->first();
         self::assertSame('/uploads/media/variants/article-cover-mobile.webp', $coverImage->attr('src'));
         self::assertSame(
-            'http://localhost/uploads/media/variants/article-cover-mobile.webp',
+            'https://estela-exploration.fr/uploads/media/variants/article-cover-mobile.webp',
             $crawler->filter('meta[property="og:image"]')->attr('content'),
         );
         self::assertSame('eager', $coverImage->attr('loading'));

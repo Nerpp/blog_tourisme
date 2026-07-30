@@ -3,7 +3,7 @@
 namespace App\Service\Article;
 
 use App\Entity\Article;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use App\Service\Seo\PublicUrlGenerator;
 
 final class ArticleSeoMetadataProvider
 {
@@ -11,7 +11,7 @@ final class ArticleSeoMetadataProvider
     private const int DESCRIPTION_MIN_WORD_BOUNDARY = 120;
 
     public function __construct(
-        private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly PublicUrlGenerator $publicUrlGenerator,
     ) {
     }
 
@@ -21,10 +21,9 @@ final class ArticleSeoMetadataProvider
         return [
             'title' => trim((string) $article->getTitle()),
             'description' => $this->descriptionFromExcerpt($article->getExcerpt()),
-            'canonical' => $this->urlGenerator->generate(
+            'canonical' => $this->publicUrlGenerator->generate(
                 'app_article_show',
                 ['slug' => (string) $article->getSlug()],
-                UrlGeneratorInterface::ABSOLUTE_URL,
             ),
         ];
     }

@@ -114,7 +114,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             $previewCrawler->filter('.article-show-cover img')->attr('src'),
         );
         self::assertSame(
-            'http://localhost/images/placeholders/destination-card-placeholder.webp',
+            'https://estela-exploration.fr/images/placeholders/destination-card-placeholder.webp',
             $previewCrawler->filter('meta[property="og:image"]')->attr('content'),
         );
         self::assertStringNotContainsString('/admin/', (string) $previewCrawler->filter('meta[property="og:image"]')->attr('content'));
@@ -492,7 +492,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         self::assertSame($title.' - Blog Tourisme', trim((string) preg_replace('/\s+/u', ' ', $publicCrawler->filter('title')->text())));
         self::assertSame('Résumé complet destiné aux listes publiques.', $publicCrawler->filter('meta[name="description"]')->attr('content'));
         self::assertSame(
-            'http://localhost/articles/'.$article->getSlug(),
+            'https://estela-exploration.fr/articles/'.$article->getSlug(),
             $publicCrawler->filter('link[rel="canonical"]')->attr('href'),
         );
         self::assertSame(
@@ -500,7 +500,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
             $publicCrawler->filter('.article-show-cover img')->attr('src'),
         );
         self::assertSame(
-            'http://localhost/images/placeholders/destination-card-placeholder.webp',
+            'https://estela-exploration.fr/images/placeholders/destination-card-placeholder.webp',
             $publicCrawler->filter('meta[property="og:image"]')->attr('content'),
         );
     }

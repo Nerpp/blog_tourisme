@@ -11,8 +11,9 @@
 		</title>
 		<meta name="description" content="{% block meta_description %}Articles, itineraires et conseils pour decouvrir les plus belles destinations touristiques.{% endblock %}">
 		{% block robots %}{% endblock %}
-		{% block canonical %}<link rel="canonical" href="{{ app.request.uri }}">
+		{% block canonical %}<link rel="canonical" href="{{ public_canonical_url() }}">
 		{% endblock %}
+		{% block open_graph_url %}<meta property="og:url" content="{{ public_canonical_url() }}">{% endblock %}
 		<meta property="og:title" content="{% block open_graph_title %}{{ block('title') }}{% endblock %}">
 		<meta property="og:description" content="{% block open_graph_description %}{{ block('meta_description') }}{% endblock %}"> {% block open_graph_image %}{% endblock %}
 		{% block preloads %}{% endblock %}

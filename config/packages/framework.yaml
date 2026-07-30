@@ -23,6 +23,7 @@ framework:
 
     router:
         utf8: true
+        default_uri: '%app.public_url%'
 
     rate_limiter:
         comment_create_minute:

@@ -196,7 +196,11 @@ final class ResetPasswordControllerTest extends FunctionalTestCase
         $client->request('GET', '/reset-password/reset/'.$token);
         self::assertResponseRedirects('/reset-password/reset');
 
-        return $client->followRedirect();
+        $crawler = $client->followRedirect();
+        self::assertSame(1, $crawler->filter('meta[name="robots"][content="noindex, follow"]')->count());
+        self::assertSame(0, $crawler->filter('link[rel="canonical"]')->count());
+
+        return $crawler;
     }
 
     private function resetPasswordHelper(): ResetPasswordHelperInterface
