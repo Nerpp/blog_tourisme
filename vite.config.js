@@ -1,15 +1,10 @@
 import { fileURLToPath, URL } from 'node:url';
 
-import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vite';
-import vuetify from 'vite-plugin-vuetify';
 
 export default defineConfig(({ command }) => ({
   base: command === 'serve' ? '/' : '/build/',
-  plugins: [
-    vue(),
-    vuetify({ autoImport: true }),
-  ],
+  plugins: [],
   publicDir: false,
   resolve: {
     alias: {
