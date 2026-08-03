@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Service\AvatarUploadService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportException;
@@ -27,28 +28,35 @@ final class RegistrationControllerTest extends FunctionalTestCase
         parent::tearDown();
     }
 
-    public function testRegistrationWithoutAvatarPersistsHashedPasswordAndLoginWorks(): void
+    public function testRegistrationWithoutAvatarPersistsUnknownTransientPasswordAndRejectsLogin(): void
     {
         $client = static::createClient();
         $email = sprintf('register-no-avatar-%s@example.test', bin2hex(random_bytes(6)));
-        $password = 'Phrase robuste inscription 2026 9!';
 
         $crawler = $client->request('GET', '/register');
         self::assertResponseIsSuccessful();
         self::assertGreaterThan(0, $crawler->filter('input[name="registration_form[_token]"]')->count());
+        self::assertSame(0, $crawler->filter('input[type="password"]')->count());
 
-        $client->submit($this->registrationForm($crawler, $email, 'Sans Avatar '.$this->uniqueToken('register'), $password));
+        $client->submit($this->registrationForm($crawler, $email, 'Sans Avatar '.$this->uniqueToken('register')));
 
         self::assertResponseRedirects('/login');
+        self::assertEmailCount(1);
+        $confirmationEmail = self::getMailerMessage();
+        self::assertInstanceOf(TemplatedEmail::class, $confirmationEmail);
+        self::assertSame('Confirmez votre adresse email Estela Explorations', $confirmationEmail->getSubject());
+        self::assertStringContainsString('/verify/email?', (string) $confirmationEmail->getHtmlBody());
+        $loginPage = $client->followRedirect();
+        self::assertSame(1, $loginPage->filter('a[href="/verify/resend"]')->count());
 
         $user = $this->registeredUser($email);
         self::assertNull($user->getAvatarPath());
         self::assertSame(['ROLE_USER'], $user->getRoles());
         self::assertFalse($user->isVerified());
-        self::assertNotSame($password, $user->getPassword());
-        self::assertTrue($this->passwordHasher()->isPasswordValid($user, $password));
+        self::assertNotNull($user->getEmailVerificationTokenHash());
+        self::assertFalse($this->passwordHasher()->isPasswordValid($user, 'Phrase choisie avant vérification 2026 9!'));
 
-        $this->loginWithPassword($client, $email, $password);
+        $this->assertPasswordLoginRejected($client, $email, 'Phrase choisie avant vérification 2026 9!');
     }
 
     public function testRegistrationRejectsPrivilegedFieldsWithoutCreatingAccount(): void
@@ -92,17 +100,17 @@ final class RegistrationControllerTest extends FunctionalTestCase
         $failingMailer = new FailingRegistrationMailer();
         static::getContainer()->set('mailer.mailer', $failingMailer);
         $email = sprintf('register-mailer-failure-%s@example.test', bin2hex(random_bytes(6)));
-        $password = 'Phrase robuste panne mailer 2026 9!';
         $displayName = 'Panne Mailer '.$this->uniqueToken('register');
         $crawler = $client->request('GET', '/register');
 
-        $client->submit($this->registrationForm($crawler, $email, $displayName, $password));
+        $client->submit($this->registrationForm($crawler, $email, $displayName));
 
         self::assertResponseRedirects('/login');
         self::assertSame(1, $failingMailer->sendAttempts);
         $user = $this->registeredUser($email);
         self::assertFalse($user->isVerified());
         self::assertSame(['ROLE_USER'], $user->getRoles());
+        $transientPasswordHash = $user->getPassword();
 
         static::ensureKernelShutdown();
         $client = static::createClient();
@@ -123,7 +131,6 @@ final class RegistrationControllerTest extends FunctionalTestCase
             $crawler,
             $email,
             'Tentative dupliquée '.$this->uniqueToken('register'),
-            'Autre phrase robuste 2026 8!',
         ));
 
         self::assertResponseRedirects('/login');
@@ -133,7 +140,7 @@ final class RegistrationControllerTest extends FunctionalTestCase
         self::assertFalse($storedUser->isVerified());
         self::assertSame(['ROLE_USER'], $storedUser->getRoles());
         self::assertSame($displayName, $storedUser->getDisplayName());
-        self::assertTrue($this->passwordHasher()->isPasswordValid($storedUser, $password));
+        self::assertSame($transientPasswordHash, $storedUser->getPassword());
     }
 
     public function testVerifiedExistingAccountIsNotDuplicatedOrSentAnotherConfirmation(): void
@@ -149,7 +156,6 @@ final class RegistrationControllerTest extends FunctionalTestCase
             $crawler,
             (string) $user->getEmail(),
             'Doublon vérifié '.$this->uniqueToken('register'),
-            'Phrase robuste doublon 2026 7!',
         ));
 
         self::assertResponseRedirects('/login');
@@ -158,17 +164,16 @@ final class RegistrationControllerTest extends FunctionalTestCase
         self::assertTrue($this->refresh($user)->isVerified());
     }
 
-    public function testRegistrationWithAvatarPersistsAvatarPathAndLoginWorks(): void
+    public function testRegistrationWithAvatarPersistsAvatarPathWithoutActivatingPasswordLogin(): void
     {
         $this->requireGdFor('png');
 
         $client = static::createClient();
         $email = sprintf('register-avatar-%s@example.test', bin2hex(random_bytes(6)));
-        $password = 'Phrase robuste avatar 2026 9!';
         $avatar = $this->createImage('png', 320, 180);
 
         $crawler = $client->request('GET', '/register');
-        $form = $this->registrationForm($crawler, $email, 'Avec Avatar '.$this->uniqueToken('register'), $password);
+        $form = $this->registrationForm($crawler, $email, 'Avec Avatar '.$this->uniqueToken('register'));
         $form['registration_form[avatarFile]']->upload($avatar);
 
         $client->submit($form);
@@ -181,9 +186,7 @@ final class RegistrationControllerTest extends FunctionalTestCase
         $this->uploadedAvatars[] = $avatarPath;
         self::assertMatchesRegularExpression('#^/uploads/avatars/avatar_[a-f0-9]{32}\.webp$#', $avatarPath);
         self::assertFileExists((string) static::getContainer()->getParameter('kernel.project_dir').'/public'.$avatarPath);
-        self::assertTrue($this->passwordHasher()->isPasswordValid($user, $password));
-
-        $this->loginWithPassword($client, $email, $password);
+        $this->assertPasswordLoginRejected($client, $email, 'Phrase avatar inconnue 2026 9!');
     }
 
     #[DataProvider('supportedAvatarFormatsProvider')]
@@ -193,12 +196,11 @@ final class RegistrationControllerTest extends FunctionalTestCase
 
         $client = static::createClient();
         $email = sprintf('register-avatar-%s-%s@example.test', $extension, bin2hex(random_bytes(6)));
-        $password = 'Phrase robuste avatar format 2026 9!';
         $originalFile = $this->createImage($extension, 300, 300);
 
         try {
             $crawler = $client->request('GET', '/register');
-            $form = $this->registrationForm($crawler, $email, 'Avatar Format '.$this->uniqueToken('register'), $password);
+            $form = $this->registrationForm($crawler, $email, 'Avatar Format '.$this->uniqueToken('register'));
             $form['registration_form[avatarFile]']->upload($originalFile);
 
             $client->submit($form);
@@ -232,7 +234,6 @@ final class RegistrationControllerTest extends FunctionalTestCase
                 $crawler,
                 $email,
                 'Avatar Trop Petit '.$this->uniqueToken('register'),
-                'Phrase robuste petit avatar 2026 9!',
             );
             $form['registration_form[avatarFile]']->upload($avatar);
 
@@ -251,43 +252,6 @@ final class RegistrationControllerTest extends FunctionalTestCase
         self::assertNull($this->entityManager()->getRepository(User::class)->findOneBy(['email' => $email]));
     }
 
-    public function testShortNumericPasswordIsRejectedWithClearMessage(): void
-    {
-        $client = static::createClient();
-        $crawler = $client->request('GET', '/register');
-
-        $client->submit($this->registrationForm(
-            $crawler,
-            sprintf('register-short-password-%s@example.test', bin2hex(random_bytes(6))),
-            'Mot Court '.$this->uniqueToken('register'),
-            '12345678',
-        ));
-
-        self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('body', 'Le mot de passe doit contenir au moins 12 caractères.');
-    }
-
-    public function testCommonPasswordIsRejectedWithClearMessage(): void
-    {
-        $client = static::createClient();
-        $crawler = $client->request('GET', '/register');
-
-        $client->submit($this->registrationForm(
-            $crawler,
-            sprintf('register-common-password-%s@example.test', bin2hex(random_bytes(6))),
-            'Mot Commun '.$this->uniqueToken('register'),
-            'password123456',
-        ));
-
-        self::assertResponseIsSuccessful();
-        $content = $client->getResponse()->getContent() ?: '';
-        self::assertTrue(
-            str_contains($content, 'Votre mot de passe est trop faible.')
-            || str_contains($content, 'Ce mot de passe est connu dans des fuites de données.'),
-            'The registration page should display a clear weak or compromised password error.',
-        );
-    }
-
     /**
      * @return iterable<string, array{string}>
      */
@@ -297,13 +261,11 @@ final class RegistrationControllerTest extends FunctionalTestCase
         yield 'webp' => ['webp'];
     }
 
-    private function registrationForm(Crawler $crawler, string $email, string $displayName, string $password): \Symfony\Component\DomCrawler\Form
+    private function registrationForm(Crawler $crawler, string $email, string $displayName): \Symfony\Component\DomCrawler\Form
     {
-        return $crawler->selectButton('Créer mon compte')->form([
+        return $crawler->selectButton('Recevoir le lien sécurisé')->form([
             'registration_form[email]' => $email,
             'registration_form[displayName]' => $displayName,
-            'registration_form[plainPassword][first]' => $password,
-            'registration_form[plainPassword][second]' => $password,
         ]);
     }
 
@@ -315,7 +277,7 @@ final class RegistrationControllerTest extends FunctionalTestCase
         return $user;
     }
 
-    private function loginWithPassword(KernelBrowser $client, string $email, string $password): void
+    private function assertPasswordLoginRejected(KernelBrowser $client, string $email, string $password): void
     {
         $crawler = $client->request('GET', '/login');
         $client->request('POST', '/login', [
@@ -324,7 +286,7 @@ final class RegistrationControllerTest extends FunctionalTestCase
             '_csrf_token' => $this->inputValue($crawler, 'input[name="_csrf_token"]'),
         ]);
 
-        self::assertResponseRedirects('/');
+        self::assertResponseRedirects('/login');
     }
 
     private function passwordHasher(): UserPasswordHasherInterface

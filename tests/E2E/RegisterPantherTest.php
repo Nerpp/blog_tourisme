@@ -15,13 +15,10 @@ final class RegisterPantherTest extends PantherTestCase
         self::assertSelectorExists('input[name="registration_form[email]"]');
 
         $email = $this->uniqueEmail('register');
-        $password = 'E2E Register '.bin2hex(random_bytes(12)).' 2026 9!';
 
         $webDriver = $client->getWebDriver();
         $webDriver->findElement(WebDriverBy::name('registration_form[email]'))->sendKeys($email);
         $webDriver->findElement(WebDriverBy::name('registration_form[displayName]'))->sendKeys('E2E Register '.bin2hex(random_bytes(4)));
-        $webDriver->findElement(WebDriverBy::name('registration_form[plainPassword][first]'))->sendKeys($password);
-        $webDriver->findElement(WebDriverBy::name('registration_form[plainPassword][second]'))->sendKeys($password);
         $webDriver->findElement(WebDriverBy::cssSelector('button[type="submit"]'))->click();
 
         $client->waitFor('.login-page');

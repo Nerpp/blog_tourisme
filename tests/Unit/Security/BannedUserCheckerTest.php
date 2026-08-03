@@ -40,6 +40,17 @@ final class BannedUserCheckerTest extends TestCase
         self::addToAssertionCount(2);
     }
 
+    public function testUnverifiedUserIsRejectedBeforePasswordAuthentication(): void
+    {
+        $checker = new BannedUserChecker();
+        $user = $this->user(['ROLE_USER'], banned: false)->setIsVerified(false);
+
+        $this->expectException(CustomUserMessageAccountStatusException::class);
+        $this->expectExceptionMessage('security.account.unverified');
+
+        $checker->checkPreAuth($user);
+    }
+
     public function testNonApplicationUserIsIgnored(): void
     {
         (new BannedUserChecker())->checkPreAuth(new InMemoryUser('external@example.test', 'password'));
@@ -55,6 +66,7 @@ final class BannedUserCheckerTest extends TestCase
             ->setDisplayName('Utilisateur bannissement')
             ->setPassword('test-password')
             ->setRoles($roles)
+            ->setIsVerified(true)
             ->setIsBanned($banned);
     }
 }
