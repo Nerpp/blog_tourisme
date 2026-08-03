@@ -134,12 +134,16 @@
 							<span>{{ point.type.value }}</span>
 						</div>
 						<div class="field-point__meta">
-							{{ point.latitude|number_format(6, '.', '') }},
-							{{ point.longitude|number_format(6, '.', '') }}
-							{% if point.accuracy is not null %}
-								· précision
-								{{ point.accuracy|round }}
-								m
+							{% if point.latitude is not null and point.longitude is not null %}
+								{{ point.latitude|number_format(6, '.', '') }},
+								{{ point.longitude|number_format(6, '.', '') }}
+								{% if point.accuracy is not null %}
+									· précision
+									{{ point.accuracy|round }}
+									m
+								{% endif %}
+							{% else %}
+								Coordonnées à définir
 							{% endif %}
 						</div>
 						{% if point.detectedCommuneName %}

@@ -15,7 +15,8 @@
   "dependencies": {
     "@photo-sphere-viewer/core": "^5.14.3",
     "leaflet": "^1.9.4",
-    "pannellum": "^2.5.7"
+    "pannellum": "^2.5.7",
+    "sortablejs": "1.15.7"
   },
   "devDependencies": {
     "lighthouse": "13.4.1",

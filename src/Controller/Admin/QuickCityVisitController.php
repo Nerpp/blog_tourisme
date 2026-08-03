@@ -13,9 +13,11 @@ use App\Repository\DestinationRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickCityVisitVoter;
 use App\Service\GeographicHierarchyResolver;
+use App\Service\RouteStep\RouteStepOrderingService;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -36,6 +38,7 @@ final class QuickCityVisitController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
+        private readonly RouteStepOrderingService $routeStepOrderingService,
         private readonly SluggerInterface $slugger,
     ) {}
 
@@ -138,20 +141,27 @@ final class QuickCityVisitController extends AbstractController
 
         $pointType = CityVisitPointType::tryFrom($formData['type']) ?? CityVisitPointType::Other;
         $location = $this->terrainLocationResolver->resolve((float) $formData['latitude'], (float) $formData['longitude']);
-        $this->applyDraftLocation($cityVisitDraft, $location['geocoding']);
-
-        $point = $this->createPoint(
-            $cityVisitDraft,
-            $formData,
-            $pointType,
-            $this->nextPointPosition($cityVisitDraft),
-            $location['geocoding'],
-        );
-
-        $cityVisitDraft->addPoint($point);
-        $cityVisitDraft->setGoogleMapsUrl($this->generateGoogleMapsUrl($cityVisitDraft));
-
-        $this->entityManager->flush();
+        try {
+            $this->entityManager->wrapInTransaction(function () use ($cityVisitDraft, $formData, $pointType, $location): void {
+                $this->entityManager->lock($cityVisitDraft, LockMode::PESSIMISTIC_WRITE);
+                $this->applyDraftLocation($cityVisitDraft, $location['geocoding']);
+                $point = $this->createPoint(
+                    $cityVisitDraft,
+                    $formData,
+                    $pointType,
+                    $location['geocoding'],
+                );
+                $this->routeStepOrderingService->insertAtPosition(
+                    $cityVisitDraft,
+                    $point,
+                    count($this->routeStepOrderingService->orderedSteps($cityVisitDraft)) + 1,
+                );
+                $cityVisitDraft->setGoogleMapsUrl($this->generateGoogleMapsUrl($cityVisitDraft));
+                $this->entityManager->flush();
+            });
+        } catch (\Throwable) {
+            return $this->pointTransactionError($request, $cityVisitDraft);
+        }
 
         return $this->pointSuccess($request, 'Point GPS enregistré.', $cityVisitDraft);
     }
@@ -271,7 +281,7 @@ final class QuickCityVisitController extends AbstractController
      * @param array<string, string>      $formData
      * @param array<string, string>|null $geocoding
      */
-    private function createPoint(CityVisitDraft $draft, array $formData, CityVisitPointType $type, int $position, ?array $geocoding): CityVisitPoint
+    private function createPoint(CityVisitDraft $draft, array $formData, CityVisitPointType $type, ?array $geocoding): CityVisitPoint
     {
         $point = (new CityVisitPoint())
             ->setCityVisitDraft($draft)
@@ -281,7 +291,7 @@ final class QuickCityVisitController extends AbstractController
             ->setLatitude((float) $formData['latitude'])
             ->setLongitude((float) $formData['longitude'])
             ->setAccuracy($formData['accuracy'] !== '' ? (float) $formData['accuracy'] : null)
-            ->setPosition($position);
+            ->setCoordinatesInherited(false);
 
         if (null !== $geocoding) {
             $point
@@ -365,19 +375,17 @@ final class QuickCityVisitController extends AbstractController
         return $point;
     }
 
-    private function nextPointPosition(CityVisitDraft $draft): int
-    {
-        $position = 0;
-        foreach ($draft->getPoints() as $point) {
-            $position = max($position, $point->getPosition());
-        }
-
-        return $position + 1;
-    }
-
     private function generateGoogleMapsUrl(CityVisitDraft $draft): ?string
     {
-        $points = $draft->getPoints()->toArray();
+        $points = array_values(array_filter(
+            $draft->getPoints()->toArray(),
+            static fn (CityVisitPoint $point): bool => $point->getLatitude() !== null
+                && $point->getLatitude() >= -90
+                && $point->getLatitude() <= 90
+                && $point->getLongitude() !== null
+                && $point->getLongitude() >= -180
+                && $point->getLongitude() <= 180,
+        ));
         usort($points, static fn(CityVisitPoint $a, CityVisitPoint $b): int => $a->getPosition() <=> $b->getPosition());
 
         if (\count($points) < 2) {
@@ -435,6 +443,18 @@ final class QuickCityVisitController extends AbstractController
         }
 
         return $this->renderShow($draft, [$message], $status);
+    }
+
+    private function pointTransactionError(Request $request, CityVisitDraft $draft): Response
+    {
+        $message = 'Un conflit a empêché l’enregistrement du point GPS. Réessayez.';
+        if ($this->wantsJson($request)) {
+            return new JsonResponse(['ok' => false, 'message' => $message], Response::HTTP_CONFLICT);
+        }
+
+        $this->addFlash('error', $message);
+
+        return $this->redirectToRoute('admin_quick_city_visit_show', ['id' => $draft->getId()]);
     }
 
     private function wantsJson(Request $request): bool

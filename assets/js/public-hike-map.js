@@ -54,11 +54,12 @@ const routePoints = (mapElement) => {
         position: Number.isFinite(Number.parseInt(point.position, 10))
           ? Number.parseInt(point.position, 10)
           : index + 1,
-        title: String(point.title || `Étape ${index + 1}`),
+        title: String(point.title || `Étape ${point.position || index + 1}`),
         type: String(point.type || ''),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((first, second) => first.position - second.position);
 };
 
 const escapeHtml = (value) => String(value)
@@ -68,14 +69,22 @@ const escapeHtml = (value) => String(value)
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#039;');
 
-const popupContent = (point, index) => {
+const popupContent = (point) => {
   const label = point.type ? `<span>${escapeHtml(point.type)}</span>` : '';
 
   return `
-    <strong>${index + 1}. ${escapeHtml(point.title)}</strong>
+    <strong>${point.position}. ${escapeHtml(point.title)}</strong>
     ${label}
   `;
 };
+
+const numberedMarkerIcon = (position) => L.divIcon({
+  className: 'public-route-map__marker-number',
+  html: `<span aria-hidden="true">${position}</span>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 34],
+  popupAnchor: [0, -30],
+});
 
 const initMap = (mapElement) => {
   const points = routePoints(mapElement);
@@ -97,12 +106,13 @@ const initMap = (mapElement) => {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(map);
 
-  points.forEach((point, index) => {
+  points.forEach((point) => {
     const marker = L.marker([point.latitude, point.longitude], {
-      title: `${index + 1}. ${point.title}`,
+      title: `${point.position}. ${point.title}`,
+      icon: numberedMarkerIcon(point.position),
     })
       .addTo(map)
-      .bindPopup(popupContent(point, index));
+      .bindPopup(popupContent(point));
 
     markers.push(marker);
 

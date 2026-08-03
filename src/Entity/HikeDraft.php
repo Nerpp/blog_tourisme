@@ -70,7 +70,7 @@ class HikeDraft implements CommentableContentInterface
 
     /** @var Collection<int, HikePoint> */
     #[ORM\OneToMany(mappedBy: 'hikeDraft', targetEntity: HikePoint::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
-    #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
+    #[ORM\OrderBy(['position' => 'ASC'])]
     private Collection $points;
 
     /** @var Collection<int, HikeDraftMedia> */

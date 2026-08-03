@@ -1219,7 +1219,7 @@ final class HikeStudioControllerTest extends FunctionalTestCase
             '_redirect_anchor' => 'point-'.$point->getId(),
             'title' => 'Belvedere precis',
             'type' => HikePointType::Viewpoint->value,
-            'position' => '3',
+            'position' => '3', // Must be ignored: order is saved only by the dedicated route.
             'latitude' => '42.6986123',
             'longitude' => '2.8956456',
             'accuracy' => '4',
@@ -1230,7 +1230,7 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         $point = $this->refresh($point);
         self::assertSame('Belvedere precis', $point->getTitle());
         self::assertSame(HikePointType::Viewpoint, $point->getType());
-        self::assertSame(3, $point->getPosition());
+        self::assertSame(1, $point->getPosition());
         self::assertSame(42.6986123, $point->getLatitude());
         self::assertSame(2.8956456, $point->getLongitude());
         self::assertSame(4.0, $point->getAccuracy());
@@ -1273,7 +1273,7 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertSame('Note originale', $point->getNote());
     }
 
-    public function testHikePointUpdateWithInvalidPositionDoesNotPersistPartialMutation(): void
+    public function testHikePointUpdateIgnoresLegacyPositionAndPersistsEditorialMutation(): void
     {
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
@@ -1301,16 +1301,14 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         ]);
 
         self::assertResponseRedirects(sprintf('/admin/studio/hikes/%d/edit#point-%d', $hike->getId(), $point->getId()));
-        $client->followRedirect();
-        self::assertStringContainsString('La position du point doit être supérieure ou égale à 1.', (string) $client->getResponse()->getContent());
         $point = $this->refresh($point);
-        self::assertSame('Source originale', $point->getTitle());
-        self::assertSame(HikePointType::Water, $point->getType());
+        self::assertSame('Source déplacée', $point->getTitle());
+        self::assertSame(HikePointType::Start, $point->getType());
         self::assertSame(4, $point->getPosition());
-        self::assertSame(42.51, $point->getLatitude());
-        self::assertSame(2.71, $point->getLongitude());
-        self::assertSame(9.0, $point->getAccuracy());
-        self::assertSame('Eau potable', $point->getNote());
+        self::assertSame(43.1, $point->getLatitude());
+        self::assertSame(3.1, $point->getLongitude());
+        self::assertSame(2.0, $point->getAccuracy());
+        self::assertSame('Mutation partielle interdite', $point->getNote());
     }
 
     public function testHikePointUpdateRejectsInvalidCoordinatesAndAccuracyWithoutMutation(): void

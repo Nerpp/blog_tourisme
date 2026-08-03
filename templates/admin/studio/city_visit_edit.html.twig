@@ -154,30 +154,18 @@
                     <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Ouvrir avec étapes</a>
                 {% endif %}
             </div>
-            <div class="studio-media-grid">
-                {% for point in city_visit.points %}
-                    <article id="city-visit-point-{{ point.id }}" class="studio-point">
-                        <strong>{{ point_labels[point.id] ?? (point.title ?: 'Point à visiter') }}</strong>
-                        <span>{{ point.latitude }}, {{ point.longitude }}</span>
-                        <span class="admin-muted">{{ point.detectedCommuneName ?: city_visit.detectedCommuneName ?: 'Commune non détectée' }}</span>
-                        {% if point.note %}<p>{{ point.note }}</p>{% endif %}
-                        {% include 'admin/studio/_point_media_cards.html.twig' with {
-                            point: point,
-                            point_label: point_labels[point.id] ?? 'Point à visiter',
-                            point_anchor: 'city-visit-point-' ~ point.id,
-                            point_anchor_prefix: 'city-visit',
-                            point_media_enabled: point_media_enabled,
-                            update_route: 'admin_studio_city_visit_point_media_update',
-                            delete_route: 'admin_studio_city_visit_point_media_delete',
-                            update_token_prefix: 'studio_city_visit_point_media_update_',
-                            delete_token_prefix: 'studio_city_visit_point_media_delete_',
-                            video_type_options: video_type_options
-                        } only %}
-                    </article>
-                {% else %}
-                    <p class="admin-muted">Aucun point à visiter.</p>
-                {% endfor %}
-            </div>
+            {% include 'admin/studio/_route_step_ordering.html.twig' with {
+                draft: city_visit,
+                route_kind: 'city_visit',
+                point_type_options: point_type_options,
+                point_labels: point_labels,
+                point_media_enabled: point_media_enabled,
+                point_media_update_route: 'admin_studio_city_visit_point_media_update',
+                point_media_delete_route: 'admin_studio_city_visit_point_media_delete',
+                point_media_update_token_prefix: 'studio_city_visit_point_media_update_',
+                point_media_delete_token_prefix: 'studio_city_visit_point_media_delete_',
+                video_type_options: video_type_options
+            } only %}
         </section>
 
         <span id="section-photos" class="studio-scroll-anchor" aria-hidden="true"></span>

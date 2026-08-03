@@ -13,9 +13,11 @@ use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\QuickHikeVoter;
 use App\Service\GeographicHierarchyResolver;
+use App\Service\RouteStep\RouteStepOrderingService;
 use App\Service\TerrainLocationResolver;
 use DateTimeImmutable;
 use DateTimeZone;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -38,6 +40,7 @@ final class QuickHikeController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TerrainLocationResolver $terrainLocationResolver,
         private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
+        private readonly RouteStepOrderingService $routeStepOrderingService,
         private readonly SluggerInterface $slugger,
     ) {}
 
@@ -164,24 +167,29 @@ final class QuickHikeController extends AbstractController
             return $this->pointError($request, $errors[0], $hikeDraft, Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $pointType = HikePointType::tryFrom($formData['type']) ?? HikePointType::Interest;
-        if (!$this->hasStartPoint($hikeDraft)) {
-            $pointType = HikePointType::Start;
-        }
-
+        $requestedPointType = HikePointType::tryFrom($formData['type']) ?? HikePointType::Interest;
         $location = $this->terrainLocationResolver->resolve((float) $formData['latitude'], (float) $formData['longitude']);
-        $this->applyDraftLocation($hikeDraft, $location['geocoding']);
-
-        $point = $this->createPoint(
-            $hikeDraft,
-            $formData,
-            $pointType,
-            $this->nextPointPosition($hikeDraft),
-            $location['geocoding'],
-        );
-
-        $hikeDraft->addPoint($point);
-        $this->entityManager->flush();
+        try {
+            $this->entityManager->wrapInTransaction(function () use ($hikeDraft, $formData, $requestedPointType, $location): void {
+                $this->entityManager->lock($hikeDraft, LockMode::PESSIMISTIC_WRITE);
+                $pointType = $this->hasStartPoint($hikeDraft) ? $requestedPointType : HikePointType::Start;
+                $this->applyDraftLocation($hikeDraft, $location['geocoding']);
+                $point = $this->createPoint(
+                    $hikeDraft,
+                    $formData,
+                    $pointType,
+                    $location['geocoding'],
+                );
+                $this->routeStepOrderingService->insertAtPosition(
+                    $hikeDraft,
+                    $point,
+                    count($this->routeStepOrderingService->orderedSteps($hikeDraft)) + 1,
+                );
+                $this->entityManager->flush();
+            });
+        } catch (\Throwable) {
+            return $this->pointTransactionError($request, $hikeDraft);
+        }
 
         return $this->pointSuccess($request, 'Point GPS enregistré.', $hikeDraft);
     }
@@ -314,7 +322,7 @@ final class QuickHikeController extends AbstractController
      * @param array<string, string>      $formData
      * @param array<string, string>|null $geocoding
      */
-    private function createPoint(HikeDraft $draft, array $formData, HikePointType $type, int $position, ?array $geocoding): HikePoint
+    private function createPoint(HikeDraft $draft, array $formData, HikePointType $type, ?array $geocoding): HikePoint
     {
         $point = (new HikePoint())
             ->setHikeDraft($draft)
@@ -324,7 +332,7 @@ final class QuickHikeController extends AbstractController
             ->setLatitude((float) $formData['latitude'])
             ->setLongitude((float) $formData['longitude'])
             ->setAccuracy($formData['accuracy'] !== '' ? (float) $formData['accuracy'] : null)
-            ->setPosition($position);
+            ->setCoordinatesInherited(false);
 
         if (null !== $geocoding) {
             $point
@@ -441,16 +449,6 @@ final class QuickHikeController extends AbstractController
         return false;
     }
 
-    private function nextPointPosition(HikeDraft $draft): int
-    {
-        $position = 0;
-        foreach ($draft->getPoints() as $point) {
-            $position = max($position, $point->getPosition());
-        }
-
-        return $position + 1;
-    }
-
     private function pointSuccess(Request $request, string $message, HikeDraft $draft): Response
     {
         if ($this->wantsJson($request)) {
@@ -476,6 +474,18 @@ final class QuickHikeController extends AbstractController
         }
 
         return $this->renderShow($draft, [$message], $status);
+    }
+
+    private function pointTransactionError(Request $request, HikeDraft $draft): Response
+    {
+        $message = 'Un conflit a empêché l’enregistrement du point GPS. Réessayez.';
+        if ($this->wantsJson($request)) {
+            return new JsonResponse(['ok' => false, 'message' => $message], Response::HTTP_CONFLICT);
+        }
+
+        $this->addFlash('error', $message);
+
+        return $this->redirectToRoute('admin_quick_hike_show', ['id' => $draft->getId()]);
     }
 
     private function wantsJson(Request $request): bool

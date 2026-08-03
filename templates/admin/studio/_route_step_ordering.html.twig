@@ -1,0 +1,214 @@
+{% macro insertion_form(action, token, position, label, modifier) %}
+    <form class="route-step-insertion {{ modifier }}" method="post" action="{{ action }}" data-route-step-insertion>
+        <input type="hidden" name="_token" value="{{ token }}">
+        <input type="hidden" name="position" value="{{ position }}" data-route-step-insert-position>
+        <button class="admin-button admin-button--secondary route-step-insertion__button" type="submit" data-route-step-insert-button>
+            <span aria-hidden="true">+</span>
+            <span data-route-step-insert-label>{{ label }}</span>
+        </button>
+    </form>
+{% endmacro %}
+
+{% import _self as ordering %}
+
+{% set is_hike = route_kind == 'hike' %}
+{% set add_route = is_hike ? 'admin_studio_hike_point_add' : 'admin_studio_city_visit_point_add' %}
+{% set reorder_route = is_hike ? 'admin_studio_hike_points_reorder' : 'admin_studio_city_visit_points_reorder' %}
+{% set update_route = is_hike ? 'admin_studio_hike_point_update' : 'admin_studio_city_visit_point_update' %}
+{% set delete_route = is_hike ? 'admin_studio_hike_point_delete' : 'admin_studio_city_visit_point_delete' %}
+{% set point_anchor_prefix = is_hike ? 'point-' : 'city-visit-point-' %}
+{% set point_media_anchor_prefix = is_hike ? 'hike' : 'city-visit' %}
+{% set token_prefix = is_hike ? 'studio_hike_point_' : 'studio_city_visit_point_' %}
+{% set add_action = path(add_route, { id: draft.id }) %}
+{% set add_token = csrf_token(token_prefix ~ 'add_' ~ draft.id) %}
+{% set new_point_id = app.request.query.getInt('newPoint') %}
+
+<div
+    class="route-step-ordering"
+    data-route-step-ordering
+    data-reorder-url="{{ path(reorder_route, { id: draft.id }) }}"
+    data-reorder-token="{{ csrf_token(token_prefix ~ 'reorder_' ~ draft.id) }}"
+>
+    <div class="route-step-ordering__status" data-route-step-order-status role="status" aria-live="polite"></div>
+    <div class="sr-only" data-route-step-announcer aria-live="polite" aria-atomic="true"></div>
+
+    {{ ordering.insertion_form(
+        add_action,
+        add_token,
+        1,
+        draft.points|length == 0 ? 'Ajouter la première étape' : 'Ajouter au début',
+        'route-step-insertion--first'
+    ) }}
+
+    <div class="studio-media-grid route-step-list" data-route-step-list>
+        {% set previous_point = null %}
+        {% for point in draft.points %}
+            {% set point_name = point.title ?: (point_type_options[point.type.value] ?? 'Point GPS') %}
+            {% set point_has_valid_coordinates = point.latitude is not null and point.longitude is not null and point.latitude >= -90 and point.latitude <= 90 and point.longitude >= -180 and point.longitude <= 180 %}
+            {% set identical_to_previous = previous_point is not null
+                and previous_point.latitude is not null
+                and previous_point.longitude is not null
+                and point.latitude is not null
+                and point.longitude is not null
+                and previous_point.latitude == point.latitude
+                and previous_point.longitude == point.longitude %}
+            <div class="route-step-slot" data-route-step-slot>
+                <article
+                    id="{{ point_anchor_prefix }}{{ point.id }}"
+                    class="studio-point route-step"
+                    data-route-step
+                    data-step-id="{{ point.id }}"
+                    data-step-position="{{ loop.index }}"
+                    data-step-type="{{ point.type.value }}"
+                    data-gps-inherited="{{ point.inheritedCoordinates ? 'true' : 'false' }}"
+                    data-gps-dirty="false"
+                    data-new-route-step="{{ new_point_id == point.id ? 'true' : 'false' }}"
+                >
+                    <header class="route-step__header">
+                        <div>
+                            <h3 class="route-step__title">
+                                <span data-route-step-number>Étape {{ loop.index }}</span>
+                                <span aria-hidden="true"> — </span>
+                                <span data-route-step-name>{{ point_name }}</span>
+                            </h3>
+                            <span
+                                class="route-step__gps-badge {{ point.inheritedCoordinates ? 'is-inherited' : 'is-customized' }}"
+                                data-route-step-gps-badge
+                            >{{ point.inheritedCoordinates ? 'GPS repris depuis l’étape précédente' : 'GPS personnalisé' }}</span>
+                        </div>
+                        <div class="route-step__order-actions">
+                            <button
+                                class="admin-button admin-button--secondary route-step__drag-handle"
+                                type="button"
+                                data-route-step-drag-handle
+                                aria-label="Déplacer l’étape {{ loop.index }} : {{ point_name }}"
+                            ><span aria-hidden="true">⠿</span> Déplacer</button>
+                            <button
+                                class="admin-button admin-button--secondary"
+                                type="button"
+                                data-route-step-up
+                                aria-label="Déplacer l’étape {{ loop.index }} vers le haut"
+                                {% if loop.first %}disabled{% endif %}
+                            >Monter</button>
+                            <button
+                                class="admin-button admin-button--secondary"
+                                type="button"
+                                data-route-step-down
+                                aria-label="Déplacer l’étape {{ loop.index }} vers le bas"
+                                {% if loop.last %}disabled{% endif %}
+                            >Descendre</button>
+                        </div>
+                    </header>
+
+                    <p class="route-step__duplicate-warning" data-route-step-duplicate-warning {% if not identical_to_previous %}hidden{% endif %}>
+                        Cette étape possède actuellement les mêmes coordonnées que l’étape précédente. Ajustez son point GPS si elle correspond à un autre lieu.
+                    </p>
+
+                    <form
+                        class="studio-media-card__body"
+                        method="post"
+                        action="{{ path(update_route, { id: point.id }) }}"
+                        data-high-precision-gps
+                        data-route-step-form
+                    >
+                        <input type="hidden" name="_token" value="{{ csrf_token(token_prefix ~ 'update_' ~ point.id) }}">
+                        <input type="hidden" name="coordinatesInherited" value="{{ point.inheritedCoordinates ? '1' : '0' }}" data-route-step-inherited-input>
+                        <input type="hidden" name="accuracy" value="{{ point.accuracy }}" data-gps-accuracy>
+
+                        <div class="studio-field">
+                            <label for="{{ route_kind }}-point-title-{{ point.id }}">Titre</label>
+                            <input
+                                id="{{ route_kind }}-point-title-{{ point.id }}"
+                                name="title"
+                                value="{{ point.title }}"
+                                data-route-step-title-input
+                                {% if new_point_id == point.id %}autofocus{% endif %}
+                            >
+                        </div>
+
+                        <div class="studio-field">
+                            <label for="{{ route_kind }}-point-type-{{ point.id }}">Type</label>
+                            <select id="{{ route_kind }}-point-type-{{ point.id }}" name="type" data-route-step-type-input>
+                                {% for value, label in point_type_options %}
+                                    <option value="{{ value }}" {% if point.type.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="studio-media-row">
+                            <div class="studio-field">
+                                <label for="{{ route_kind }}-point-latitude-{{ point.id }}">Latitude</label>
+                                <input id="{{ route_kind }}-point-latitude-{{ point.id }}" name="latitude" type="text" inputmode="decimal" value="{{ point.latitude }}" data-gps-latitude>
+                            </div>
+                            <div class="studio-field">
+                                <label for="{{ route_kind }}-point-longitude-{{ point.id }}">Longitude</label>
+                                <input id="{{ route_kind }}-point-longitude-{{ point.id }}" name="longitude" type="text" inputmode="decimal" value="{{ point.longitude }}" data-gps-longitude>
+                            </div>
+                        </div>
+
+                        <p class="studio-gps__coordinates" data-gps-coordinates>
+                            {% if point.accuracy is not null %}Précision actuelle {{ point.accuracy|round }} m{% endif %}
+                        </p>
+                        <p class="studio-help" data-gps-status aria-live="polite"></p>
+                        <div class="studio-inline-actions">
+                            <button class="admin-button admin-button--secondary" type="button" data-gps-start>Relever ma position GPS</button>
+                            <button class="admin-button admin-button--secondary" type="button" data-gps-stop hidden>Arrêter la recherche</button>
+                            <button class="admin-button admin-button--secondary" type="button" data-gps-copy hidden>Copier les coordonnées</button>
+                            <button class="admin-button admin-button--secondary" type="button" data-route-step-copy-previous>
+                                Reprendre les coordonnées de l’étape précédente
+                            </button>
+                        </div>
+
+                        <div class="studio-field">
+                            <label for="{{ route_kind }}-point-note-{{ point.id }}">Note</label>
+                            <textarea id="{{ route_kind }}-point-note-{{ point.id }}" name="note" rows="4">{{ point.note }}</textarea>
+                        </div>
+
+                        <span class="admin-muted">{{ point.detectedCommuneName ?: draft.detectedCommuneName ?: 'Commune non détectée' }}</span>
+
+                        <div class="studio-inline-actions">
+                            <button class="admin-button" type="submit">Enregistrer cette étape</button>
+                            {% if point_has_valid_coordinates %}
+                                <a class="admin-button admin-button--secondary" href="https://www.google.com/maps/search/?api=1&query={{ point.latitude }},{{ point.longitude }}" target="_blank" rel="noopener noreferrer">Voir ce point sur Google Maps</a>
+                            {% endif %}
+                        </div>
+                    </form>
+
+                    <form
+                        class="route-step__delete-form"
+                        method="post"
+                        action="{{ path(delete_route, { id: point.id }) }}"
+                        onsubmit="return confirm('Supprimer cette étape ? Ses médias resteront disponibles dans la médiathèque.');"
+                    >
+                        <input type="hidden" name="_token" value="{{ csrf_token(token_prefix ~ 'delete_' ~ point.id) }}">
+                        <button class="admin-button admin-button--danger" type="submit">Supprimer cette étape</button>
+                    </form>
+
+                    {% include 'admin/studio/_point_media_cards.html.twig' with {
+                        point: point,
+                        point_label: point_labels[point.id] ?? ('Étape ' ~ loop.index),
+                        point_anchor: point_anchor_prefix ~ point.id,
+                        point_anchor_prefix: point_media_anchor_prefix,
+                        point_media_enabled: point_media_enabled,
+                        update_route: point_media_update_route,
+                        delete_route: point_media_delete_route,
+                        update_token_prefix: point_media_update_token_prefix,
+                        delete_token_prefix: point_media_delete_token_prefix,
+                        video_type_options: video_type_options
+                    } only %}
+                </article>
+
+                {{ ordering.insertion_form(
+                    add_action,
+                    add_token,
+                    loop.index + 1,
+                    loop.last ? 'Ajouter à la fin' : 'Ajouter après l’étape ' ~ loop.index,
+                    loop.last ? 'route-step-insertion--last' : ''
+                ) }}
+            </div>
+            {% set previous_point = point %}
+        {% else %}
+            <p class="admin-muted route-step-ordering__empty" data-route-step-empty>Aucune étape GPS.</p>
+        {% endfor %}
+    </div>
+</div>

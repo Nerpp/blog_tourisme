@@ -52,7 +52,7 @@ final class GpsPointController extends AbstractController
         $latitude = $point->getLatitude();
         $longitude = $point->getLongitude();
 
-        if ($latitude === null || $longitude === null) {
+        if (!$this->hasValidCoordinates($point)) {
             throw $this->createNotFoundException('Coordonnées GPS indisponibles.');
         }
 
@@ -185,13 +185,13 @@ final class GpsPointController extends AbstractController
 
         if ($content instanceof HikeDraft) {
             foreach ($content->getPoints() as $point) {
-                if ($point->getLatitude() !== null && $point->getLongitude() !== null) {
+                if ($this->hasValidCoordinates($point)) {
                     $points[] = $point;
                 }
             }
         } else {
             foreach ($content->getPoints() as $point) {
-                if ($point->getLatitude() !== null && $point->getLongitude() !== null) {
+                if ($this->hasValidCoordinates($point)) {
                     $points[] = $point;
                 }
             }
@@ -199,11 +199,19 @@ final class GpsPointController extends AbstractController
 
         usort(
             $points,
-            static fn (HikePoint|CityVisitPoint $first, HikePoint|CityVisitPoint $second): int => $first->getPosition() <=> $second->getPosition()
-                ?: ($first->getId() ?? 0) <=> ($second->getId() ?? 0),
+            static fn (HikePoint|CityVisitPoint $first, HikePoint|CityVisitPoint $second): int => $first->getPosition() <=> $second->getPosition(),
         );
 
         return $points;
+    }
+
+    private function hasValidCoordinates(HikePoint|CityVisitPoint $point): bool
+    {
+        $latitude = $point->getLatitude();
+        $longitude = $point->getLongitude();
+
+        return $latitude !== null && $latitude >= -90 && $latitude <= 90
+            && $longitude !== null && $longitude >= -180 && $longitude <= 180;
     }
 
     /**
