@@ -3,7 +3,9 @@
 namespace App\Security;
 
 use App\Entity\User;
+use App\Repository\ResetPasswordRequestRepository;
 use App\Repository\UserRepository;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use KnpU\OAuth2ClientBundle\Client\ClientRegistry;
 use KnpU\OAuth2ClientBundle\Security\Authenticator\OAuth2Authenticator;
@@ -32,6 +34,7 @@ final class GoogleAuthenticator extends OAuth2Authenticator
         private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly UserPasswordHasherInterface $passwordHasher,
+        private readonly ResetPasswordRequestRepository $resetPasswordRequestRepository,
         private readonly RouterInterface $router,
         private readonly TranslatorInterface $translator,
     ) {}
@@ -94,37 +97,50 @@ final class GoogleAuthenticator extends OAuth2Authenticator
             throw new CustomUserMessageAuthenticationException('security.google.email_unverified');
         }
 
-        $user = $this->userRepository->findOneByGoogleId($googleId);
+        return $this->entityManager->wrapInTransaction(function (EntityManagerInterface $entityManager) use (
+            $email,
+            $googleId,
+            $googleUser,
+        ): User {
+            $user = $this->userRepository->findOneByGoogleId($googleId);
 
-        if (!$user instanceof User) {
-            $user = $this->userRepository->findOneByEmail($email);
-        }
+            if (!$user instanceof User) {
+                $user = $this->userRepository->findOneByEmail($email);
+            }
 
-        if (!$user instanceof User) {
-            $user = new User();
-            $user
-                ->setEmail($email)
-                ->setRoles(['ROLE_USER'])
-                ->setDisplayName($this->displayNameFromGoogle($googleUser, $email))
-                ->setPassword($this->passwordHasher->hashPassword($user, bin2hex(random_bytes(48))));
+            $isNewUser = !($user instanceof User);
+            if ($isNewUser) {
+                $user = new User();
+                $user
+                    ->setEmail($email)
+                    ->setRoles(['ROLE_USER'])
+                    ->setDisplayName($this->displayNameFromGoogle($googleUser, $email))
+                    ->setPassword($this->passwordHasher->hashPassword($user, bin2hex(random_bytes(48))));
 
-            $this->entityManager->persist($user);
-        }
+                $entityManager->persist($user);
+            } else {
+                $entityManager->refresh($user, LockMode::PESSIMISTIC_WRITE);
+            }
 
-        if ($user->getGoogleId() !== null && $user->getGoogleId() !== $googleId) {
-            throw new CustomUserMessageAuthenticationException('security.google.account_already_linked');
-        }
+            if ($user->getGoogleId() !== null && $user->getGoogleId() !== $googleId) {
+                throw new CustomUserMessageAuthenticationException('security.google.account_already_linked');
+            }
 
-        if ($user->getGoogleId() === null) {
-            $user->setGoogleId($googleId);
-        }
+            if (!$isNewUser && !$user->isVerified()) {
+                $user
+                    ->setPassword($this->passwordHasher->hashPassword($user, bin2hex(random_bytes(48))))
+                    ->setEmailVerificationTokenHash(null);
+                $this->resetPasswordRequestRepository->removeRequests($user);
+            }
 
-        $user->setIsVerified(true);
+            if ($user->getGoogleId() === null) {
+                $user->setGoogleId($googleId);
+            }
 
+            $user->setIsVerified(true);
 
-        $this->entityManager->flush();
-
-        return $user;
+            return $user;
+        });
     }
 
     private function displayNameFromGoogle(GoogleUser $googleUser, string $email): string

@@ -1,5 +1,6 @@
 security:
     account:
+        unverified: 'Confirmez votre adresse email et choisissez votre mot de passe avant de vous connecter.'
         suspended: 'Votre compte est suspendu. Vous ne pouvez plus publier de commentaire.'
     admin:
         access_denied: 'Vous n’avez pas accès à l’administration.'

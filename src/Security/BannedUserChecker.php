@@ -26,6 +26,10 @@ final class BannedUserChecker implements UserCheckerInterface
             return;
         }
 
+        if (!$user->isVerified()) {
+            throw new CustomUserMessageAccountStatusException('security.account.unverified');
+        }
+
         if (!$user->isBanned() || $user->isAdmin()) {
             return;
         }

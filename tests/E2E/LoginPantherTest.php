@@ -6,6 +6,21 @@ use Facebook\WebDriver\WebDriverBy;
 
 final class LoginPantherTest extends PantherTestCase
 {
+    public function testActivationResendIsDiscoverableFromLogin(): void
+    {
+        $client = self::createBrowser();
+        $client->request('GET', '/login');
+
+        $client->getWebDriver()
+            ->findElement(WebDriverBy::linkText('Renvoyer le lien d’activation'))
+            ->click();
+
+        $client->waitFor('input[name="resend_verification_form[email]"]');
+        self::assertStringContainsString('/verify/resend', $client->getCurrentURL());
+        self::assertSelectorIsVisible('input[name="resend_verification_form[email]"]');
+        self::assertSelectorTextContains('button[type="submit"]', 'Renvoyer le lien d’activation');
+    }
+
     public function testUserCanLoginAndLogoutThroughBrowser(): void
     {
         $email = $this->uniqueEmail('login');

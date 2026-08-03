@@ -26,7 +26,7 @@
 					<div class="login-card__header">
 						<p class="login-card__kicker">Compte personnel</p>
 						<h2>Créer un compte</h2>
-						<p>Ajoutez vos informations et une image de profil optionnelle.</p>
+						<p>Ajoutez vos informations. Vous choisirez votre mot de passe après avoir ouvert le lien reçu par email.</p>
 					</div>
 
 					<a class="oauth-button oauth-button--google" href="{{ path('connect_google_start') }}">
@@ -68,19 +68,6 @@
 							<p>Formats acceptés : JPG, PNG, WebP. Taille maximum : 5 Mo. L’image sera automatiquement recadrée en avatar léger.</p>
 							{{ form_errors(registration_form.avatarFile) }}
 						</div>
-					</div>
-
-					<div class="register-field">
-						{{ form_label(registration_form.plainPassword.first, 'Mot de passe') }}
-						{{ form_widget(registration_form.plainPassword.first, { attr: { class: 'login-input', autocomplete: 'new-password' } }) }}
-						{{ form_errors(registration_form.plainPassword.first) }}
-					</div>
-
-					<div class="register-field">
-						{{ form_label(registration_form.plainPassword.second, 'Confirmation du mot de passe') }}
-						{{ form_widget(registration_form.plainPassword.second, { attr: { class: 'login-input', autocomplete: 'new-password' } }) }}
-						{{ form_errors(registration_form.plainPassword.second) }}
-						{{ form_errors(registration_form.plainPassword) }}
 					</div>
 
 					{{ form_widget(registration_form.submit, { attr: { class: 'login-button' } }) }}

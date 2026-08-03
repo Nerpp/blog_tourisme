@@ -3,6 +3,7 @@
 namespace App\Tests\Unit\Security;
 
 use App\Entity\User;
+use App\Repository\ResetPasswordRequestRepository;
 use App\Repository\UserRepository;
 use App\Security\GoogleAuthenticator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -76,7 +77,6 @@ final class GoogleAuthenticatorTest extends TestCase
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::once())->method('persist')->with(self::isInstanceOf(User::class));
-        $entityManager->expects(self::once())->method('flush');
 
         $passwordHasher = $this->createStub(UserPasswordHasherInterface::class);
         $passwordHasher->method('hashPassword')->willReturn('hashed-password');
@@ -99,12 +99,13 @@ final class GoogleAuthenticatorTest extends TestCase
         self::assertSame('google-structured-name', $user->getGoogleId());
     }
 
-    public function testLinksExistingEmailAndMarksUserVerified(): void
+    public function testRecoversUnverifiedExistingEmailAndNeutralizesAllLocalCredentials(): void
     {
         $user = (new User())
             ->setEmail('existing@example.test')
             ->setDisplayName('Existing User')
             ->setPassword('password')
+            ->setEmailVerificationTokenHash(hash('sha256', 'verification-signature'))
             ->setIsVerified(false);
         $repository = $this->createMock(UserRepository::class);
         $repository->expects(self::once())->method('findOneByGoogleId')->with('google-1')->willReturn(null);
@@ -112,10 +113,25 @@ final class GoogleAuthenticatorTest extends TestCase
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->expects(self::never())->method('persist');
-        $entityManager->expects(self::once())->method('flush');
+        $entityManager->expects(self::once())->method('refresh')->with($user, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+
+        $passwordHasher = $this->createMock(UserPasswordHasherInterface::class);
+        $passwordHasher
+            ->expects(self::once())
+            ->method('hashPassword')
+            ->with($user, self::callback(static fn (mixed $secret): bool => is_string($secret) && strlen($secret) === 96))
+            ->willReturn('rotated-random-password');
+
+        $resetPasswordRequestRepository = $this->createMock(ResetPasswordRequestRepository::class);
+        $resetPasswordRequestRepository->expects(self::once())->method('removeRequests')->with($user);
 
         $resolvedUser = $this->invokeFindOrCreateUser(
-            $this->authenticator(userRepository: $repository, entityManager: $entityManager),
+            $this->authenticator(
+                userRepository: $repository,
+                entityManager: $entityManager,
+                passwordHasher: $passwordHasher,
+                resetPasswordRequestRepository: $resetPasswordRequestRepository,
+            ),
             new GoogleUser([
                 'sub' => 'google-1',
                 'email' => 'Existing@Example.Test',
@@ -127,6 +143,8 @@ final class GoogleAuthenticatorTest extends TestCase
         self::assertSame($user, $resolvedUser);
         self::assertSame('google-1', $user->getGoogleId());
         self::assertTrue($user->isVerified());
+        self::assertSame('rotated-random-password', $user->getPassword());
+        self::assertNull($user->getEmailVerificationTokenHash());
     }
 
     public function testCreatesUserFromVerifiedGoogleProfile(): void
@@ -140,7 +158,6 @@ final class GoogleAuthenticatorTest extends TestCase
             ->expects(self::once())
             ->method('persist')
             ->with(self::isInstanceOf(User::class));
-        $entityManager->expects(self::once())->method('flush');
 
         $passwordHasher = $this->createStub(UserPasswordHasherInterface::class);
         $passwordHasher->method('hashPassword')->willReturn('hashed-password');
@@ -164,6 +181,43 @@ final class GoogleAuthenticatorTest extends TestCase
         self::assertSame('google-2', $user->getGoogleId());
         self::assertSame('hashed-password', $user->getPassword());
         self::assertTrue($user->isVerified());
+    }
+
+    public function testExistingVerifiedAccountLinkPolicyKeepsLocalPassword(): void
+    {
+        $user = (new User())
+            ->setEmail('verified@example.test')
+            ->setDisplayName('Verified User')
+            ->setPassword('existing-verified-password')
+            ->setIsVerified(true);
+        $repository = $this->createStub(UserRepository::class);
+        $repository->method('findOneByGoogleId')->willReturn(null);
+        $repository->method('findOneByEmail')->willReturn($user);
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->expects(self::once())->method('refresh')->with($user, \Doctrine\DBAL\LockMode::PESSIMISTIC_WRITE);
+        $passwordHasher = $this->createMock(UserPasswordHasherInterface::class);
+        $passwordHasher->expects(self::never())->method('hashPassword');
+        $resetPasswordRequestRepository = $this->createMock(ResetPasswordRequestRepository::class);
+        $resetPasswordRequestRepository->expects(self::never())->method('removeRequests');
+
+        $resolvedUser = $this->invokeFindOrCreateUser(
+            $this->authenticator(
+                userRepository: $repository,
+                entityManager: $entityManager,
+                passwordHasher: $passwordHasher,
+                resetPasswordRequestRepository: $resetPasswordRequestRepository,
+            ),
+            new GoogleUser([
+                'sub' => 'google-verified',
+                'email' => 'verified@example.test',
+                'email_verified' => true,
+                'name' => 'Verified User',
+            ]),
+        );
+
+        self::assertSame('google-verified', $resolvedUser->getGoogleId());
+        self::assertSame('existing-verified-password', $resolvedUser->getPassword());
+        self::assertTrue($resolvedUser->isVerified());
     }
 
     public function testRejectsExistingEmailLinkedToDifferentGoogleAccount(): void
@@ -262,6 +316,7 @@ final class GoogleAuthenticatorTest extends TestCase
         ?UserRepository $userRepository = null,
         ?EntityManagerInterface $entityManager = null,
         ?UserPasswordHasherInterface $passwordHasher = null,
+        ?ResetPasswordRequestRepository $resetPasswordRequestRepository = null,
         ?RouterInterface $router = null,
         ?TranslatorInterface $translator = null,
     ): GoogleAuthenticator {
@@ -273,11 +328,17 @@ final class GoogleAuthenticatorTest extends TestCase
             ]);
         }
 
+        $entityManager ??= $this->createStub(EntityManagerInterface::class);
+        $entityManager
+            ->method('wrapInTransaction')
+            ->willReturnCallback(static fn (callable $callback): mixed => $callback($entityManager));
+
         return new GoogleAuthenticator(
             $this->createStub(ClientRegistry::class),
             $userRepository ?? $this->createStub(UserRepository::class),
-            $entityManager ?? $this->createStub(EntityManagerInterface::class),
+            $entityManager,
             $passwordHasher ?? $this->createStub(UserPasswordHasherInterface::class),
+            $resetPasswordRequestRepository ?? $this->createStub(ResetPasswordRequestRepository::class),
             $router,
             $translator ?? $this->translator(),
         );

@@ -24,13 +24,18 @@
                         <p>Un nouveau lien de confirmation sera envoyé à l’adresse de votre compte.</p>
                     </div>
 
-                    <form class="login-form" method="post" action="{{ path('app_verify_email_resend') }}">
-                        <input type="hidden" name="_token" value="{{ csrf_token('resend-email-verification') }}">
-                        <button class="login-button" type="submit">Renvoyer l’email de confirmation</button>
-                    </form>
+                    {{ form_start(resend_verification_form, { attr: { class: 'login-form', novalidate: 'novalidate' } }) }}
+                        <div class="login-field">
+                            {{ form_label(resend_verification_form.email) }}
+                            {{ form_widget(resend_verification_form.email, { attr: { class: 'login-input', autocomplete: 'email', autofocus: true, placeholder: 'vous@exemple.fr' } }) }}
+                            {{ form_errors(resend_verification_form.email) }}
+                        </div>
+
+                        <button class="login-button" type="submit">Renvoyer le lien d’activation</button>
+                    {{ form_end(resend_verification_form) }}
 
                     <div class="login-links" aria-label="Liens utiles">
-                        <a href="{{ path('app_profile') }}">Retour au profil</a>
+                        <a href="{{ path('app_login') }}">Retour à la connexion</a>
                         <a href="{{ path('app_home') }}">Retour à l’accueil</a>
                     </div>
                 </div>

@@ -5,6 +5,7 @@ namespace App\Tests\Unit\Security;
 use App\Entity\User;
 use App\Security\EmailVerifier;
 use App\Service\Seo\PublicUrlGenerator;
+use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,7 +19,7 @@ use SymfonyCasts\Bundle\VerifyEmail\VerifyEmailHelperInterface;
 
 final class EmailVerifierTest extends TestCase
 {
-    public function testSendEmailConfirmationBuildsTemplatedEmailWithoutExternalTransport(): void
+    public function testSendEmailConfirmationPersistsOneTimeSignatureAndBuildsEmail(): void
     {
         $user = (new User())
             ->setEmail('test@example.test')
@@ -30,12 +31,31 @@ final class EmailVerifierTest extends TestCase
         $helper
             ->expects(self::once())
             ->method('generateSignature')
-            ->with('app_verify_email', '123', 'test@example.test', ['id' => 123])
+            ->with(
+                'app_verify_email',
+                '123',
+                'test@example.test',
+                self::callback(static function (array $parameters): bool {
+                    self::assertSame(123, $parameters['id'] ?? null);
+                    self::assertSame('initial-password', $parameters['purpose'] ?? null);
+                    self::assertMatchesRegularExpression('/^[a-f0-9]{32}$/', (string) ($parameters['nonce'] ?? ''));
+
+                    return true;
+                }),
+            )
             ->willReturn(new VerifyEmailSignatureComponents(
                 new \DateTimeImmutable('+30 minutes'),
-                'https://example.test/verify?id=123&signature=abc',
+                'https://example.test/verify?id=123&purpose=initial-password&signature=abc',
                 time(),
             ));
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager
+            ->expects(self::once())
+            ->method('flush')
+            ->willReturnCallback(static function () use ($user): void {
+                self::assertSame(hash('sha256', 'abc'), $user->getEmailVerificationTokenHash());
+            });
 
         $mailer = $this->createMock(MailerInterface::class);
         $mailer
@@ -46,12 +66,15 @@ final class EmailVerifierTest extends TestCase
                 self::assertSame('registration/confirmation_email.html.twig', $email->getHtmlTemplate());
                 self::assertSame('no-reply@example.test', $email->getFrom()[0]->getAddress());
                 self::assertSame('test@example.test', $email->getTo()[0]->getAddress());
-                self::assertSame('https://example.test/verify?id=123&signature=abc', $email->getContext()['signedUrl']);
+                self::assertSame(
+                    'https://example.test/verify?id=123&purpose=initial-password&signature=abc',
+                    $email->getContext()['signedUrl'],
+                );
 
                 return true;
             }));
 
-        (new EmailVerifier($helper, $mailer, $this->publicUrlGenerator(), 'no-reply@example.test'))->sendEmailConfirmation($user);
+        $this->verifier($helper, $mailer, $entityManager)->sendEmailConfirmation($user);
     }
 
     public function testSendEmailConfirmationRequiresPersistedUser(): void
@@ -59,52 +82,95 @@ final class EmailVerifierTest extends TestCase
         $this->expectException(\LogicException::class);
         $this->expectExceptionMessage('User must be persisted before sending a confirmation email.');
 
-        (new EmailVerifier(
+        $this->verifier(
             new FakeVerifyEmailHelper(),
             $this->createStub(MailerInterface::class),
-            $this->publicUrlGenerator(),
-            'no-reply@example.test',
-        ))->sendEmailConfirmation((new User())->setEmail('test@example.test')->setDisplayName('Test')->setPassword('x'));
+            $this->createStub(EntityManagerInterface::class),
+        )->sendEmailConfirmation((new User())->setEmail('test@example.test')->setDisplayName('Test')->setPassword('x'));
     }
 
-    public function testHandleEmailConfirmationMarksUserVerifiedAfterValidSignature(): void
+    public function testValidSignatureAuthorizesPasswordFormWithoutVerifyingUser(): void
     {
         $user = (new User())
             ->setEmail('test@example.test')
             ->setDisplayName('Test User')
             ->setPassword('password')
+            ->setEmailVerificationTokenHash(hash('sha256', 'abc'))
             ->setIsVerified(false);
         $this->setEntityId($user, 123);
-        $request = Request::create('/verify?id=123&signature=abc');
-
+        $request = Request::create('/verify?id=123&purpose=initial-password&signature=abc');
         $helper = new FakeVerifyEmailHelper();
 
-        (new EmailVerifier($helper, $this->createStub(MailerInterface::class), $this->publicUrlGenerator(), 'no-reply@example.test'))
-            ->handleEmailConfirmation($request, $user);
+        $this->verifier(
+            $helper,
+            $this->createStub(MailerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
+        )->validateEmailConfirmation($request, $user);
 
-        self::assertTrue($user->isVerified());
+        self::assertFalse($user->isVerified());
         self::assertSame([$request, '123', 'test@example.test'], $helper->validatedWith);
     }
 
-    public function testHandleEmailConfirmationKeepsUserUnverifiedWhenSignatureIsInvalid(): void
+    public function testValidSignedUrlIsRejectedWhenOneTimeSignatureDoesNotMatch(): void
     {
         $user = (new User())
             ->setEmail('test@example.test')
             ->setDisplayName('Test User')
             ->setPassword('password')
-            ->setIsVerified(false);
+            ->setEmailVerificationTokenHash(hash('sha256', 'another-signature'));
         $this->setEntityId($user, 123);
 
+        $this->expectException(InvalidSignatureException::class);
+
+        $this->verifier(
+            new FakeVerifyEmailHelper(),
+            $this->createStub(MailerInterface::class),
+            $this->createStub(EntityManagerInterface::class),
+        )->validateEmailConfirmation(
+            Request::create('/verify?id=123&purpose=initial-password&signature=abc'),
+            $user,
+        );
+    }
+
+    public function testInvalidCryptographicSignatureIsRejectedBeforeStateMutation(): void
+    {
+        $user = (new User())
+            ->setEmail('test@example.test')
+            ->setDisplayName('Test User')
+            ->setPassword('password')
+            ->setEmailVerificationTokenHash(hash('sha256', 'bad'))
+            ->setIsVerified(false);
+        $this->setEntityId($user, 123);
         $helper = new FakeVerifyEmailHelper(new InvalidSignatureException());
 
         $this->expectException(InvalidSignatureException::class);
 
         try {
-            (new EmailVerifier($helper, $this->createStub(MailerInterface::class), $this->publicUrlGenerator(), 'no-reply@example.test'))
-                ->handleEmailConfirmation(Request::create('/verify?id=123&signature=bad'), $user);
+            $this->verifier(
+                $helper,
+                $this->createStub(MailerInterface::class),
+                $this->createStub(EntityManagerInterface::class),
+            )->validateEmailConfirmation(
+                Request::create('/verify?id=123&purpose=initial-password&signature=bad'),
+                $user,
+            );
         } finally {
             self::assertFalse($user->isVerified());
         }
+    }
+
+    private function verifier(
+        VerifyEmailHelperInterface $helper,
+        MailerInterface $mailer,
+        EntityManagerInterface $entityManager,
+    ): EmailVerifier {
+        return new EmailVerifier(
+            $helper,
+            $mailer,
+            $this->publicUrlGenerator(),
+            $entityManager,
+            'no-reply@example.test',
+        );
     }
 
     private function setEntityId(object $entity, int $id): void
@@ -134,7 +200,11 @@ final class FakeVerifyEmailHelper implements VerifyEmailHelperInterface
     /** @param array<string, mixed> $extraParams */
     public function generateSignature(string $routeName, string $userId, string $userEmail, array $extraParams = []): VerifyEmailSignatureComponents
     {
-        return new VerifyEmailSignatureComponents(new \DateTimeImmutable('+30 minutes'), '/verify', time());
+        return new VerifyEmailSignatureComponents(
+            new \DateTimeImmutable('+30 minutes'),
+            '/verify?purpose=initial-password&signature=abc',
+            time(),
+        );
     }
 
     public function validateEmailConfirmation(string $signedUrl, string $userId, string $userEmail): void
