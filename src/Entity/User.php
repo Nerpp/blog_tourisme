@@ -46,6 +46,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
 
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $emailVerificationTokenHash = null;
+
     #[ORM\Column(length: 120, unique: true)]
     #[Assert\NotBlank(message: 'validation.user.display_name.required')]
     #[Assert\Length(
@@ -192,6 +195,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setIsVerified(bool $isVerified): static
     {
         $this->isVerified = $isVerified;
+
+        return $this;
+    }
+
+    public function getEmailVerificationTokenHash(): ?string
+    {
+        return $this->emailVerificationTokenHash;
+    }
+
+    public function setEmailVerificationTokenHash(?string $emailVerificationTokenHash): static
+    {
+        $this->emailVerificationTokenHash = $emailVerificationTokenHash;
 
         return $this;
     }

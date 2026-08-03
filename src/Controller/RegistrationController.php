@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Form\RegistrationFormType;
 use App\Repository\UserRepository;
 use App\Security\EmailVerifier;
+use App\Security\EmailVerificationResender;
 use App\Service\AvatarUploadService;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -17,7 +18,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
-use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class RegistrationController extends AbstractController
@@ -32,7 +32,7 @@ final class RegistrationController extends AbstractController
         UserPasswordHasherInterface $passwordHasher,
         AvatarUploadService $avatarUploadService,
         EmailVerifier $emailVerifier,
-        RateLimiterFactoryInterface $emailVerificationResendLimiter,
+        EmailVerificationResender $emailVerificationResender,
     ): Response {
         if ($this->getUser() !== null) {
             return $this->redirectToRoute('app_profile');
@@ -51,15 +51,10 @@ final class RegistrationController extends AbstractController
         if ($form->isSubmitted() && $hasValidCsrfToken) {
             $existingUser = $userRepository->findOneByEmail($this->stringOrEmpty($form->get('email')->getData()));
             if ($existingUser instanceof User) {
-                if (!$existingUser->isVerified()) {
-                    $limit = $emailVerificationResendLimiter
-                        ->create($existingUser->getId().'|'.($request->getClientIp() ?? 'unknown-ip'))
-                        ->consume();
-
-                    if ($limit->isAccepted()) {
-                        $this->tryToSendEmailConfirmation($emailVerifier, $existingUser);
-                    }
-                }
+                $emailVerificationResender->request(
+                    $this->stringOrEmpty($form->get('email')->getData()),
+                    $request->getClientIp(),
+                );
 
                 $this->addFlash('success', self::GENERIC_CONFIRMATION_MESSAGE);
 
@@ -84,15 +79,15 @@ final class RegistrationController extends AbstractController
             $user
                 ->setRoles(['ROLE_USER'])
                 ->setIsVerified(false)
-                ->setPassword($passwordHasher->hashPassword($user, $this->stringOrEmpty($form->get('plainPassword')->getData())));
+                ->setPassword($passwordHasher->hashPassword($user, bin2hex(random_bytes(48))));
 
             $entityManager->persist($user);
             $entityManager->flush();
 
             if ($this->tryToSendEmailConfirmation($emailVerifier, $user)) {
-                $this->addFlash('success', 'Votre compte a été créé. Vérifiez votre adresse email pour activer votre compte.');
+                $this->addFlash('success', 'Votre compte a été créé. Ouvrez le lien reçu par email pour choisir votre mot de passe.');
             } else {
-                $this->addFlash('error', 'Votre compte a été créé, mais l’email de confirmation n’a pas pu être envoyé. Reconnectez-vous pour demander un nouvel envoi.');
+                $this->addFlash('error', 'Votre compte a été créé, mais l’email de confirmation n’a pas pu être envoyé. Recommencez l’inscription pour demander un nouvel envoi.');
             }
 
             return $this->redirectToRoute('app_login');
