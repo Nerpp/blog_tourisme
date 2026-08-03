@@ -20,6 +20,6 @@
   "devDependencies": {
     "lighthouse": "13.4.1",
     "sass": "^1.80.0",
-    "vite": "^6.0.0"
+    "vite": "^8.2.0"
   }
 }
