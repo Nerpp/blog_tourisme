@@ -13,6 +13,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity(repositoryClass: CityVisitPointRepository::class)]
 #[ORM\Index(name: 'idx_city_visit_point_type', fields: ['type'])]
 #[ORM\Index(name: 'idx_city_visit_point_position', fields: ['position'])]
+#[ORM\UniqueConstraint(name: 'uniq_city_visit_point_draft_position', fields: ['cityVisitDraft', 'position'])]
 #[ORM\HasLifecycleCallbacks]
 class CityVisitPoint
 {
@@ -34,10 +35,10 @@ class CityVisitPoint
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $note = null;
 
-    #[ORM\Column]
+    #[ORM\Column(nullable: true)]
     private ?float $latitude = null;
 
-    #[ORM\Column]
+    #[ORM\Column(nullable: true)]
     private ?float $longitude = null;
 
     #[ORM\Column(nullable: true)]
@@ -45,6 +46,9 @@ class CityVisitPoint
 
     #[ORM\Column]
     private int $position = 1;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $coordinatesInherited = false;
 
     #[ORM\Column(length: 150, nullable: true)]
     private ?string $detectedCommuneName = null;
@@ -140,7 +144,7 @@ class CityVisitPoint
         return $this->latitude;
     }
 
-    public function setLatitude(float $latitude): static
+    public function setLatitude(?float $latitude): static
     {
         $this->latitude = $latitude;
 
@@ -152,7 +156,7 @@ class CityVisitPoint
         return $this->longitude;
     }
 
-    public function setLongitude(float $longitude): static
+    public function setLongitude(?float $longitude): static
     {
         $this->longitude = $longitude;
 
@@ -179,6 +183,18 @@ class CityVisitPoint
     public function setPosition(int $position): static
     {
         $this->position = $position;
+
+        return $this;
+    }
+
+    public function hasInheritedCoordinates(): bool
+    {
+        return $this->coordinatesInherited;
+    }
+
+    public function setCoordinatesInherited(bool $coordinatesInherited): static
+    {
+        $this->coordinatesInherited = $coordinatesInherited;
 
         return $this;
     }

@@ -1,0 +1,244 @@
+.route-step-ordering {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.route-step-ordering__status {
+  min-height: 24px;
+  color: var(--admin-muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.route-step-ordering__status.is-saving {
+  color: var(--admin-info);
+}
+
+.route-step-ordering__status.is-saved {
+  color: var(--admin-primary);
+}
+
+.route-step-ordering__status.is-error {
+  color: var(--admin-warning);
+}
+
+.route-step-list {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.route-step-slot {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.route-step {
+  min-width: 0;
+  transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.route-step__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-step__title {
+  margin: 0;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.route-step__order-actions,
+.route-step-insertion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.route-step__drag-handle {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.route-step__drag-handle:active {
+  cursor: grabbing;
+}
+
+.route-step__gps-badge {
+  display: inline-flex;
+  margin-top: 7px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.route-step__gps-badge.is-inherited {
+  background: var(--admin-info-soft);
+  color: var(--admin-info);
+}
+
+.route-step__gps-badge.is-customized {
+  background: var(--admin-primary-soft);
+  color: var(--admin-primary);
+}
+
+.route-step__duplicate-warning {
+  padding: 10px 12px;
+  border: 1px solid #e2c476;
+  border-radius: var(--admin-radius);
+  background: #fff9e8;
+  color: #76550b !important;
+  font-weight: 750;
+}
+
+.route-step__duplicate-warning[hidden] {
+  display: none;
+}
+
+.route-step__delete-form {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.route-step-position-editor {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  scroll-margin-top: 92px;
+  border: 2px solid var(--admin-primary);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: 0 12px 30px rgba(19, 80, 51, 0.14);
+}
+
+.route-step-position-editor[hidden] {
+  display: none;
+}
+
+.route-step-position-editor__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-step-position-editor__header h3 {
+  margin: 0;
+}
+
+.route-step-position-editor__status {
+  min-height: 24px;
+  margin: 0;
+  color: var(--admin-muted);
+  font-weight: 800;
+}
+
+.route-step-position-editor__status.is-saving {
+  color: var(--admin-info);
+}
+
+.route-step-position-editor__status.is-success {
+  color: var(--admin-primary);
+}
+
+.route-step-position-editor__status.is-error {
+  color: var(--admin-warning);
+}
+
+.route-step-position-editor .location-picker__map {
+  min-height: min(420px, 55vh);
+}
+
+.route-step-position-editor.is-coordinate-saving {
+  cursor: wait;
+}
+
+.route-step-position-editor.is-coordinate-uncertain,
+.route-step-position-editor.is-coordinate-stale,
+.route-step-position-editor.is-coordinate-ui-conflict {
+  border-color: var(--admin-warning);
+}
+
+.location-picker.is-coordinate-locked .location-picker__map,
+.location-picker.is-coordinate-locked .location-picker__link {
+  pointer-events: none;
+}
+
+.location-picker.is-coordinate-locked .location-picker__map {
+  filter: saturate(0.7);
+  opacity: 0.72;
+}
+
+.route-step-insertion {
+  justify-content: center;
+  padding: 5px 0;
+  border: 2px dashed transparent;
+  border-radius: var(--admin-radius);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.route-step-insertion:hover,
+.route-step-insertion:focus-within {
+  border-color: var(--admin-primary);
+  background: var(--admin-primary-soft);
+}
+
+.route-step-insertion__button {
+  max-width: 100%;
+}
+
+.route-step-slot.is-route-step-chosen .route-step,
+.route-step-slot.is-route-step-dragging .route-step {
+  border-color: var(--admin-primary);
+  box-shadow: 0 10px 28px rgba(19, 80, 51, 0.18);
+}
+
+.route-step-slot.is-route-step-ghost {
+  opacity: 0.42;
+}
+
+.route-step-slot.is-route-step-fallback {
+  max-width: min(900px, calc(100vw - 24px));
+}
+
+@media (max-width: 760px) {
+  .route-step__header,
+  .route-step__order-actions,
+  .route-step-insertion,
+  .route-step__delete-form,
+  .route-step-position-editor__header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .route-step__order-actions .admin-button,
+  .route-step-insertion .admin-button,
+  .route-step__delete-form .admin-button,
+  .route-step-position-editor .admin-button {
+    width: 100%;
+  }
+
+  .route-step-position-editor {
+    padding: 14px;
+  }
+
+  .route-step-position-editor .location-picker__map {
+    min-height: min(320px, 48vh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-step-insertion {
+    transition: none;
+  }
+}

@@ -34,6 +34,7 @@ use App\Service\Geography\LocationDraftHydrator;
 use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -89,17 +90,27 @@ final class CityVisitStudioController extends AbstractController
             $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
 
             try {
-                $locationIsValid = $this->updateDraftFromRequest($cityVisitDraft, $request);
+                /** @var array{bool, bool} $updateResult */
+                $updateResult = $this->entityManager->wrapInTransaction(function () use ($cityVisitDraft, $request, $wasPublicStatus): array {
+                    $this->entityManager->lock($cityVisitDraft, LockMode::PESSIMISTIC_WRITE);
+                    $locationIsValid = $this->updateDraftFromRequest($cityVisitDraft, $request);
+                    $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
+                    $this->normalizeClassicCoverImages($cityVisitDraft->getMediaLinks());
+                    $this->entityManager->flush();
+
+                    return [$locationIsValid, $shouldNotifyPublication];
+                });
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
 
                 return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
+            } catch (\Throwable) {
+                $this->addFlash('error', 'Un conflit a empêché l’enregistrement de la visite. Réessayez.');
+
+                return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
             }
 
-            $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
-
-            $this->normalizeClassicCoverImages($cityVisitDraft->getMediaLinks());
-            $this->entityManager->flush();
+            [$locationIsValid, $shouldNotifyPublication] = $updateResult;
             $this->notifyNewPublication($cityVisitDraft, $shouldNotifyPublication);
 
             if ($locationIsValid) {
@@ -492,6 +503,7 @@ final class CityVisitStudioController extends AbstractController
                 'converted' => 'Converti',
                 'archived' => 'Archivé',
             ]),
+            'point_type_options' => $this->pointTypeOptions(),
             'image_type_options' => $this->imageTypeOptions(),
             'video_type_options' => $this->videoTypeOptions(),
             'bulk_upload_policy' => $this->bulkMediaUploadService->clientPolicy(),
@@ -671,7 +683,10 @@ final class CityVisitStudioController extends AbstractController
 
     private function primaryLocationPoint(CityVisitDraft $cityVisitDraft): ?CityVisitPoint
     {
-        $points = $this->sortedPoints($cityVisitDraft);
+        $points = array_values(array_filter(
+            $this->sortedPoints($cityVisitDraft),
+            fn (CityVisitPoint $point): bool => $this->hasValidPointCoordinates($point),
+        ));
         foreach ($points as $point) {
             if ($point->getType() === CityVisitPointType::Start) {
                 return $point;
@@ -826,7 +841,10 @@ final class CityVisitStudioController extends AbstractController
 
     private function generateGoogleMapsUrl(CityVisitDraft $cityVisitDraft): ?string
     {
-        $points = $this->sortedPoints($cityVisitDraft);
+        $points = array_values(array_filter(
+            $this->sortedPoints($cityVisitDraft),
+            fn (CityVisitPoint $point): bool => $this->hasValidPointCoordinates($point),
+        ));
 
         if (count($points) < 2) {
             return null;
@@ -860,9 +878,18 @@ final class CityVisitStudioController extends AbstractController
     private function sortedPoints(CityVisitDraft $cityVisitDraft): array
     {
         $points = $cityVisitDraft->getPoints()->toArray();
-        usort($points, static fn(CityVisitPoint $a, CityVisitPoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($points, static fn(CityVisitPoint $a, CityVisitPoint $b): int => $a->getPosition() <=> $b->getPosition());
 
         return $points;
+    }
+
+    private function hasValidPointCoordinates(CityVisitPoint $point): bool
+    {
+        $latitude = $point->getLatitude();
+        $longitude = $point->getLongitude();
+
+        return $latitude !== null && $latitude >= -90 && $latitude <= 90
+            && $longitude !== null && $longitude >= -180 && $longitude <= 180;
     }
 
     /** @return array<int, string> */
@@ -1030,6 +1057,27 @@ final class CityVisitStudioController extends AbstractController
         $label = $title ?? $typeLabel;
 
         return sprintf('Point %d — %s', $point->getPosition(), $label);
+    }
+
+    /** @return array<string, string> */
+    private function pointTypeOptions(): array
+    {
+        /** @var array<string, string> $choices */
+        $choices = $this->enumChoices(CityVisitPointType::cases(), [
+            'start' => 'Départ',
+            'monument' => 'Monument',
+            'viewpoint' => 'Point de vue',
+            'museum' => 'Musée',
+            'church' => 'Église',
+            'square' => 'Place',
+            'restaurant' => 'Restaurant',
+            'photo' => 'Spot photo',
+            'parking' => 'Parking',
+            'end' => 'Arrivée',
+            'other' => 'Autre point',
+        ]);
+
+        return $choices;
     }
 
     /** @return array<string, string> */

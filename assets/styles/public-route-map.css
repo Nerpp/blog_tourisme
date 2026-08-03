@@ -108,6 +108,21 @@
   box-shadow: 0 18px 46px rgba(16, 39, 31, 0.08);
 }
 
+.public-route-map__marker-number {
+  display: grid;
+  width: 34px !important;
+  height: 34px !important;
+  place-items: center;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #2f7b59;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(19, 55, 39, 0.35);
+}
+
 html.has-gallery-modal .leaflet-container,
 html.has-gallery-modal .leaflet-pane,
 html.has-gallery-modal .leaflet-top,

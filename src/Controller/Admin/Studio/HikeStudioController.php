@@ -34,6 +34,7 @@ use App\Service\Geography\LocationDraftHydrator;
 use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
 use DateTimeImmutable;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -91,17 +92,27 @@ final class HikeStudioController extends AbstractController
             $wasPublicStatus = $this->isPublicStatus($hikeDraft->getStatus());
 
             try {
-                $locationIsValid = $this->updateDraftFromRequest($hikeDraft, $request);
+                /** @var array{bool, bool} $updateResult */
+                $updateResult = $this->entityManager->wrapInTransaction(function () use ($hikeDraft, $request, $wasPublicStatus): array {
+                    $this->entityManager->lock($hikeDraft, LockMode::PESSIMISTIC_WRITE);
+                    $locationIsValid = $this->updateDraftFromRequest($hikeDraft, $request);
+                    $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($hikeDraft->getStatus());
+                    $this->normalizeClassicCoverImages($hikeDraft->getMediaLinks());
+                    $this->entityManager->flush();
+
+                    return [$locationIsValid, $shouldNotifyPublication];
+                });
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
 
                 return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
+            } catch (\Throwable) {
+                $this->addFlash('error', 'Un conflit a empêché l’enregistrement de la randonnée. Réessayez.');
+
+                return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
             }
 
-            $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($hikeDraft->getStatus());
-
-            $this->normalizeClassicCoverImages($hikeDraft->getMediaLinks());
-            $this->entityManager->flush();
+            [$locationIsValid, $shouldNotifyPublication] = $updateResult;
             $this->notifyNewPublication($hikeDraft, $shouldNotifyPublication);
 
             if ($locationIsValid) {
@@ -349,62 +360,6 @@ final class HikeStudioController extends AbstractController
         $this->addFlash('success', 'La vidéo a été ajoutée à la randonnée.');
 
         return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-videos');
-    }
-
-    #[Route('/hike-points/{id}/update', name: 'admin_studio_hike_point_update', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function updatePoint(HikePoint $point, Request $request): RedirectResponse
-    {
-        $hikeDraft = $point->getHikeDraft();
-        if (!$hikeDraft instanceof HikeDraft) {
-            throw $this->createNotFoundException('Randonnée introuvable.');
-        }
-
-        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $hikeDraft);
-
-        if (!$this->isCsrfTokenValid('studio_hike_point_update_' . $point->getId(), (string) $request->request->get('_token'))) {
-            $this->addFlash('error', 'Le formulaire du point GPS a expiré. Réessayez.');
-
-            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
-        }
-
-        $latitude = $this->coordinateFromRequest($request, 'latitude', -90, 90, 'La latitude GPS');
-        $longitude = $this->coordinateFromRequest($request, 'longitude', -180, 180, 'La longitude GPS');
-        if ($latitude === null || $longitude === null) {
-            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
-        }
-
-        $position = $this->nullableInt($request->request->get('position'));
-        if ($position !== null && $position < 1) {
-            $this->addFlash('error', 'La position du point doit être supérieure ou égale à 1.');
-
-            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
-        }
-
-        $accuracy = $this->nullablePositiveFloatFromRequest($request, 'accuracy', 'La précision GPS');
-        if ($accuracy === false) {
-            return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
-        }
-
-        $point
-            ->setTitle($this->nullIfBlank($request->request->getString('title')))
-            ->setNote($this->nullIfBlank($request->request->getString('note')))
-            ->setLatitude($latitude)
-            ->setLongitude($longitude)
-            ->setAccuracy($accuracy);
-
-        $type = HikePointType::tryFrom($request->request->getString('type'));
-        if ($type instanceof HikePointType) {
-            $point->setType($type);
-        }
-
-        if ($position !== null) {
-            $point->setPosition($position);
-        }
-
-        $this->entityManager->flush();
-        $this->addFlash('success', 'Point GPS enregistré.');
-
-        return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'point-'.$point->getId());
     }
 
     #[Route('/hikes/{id}/destination/update', name: 'admin_studio_hike_destination_update', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -759,32 +714,6 @@ final class HikeStudioController extends AbstractController
         ];
     }
 
-    private function coordinateFromRequest(Request $request, string $field, float $min, float $max, string $label): ?float
-    {
-        $rawValue = trim((string) $request->request->get($field, ''));
-        if ($rawValue === '') {
-            $this->addFlash('error', sprintf('%s est obligatoire pour conserver un point GPS valide.', $label));
-
-            return null;
-        }
-
-        $normalizedValue = str_replace(',', '.', $rawValue);
-        if (!is_numeric($normalizedValue)) {
-            $this->addFlash('error', sprintf('%s doit être un nombre valide.', $label));
-
-            return null;
-        }
-
-        $coordinate = (float) $normalizedValue;
-        if ($coordinate < $min || $coordinate > $max) {
-            $this->addFlash('error', sprintf('%s doit être comprise entre %s et %s.', $label, $min, $max));
-
-            return null;
-        }
-
-        return $coordinate;
-    }
-
     private function nullableCoordinateFromRequest(Request $request, string $field, float $min, float $max, string $label): float|false|null
     {
         $rawValue = trim((string) $request->request->get($field, ''));
@@ -807,30 +736,6 @@ final class HikeStudioController extends AbstractController
         }
 
         return $coordinate;
-    }
-
-    private function nullablePositiveFloatFromRequest(Request $request, string $field, string $label): float|false|null
-    {
-        $rawValue = trim((string) $request->request->get($field, ''));
-        if ($rawValue === '') {
-            return null;
-        }
-
-        $normalizedValue = str_replace(',', '.', $rawValue);
-        if (!is_numeric($normalizedValue)) {
-            $this->addFlash('error', sprintf('%s doit être un nombre valide.', $label));
-
-            return false;
-        }
-
-        $value = (float) $normalizedValue;
-        if ($value < 0) {
-            $this->addFlash('error', sprintf('%s doit être positive.', $label));
-
-            return false;
-        }
-
-        return $value;
     }
 
     private function destinationNameFromRequest(Request $request, DestinationType $type): string
@@ -1010,7 +915,10 @@ final class HikeStudioController extends AbstractController
 
     private function primaryLocationPoint(HikeDraft $hikeDraft): ?HikePoint
     {
-        $points = $this->sortedPoints($hikeDraft);
+        $points = array_values(array_filter(
+            $this->sortedPoints($hikeDraft),
+            fn (HikePoint $point): bool => $this->hasValidPointCoordinates($point),
+        ));
         foreach ($points as $point) {
             if ($point->getType() === HikePointType::Start) {
                 return $point;
@@ -1210,7 +1118,10 @@ final class HikeStudioController extends AbstractController
 
     private function generateGoogleMapsUrl(HikeDraft $hikeDraft): ?string
     {
-        $points = $this->sortedPoints($hikeDraft);
+        $points = array_values(array_filter(
+            $this->sortedPoints($hikeDraft),
+            fn (HikePoint $point): bool => $this->hasValidPointCoordinates($point),
+        ));
 
         if ($points === []) {
             return null;
@@ -1248,9 +1159,18 @@ final class HikeStudioController extends AbstractController
     private function sortedPoints(HikeDraft $hikeDraft): array
     {
         $points = $hikeDraft->getPoints()->toArray();
-        usort($points, static fn(HikePoint $a, HikePoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($points, static fn(HikePoint $a, HikePoint $b): int => $a->getPosition() <=> $b->getPosition());
 
         return $points;
+    }
+
+    private function hasValidPointCoordinates(HikePoint $point): bool
+    {
+        $latitude = $point->getLatitude();
+        $longitude = $point->getLongitude();
+
+        return $latitude !== null && $latitude >= -90 && $latitude <= 90
+            && $longitude !== null && $longitude >= -180 && $longitude <= 180;
     }
 
     /** @return array<int, string> */

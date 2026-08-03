@@ -342,8 +342,9 @@ abstract class FunctionalTestCase extends WebTestCase
         $entityManager->flush();
     }
 
-    protected function createHikePoint(HikeDraft $hike, float $latitude = 42.7000, float $longitude = 2.9000, int $position = 1): HikePoint
+    protected function createHikePoint(HikeDraft $hike, float $latitude = 42.7000, float $longitude = 2.9000, ?int $position = null): HikePoint
     {
+        $position ??= $this->nextRoutePointPosition($hike->getPoints()->toArray());
         $point = (new HikePoint())
             ->setHikeDraft($hike)
             ->setType(HikePointType::Other)
@@ -358,8 +359,9 @@ abstract class FunctionalTestCase extends WebTestCase
         return $point;
     }
 
-    protected function createCityVisitPoint(CityVisitDraft $cityVisit, float $latitude = 43.6000, float $longitude = 3.8800, int $position = 1): CityVisitPoint
+    protected function createCityVisitPoint(CityVisitDraft $cityVisit, float $latitude = 43.6000, float $longitude = 3.8800, ?int $position = null): CityVisitPoint
     {
+        $position ??= $this->nextRoutePointPosition($cityVisit->getPoints()->toArray());
         $point = (new CityVisitPoint())
             ->setCityVisitDraft($cityVisit)
             ->setType(CityVisitPointType::Other)
@@ -372,6 +374,17 @@ abstract class FunctionalTestCase extends WebTestCase
         $this->persistAndFlush($point);
 
         return $point;
+    }
+
+    /** @param array<int, HikePoint|CityVisitPoint> $points */
+    private function nextRoutePointPosition(array $points): int
+    {
+        $maximum = 0;
+        foreach ($points as $point) {
+            $maximum = max($maximum, $point->getPosition());
+        }
+
+        return $maximum + 1;
     }
 
     protected function createCommentReplyNotification(User $recipient, Comment $comment, ?User $triggeredBy = null): CommentReplyNotification

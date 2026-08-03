@@ -73,7 +73,7 @@ class CityVisitDraft implements CommentableContentInterface
 
     /** @var Collection<int, CityVisitPoint> */
     #[ORM\OneToMany(mappedBy: 'cityVisitDraft', targetEntity: CityVisitPoint::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
-    #[ORM\OrderBy(['position' => 'ASC', 'id' => 'ASC'])]
+    #[ORM\OrderBy(['position' => 'ASC'])]
     private Collection $points;
 
     /** @var Collection<int, CityVisitDraftMedia> */

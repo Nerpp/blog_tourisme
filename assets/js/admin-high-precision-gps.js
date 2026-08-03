@@ -97,10 +97,91 @@ const setCopyAvailable = (buttons, available) => {
   });
 };
 
-const validCoordinateValue = (value, min, max) => {
-  const parsedValue = Number.parseFloat(String(value).replace(',', '.'));
+const normalizedNumber = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
 
-  return Number.isFinite(parsedValue) && parsedValue >= min && parsedValue <= max;
+  const text = String(value).trim().replace(',', '.');
+  if (text === '') {
+    return null;
+  }
+
+  const number = Number(text);
+
+  return Number.isFinite(number) ? { number, text } : null;
+};
+
+const validCoordinateValue = (value, min, max) => {
+  const parsedValue = normalizedNumber(value)?.number;
+
+  return parsedValue !== undefined && parsedValue >= min && parsedValue <= max;
+};
+
+/**
+ * Public coordinate injection API for the existing high-precision GPS widget.
+ * Consumers must use this instead of maintaining a parallel latitude/
+ * longitude synchronisation mechanism.
+ */
+export const setAdminHighPrecisionGpsCoordinates = (container, latitude, longitude, options = {}) => {
+  if (!(container instanceof Element)) {
+    return false;
+  }
+
+  const latitudeField = container.querySelector('[data-gps-latitude]');
+  const longitudeField = container.querySelector('[data-gps-longitude]');
+  const accuracyField = container.querySelector('[data-gps-accuracy]');
+  const statusElement = container.querySelector('[data-gps-status]');
+  const coordinatesElement = container.querySelector('[data-gps-coordinates]');
+  if (!latitudeField || !longitudeField) {
+    return false;
+  }
+
+  const latitudeValue = normalizedNumber(latitude);
+  const longitudeValue = normalizedNumber(longitude);
+  const hasCoordinates = latitudeValue !== null
+    && longitudeValue !== null
+    && latitudeValue.number >= -90
+    && latitudeValue.number <= 90
+    && longitudeValue.number >= -180
+    && longitudeValue.number <= 180;
+
+  latitudeField.value = hasCoordinates ? latitudeValue.text : '';
+  longitudeField.value = hasCoordinates ? longitudeValue.text : '';
+  if (accuracyField && Object.prototype.hasOwnProperty.call(options, 'accuracy')) {
+    const injectedAccuracy = normalizedNumber(options.accuracy);
+    accuracyField.value = injectedAccuracy !== null && injectedAccuracy.number >= 0
+      ? injectedAccuracy.text
+      : '';
+  }
+
+  dispatchFieldEvents(latitudeField);
+  dispatchFieldEvents(longitudeField);
+  if (accuracyField && Object.prototype.hasOwnProperty.call(options, 'accuracy')) {
+    dispatchFieldEvents(accuracyField);
+  }
+
+  if (coordinatesElement) {
+    coordinatesElement.textContent = hasCoordinates
+      ? `Latitude : ${latitudeField.value}\nLongitude : ${longitudeField.value}`
+      : '';
+  }
+  if (typeof options.statusMessage === 'string') {
+    setStatus(statusElement, options.statusMessage, options.statusKind || '');
+  }
+
+  container.dispatchEvent(new CustomEvent('admin:gps-coordinates-set', {
+    bubbles: true,
+    detail: {
+      latitude: hasCoordinates ? Number(latitudeField.value) : null,
+      longitude: hasCoordinates ? Number(longitudeField.value) : null,
+      accuracy: accuracyField?.value || null,
+      inherited: options.inherited === true,
+      source: options.source || 'api',
+    },
+  }));
+
+  return hasCoordinates || (latitude == null && longitude == null);
 };
 
 const terrainSubmitErrorMessage = (error) => {
@@ -342,6 +423,10 @@ const initHighPrecisionGps = (container) => {
   if (!latitudeField || !longitudeField || startButtons.length === 0) {
     return;
   }
+
+  container.setCoordinates = (latitude, longitude, options = {}) => (
+    setAdminHighPrecisionGpsCoordinates(container, latitude, longitude, options)
+  );
 
   let watchId = null;
   let bestPosition = null;
