@@ -66,6 +66,42 @@ final class RouteStepController extends AbstractController
         return $this->updatePoint($draft, $cityVisitPoint, $request);
     }
 
+    #[Route(
+        '/hikes/{draftId}/steps/{stepId}/coordinates',
+        name: 'admin_studio_hike_step_coordinates_update',
+        requirements: ['draftId' => '\d+', 'stepId' => '\d+'],
+        methods: ['POST'],
+    )]
+    public function updateHikePointCoordinates(int $draftId, int $stepId, Request $request): JsonResponse
+    {
+        $draft = $this->entityManager->find(HikeDraft::class, $draftId);
+        $point = $this->entityManager->find(HikePoint::class, $stepId);
+        if (!$draft instanceof HikeDraft || !$point instanceof HikePoint
+            || $point->getHikeDraft()?->getId() !== $draftId) {
+            return $this->jsonError('Le parcours ou l’étape GPS est introuvable.', Response::HTTP_NOT_FOUND, 'not_found');
+        }
+
+        return $this->updatePointCoordinates($draft, $point, $request);
+    }
+
+    #[Route(
+        '/city-visits/{draftId}/steps/{stepId}/coordinates',
+        name: 'admin_studio_city_visit_step_coordinates_update',
+        requirements: ['draftId' => '\d+', 'stepId' => '\d+'],
+        methods: ['POST'],
+    )]
+    public function updateCityVisitPointCoordinates(int $draftId, int $stepId, Request $request): JsonResponse
+    {
+        $draft = $this->entityManager->find(CityVisitDraft::class, $draftId);
+        $point = $this->entityManager->find(CityVisitPoint::class, $stepId);
+        if (!$draft instanceof CityVisitDraft || !$point instanceof CityVisitPoint
+            || $point->getCityVisitDraft()?->getId() !== $draftId) {
+            return $this->jsonError('Le parcours ou l’étape GPS est introuvable.', Response::HTTP_NOT_FOUND, 'not_found');
+        }
+
+        return $this->updatePointCoordinates($draft, $point, $request);
+    }
+
     #[Route('/hikes/{id}/points/reorder', name: 'admin_studio_hike_points_reorder', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function reorderHikePoints(HikeDraft $hikeDraft, Request $request): JsonResponse
     {
@@ -299,6 +335,157 @@ final class RouteStepController extends AbstractController
         return $this->studioRedirect($draft, $this->pointAnchor($point));
     }
 
+    private function updatePointCoordinates(
+        HikeDraft|CityVisitDraft $draft,
+        HikePoint|CityVisitPoint $point,
+        Request $request,
+    ): JsonResponse {
+        $this->denyAccessUnlessGranted(ContentEditVoter::EDIT, $draft);
+
+        $token = $request->headers->get('X-CSRF-TOKEN');
+        if (!is_string($token) || !$this->isCsrfTokenValid($this->tokenId($draft, 'coordinates', $point), $token)) {
+            return $this->jsonError('Le jeton de sécurité est invalide.', Response::HTTP_FORBIDDEN, 'csrf_invalid');
+        }
+
+        try {
+            $payload = $request->toArray();
+        } catch (\Throwable) {
+            return $this->jsonError('Le corps JSON est invalide.', Response::HTTP_BAD_REQUEST, 'invalid_json');
+        }
+
+        $requiredKeys = ['latitude', 'longitude', 'expectedPosition', 'expectedCoordinates'];
+        $allowedKeys = ['latitude', 'longitude', 'accuracy', 'expectedPosition', 'expectedCoordinates'];
+        if (array_diff($requiredKeys, array_keys($payload)) !== []
+            || array_diff(array_keys($payload), $allowedKeys) !== []) {
+            return $this->jsonError(
+                'La requête doit contenir uniquement latitude, longitude, expectedPosition, expectedCoordinates et éventuellement accuracy.',
+                Response::HTTP_BAD_REQUEST,
+                'invalid_payload',
+            );
+        }
+
+        $expectedPosition = $this->positiveInteger($payload['expectedPosition']);
+        $expectedCoordinatesPayload = $payload['expectedCoordinates'];
+        $expectedCoordinateKeys = ['latitude', 'longitude', 'accuracy', 'coordinatesInherited'];
+        if ($expectedPosition === null || !is_array($expectedCoordinatesPayload)
+            || array_diff($expectedCoordinateKeys, array_keys($expectedCoordinatesPayload)) !== []
+            || array_diff(array_keys($expectedCoordinatesPayload), $expectedCoordinateKeys) !== []
+            || !is_bool($expectedCoordinatesPayload['coordinatesInherited'] ?? null)) {
+            return $this->jsonError(
+                'expectedPosition doit être un entier positif et expectedCoordinates doit décrire exactement l’ancien état GPS.',
+                Response::HTTP_BAD_REQUEST,
+                'invalid_precondition',
+            );
+        }
+        /** @var array{latitude: mixed, longitude: mixed, accuracy: mixed, coordinatesInherited: bool} $expectedCoordinatesPayload */
+
+        try {
+            $latitude = $this->decimalPayload($payload['latitude'], -90, 90, 'La latitude GPS');
+            $longitude = $this->decimalPayload($payload['longitude'], -180, 180, 'La longitude GPS');
+            $accuracy = $this->decimalPayload($payload['accuracy'] ?? null, 0, PHP_FLOAT_MAX, 'La précision GPS');
+            $expectedLatitude = $this->decimalPayload($expectedCoordinatesPayload['latitude'], -90, 90, 'L’ancienne latitude GPS');
+            $expectedLongitude = $this->decimalPayload($expectedCoordinatesPayload['longitude'], -180, 180, 'L’ancienne longitude GPS');
+            $expectedAccuracy = $this->decimalPayload($expectedCoordinatesPayload['accuracy'], 0, PHP_FLOAT_MAX, 'L’ancienne précision GPS');
+        } catch (\InvalidArgumentException $exception) {
+            return $this->jsonError($exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY, 'invalid_coordinates');
+        }
+
+        if ($latitude === null || $longitude === null) {
+            return $this->jsonError(
+                'La latitude et la longitude doivent être renseignées.',
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+                'invalid_coordinates',
+            );
+        }
+        if (($expectedLatitude === null) !== ($expectedLongitude === null)
+            || ($expectedLatitude === null && $expectedAccuracy !== null)) {
+            return $this->jsonError(
+                'L’ancien état GPS attendu est incohérent.',
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+                'invalid_precondition',
+            );
+        }
+
+        $expectedInherited = (bool) $expectedCoordinatesPayload['coordinatesInherited'];
+        $primaryLocationStepId = null;
+
+        try {
+            $this->entityManager->wrapInTransaction(function () use (
+                $draft,
+                $point,
+                $latitude,
+                $longitude,
+                $accuracy,
+                $expectedPosition,
+                $expectedLatitude,
+                $expectedLongitude,
+                $expectedAccuracy,
+                $expectedInherited,
+                &$primaryLocationStepId,
+            ): void {
+                $this->lockDraft($draft);
+                $this->entityManager->refresh($point);
+                if (!$this->pointBelongsToDraft($point, $draft)) {
+                    throw new RouteStepOrderingException('Cette étape n’appartient pas au parcours demandé.');
+                }
+                if ($point->getPosition() !== $expectedPosition) {
+                    throw new \UnexpectedValueException('L’ordre du parcours a changé. Rechargez la page avant de réessayer.');
+                }
+                $primaryLocationStepId = $this->primaryLocationStepId($draft);
+
+                if ($this->pointCoordinatesMatch($point, $latitude, $longitude, $accuracy, false)) {
+                    return;
+                }
+                if (!$this->pointCoordinatesMatch(
+                    $point,
+                    $expectedLatitude,
+                    $expectedLongitude,
+                    $expectedAccuracy,
+                    $expectedInherited,
+                )) {
+                    throw new \UnexpectedValueException('La position GPS de cette étape a changé. Rechargez la page avant de réessayer.');
+                }
+
+                $position = $point->getPosition();
+                $point
+                    ->setLatitude($latitude)
+                    ->setLongitude($longitude)
+                    ->setAccuracy($accuracy)
+                    ->setCoordinatesInherited(false);
+                $this->refreshDerivedRouteUrl($draft);
+                $this->entityManager->flush();
+
+                if ($point->getPosition() !== $position) {
+                    throw new \LogicException('L’ajustement GPS ne doit pas modifier la position de l’étape.');
+                }
+            });
+        } catch (\UnexpectedValueException $exception) {
+            return $this->jsonError($exception->getMessage(), Response::HTTP_CONFLICT, 'stale_state');
+        } catch (RouteStepOrderingException $exception) {
+            return $this->jsonError($exception->getMessage(), Response::HTTP_NOT_FOUND, 'not_found');
+        } catch (\Throwable) {
+            return $this->jsonError(
+                'Un conflit a empêché l’enregistrement de la position GPS. Réessayez.',
+                Response::HTTP_CONFLICT,
+                'write_conflict',
+            );
+        }
+
+        return $this->json([
+            'success' => true,
+            'message' => 'La position GPS de l’étape a été enregistrée.',
+            'primaryLocationStepId' => $primaryLocationStepId,
+            'step' => [
+                'id' => $point->getId(),
+                'position' => $point->getPosition(),
+                'latitude' => $point->getLatitude(),
+                'longitude' => $point->getLongitude(),
+                'accuracy' => $point->getAccuracy(),
+                'coordinatesInherited' => $point->hasInheritedCoordinates(),
+            ],
+        ]);
+    }
+
     private function deletePoint(
         HikeDraft|CityVisitDraft $draft,
         HikePoint|CityVisitPoint $point,
@@ -401,6 +588,16 @@ final class RouteStepController extends AbstractController
 
         return $latitude !== null && $latitude >= -90 && $latitude <= 90
             && $longitude !== null && $longitude >= -180 && $longitude <= 180;
+    }
+
+    private function pointBelongsToDraft(
+        HikePoint|CityVisitPoint $point,
+        HikeDraft|CityVisitDraft $draft,
+    ): bool {
+        return ($point instanceof HikePoint && $draft instanceof HikeDraft
+                && $point->getHikeDraft()?->getId() === $draft->getId())
+            || ($point instanceof CityVisitPoint && $draft instanceof CityVisitDraft
+                && $point->getCityVisitDraft()?->getId() === $draft->getId());
     }
 
     /**
@@ -543,6 +740,50 @@ final class RouteStepController extends AbstractController
         return $number;
     }
 
+    private function pointCoordinatesMatch(
+        HikePoint|CityVisitPoint $point,
+        ?float $latitude,
+        ?float $longitude,
+        ?float $accuracy,
+        bool $inherited,
+    ): bool {
+        return $this->sameNullableDecimal($point->getLatitude(), $latitude)
+            && $this->sameNullableDecimal($point->getLongitude(), $longitude)
+            && $this->sameNullableDecimal($point->getAccuracy(), $accuracy)
+            && $point->hasInheritedCoordinates() === $inherited;
+    }
+
+    private function sameNullableDecimal(?float $first, ?float $second): bool
+    {
+        if ($first === null || $second === null) {
+            return $first === $second;
+        }
+
+        return abs($first - $second) < 0.000000000001;
+    }
+
+    private function primaryLocationStepId(HikeDraft|CityVisitDraft $draft): ?int
+    {
+        /** @var list<HikePoint|CityVisitPoint> $points */
+        $points = $draft->getPoints()->toArray();
+        usort(
+            $points,
+            static fn (HikePoint|CityVisitPoint $first, HikePoint|CityVisitPoint $second): int =>
+                $first->getPosition() <=> $second->getPosition(),
+        );
+
+        foreach ($points as $point) {
+            if (($point instanceof HikePoint && $point->getType() === HikePointType::Start)
+                || ($point instanceof CityVisitPoint && $point->getType() === CityVisitPointType::Start)) {
+                return $point->getId();
+            }
+        }
+
+        $firstPoint = $points[0] ?? null;
+
+        return $firstPoint?->getId();
+    }
+
     private function lockDraft(HikeDraft|CityVisitDraft $draft): void
     {
         if ($draft->getId() !== null) {
@@ -682,11 +923,16 @@ final class RouteStepController extends AbstractController
         );
     }
 
-    private function jsonError(string $message, int $status): JsonResponse
+    private function jsonError(string $message, int $status, ?string $code = null): JsonResponse
     {
-        return $this->json([
+        $payload = [
             'success' => false,
             'error' => $message,
-        ], $status);
+        ];
+        if ($code !== null) {
+            $payload['code'] = $code;
+        }
+
+        return $this->json($payload, $status);
     }
 }

@@ -4,8 +4,11 @@ namespace App\Tests\Functional;
 
 use App\Entity\CityVisitDraft;
 use App\Entity\CityVisitPoint;
+use App\Entity\CityVisitPointMedia;
 use App\Entity\HikeDraft;
 use App\Entity\HikePoint;
+use App\Entity\HikePointMedia;
+use App\Entity\MediaAsset;
 use App\Entity\User;
 use App\Enum\CityVisitPointType;
 use App\Enum\HikePointType;
@@ -476,6 +479,503 @@ final class RouteStepControllerTest extends FunctionalTestCase
     }
 
     #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointUpdatesOnlyTargetGpsAndPreservesRouteState(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $first = $this->createRoutePoint($draft, 41.1111111, 1.1111111, 1);
+        $target = $this->createRoutePoint($draft, 42.2222222, 2.2222222, 2);
+        $last = $this->createRoutePoint($draft, 43.3333333, 3.3333333, 3);
+        $this->markAsStart($first);
+        $first
+            ->setTitle('Départ inchangé')
+            ->setNote('Note du départ inchangée')
+            ->setAccuracy(4.5)
+            ->setCoordinatesInherited(false);
+        $target
+            ->setTitle('Belvédère éditorial conservé')
+            ->setNote('La note riche de cette étape doit rester intacte.')
+            ->setAccuracy(18.75)
+            ->setCoordinatesInherited(true)
+            ->setDetectedCommuneName('Commune conservée')
+            ->setDetectedCommuneCode('66001')
+            ->setDetectedDepartmentName('Département conservé')
+            ->setDetectedRegionName('Région conservée');
+        if ($target instanceof HikePoint) {
+            $target->setType(HikePointType::Viewpoint);
+        } else {
+            $target->setType(CityVisitPointType::Museum);
+        }
+        $last
+            ->setTitle('Arrivée inchangée')
+            ->setNote('Note de l’arrivée inchangée')
+            ->setAccuracy(9.25)
+            ->setCoordinatesInherited(false);
+        $media = $this->createImageMedia('Média de l’étape GPS conservé');
+        $mediaLink = $this->attachPointMedia($target, $media);
+        $this->persistAndFlush($first, $target, $last, $mediaLink);
+
+        $firstId = $this->entityId($first);
+        $targetId = $this->entityId($target);
+        $lastId = $this->entityId($last);
+        $mediaId = $media->getId();
+        $mediaLinkId = $mediaLink->getId();
+        self::assertNotNull($mediaId);
+        self::assertNotNull($mediaLinkId);
+        $expectedOrder = [$firstId, $targetId, $lastId];
+        $firstSnapshot = $this->pointSnapshot($first);
+        $lastSnapshot = $this->pointSnapshot($last);
+        $expectedTargetEditorial = [
+            'position' => $target->getPosition(),
+            'type' => $target->getType()->value,
+            'title' => $target->getTitle(),
+            'note' => $target->getNote(),
+            'communeName' => $target->getDetectedCommuneName(),
+            'communeCode' => $target->getDetectedCommuneCode(),
+            'departmentName' => $target->getDetectedDepartmentName(),
+            'regionName' => $target->getDetectedRegionName(),
+        ];
+        $client->loginUser($admin);
+        $expectedLatitude = 42.6178457;
+        $expectedLongitude = 2.4213764;
+        $expectedAccuracy = 3.25;
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $target,
+            [
+                'latitude' => '42.6178457',
+                'longitude' => '2.4213764',
+                'accuracy' => '3.25',
+                ...$this->coordinatePrecondition($target),
+            ],
+            $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $target)),
+        );
+
+        self::assertResponseIsSuccessful();
+        self::assertSame([
+            'success' => true,
+            'message' => 'La position GPS de l’étape a été enregistrée.',
+            'primaryLocationStepId' => $firstId,
+            'step' => [
+                'id' => $targetId,
+                'position' => 2,
+                'latitude' => $expectedLatitude,
+                'longitude' => $expectedLongitude,
+                'accuracy' => $expectedAccuracy,
+                'coordinatesInherited' => false,
+            ],
+        ], $this->responsePayload($client));
+
+        $steps = $this->orderedSteps($draft);
+        self::assertSame($expectedOrder, $this->stepIds($steps));
+        self::assertSame([1, 2, 3], array_map(
+            static fn (HikePoint|CityVisitPoint $step): int => $step->getPosition(),
+            $steps,
+        ));
+        $stepsById = $this->stepsById($steps);
+        self::assertSame($firstSnapshot, $this->pointSnapshot($stepsById[$firstId]));
+        self::assertSame($lastSnapshot, $this->pointSnapshot($stepsById[$lastId]));
+
+        $updatedTarget = $stepsById[$targetId];
+        self::assertEqualsWithDelta($expectedLatitude, (float) $updatedTarget->getLatitude(), 0.00000001);
+        self::assertEqualsWithDelta($expectedLongitude, (float) $updatedTarget->getLongitude(), 0.00000001);
+        self::assertEqualsWithDelta($expectedAccuracy, (float) $updatedTarget->getAccuracy(), 0.00000001);
+        self::assertFalse($updatedTarget->hasInheritedCoordinates());
+        self::assertSame($expectedTargetEditorial, [
+            'position' => $updatedTarget->getPosition(),
+            'type' => $updatedTarget->getType()->value,
+            'title' => $updatedTarget->getTitle(),
+            'note' => $updatedTarget->getNote(),
+            'communeName' => $updatedTarget->getDetectedCommuneName(),
+            'communeCode' => $updatedTarget->getDetectedCommuneCode(),
+            'departmentName' => $updatedTarget->getDetectedDepartmentName(),
+            'regionName' => $updatedTarget->getDetectedRegionName(),
+        ]);
+
+        $persistedLink = $this->entityManager()->find($mediaLink::class, $mediaLinkId);
+        self::assertInstanceOf($mediaLink::class, $persistedLink);
+        self::assertSame($targetId, $persistedLink->getPoint()?->getId());
+        self::assertSame($mediaId, $persistedLink->getMediaAsset()?->getId());
+        self::assertSame('Média de l’étape GPS conservé', $persistedLink->getMediaAsset()?->getTitle());
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointCanSetFirstCoordinatesOnEmptyStep(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $point = $this->createRoutePoint($draft, 42.5, 2.5, 1);
+        $point
+            ->setTitle('Étape initialement vide')
+            ->setNote('Éditorial sans coordonnées')
+            ->setLatitude(null)
+            ->setLongitude(null)
+            ->setAccuracy(null)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($point);
+        $pointId = $this->entityId($point);
+        $client->loginUser($admin);
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $point,
+            [
+                'latitude' => 0,
+                'longitude' => 0,
+                'accuracy' => 0,
+                ...$this->coordinatePrecondition($point),
+            ],
+            $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $point)),
+        );
+
+        self::assertResponseIsSuccessful();
+        self::assertSame([
+            'success' => true,
+            'message' => 'La position GPS de l’étape a été enregistrée.',
+            'primaryLocationStepId' => $pointId,
+            'step' => [
+                'id' => $pointId,
+                'position' => 1,
+                'latitude' => 0,
+                'longitude' => 0,
+                'accuracy' => 0,
+                'coordinatesInherited' => false,
+            ],
+        ], $this->responsePayload($client));
+        $steps = $this->orderedSteps($draft);
+        self::assertSame([$pointId], $this->stepIds($steps));
+        self::assertSame(1, $steps[0]->getPosition());
+        self::assertSame(0.0, $steps[0]->getLatitude());
+        self::assertSame(0.0, $steps[0]->getLongitude());
+        self::assertSame(0.0, $steps[0]->getAccuracy());
+        self::assertFalse($steps[0]->hasInheritedCoordinates());
+        self::assertSame('Étape initialement vide', $steps[0]->getTitle());
+        self::assertSame('Éditorial sans coordonnées', $steps[0]->getNote());
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointRequiresConcurrencyPreconditionWithoutMutation(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $point = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 1)
+            ->setAccuracy(7.25)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($point);
+        $expectedSnapshot = $this->pointSnapshot($point);
+        $client->loginUser($admin);
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $point,
+            ['latitude' => 45.5, 'longitude' => 5.5, 'accuracy' => 2.0],
+            $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $point)),
+        );
+
+        $this->assertJsonFailure($client, 400, 'expectedPosition', 'invalid_payload');
+        self::assertSame($expectedSnapshot, $this->pointSnapshot($this->orderedSteps($draft)[0]));
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointRejectsStaleExpectedPositionWithoutMutation(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $first = $this->createRoutePoint($draft, 41.1234567, 1.7654321, 1);
+        $target = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 2)
+            ->setAccuracy(7.25)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($target);
+        $firstId = $this->entityId($first);
+        $targetId = $this->entityId($target);
+        $firstSnapshot = $this->pointSnapshot($first);
+        $targetSnapshot = $this->pointSnapshot($target);
+        $precondition = $this->coordinatePrecondition($target);
+        $precondition['expectedPosition'] = 1;
+        $client->loginUser($admin);
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $target,
+            [
+                'latitude' => 45.5,
+                'longitude' => 5.5,
+                'accuracy' => 2.0,
+                ...$precondition,
+            ],
+            $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $target)),
+        );
+
+        $this->assertJsonFailure($client, 409, 'ordre du parcours', 'stale_state');
+        // Doctrine ferme l’EntityManager après le rollback transactionnel.
+        static::ensureKernelShutdown();
+        static::bootKernel();
+        $steps = $this->orderedSteps($draft);
+        self::assertSame([$firstId, $targetId], $this->stepIds($steps));
+        self::assertSame($firstSnapshot, $this->pointSnapshot($steps[0]));
+        self::assertSame($targetSnapshot, $this->pointSnapshot($steps[1]));
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointRejectsStaleExpectedCoordinatesWithoutMutation(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $point = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 1)
+            ->setAccuracy(7.25)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($point);
+        $pointId = $this->entityId($point);
+        $expectedSnapshot = $this->pointSnapshot($point);
+        $client->loginUser($admin);
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $point,
+            [
+                'latitude' => 45.5,
+                'longitude' => 5.5,
+                'accuracy' => 2.0,
+                'expectedPosition' => 1,
+                'expectedCoordinates' => [
+                    'latitude' => 40.0,
+                    'longitude' => 1.0,
+                    'accuracy' => 5.0,
+                    'coordinatesInherited' => false,
+                ],
+            ],
+            $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $point)),
+        );
+
+        $this->assertJsonFailure($client, 409, 'position GPS', 'stale_state');
+        // Doctrine ferme l’EntityManager après le rollback transactionnel.
+        static::ensureKernelShutdown();
+        static::bootKernel();
+        $persistedPoint = $this->stepsById($this->orderedSteps($draft))[$pointId];
+        self::assertSame($expectedSnapshot, $this->pointSnapshot($persistedPoint));
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointAcceptsIdempotentRetryWithStaleExpectedCoordinates(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $point = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 1)
+            ->setAccuracy(7.25)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($point);
+        $stalePrecondition = $this->coordinatePrecondition($point);
+        $point
+            ->setLatitude(45.5)
+            ->setLongitude(5.5)
+            ->setAccuracy(2.0)
+            ->setCoordinatesInherited(false);
+        $this->persistAndFlush($point);
+        $pointId = $this->entityId($point);
+        $currentSnapshot = $this->pointSnapshot($point);
+        $client->loginUser($admin);
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $point,
+            [
+                'latitude' => 45.5,
+                'longitude' => 5.5,
+                'accuracy' => 2.0,
+                ...$stalePrecondition,
+            ],
+            $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $point)),
+        );
+
+        self::assertResponseIsSuccessful();
+        self::assertSame([
+            'success' => true,
+            'message' => 'La position GPS de l’étape a été enregistrée.',
+            'primaryLocationStepId' => $pointId,
+            'step' => [
+                'id' => $pointId,
+                'position' => 1,
+                'latitude' => 45.5,
+                'longitude' => 5.5,
+                'accuracy' => 2,
+                'coordinatesInherited' => false,
+            ],
+        ], $this->responsePayload($client));
+        self::assertSame($currentSnapshot, $this->pointSnapshot($this->orderedSteps($draft)[0]));
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointRejectsInvalidOrIncompleteCoordinatesWithoutMutation(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $point = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 1);
+        $point
+            ->setTitle('Étape protégée des coordonnées invalides')
+            ->setNote('Cette note ne bouge pas')
+            ->setAccuracy(6.5)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($point);
+        $pointId = $this->entityId($point);
+        $expectedSnapshot = $this->pointSnapshot($point);
+        $client->loginUser($admin);
+        $token = $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $point));
+        $precondition = $this->coordinatePrecondition($point);
+        $invalidPayloads = [
+            'latitude hors limites' => [[
+                'latitude' => 90.0001,
+                'longitude' => 2.5,
+                ...$precondition,
+            ], 422, 'latitude GPS'],
+            'longitude hors limites' => [[
+                'latitude' => 42.5,
+                'longitude' => 180.0001,
+                ...$precondition,
+            ], 422, 'longitude GPS'],
+            'latitude non numérique' => [[
+                'latitude' => 'nord',
+                'longitude' => 2.5,
+                ...$precondition,
+            ], 422, 'latitude GPS'],
+            'longitude absente' => [[
+                'latitude' => 42.5,
+                ...$precondition,
+            ], 400, 'uniquement latitude'],
+            'latitude vide' => [[
+                'latitude' => null,
+                'longitude' => 2.5,
+                ...$precondition,
+            ], 422, 'doivent être renseignées'],
+            'champ métier inattendu' => [[
+                'latitude' => 42.5,
+                'longitude' => 2.5,
+                'position' => 9,
+                ...$precondition,
+            ], 400, 'uniquement latitude'],
+        ];
+
+        foreach ($invalidPayloads as $case => [$payload, $status, $errorContains]) {
+            $this->submitCoordinates($client, $draft, $point, $payload, $token);
+            $this->assertJsonFailure($client, $status, $errorContains);
+            self::assertSame(
+                $expectedSnapshot,
+                $this->pointSnapshot($this->stepsById($this->orderedSteps($draft))[$pointId]),
+                sprintf('Le cas « %s » ne doit rien modifier.', $case),
+            );
+        }
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointRejectsInvalidAccuracyWithoutMutation(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $point = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 1)
+            ->setAccuracy(7.25)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($point);
+        $pointId = $this->entityId($point);
+        $expectedSnapshot = $this->pointSnapshot($point);
+        $client->loginUser($admin);
+        $token = $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $point));
+
+        foreach ([-0.01, 'imprécise', true] as $invalidAccuracy) {
+            $this->submitCoordinates($client, $draft, $point, [
+                'latitude' => 45.5,
+                'longitude' => 5.5,
+                'accuracy' => $invalidAccuracy,
+                ...$this->coordinatePrecondition($point),
+            ], $token);
+            $this->assertJsonFailure($client, 422, 'précision GPS');
+            self::assertSame(
+                $expectedSnapshot,
+                $this->pointSnapshot($this->stepsById($this->orderedSteps($draft))[$pointId]),
+            );
+        }
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointRejectsBadCsrfWithoutMutation(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $point = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 1)
+            ->setAccuracy(7.25)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($point);
+        $expectedSnapshot = $this->pointSnapshot($point);
+        $client->loginUser($admin);
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $point,
+            [
+                'latitude' => 45.5,
+                'longitude' => 5.5,
+                'accuracy' => 2.0,
+                ...$this->coordinatePrecondition($point),
+            ],
+            'mauvais-jeton',
+        );
+
+        $this->assertJsonFailure($client, 403, 'jeton de sécurité');
+        self::assertSame($expectedSnapshot, $this->pointSnapshot($this->orderedSteps($draft)[0]));
+    }
+
+    #[DataProvider('routeKindProvider')]
+    public function testCoordinateEndpointRejectsPointFromAnotherDraftWithoutMutation(string $routeKind): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createRouteDraft($routeKind, $admin);
+        $localPoint = $this->createRoutePoint($draft, 42.1234567, 2.7654321, 1)
+            ->setAccuracy(7.25)
+            ->setCoordinatesInherited(false);
+        $foreignDraft = $this->createRouteDraft($routeKind, $admin);
+        $foreignPoint = $this->createRoutePoint($foreignDraft, 48.1234567, 6.7654321, 1)
+            ->setAccuracy(12.5)
+            ->setCoordinatesInherited(true);
+        $this->persistAndFlush($localPoint, $foreignPoint);
+        $localSnapshot = $this->pointSnapshot($localPoint);
+        $foreignSnapshot = $this->pointSnapshot($foreignPoint);
+        $client->loginUser($admin);
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $foreignPoint,
+            [
+                'latitude' => 45.5,
+                'longitude' => 5.5,
+                'accuracy' => 2.0,
+                ...$this->coordinatePrecondition($foreignPoint),
+            ],
+            $this->csrfTokenForClient($client, $this->tokenId($draft, 'coordinates', $foreignPoint)),
+        );
+
+        $this->assertJsonFailure($client, 404, 'introuvable');
+        self::assertSame($localSnapshot, $this->pointSnapshot($this->orderedSteps($draft)[0]));
+        self::assertSame($foreignSnapshot, $this->pointSnapshot($this->orderedSteps($foreignDraft)[0]));
+    }
+
+    #[DataProvider('routeKindProvider')]
     public function testReorderRejectsBadCsrfDuplicateIncompleteForeignAndUnknownIds(string $routeKind): void
     {
         $client = static::createClient();
@@ -575,12 +1075,14 @@ final class RouteStepControllerTest extends FunctionalTestCase
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
         $regularUser = $this->createUser();
+        $unverifiedAdmin = $this->createUnverifiedAdmin();
         $draft = $this->createRouteDraft($routeKind, $admin);
         $point = $this->createRoutePoint($draft, 42.5, 2.5, 1);
         $mutationUrls = [
             $this->addUrl($draft),
             $this->updateUrl($point),
             $this->reorderUrl($draft),
+            $this->coordinatesUrl($draft, $point),
             $this->deleteUrl($point),
         ];
 
@@ -595,9 +1097,17 @@ final class RouteStepControllerTest extends FunctionalTestCase
             self::assertResponseRedirects('/');
         }
 
+        $client->loginUser($unverifiedAdmin);
+        foreach ($mutationUrls as $url) {
+            $client->request('POST', $url);
+            self::assertResponseRedirects('/');
+        }
+
         $steps = $this->orderedSteps($draft);
         self::assertSame([$this->entityId($point)], $this->stepIds($steps));
         self::assertSame(1, $steps[0]->getPosition());
+        self::assertSame(42.5, $steps[0]->getLatitude());
+        self::assertSame(2.5, $steps[0]->getLongitude());
     }
 
     #[DataProvider('routeKindProvider')]
@@ -609,6 +1119,9 @@ final class RouteStepControllerTest extends FunctionalTestCase
         $createdThird = $this->createRoutePoint($draft, 43.3, 3.3, 3)->setTitle('Troisième');
         $createdFirst = $this->createRoutePoint($draft, 41.1, 1.1, 1)->setTitle('Première');
         $createdSecond = $this->createRoutePoint($draft, 42.2, 2.2, 2)->setTitle('Deuxième');
+        $createdFirst->setAccuracy(4.5)->setCoordinatesInherited(false);
+        $createdSecond->setAccuracy(7.25)->setCoordinatesInherited(true);
+        $createdThird->setAccuracy(null)->setCoordinatesInherited(false);
         $this->persistAndFlush($createdThird, $createdFirst, $createdSecond);
         $client->loginUser($admin);
         // Reload the association as an actual HTTP request would so Doctrine's
@@ -621,6 +1134,7 @@ final class RouteStepControllerTest extends FunctionalTestCase
         $ordering = $crawler->filter('[data-route-step-ordering]');
         self::assertCount(1, $ordering);
         self::assertSame($this->reorderUrl($draft), $ordering->attr('data-reorder-url'));
+        self::assertSame((string) $this->entityId($createdFirst), $ordering->attr('data-primary-step-id'));
         $reorderToken = $ordering->attr('data-reorder-token');
         self::assertIsString($reorderToken);
         self::assertNotSame('', $reorderToken);
@@ -649,6 +1163,10 @@ final class RouteStepControllerTest extends FunctionalTestCase
         self::assertSame(['1', '2', '3'], $steps->each(
             static fn (Crawler $step): string => (string) $step->attr('data-step-position'),
         ));
+        self::assertSame(
+            $steps->each(static fn (Crawler $step): string => (string) $step->attr('data-step-type')),
+            $steps->each(static fn (Crawler $step): string => (string) $step->attr('data-persisted-step-type')),
+        );
         self::assertSame(['Première', 'Deuxième', 'Troisième'], $steps->each(
             static fn (Crawler $step): string => trim($step->filter('[data-route-step-name]')->text()),
         ));
@@ -658,12 +1176,52 @@ final class RouteStepControllerTest extends FunctionalTestCase
         self::assertCount(3, $ordering->filter('[data-route-step-down]'));
         self::assertCount(3, $ordering->filter('[data-route-step-copy-previous]'));
         self::assertCount(3, $ordering->filter('[data-high-precision-gps]'));
+        $adjustButtons = $ordering->filter('[data-route-step-adjust-position]');
+        self::assertCount(3, $adjustButtons);
         self::assertCount(3, $ordering->filter('form[data-route-step-form]'));
         self::assertCount(3, $ordering->filter('form.route-step__delete-form'));
         self::assertCount(1, $steps->eq(0)->filter('[data-route-step-up][disabled]'));
         self::assertCount(0, $steps->eq(0)->filter('[data-route-step-down][disabled]'));
         self::assertCount(0, $steps->eq(2)->filter('[data-route-step-up][disabled]'));
         self::assertCount(1, $steps->eq(2)->filter('[data-route-step-down][disabled]'));
+
+        $canonicalPoints = [$createdFirst, $createdSecond, $createdThird];
+        $expectedInherited = ['false', 'true', 'false'];
+        $editor = $ordering->filter('[data-route-step-position-editor]');
+        self::assertCount(1, $editor);
+        self::assertCount(1, $editor->filter('[data-location-picker][data-location-picker-mode="route_step"]'));
+        self::assertCount(1, $editor->filter('[data-map-container]'));
+        self::assertCount(1, $editor->filter('[data-validate-point]'));
+        self::assertSame('Enregistrer cette position', trim($editor->filter('[data-validate-point]')->text()));
+        self::assertCount(1, $editor->filter('[data-route-step-position-editor-close]'));
+        self::assertTrue($editor->matches('[hidden]'));
+        self::assertCount(0, $steps->filter('[data-location-picker]'));
+        $editorId = $editor->attr('id');
+        self::assertIsString($editorId);
+        self::assertNotSame('', $editorId);
+        $renderedCoordinateTokens = [];
+
+        foreach ($canonicalPoints as $index => $point) {
+            $button = $adjustButtons->eq($index);
+            self::assertSame('Ajuster la position', trim($button->text()));
+            self::assertSame($routeKind, $button->attr('data-route-kind'));
+            self::assertSame((string) $this->entityId($draft), $button->attr('data-draft-id'));
+            self::assertSame((string) $this->entityId($point), $button->attr('data-step-id'));
+            self::assertSame((float) $point->getLatitude(), (float) $button->attr('data-latitude'));
+            self::assertSame((float) $point->getLongitude(), (float) $button->attr('data-longitude'));
+            self::assertSame($point->getAccuracy(), $button->attr('data-accuracy') === ''
+                ? null
+                : (float) $button->attr('data-accuracy'));
+            self::assertSame($expectedInherited[$index], $button->attr('data-coordinates-inherited'));
+            self::assertSame($this->coordinatesUrl($draft, $point), $button->attr('data-coordinates-url'));
+            $renderedToken = $button->attr('data-coordinates-token');
+            self::assertIsString($renderedToken);
+            self::assertNotSame('', $renderedToken);
+            $renderedCoordinateTokens[] = $renderedToken;
+            self::assertSame(sprintf('Ajuster la position GPS de l’étape %d', $index + 1), $button->attr('aria-label'));
+            self::assertSame($editorId, $button->attr('aria-controls'));
+            self::assertSame('false', $button->attr('aria-expanded'));
+        }
 
         foreach ($steps as $stepNode) {
             $step = new Crawler($stepNode);
@@ -681,6 +1239,22 @@ final class RouteStepControllerTest extends FunctionalTestCase
             }
             self::assertSame(['drag', 'up', 'down'], $controlOrder);
         }
+
+        $this->submitCoordinates(
+            $client,
+            $draft,
+            $createdSecond,
+            [
+                'latitude' => (float) $createdSecond->getLatitude(),
+                'longitude' => (float) $createdSecond->getLongitude(),
+                'accuracy' => $createdSecond->getAccuracy(),
+                ...$this->coordinatePrecondition($createdSecond),
+            ],
+            $renderedCoordinateTokens[1],
+        );
+        self::assertResponseIsSuccessful();
+        $persistedSecond = $this->stepsById($this->orderedSteps($draft))[$this->entityId($createdSecond)];
+        self::assertFalse($persistedSecond->hasInheritedCoordinates());
     }
 
     private function createRouteDraft(string $routeKind, User $admin): HikeDraft|CityVisitDraft
@@ -767,13 +1341,88 @@ final class RouteStepControllerTest extends FunctionalTestCase
         );
     }
 
-    private function assertJsonFailure(KernelBrowser $client, int $status, string $errorContains): void
+    /** @param array<string, mixed> $payload */
+    private function submitCoordinates(
+        KernelBrowser $client,
+        HikeDraft|CityVisitDraft $draft,
+        HikePoint|CityVisitPoint $point,
+        array $payload,
+        string $csrfToken,
+    ): void {
+        $client->request(
+            'POST',
+            $this->coordinatesUrl($draft, $point),
+            [],
+            [],
+            [
+                'CONTENT_TYPE' => 'application/json',
+                'HTTP_ACCEPT' => 'application/json',
+                'HTTP_X_CSRF_TOKEN' => $csrfToken,
+            ],
+            json_encode($payload, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    /**
+     * @return array{
+     *     expectedPosition: int,
+     *     expectedCoordinates: array{
+     *         latitude: float|null,
+     *         longitude: float|null,
+     *         accuracy: float|null,
+     *         coordinatesInherited: bool
+     *     }
+     * }
+     */
+    private function coordinatePrecondition(HikePoint|CityVisitPoint $point): array
+    {
+        return [
+            'expectedPosition' => $point->getPosition(),
+            'expectedCoordinates' => [
+                'latitude' => $point->getLatitude(),
+                'longitude' => $point->getLongitude(),
+                'accuracy' => $point->getAccuracy(),
+                'coordinatesInherited' => $point->hasInheritedCoordinates(),
+            ],
+        ];
+    }
+
+    private function attachPointMedia(
+        HikePoint|CityVisitPoint $point,
+        MediaAsset $media,
+    ): HikePointMedia|CityVisitPointMedia {
+        if ($point instanceof HikePoint) {
+            $link = (new HikePointMedia())
+                ->setHikePoint($point)
+                ->setMediaAsset($media);
+            $point->addMediaLink($link);
+
+            return $link;
+        }
+
+        $link = (new CityVisitPointMedia())
+            ->setCityVisitPoint($point)
+            ->setMediaAsset($media);
+        $point->addMediaLink($link);
+
+        return $link;
+    }
+
+    private function assertJsonFailure(
+        KernelBrowser $client,
+        int $status,
+        string $errorContains,
+        ?string $expectedCode = null,
+    ): void
     {
         self::assertResponseStatusCodeSame($status);
         $payload = $this->responsePayload($client);
         self::assertFalse($payload['success'] ?? true);
         self::assertIsString($payload['error'] ?? null);
         self::assertStringContainsStringIgnoringCase($errorContains, $payload['error']);
+        if ($expectedCode !== null) {
+            self::assertSame($expectedCode, $payload['code'] ?? null);
+        }
     }
 
     /** @return array<string, mixed> */
@@ -846,6 +1495,16 @@ final class RouteStepControllerTest extends FunctionalTestCase
         ];
     }
 
+    /** @return array<string, bool|float|int|string|null> */
+    private function pointSnapshot(HikePoint|CityVisitPoint $point): array
+    {
+        return [
+            'position' => $point->getPosition(),
+            'type' => $point->getType()->value,
+            ...$this->gpsSnapshot($point),
+        ];
+    }
+
     private function entityId(HikeDraft|CityVisitDraft|HikePoint|CityVisitPoint $entity): int
     {
         $id = $entity->getId();
@@ -889,6 +1548,29 @@ final class RouteStepControllerTest extends FunctionalTestCase
         }
 
         return sprintf('/admin/studio/city-visits/%d/points/reorder', $this->entityId($draft));
+    }
+
+    private function coordinatesUrl(
+        HikeDraft|CityVisitDraft $draft,
+        HikePoint|CityVisitPoint $point,
+    ): string {
+        if ($draft instanceof HikeDraft) {
+            self::assertInstanceOf(HikePoint::class, $point);
+
+            return sprintf(
+                '/admin/studio/hikes/%d/steps/%d/coordinates',
+                $this->entityId($draft),
+                $this->entityId($point),
+            );
+        }
+
+        self::assertInstanceOf(CityVisitPoint::class, $point);
+
+        return sprintf(
+            '/admin/studio/city-visits/%d/steps/%d/coordinates',
+            $this->entityId($draft),
+            $this->entityId($point),
+        );
     }
 
     private function updateUrl(HikePoint|CityVisitPoint $point): string

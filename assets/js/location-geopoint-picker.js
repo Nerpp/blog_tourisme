@@ -16,7 +16,7 @@ const coordinateValue = (value, min, max) => {
     return null;
   }
 
-  const number = Number.parseFloat(String(value).replace(',', '.'));
+  const number = Number(String(value).trim().replace(',', '.'));
 
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
 };
@@ -78,6 +78,10 @@ const initLocationGeopointPicker = (root) => {
   if (!mapElement) {
     return;
   }
+  if (root.dataset.locationPickerReady === 'true' || root.dataset.locationPickerInitializing === 'true') {
+    return;
+  }
+  root.dataset.locationPickerInitializing = 'true';
 
   const fields = {
     type: root.querySelector('[data-location-type-input]'),
@@ -107,6 +111,7 @@ const initLocationGeopointPicker = (root) => {
   const mapPanel = root.querySelector('[data-map-panel], [data-prevision-map-panel]');
   const mapPlaceholder = root.querySelector('[data-map-placeholder], [data-prevision-map-placeholder]');
   const mapStatus = root.querySelector('[data-map-status], [data-prevision-map-status]');
+  const pendingCoordinates = root.querySelector('[data-map-pending-coordinates]');
   const gpsStatus = root.querySelector('[data-gps-status], [data-prevision-gps-status]');
   const validateButton = root.querySelector('[data-validate-point], [data-prevision-validate-point]');
   const centerButton = root.querySelector('[data-center-commune], [data-prevision-center-commune]');
@@ -127,13 +132,28 @@ const initLocationGeopointPicker = (root) => {
   const defaultLongitude = coordinateValue(mapElement.dataset.defaultLongitude, -180, 180) ?? 2.6;
   const defaultZoom = Number.parseInt(mapElement.dataset.defaultZoom ?? '9', 10) || 9;
   const requiresCommuneForValidation = validateButton?.dataset.requireCommuneForValidation === '1';
+  const routeStepMode = root.dataset.locationPickerMode === 'route_step';
+  const validationActionLabel = routeStepMode ? 'Enregistrer cette position' : 'Valider ce point';
 
   let markerPosition = null;
   let pendingSource = 'manual_map';
+  let synchronizingCoordinateFields = false;
   let searchAbortController = null;
   let requestIndex = 0;
   let map = null;
   let marker = null;
+  let locked = false;
+  let validationAllowedWhileLocked = false;
+  let geolocationRequestIndex = 0;
+
+  const markManualSelection = () => {
+    pendingSource = 'manual_map';
+    assign(fields.accuracy, '');
+  };
+
+  const movedPointMessage = () => (
+    `Point déplacé. Cliquez sur ${validationActionLabel} pour enregistrer les coordonnées.`
+  );
 
   const hasCommune = () => (
     (fields.commune?.value || '').trim() !== ''
@@ -147,10 +167,44 @@ const initLocationGeopointPicker = (root) => {
 
   const setMapControls = () => {
     if (validateButton) {
-      validateButton.disabled = markerPosition === null || (requiresCommuneForValidation && !hasCommune());
+      validateButton.disabled = (locked && !validationAllowedWhileLocked)
+        || markerPosition === null
+        || (requiresCommuneForValidation && !hasCommune());
     }
     if (centerButton) {
-      centerButton.disabled = !hasCommuneCenter();
+      centerButton.disabled = locked || !hasCommuneCenter();
+    }
+    if (gpsButton) {
+      gpsButton.disabled = locked;
+    }
+  };
+
+  const pendingCoordinateDetail = () => {
+    if (!markerPosition) {
+      return null;
+    }
+
+    const accuracy = coordinateValue(fields.accuracy?.value, 0, Number.MAX_VALUE);
+
+    return {
+      latitude: Number(formatCoordinate(markerPosition.lat)),
+      longitude: Number(formatCoordinate(markerPosition.lng)),
+      accuracy,
+      source: pendingSource,
+    };
+  };
+
+  const renderPendingCoordinates = (dispatch = true) => {
+    const detail = pendingCoordinateDetail();
+    text(pendingCoordinates, detail === null
+      ? ''
+      : `Latitude : ${formatCoordinate(detail.latitude)}\nLongitude : ${formatCoordinate(detail.longitude)}`);
+
+    if (dispatch && detail !== null) {
+      root.dispatchEvent(new CustomEvent('location-geopoint-picker:point-moved', {
+        bubbles: true,
+        detail,
+      }));
     }
   };
 
@@ -194,13 +248,42 @@ const initLocationGeopointPicker = (root) => {
     searchWrapper?.setAttribute('hidden', '');
   };
 
+  const createMarker = (latitude, longitude) => {
+    if (!map) {
+      return;
+    }
+
+    marker = L.marker([latitude, longitude], {
+      draggable: true,
+      title: 'Point précis à valider',
+    }).addTo(map);
+
+    marker.on('dragend', () => {
+      if (locked) {
+        if (markerPosition) {
+          marker?.setLatLng(markerPosition);
+        }
+        return;
+      }
+      markerPosition = marker?.getLatLng() ?? null;
+      markManualSelection();
+      setMapControls();
+      renderPendingCoordinates();
+      text(mapStatus, movedPointMessage());
+    });
+  };
+
   const moveMarker = (latitude, longitude, zoom = null) => {
-    if (!map || !marker) {
+    if (!map) {
       return;
     }
 
     markerPosition = L.latLng(latitude, longitude);
-    marker.setLatLng(markerPosition);
+    if (!marker) {
+      createMarker(latitude, longitude);
+    } else {
+      marker.setLatLng(markerPosition);
+    }
 
     if (zoom !== null) {
       map.setView(markerPosition, zoom);
@@ -208,6 +291,17 @@ const initLocationGeopointPicker = (root) => {
       map.panTo(markerPosition);
     }
 
+    setMapControls();
+    renderPendingCoordinates();
+  };
+
+  const clearMarker = () => {
+    if (marker && map) {
+      map.removeLayer(marker);
+    }
+    marker = null;
+    markerPosition = null;
+    renderPendingCoordinates(false);
     setMapControls();
   };
 
@@ -223,42 +317,37 @@ const initLocationGeopointPicker = (root) => {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
 
-    marker = L.marker([latitude, longitude], {
-      draggable: true,
-      title: 'Point précis à valider',
-    }).addTo(map);
-
-    marker.on('dragend', () => {
-      markerPosition = marker.getLatLng();
-      pendingSource = 'manual_map';
-      setMapControls();
-      text(mapStatus, 'Point déplacé. Cliquez sur Valider ce point pour enregistrer les coordonnées.');
-    });
-
     map.on('click', (event) => {
-      pendingSource = 'manual_map';
+      if (locked) {
+        return;
+      }
+      markManualSelection();
       moveMarker(event.latlng.lat, event.latlng.lng);
-      text(mapStatus, 'Point déplacé. Cliquez sur Valider ce point pour enregistrer les coordonnées.');
+      text(mapStatus, movedPointMessage());
     });
   };
 
-  const showMap = (latitude, longitude, zoom = 14) => {
+  const showMap = (latitude, longitude, zoom = 14, selectPoint = true) => {
     mapPanel?.removeAttribute('hidden');
     mapPlaceholder?.setAttribute('hidden', '');
 
-    if (!map || !marker) {
+    if (!map) {
       createMap(latitude, longitude, zoom);
     }
 
-    moveMarker(latitude, longitude, zoom);
+    if (selectPoint) {
+      moveMarker(latitude, longitude, zoom);
+    } else {
+      clearMarker();
+      map?.setView([latitude, longitude], zoom);
+    }
     window.setTimeout(() => map?.invalidateSize(), 0);
   };
 
   const hideMap = () => {
     mapPanel?.setAttribute('hidden', '');
     mapPlaceholder?.removeAttribute('hidden');
-    markerPosition = null;
-    setMapControls();
+    clearMarker();
   };
 
   const clearValidatedCoordinates = () => {
@@ -418,6 +507,9 @@ const initLocationGeopointPicker = (root) => {
   };
 
   validateButton?.addEventListener('click', () => {
+    if (locked && !validationAllowedWhileLocked) {
+      return;
+    }
     if (requiresCommuneForValidation && !hasCommune()) {
       text(mapStatus, 'Sélectionnez une commune avant de valider la localisation.');
       return;
@@ -428,18 +520,35 @@ const initLocationGeopointPicker = (root) => {
       return;
     }
 
-    assign(fields.latitude, formatCoordinate(markerPosition.lat));
-    assign(fields.longitude, formatCoordinate(markerPosition.lng));
+    synchronizingCoordinateFields = true;
+    try {
+      assign(fields.latitude, formatCoordinate(markerPosition.lat));
+      assign(fields.longitude, formatCoordinate(markerPosition.lng));
+    } finally {
+      synchronizingCoordinateFields = false;
+    }
 
     if (pendingSource === 'gps') {
       assign(fields.source, selectSupportsValue(fields.source, 'gps') ? 'gps' : fields.source?.value);
     } else {
       assign(fields.source, selectSupportsValue(fields.source, 'manual_map') ? 'manual_map' : fields.source?.value);
-      assign(fields.accuracy, '');
+      if (pendingSource === 'manual_map') {
+        assign(fields.accuracy, '');
+      }
     }
 
     updateCoordinateLinks();
     text(mapStatus, 'Point validé sur la carte.');
+
+    root.dispatchEvent(new CustomEvent('location-geopoint-picker:point-validated', {
+      bubbles: true,
+      detail: {
+        latitude: fields.latitude?.value ?? '',
+        longitude: fields.longitude?.value ?? '',
+        accuracy: fields.accuracy?.value || null,
+        source: pendingSource,
+      },
+    }));
 
     const submitFormId = validateButton.dataset.validateSubmitForm;
     if (submitFormId) {
@@ -456,19 +565,26 @@ const initLocationGeopointPicker = (root) => {
       return;
     }
 
-    pendingSource = 'manual_map';
+    markManualSelection();
     showMap(latitude, longitude, 14);
-    text(mapStatus, 'Carte recentrée sur la commune. Cliquez sur Valider ce point pour utiliser ce point.');
+    text(mapStatus, `Carte recentrée sur la commune. Cliquez sur ${validationActionLabel} pour utiliser ce point.`);
   });
 
   gpsButton?.addEventListener('click', () => {
+    if (locked) {
+      return;
+    }
     if (!navigator.geolocation) {
       text(gpsStatus, 'La géolocalisation n’est pas disponible sur ce navigateur.');
       return;
     }
 
     text(gpsStatus, 'Recherche de position en cours...');
+    const geolocationRequest = ++geolocationRequestIndex;
     navigator.geolocation.getCurrentPosition((position) => {
+      if (locked || geolocationRequest !== geolocationRequestIndex) {
+        return;
+      }
       const latitude = position.coords.latitude;
       const longitude = position.coords.longitude;
       const accuracy = Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : null;
@@ -480,7 +596,10 @@ const initLocationGeopointPicker = (root) => {
         assign(fields.accuracy, accuracy);
       }
 
-      if (hasCommune()) {
+      if (routeStepMode) {
+        text(gpsStatus, accuracy !== null ? `Position GPS trouvée. Précision : +/- ${accuracy} m.` : 'Position GPS trouvée.');
+        text(mapStatus, 'Position GPS placée sur la carte. Cliquez sur Enregistrer cette position pour la conserver.');
+      } else if (hasCommune()) {
         text(gpsStatus, accuracy !== null ? `Position GPS trouvée. Précision : +/- ${accuracy} m.` : 'Position GPS trouvée.');
         text(mapStatus, 'Position GPS placée sur la carte. Cliquez sur Valider ce point pour renseigner les coordonnées.');
       } else {
@@ -488,6 +607,9 @@ const initLocationGeopointPicker = (root) => {
         text(mapStatus, 'Position GPS placée sur la carte. Sélectionnez maintenant la commune correspondante pour créer la visite.');
       }
     }, () => {
+      if (locked || geolocationRequest !== geolocationRequestIndex) {
+        return;
+      }
       text(gpsStatus, 'Position GPS indisponible. Vous pouvez déplacer le marqueur ou saisir les coordonnées manuellement.');
     }, {
       enableHighAccuracy: true,
@@ -496,8 +618,38 @@ const initLocationGeopointPicker = (root) => {
     });
   });
 
-  fields.latitude?.addEventListener('input', updateCoordinateLinks);
-  fields.longitude?.addEventListener('input', updateCoordinateLinks);
+  const syncMapFromCoordinateFields = () => {
+    if (synchronizingCoordinateFields || locked) {
+      return;
+    }
+
+    const latitude = coordinateValue(fields.latitude?.value, -90, 90);
+    const longitude = coordinateValue(fields.longitude?.value, -180, 180);
+    if (latitude === null || longitude === null) {
+      clearMarker();
+      const hasManualValue = (fields.latitude?.value || '').trim() !== ''
+        || (fields.longitude?.value || '').trim() !== '';
+      text(mapStatus, hasManualValue
+        ? 'Renseignez une latitude et une longitude valides avant de confirmer ce point.'
+        : 'Renseignez une latitude et une longitude avant de confirmer ce point.');
+      return;
+    }
+
+    markManualSelection();
+    showMap(latitude, longitude, 17);
+    text(mapStatus, `Coordonnées saisies placées sur la carte. Cliquez sur ${validationActionLabel} pour les confirmer.`);
+  };
+
+  fields.latitude?.addEventListener('input', () => {
+    updateCoordinateLinks();
+    syncMapFromCoordinateFields();
+  });
+  fields.longitude?.addEventListener('input', () => {
+    updateCoordinateLinks();
+    syncMapFromCoordinateFields();
+  });
+  fields.latitude?.addEventListener('change', syncMapFromCoordinateFields);
+  fields.longitude?.addEventListener('change', syncMapFromCoordinateFields);
   searchInput?.addEventListener('input', () => searchCommunes(searchInput.value.trim()));
   editCommune?.addEventListener('click', () => {
     clearSearchState();
@@ -524,6 +676,66 @@ const initLocationGeopointPicker = (root) => {
     setMapControls();
   });
 
+  const setCoordinates = (latitude, longitude, options = {}) => {
+    const normalizedLatitude = coordinateValue(latitude, -90, 90);
+    const normalizedLongitude = coordinateValue(longitude, -180, 180);
+    const hasCoordinates = normalizedLatitude !== null && normalizedLongitude !== null;
+    const normalizedAccuracy = coordinateValue(options.accuracy, 0, Number.MAX_VALUE);
+
+    synchronizingCoordinateFields = true;
+    try {
+      assign(fields.latitude, hasCoordinates ? String(latitude).trim().replace(',', '.') : '');
+      assign(fields.longitude, hasCoordinates ? String(longitude).trim().replace(',', '.') : '');
+      assign(fields.accuracy, normalizedAccuracy === null ? '' : String(options.accuracy).trim().replace(',', '.'));
+    } finally {
+      synchronizingCoordinateFields = false;
+    }
+
+    pendingSource = typeof options.source === 'string' ? options.source : 'manual_map';
+    if (hasCoordinates) {
+      showMap(normalizedLatitude, normalizedLongitude, Number.isInteger(options.zoom) ? options.zoom : 17);
+      text(mapStatus, options.statusMessage || 'Coordonnées actuelles chargées. Déplacez le marqueur puis validez la nouvelle position.');
+    } else {
+      const centerLatitude = coordinateValue(options.centerLatitude, -90, 90) ?? defaultLatitude;
+      const centerLongitude = coordinateValue(options.centerLongitude, -180, 180) ?? defaultLongitude;
+      const zoom = Number.isInteger(options.zoom) ? options.zoom : defaultZoom;
+      showMap(centerLatitude, centerLongitude, zoom, false);
+      text(mapStatus, options.statusMessage || 'Aucune coordonnée enregistrée. Cliquez sur la carte ou relevez votre position GPS.');
+    }
+
+    updateCoordinateLinks();
+    root.dispatchEvent(new CustomEvent('location-geopoint-picker:coordinates-loaded', {
+      bubbles: true,
+      detail: {
+        hasCoordinates,
+        latitude: hasCoordinates ? normalizedLatitude : null,
+        longitude: hasCoordinates ? normalizedLongitude : null,
+        accuracy: normalizedAccuracy,
+      },
+    }));
+
+    return hasCoordinates;
+  };
+
+  const setLocked = (nextLocked, options = {}) => {
+    const shouldLock = nextLocked === true;
+    if (shouldLock && !locked) {
+      geolocationRequestIndex += 1;
+    }
+    locked = shouldLock;
+    validationAllowedWhileLocked = locked && options.allowValidation === true;
+    root.toggleAttribute('data-location-picker-locked', locked);
+    setMapControls();
+  };
+
+  root.locationGeopointPicker = Object.freeze({
+    setCoordinates,
+    getCoordinates: pendingCoordinateDetail,
+    invalidateSize: () => map?.invalidateSize(),
+    setLocked,
+  });
+  root.setCoordinates = setCoordinates;
+
   const existingLatitude = coordinateValue(fields.latitude?.value, -90, 90);
   const existingLongitude = coordinateValue(fields.longitude?.value, -180, 180);
   const centerLatitude = coordinateValue(fields.communeCenterLatitude?.value, -90, 90);
@@ -543,6 +755,9 @@ const initLocationGeopointPicker = (root) => {
 
   updateCoordinateLinks();
   setMapControls();
+  delete root.dataset.locationPickerInitializing;
+  root.dataset.locationPickerReady = 'true';
+  root.dispatchEvent(new CustomEvent('location-geopoint-picker:ready', { bubbles: true }));
 };
 
 export const initLocationGeopointPickers = () => {

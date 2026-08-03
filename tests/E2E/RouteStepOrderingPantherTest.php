@@ -38,7 +38,7 @@ final class RouteStepOrderingPantherTest extends PantherTestCase
         self::assertSame(3, $initialState['gpsComponentCount']);
         self::assertSame([1, 1, 1], $initialState['gpsComponentsPerStep']);
         self::assertSame(3, $initialState['readyGpsComponentCount']);
-        self::assertSame(0, $initialState['routeMapCount']);
+        self::assertSame(1, $initialState['routeMapCount']);
         self::assertTrue($initialState['duplicateWarningVisible']);
         self::assertTrue($initialState['firstUpDisabled']);
         self::assertTrue($initialState['lastDownDisabled']);

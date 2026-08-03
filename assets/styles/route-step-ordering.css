@@ -108,6 +108,77 @@
   padding-top: 4px;
 }
 
+.route-step-position-editor {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  scroll-margin-top: 92px;
+  border: 2px solid var(--admin-primary);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: 0 12px 30px rgba(19, 80, 51, 0.14);
+}
+
+.route-step-position-editor[hidden] {
+  display: none;
+}
+
+.route-step-position-editor__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.route-step-position-editor__header h3 {
+  margin: 0;
+}
+
+.route-step-position-editor__status {
+  min-height: 24px;
+  margin: 0;
+  color: var(--admin-muted);
+  font-weight: 800;
+}
+
+.route-step-position-editor__status.is-saving {
+  color: var(--admin-info);
+}
+
+.route-step-position-editor__status.is-success {
+  color: var(--admin-primary);
+}
+
+.route-step-position-editor__status.is-error {
+  color: var(--admin-warning);
+}
+
+.route-step-position-editor .location-picker__map {
+  min-height: min(420px, 55vh);
+}
+
+.route-step-position-editor.is-coordinate-saving {
+  cursor: wait;
+}
+
+.route-step-position-editor.is-coordinate-uncertain,
+.route-step-position-editor.is-coordinate-stale,
+.route-step-position-editor.is-coordinate-ui-conflict {
+  border-color: var(--admin-warning);
+}
+
+.location-picker.is-coordinate-locked .location-picker__map,
+.location-picker.is-coordinate-locked .location-picker__link {
+  pointer-events: none;
+}
+
+.location-picker.is-coordinate-locked .location-picker__map {
+  filter: saturate(0.7);
+  opacity: 0.72;
+}
+
 .route-step-insertion {
   justify-content: center;
   padding: 5px 0;
@@ -144,14 +215,30 @@
   .route-step__header,
   .route-step__order-actions,
   .route-step-insertion,
-  .route-step__delete-form {
+  .route-step__delete-form,
+  .route-step-position-editor__header {
     display: grid;
     grid-template-columns: 1fr;
   }
 
   .route-step__order-actions .admin-button,
   .route-step-insertion .admin-button,
-  .route-step__delete-form .admin-button {
+  .route-step__delete-form .admin-button,
+  .route-step-position-editor .admin-button {
     width: 100%;
+  }
+
+  .route-step-position-editor {
+    padding: 14px;
+  }
+
+  .route-step-position-editor .location-picker__map {
+    min-height: min(320px, 48vh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-step-insertion {
+    transition: none;
   }
 }

@@ -44,6 +44,7 @@
 
 {% set picker_id = picker_id|default('location-geopoint-picker') %}
 {% set render_root = render_root|default(true) %}
+{% set render_styles = render_styles is defined ? render_styles : true %}
 {% set mode = mode|default('default') %}
 {% set ui_context = ui_context|default('admin') %}
 {% set row_class = row_class|default(ui_context == 'field' ? 'field-row' : 'admin-field') %}
@@ -68,6 +69,8 @@
 {% set validate_button_label = validate_button_label|default('Valider ce point') %}
 {% set validate_submit_form_id = validate_submit_form_id|default(null) %}
 {% set require_commune_for_validation = require_commune_for_validation|default(false) %}
+{% set show_commune_section = show_commune_section is defined ? show_commune_section : true %}
+{% set show_center_button = show_center_button is defined ? show_center_button : true %}
 {% set show_osm_link = show_osm_link is defined ? show_osm_link : true %}
 {% set has_commune = initial_commune is not empty and initial_insee is not empty %}
 {% set has_coordinates = initial_latitude is not empty and initial_longitude is not empty %}
@@ -113,6 +116,7 @@
     }) %}
 {% endif %}
 
+{% if render_styles %}
 <style>
     .location-picker,
     .location-picker__section,
@@ -204,6 +208,7 @@
         pointer-events: none;
     }
 </style>
+{% endif %}
 
 {% if render_root %}
 <section class="location-picker" data-location-picker data-location-picker-mode="{{ mode }}" id="{{ picker_id }}">
@@ -214,6 +219,7 @@
         {% endif %}
     {% endfor %}
 
+    {% if show_commune_section %}
     <section class="location-picker__section" aria-labelledby="{{ picker_id }}-commune-heading">
         <h3 id="{{ picker_id }}-commune-heading">{{ commune_title|default('Commune géographique') }}</h3>
         <div class="location-picker__search" data-commune-search-panel {% if has_commune %}hidden{% endif %}>
@@ -246,6 +252,7 @@
             </div>
         {% endif %}
     </section>
+    {% endif %}
 
     <section class="location-picker__section" aria-labelledby="{{ picker_id }}-point-heading">
         <h3 id="{{ picker_id }}-point-heading">{{ point_title|default('Coordonnées GPS optionnelles') }}</h3>
@@ -262,16 +269,19 @@
                 data-default-zoom="{{ default_zoom|default('9') }}"
                 aria-label="{{ map_label|default('Carte de sélection du point précis') }}"
             ></div>
-            <p class="location-picker__status" data-map-status {% if legacy_prefix == 'prevision' %}data-prevision-map-status{% endif %}>{{ has_coordinates ? 'Coordonnées déjà renseignées.' : (show_map ? 'Carte centrée sur la commune.' : 'Aucune coordonnée précise n’est renseignée.') }}</p>
+            <p class="location-picker__status" data-map-pending-coordinates aria-live="polite"></p>
+            <p class="location-picker__status" data-map-status role="status" aria-live="polite" {% if legacy_prefix == 'prevision' %}data-prevision-map-status{% endif %}>{{ has_coordinates ? 'Coordonnées déjà renseignées.' : (show_map ? 'Carte centrée sur la commune.' : 'Aucune coordonnée précise n’est renseignée.') }}</p>
         </div>
 
         <div class="location-picker__point-tools">
             <div class="admin-row-actions field-actions">
                 <button class="{{ primary_button }}" type="button" data-validate-point {% if validate_submit_form_id %}data-validate-submit-form="{{ validate_submit_form_id }}"{% endif %} {% if require_commune_for_validation %}data-require-commune-for-validation="1"{% endif %} {% if legacy_prefix == 'prevision' %}data-prevision-validate-point{% endif %} {% if not show_map %}disabled{% endif %}>{{ validate_button_label }}</button>
-                <button class="{{ secondary_button }}" type="button" data-center-commune {% if legacy_prefix == 'prevision' %}data-prevision-center-commune{% endif %} {% if not has_commune_center %}disabled{% endif %}>Centrer sur la commune</button>
+                {% if show_center_button %}
+                    <button class="{{ secondary_button }}" type="button" data-center-commune {% if legacy_prefix == 'prevision' %}data-prevision-center-commune{% endif %} {% if not has_commune_center %}disabled{% endif %}>Centrer sur la commune</button>
+                {% endif %}
                 <button class="{{ secondary_button }}" type="button" data-location-gps {% if legacy_prefix == 'prevision' %}data-prevision-gps{% endif %}>Relever ma position GPS</button>
             </div>
-            <p class="location-picker__status" data-gps-status {% if legacy_prefix == 'prevision' %}data-prevision-gps-status{% endif %}>Coordonnées manuelles, carte ou GPS acceptées.</p>
+            <p class="location-picker__status" data-gps-status role="status" aria-live="polite" {% if legacy_prefix == 'prevision' %}data-prevision-gps-status{% endif %}>Coordonnées manuelles, carte ou GPS acceptées.</p>
         </div>
 
         {% if coordinate_field_keys is not empty %}
