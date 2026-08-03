@@ -30,7 +30,9 @@
 {% endfor %}
 
 {% for point in item.points %}
-    {% if point.latitude is not null and point.longitude is not null %}
+    {% if point.latitude is not null and point.longitude is not null
+        and point.latitude >= -90 and point.latitude <= 90
+        and point.longitude >= -180 and point.longitude <= 180 %}
         {% set valid_gps_points = valid_gps_points|merge([point]) %}
         {% set hike_map_points = hike_map_points|merge([{
             id: point.id,
@@ -663,7 +665,9 @@
                         <p>{{ point.note|nl2br }}</p>
                     {% endif %}
 
-                    {% if point.latitude is not null and point.longitude is not null %}
+                    {% if point.latitude is not null and point.longitude is not null
+                        and point.latitude >= -90 and point.latitude <= 90
+                        and point.longitude >= -180 and point.longitude <= 180 %}
                         <div class="public-point-gps">
                             {% if gps_point_type == 'hike' %}
                                 <a

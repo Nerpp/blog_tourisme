@@ -45,6 +45,7 @@ export default defineConfig(({ command }) => ({
         profile: fileURLToPath(new URL('./assets/entries/profile.js', import.meta.url)),
         admin: fileURLToPath(new URL('./assets/js/admin.js', import.meta.url)),
         adminHighPrecisionGps: fileURLToPath(new URL('./assets/js/admin-high-precision-gps.js', import.meta.url)),
+        routeStepOrdering: fileURLToPath(new URL('./assets/js/route-step-ordering.js', import.meta.url)),
         adminPlaceGps: fileURLToPath(new URL('./assets/js/admin-place-gps.js', import.meta.url)),
         locationGeopointPicker: fileURLToPath(new URL('./assets/js/location-geopoint-picker.js', import.meta.url)),
         previsionDestinationMap: fileURLToPath(new URL('./assets/js/prevision-destination-map.js', import.meta.url)),

@@ -8,6 +8,7 @@ use App\Entity\MediaAsset;
 use App\Entity\PlaceMedia;
 use App\Entity\User;
 use App\Enum\CityVisitDraftStatus;
+use App\Enum\CityVisitPointType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
 use App\Enum\ImageType;
@@ -413,7 +414,7 @@ trait StudioMediaHelperTrait
     }
 
     /**
-     * @param list<CityVisitDraftStatus|HikeDraftStatus|HikePointType|ImageType|VideoType> $cases
+     * @param list<CityVisitDraftStatus|CityVisitPointType|HikeDraftStatus|HikePointType|ImageType|VideoType> $cases
      * @param array<int|string, string> $labels
      *
      * @return array<int|string, string>

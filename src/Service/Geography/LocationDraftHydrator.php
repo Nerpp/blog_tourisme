@@ -10,6 +10,7 @@ use App\Entity\HikePoint;
 use App\Enum\CityVisitPointType;
 use App\Enum\HikePointType;
 use App\Service\GeographicHierarchyResolver;
+use App\Service\RouteStep\RouteStepOrderingService;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -32,6 +33,7 @@ final class LocationDraftHydrator
 {
     public function __construct(
         private readonly GeographicHierarchyResolver $geographicHierarchyResolver,
+        private readonly ?RouteStepOrderingService $routeStepOrderingService = null,
     ) {
     }
 
@@ -210,15 +212,20 @@ final class LocationDraftHydrator
         if (!$point instanceof HikePoint) {
             $point = (new HikePoint())
                 ->setType(HikePointType::Start)
-                ->setTitle('Point de départ')
-                ->setPosition($this->nextHikePointPosition($draft));
-            $draft->addPoint($point);
+                ->setTitle('Point de départ');
+            if ($draft->getId() !== null && $this->routeStepOrderingService instanceof RouteStepOrderingService) {
+                $this->routeStepOrderingService->insertAtPosition($draft, $point, 1);
+            } else {
+                $point->setPosition(1);
+                $draft->addPoint($point);
+            }
         }
 
         $point
             ->setLatitude($data['latitude'])
             ->setLongitude($data['longitude'])
             ->setAccuracy($data['gpsAccuracy'])
+            ->setCoordinatesInherited(false)
             ->setDetectedCommuneName($data['communeName'])
             ->setDetectedCommuneCode($data['communeInseeCode'])
             ->setDetectedDepartmentName($data['departmentName'])
@@ -236,15 +243,20 @@ final class LocationDraftHydrator
         if (!$point instanceof CityVisitPoint) {
             $point = (new CityVisitPoint())
                 ->setType(CityVisitPointType::Start)
-                ->setTitle('Point principal')
-                ->setPosition($this->nextCityVisitPointPosition($draft));
-            $draft->addPoint($point);
+                ->setTitle('Point principal');
+            if ($draft->getId() !== null && $this->routeStepOrderingService instanceof RouteStepOrderingService) {
+                $this->routeStepOrderingService->insertAtPosition($draft, $point, 1);
+            } else {
+                $point->setPosition(1);
+                $draft->addPoint($point);
+            }
         }
 
         $point
             ->setLatitude($data['latitude'])
             ->setLongitude($data['longitude'])
             ->setAccuracy($data['gpsAccuracy'])
+            ->setCoordinatesInherited(false)
             ->setDetectedCommuneName($data['communeName'])
             ->setDetectedCommuneCode($data['communeInseeCode'])
             ->setDetectedDepartmentName($data['departmentName'])
@@ -254,7 +266,7 @@ final class LocationDraftHydrator
     private function primaryHikePoint(HikeDraft $draft): ?HikePoint
     {
         $points = $draft->getPoints()->toArray();
-        usort($points, static fn (HikePoint $a, HikePoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($points, static fn (HikePoint $a, HikePoint $b): int => $a->getPosition() <=> $b->getPosition());
 
         foreach ($points as $point) {
             if ($point->getType() === HikePointType::Start) {
@@ -268,7 +280,7 @@ final class LocationDraftHydrator
     private function primaryCityVisitPoint(CityVisitDraft $draft): ?CityVisitPoint
     {
         $points = $draft->getPoints()->toArray();
-        usort($points, static fn (CityVisitPoint $a, CityVisitPoint $b): int => [$a->getPosition(), $a->getId() ?? 0] <=> [$b->getPosition(), $b->getId() ?? 0]);
+        usort($points, static fn (CityVisitPoint $a, CityVisitPoint $b): int => $a->getPosition() <=> $b->getPosition());
 
         foreach ($points as $point) {
             if ($point->getType() === CityVisitPointType::Start) {
@@ -277,26 +289,6 @@ final class LocationDraftHydrator
         }
 
         return $points[0] ?? null;
-    }
-
-    private function nextHikePointPosition(HikeDraft $draft): int
-    {
-        $position = 0;
-        foreach ($draft->getPoints() as $point) {
-            $position = max($position, $point->getPosition());
-        }
-
-        return $position + 1;
-    }
-
-    private function nextCityVisitPointPosition(CityVisitDraft $draft): int
-    {
-        $position = 0;
-        foreach ($draft->getPoints() as $point) {
-            $position = max($position, $point->getPosition());
-        }
-
-        return $position + 1;
     }
 
     /** @param list<string> $keys */

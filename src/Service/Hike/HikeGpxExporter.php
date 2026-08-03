@@ -91,8 +91,7 @@ final class HikeGpxExporter
 
         usort(
             $points,
-            static fn (HikePoint $first, HikePoint $second): int => $first->getPosition() <=> $second->getPosition()
-                ?: ($first->getId() ?? 0) <=> ($second->getId() ?? 0),
+            static fn (HikePoint $first, HikePoint $second): int => $first->getPosition() <=> $second->getPosition(),
         );
 
         return $points;
