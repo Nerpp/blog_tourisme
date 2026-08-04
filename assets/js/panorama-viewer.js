@@ -4,7 +4,9 @@ import 'pannellum';
 const unavailableMessage = 'La vue 360° n’est pas disponible sur cet appareil, mais vous pouvez consulter l’image en aperçu.';
 
 function markUnavailable(element, message = unavailableMessage) {
-  element.classList.remove('is-loading');
+  delete element.dataset.panoramaInitialized;
+  delete element.publicDetailPanoramaViewer;
+  element.classList.remove('is-loading', 'is-loaded');
   element.classList.add('is-unavailable');
 
   const fallbackMessage = element.querySelector('[data-panorama-fallback-message]');
@@ -60,7 +62,7 @@ export function initPanoramaViewer(element) {
     return;
   }
 
-  element.dataset.panoramaInitialized = 'true';
+  element.classList.remove('is-unavailable', 'is-loaded');
   element.classList.add('is-loading');
 
   try {
@@ -75,7 +77,14 @@ export function initPanoramaViewer(element) {
       draggable: true,
     });
 
+    if (!viewer) {
+      markUnavailable(element);
+
+      return;
+    }
+
     element.publicDetailPanoramaViewer = viewer;
+    element.dataset.panoramaInitialized = 'true';
 
     if (viewer && typeof viewer.on === 'function') {
       viewer.on('load', () => {
