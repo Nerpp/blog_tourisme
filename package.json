@@ -13,7 +13,6 @@
     "lighthouse:desktop": "node tools/run-lighthouse.mjs --devices=desktop"
   },
   "dependencies": {
-    "@photo-sphere-viewer/core": "^5.14.3",
     "leaflet": "^1.9.4",
     "pannellum": "^2.5.7",
     "sortablejs": "1.15.7"
