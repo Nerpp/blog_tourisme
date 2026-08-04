@@ -153,15 +153,102 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         self::assertFalse($this->resourceWasRequested($webDriver, 'panorama-viewer-'));
         $trigger = $webDriver->findElement(WebDriverBy::cssSelector('.immersive-gallery-card[data-gallery-index="0"]'));
         $modalSelector = (string) $trigger->getAttribute('data-gallery-target');
+        self::assertFalse((bool) $webDriver->executeScript(<<<'JS'
+            const viewer = document.querySelector(arguments[0] + ' .js-panorama-viewer');
+
+            return viewer !== null && (
+                viewer.classList.contains('pnlm-container')
+                || viewer.querySelector('canvas') !== null
+                || viewer.classList.contains('is-loaded')
+            );
+        JS, [$modalSelector]));
+
         $trigger->click();
 
-        (new WebDriverWait($webDriver, 8))->until(static fn () => (bool) $webDriver->executeScript(
-            'return document.querySelector(arguments[0] + " .js-panorama-viewer")?.dataset.panoramaInitialized === "true";',
-            [$modalSelector],
-        ));
+        $this->assertPanoramaViewerLoaded($webDriver, $modalSelector);
 
         self::assertTrue($this->resourceWasRequested($webDriver, 'panorama-viewer-'));
         self::assertSame('false', $webDriver->findElement(WebDriverBy::cssSelector($modalSelector))->getAttribute('aria-hidden'));
+
+        $webDriver->findElement(WebDriverBy::cssSelector($modalSelector.' .js-gallery-close'))->click();
+        $this->waitForGalleryClosed($webDriver, $modalSelector);
+
+        $trigger->click();
+        $this->assertPanoramaViewerLoaded($webDriver, $modalSelector);
+        self::assertSame('false', $webDriver->findElement(WebDriverBy::cssSelector($modalSelector))->getAttribute('aria-hidden'));
+        $this->assertNoBrowserSevereErrors($client);
+    }
+
+    public function testPanoramaViewerRetriesAfterAnInstantiationFailure(): void
+    {
+        $this->skipIfFrontendBuildIsMissing();
+        $slug = $this->ensureFixturePanoramaIsLinkedToCityVisit();
+        $client = self::createBrowser();
+        $webDriver = $client->getWebDriver();
+
+        $client->request('GET', '/visites-de-ville/'.$slug);
+        $client->waitFor('.immersive-gallery-card[data-gallery-index="0"]');
+
+        $trigger = $webDriver->findElement(WebDriverBy::cssSelector('.immersive-gallery-card[data-gallery-index="0"]'));
+        $modalSelector = (string) $trigger->getAttribute('data-gallery-target');
+
+        $webDriver->executeScript(<<<'JS'
+            window.__panoramaViewerAttempts = 0;
+            Object.defineProperty(window, 'pannellum', {
+                configurable: true,
+                get() {
+                    return undefined;
+                },
+                set(value) {
+                    delete window.pannellum;
+                    const originalViewer = value.viewer;
+                    let shouldFail = true;
+
+                    value.viewer = function (...args) {
+                        window.__panoramaViewerAttempts += 1;
+                        if (shouldFail) {
+                            shouldFail = false;
+                            throw new Error('Forced Pannellum instantiation failure');
+                        }
+
+                        return originalViewer.apply(this, args);
+                    };
+                    window.pannellum = value;
+                },
+            });
+        JS);
+
+        $trigger->click();
+
+        (new WebDriverWait($webDriver, 8))->until(static fn () => (bool) $webDriver->executeScript(<<<'JS'
+            const viewer = document.querySelector(arguments[0] + ' .js-panorama-viewer');
+
+            return window.__panoramaViewerAttempts === 1
+                && viewer?.classList.contains('is-unavailable');
+        JS, [$modalSelector]));
+
+        /** @var array{initialized: bool, fallbackDisplay: string, canvasCount: int} $failedState */
+        $failedState = $webDriver->executeScript(<<<'JS'
+            const viewer = document.querySelector(arguments[0] + ' .js-panorama-viewer');
+            const fallback = viewer?.querySelector('[data-panorama-fallback]');
+
+            return {
+                initialized: viewer?.dataset.panoramaInitialized === 'true',
+                fallbackDisplay: fallback ? getComputedStyle(fallback).display : '',
+                canvasCount: viewer?.querySelectorAll('canvas').length ?? 0,
+            };
+        JS, [$modalSelector]);
+
+        self::assertFalse($failedState['initialized']);
+        self::assertNotSame('none', $failedState['fallbackDisplay']);
+        self::assertSame(0, $failedState['canvasCount']);
+
+        $webDriver->findElement(WebDriverBy::cssSelector($modalSelector.' .js-gallery-close'))->click();
+        $this->waitForGalleryClosed($webDriver, $modalSelector);
+
+        $trigger->click();
+        $this->assertPanoramaViewerLoaded($webDriver, $modalSelector);
+        self::assertSame(2, $webDriver->executeScript('return window.__panoramaViewerAttempts;'));
         $this->assertNoBrowserSevereErrors($client);
     }
 
@@ -403,6 +490,62 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
 
             return slides.findIndex((slide) => slide.classList.contains('is-active')) === arguments[1];
         JS, [$modalSelector, $expectedIndex]));
+    }
+
+    private function waitForGalleryClosed(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $modalSelector,
+    ): void {
+        (new WebDriverWait($webDriver, 8))->until(static fn () => (bool) $webDriver->executeScript(<<<'JS'
+            const modal = document.querySelector(arguments[0]);
+
+            return modal?.hidden === true && modal?.getAttribute('aria-hidden') === 'true';
+        JS, [$modalSelector]));
+    }
+
+    private function assertPanoramaViewerLoaded(
+        \Facebook\WebDriver\Remote\RemoteWebDriver $webDriver,
+        string $modalSelector,
+    ): void {
+        /** @var array{initialized: bool, pannellumContainer: bool, canvasCount: int, loaded: bool, unavailable: bool, fallbackDisplay: string, viewerApiFunctional: bool} $state */
+        $state = (new WebDriverWait($webDriver, 8))->until(static function () use ($webDriver, $modalSelector): array|false {
+            $state = $webDriver->executeScript(<<<'JS'
+                const viewer = document.querySelector(arguments[0] + ' .js-gallery-slide.is-active .js-panorama-viewer');
+                const fallback = viewer?.querySelector('[data-panorama-fallback]');
+                const api = viewer?.publicDetailPanoramaViewer;
+                const state = {
+                    initialized: viewer?.dataset.panoramaInitialized === 'true',
+                    pannellumContainer: viewer?.classList.contains('pnlm-container') ?? false,
+                    canvasCount: viewer?.querySelectorAll('canvas').length ?? 0,
+                    loaded: viewer?.classList.contains('is-loaded') ?? false,
+                    unavailable: viewer?.classList.contains('is-unavailable') ?? false,
+                    fallbackDisplay: fallback ? getComputedStyle(fallback).display : '',
+                    viewerApiFunctional: typeof api?.resize === 'function'
+                        && typeof api?.getYaw === 'function'
+                        && Number.isFinite(api.getYaw()),
+                };
+
+                return state.initialized
+                    && state.pannellumContainer
+                    && state.canvasCount > 0
+                    && state.loaded
+                    && !state.unavailable
+                    && state.fallbackDisplay === 'none'
+                    && state.viewerApiFunctional
+                    ? state
+                    : false;
+            JS, [$modalSelector]);
+
+            return is_array($state) ? $state : false;
+        });
+
+        self::assertTrue($state['initialized']);
+        self::assertTrue($state['pannellumContainer']);
+        self::assertGreaterThan(0, $state['canvasCount']);
+        self::assertTrue($state['loaded']);
+        self::assertFalse($state['unavailable']);
+        self::assertSame('none', $state['fallbackDisplay']);
+        self::assertTrue($state['viewerApiFunctional']);
     }
 
     private function currentSourceForSelector(
