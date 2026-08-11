@@ -28,7 +28,10 @@ final readonly class PublicUrlGenerator
             !is_array($parts)
             || !isset($parts['scheme'], $parts['host'])
             || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)
-            || isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || isset($parts['query'])
+            || isset($parts['fragment'])
             || (isset($parts['path']) && $parts['path'] !== '')
         ) {
             throw new \InvalidArgumentException('APP_PUBLIC_URL must contain an HTTP(S) origin without a path, query string or fragment.');

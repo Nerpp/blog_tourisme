@@ -291,6 +291,12 @@
             } only %}
         </section>
 
+        {% if hike.status.value in ['finished', 'converted'] %}
+            {% include 'admin/studio/_instagram_publication_status.html.twig' with {
+                instagram_publication: instagram_publication|default(null)
+            } only %}
+        {% endif %}
+
         <span id="section-points" class="studio-scroll-anchor" aria-hidden="true"></span>
         <section id="studio-points" class="studio-section">
             <div class="studio-section__header">

@@ -59,8 +59,18 @@ final class PublicUrlGeneratorTest extends TestCase
 
     public function testItRejectsAConfiguredPublicUrlContainingAPath(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-
-        new PublicUrlGenerator($this->createStub(RouterInterface::class), 'https://estela-exploration.fr/public');
+        foreach ([
+            'https://estela-exploration.fr/public',
+            'https://user@estela-exploration.fr',
+            'https://estela-exploration.fr?source=unsafe',
+            'https://estela-exploration.fr#fragment',
+        ] as $invalidUrl) {
+            try {
+                new PublicUrlGenerator($this->createStub(RouterInterface::class), $invalidUrl);
+                self::fail(sprintf('L’origine publique invalide aurait dû être refusée : %s', $invalidUrl));
+            } catch (\InvalidArgumentException) {
+                self::addToAssertionCount(1);
+            }
+        }
     }
 }

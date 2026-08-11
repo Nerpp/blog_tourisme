@@ -8,6 +8,7 @@ use App\Entity\CityVisitDraftMedia;
 use App\Entity\CityVisitPointMedia;
 use App\Entity\HikeDraftMedia;
 use App\Entity\HikePointMedia;
+use App\Entity\InstagramPublicationMedia;
 use App\Entity\MediaAsset;
 use App\Entity\Place;
 use App\Entity\PlaceMedia;
@@ -25,6 +26,7 @@ final class MediaDeletionService
         CityVisitDraftMedia::class,
         HikePointMedia::class,
         CityVisitPointMedia::class,
+        InstagramPublicationMedia::class,
     ];
 
     public function __construct(
