@@ -1,4 +1,6 @@
 framework:
     test: true
+    profiler:
+        collect_parameter: _collect_profile
     session:
         storage_factory_id: session.storage.factory.mock_file

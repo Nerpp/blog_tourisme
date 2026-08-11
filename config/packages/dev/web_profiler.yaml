@@ -6,3 +6,6 @@ framework:
     profiler:
         only_exceptions: false
         collect: true
+        # The WebCron route fixes this attribute to false so HTTP Basic
+        # credentials are never serialized in a development profile.
+        collect_parameter: _collect_profile
