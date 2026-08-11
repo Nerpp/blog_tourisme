@@ -20,6 +20,7 @@
         <env name="OAUTH_GOOGLE_CLIENT_SECRET" value="test-google-client-secret" force="true"/>
         <env name="INSTAGRAM_USER_ID" value="test-instagram-user" force="true"/>
         <env name="INSTAGRAM_ACCESS_TOKEN" value="test-instagram-token" force="true"/>
+        <env name="INSTAGRAM_CRON_SECRET" value="test-instagram-cron-secret-with-at-least-32-characters" force="true"/>
         <env name="PANTHER_APP_ENV" value="test" force="true"/>
         <env name="PANTHER_WEB_SERVER_DIR" value="./public"/>
         <env name="PANTHER_WEB_SERVER_PORT" value="9080"/>

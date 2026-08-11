@@ -1,0 +1,6 @@
+framework:
+    lock:
+        # Keep unrelated application/rate-limiter locks local. Only the named
+        # WebCron lock needs a cross-process database store in shared hosting.
+        default: flock
+        instagram_webcron: doctrine.dbal.default_connection

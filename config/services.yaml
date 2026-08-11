@@ -6,6 +6,10 @@ parameters:
     app.instagram.api_base_url: 'https://graph.instagram.com/'
     app.instagram.poll_attempts: 6
     app.instagram.poll_delay_milliseconds: 2000
+    app.instagram.cron_secret_default: ''
+    app.instagram.web_consumer_batch_reserve_seconds: 120
+    app.instagram.web_consumer_message_limit: 5
+    app.instagram.web_consumer_time_limit_seconds: 240
 
 services:
     _defaults:
@@ -54,6 +58,27 @@ services:
             $pollDelayMilliseconds: '%app.instagram.poll_delay_milliseconds%'
             $requestTimeoutSeconds: 15.0
             $apiBaseUrl: '%app.instagram.api_base_url%'
+
+    App\Service\Instagram\InstagramExecutionBudget:
+        arguments:
+            $minimumRemainingSeconds: '%app.instagram.web_consumer_batch_reserve_seconds%'
+
+    App\Service\Instagram\InstagramMessageConsumer:
+        arguments:
+            $instagramReceiver: '@messenger.transport.instagram_async'
+            $bus: '@messenger.routable_message_bus'
+            $logger: '@monolog.logger.messenger'
+
+    App\Service\Instagram\InstagramWebCronProcessor:
+        arguments:
+            $messageLimit: '%app.instagram.web_consumer_message_limit%'
+            $timeLimitSeconds: '%app.instagram.web_consumer_time_limit_seconds%'
+
+    App\Service\Instagram\InstagramWebCronProcessorInterface: '@App\Service\Instagram\InstagramWebCronProcessor'
+
+    App\Controller\Internal\InstagramWebCronController:
+        arguments:
+            $instagramCronSecret: '%env(default:app.instagram.cron_secret_default:INSTAGRAM_CRON_SECRET)%'
 
     App\Service\CommentModerationService:
         arguments:

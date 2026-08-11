@@ -14,6 +14,7 @@ use App\MessageHandler\PublishInstagramContentHandler;
 use App\Repository\InstagramPublicationBatchRepository;
 use App\Repository\InstagramPublicationMediaRepository;
 use App\Repository\InstagramPublicationRepository;
+use App\Service\Instagram\InstagramExecutionBudget;
 use App\Service\Instagram\InstagramPublisher;
 use App\Service\Media\MediaDeletionService;
 use App\Tests\Integration\IntegrationTestCase;
@@ -23,6 +24,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\Clock\MockClock;
 use Symfony\Component\Messenger\Exception\RecoverableMessageHandlingException;
 use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -180,6 +182,226 @@ final class PublishInstagramContentHandlerTest extends IntegrationTestCase
         self::assertSame(1, $stored->getAttemptCount());
         self::assertEquals(new DateTimeImmutable(self::NOW), $stored->getFirstAttemptAt());
         self::assertGreaterThan($stored->getFirstAttemptAt(), $stored->getLastAttemptAt());
+    }
+
+    public function testActiveHttpBudgetYieldsBetweenLotsAndNextMessageNeverReplaysPublishedLot(): void
+    {
+        $publication = $this->persistPublication([1, 1]);
+        $publicationId = $this->requiredId($publication);
+        $clock = new MockClock(self::NOW);
+        $executionBudget = new InstagramExecutionBudget($clock, 120);
+        $executionBudget->activate(150);
+        $responses = [
+            new MockResponse('{"id":"budget-batch-1-container"}'),
+            new MockResponse('{"status_code":"FINISHED","status":"Ready"}'),
+            new MockResponse('{"id":"budget-batch-1-post"}'),
+        ];
+        $responseIndex = 0;
+        $firstClient = new MockHttpClient(
+            /** @param array<string, mixed> $options */
+            static function (string $method, string $url, array $options) use (
+                &$responseIndex,
+                $responses,
+                $clock,
+            ): MockResponse {
+                unset($method, $url, $options);
+                $response = $responses[$responseIndex++];
+                if (3 === $responseIndex) {
+                    $clock->sleep(31);
+                }
+
+                return $response;
+            },
+        );
+
+        ($this->handler($firstClient, executionBudget: $executionBudget))(
+            new PublishInstagramContent($publicationId, self::EXECUTION_ID),
+        );
+
+        $yielded = $this->reloadPublication($publicationId);
+        $yieldedBatches = $this->batchRepository->findForPublicationOrdered($yielded);
+        self::assertSame(InstagramPublicationStatus::Pending, $yielded->getStatus());
+        self::assertSame(1, $yielded->getPublishedBatchCount());
+        self::assertNull($yielded->getProcessingToken());
+        self::assertNull($yielded->getLastDispatchedAt());
+        self::assertNull($yielded->getLastError());
+        self::assertSame(InstagramPublicationBatchStatus::Published, $yieldedBatches[0]->getStatus());
+        self::assertSame(InstagramPublicationBatchStatus::Pending, $yieldedBatches[1]->getStatus());
+        self::assertSame(0, $yieldedBatches[1]->getAttemptCount());
+        self::assertSame(3, $firstClient->getRequestsCount());
+
+        $executionBudget->deactivate();
+        $retryClient = new MockHttpClient([
+            new MockResponse('{"id":"budget-batch-2-container"}'),
+            new MockResponse('{"status_code":"FINISHED","status":"Ready"}'),
+            new MockResponse('{"id":"budget-batch-2-post"}'),
+        ]);
+        ($this->handler($retryClient))(
+            new PublishInstagramContent($publicationId, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),
+        );
+
+        $published = $this->reloadPublication($publicationId);
+        $publishedBatches = $this->batchRepository->findForPublicationOrdered($published);
+        self::assertSame(InstagramPublicationStatus::Published, $published->getStatus());
+        self::assertSame(2, $published->getPublishedBatchCount());
+        self::assertSame(1, $publishedBatches[0]->getAttemptCount());
+        self::assertSame('budget-batch-1-post', $publishedBatches[0]->getInstagramMediaId());
+        self::assertSame(1, $publishedBatches[1]->getAttemptCount());
+        self::assertSame('budget-batch-2-post', $publishedBatches[1]->getInstagramMediaId());
+        self::assertSame(3, $retryClient->getRequestsCount(), 'Le lot déjà publié ne doit pas être rejoué.');
+    }
+
+    public function testHttpBudgetYieldsBeforePollingAndKeepsTheCreatedContainerCheckpoint(): void
+    {
+        $publication = $this->persistPublication([1]);
+        $publicationId = $this->requiredId($publication);
+        $clock = new MockClock(self::NOW);
+        $executionBudget = new InstagramExecutionBudget($clock, 120);
+        $executionBudget->activate(150);
+        $client = new MockHttpClient(
+            /** @param array<string, mixed> $options */
+            static function (string $method, string $url, array $options) use ($clock): MockResponse {
+                unset($method, $url, $options);
+                $clock->sleep(31);
+
+                return new MockResponse('{"id":"poll-boundary-container"}');
+            },
+        );
+
+        ($this->handler($client, executionBudget: $executionBudget))(
+            new PublishInstagramContent($publicationId, self::EXECUTION_ID),
+        );
+
+        $stored = $this->reloadPublication($publicationId);
+        $batch = $this->onlyBatch($stored);
+        $media = $this->onlyMedia($batch);
+        self::assertSame(InstagramPublicationStatus::Pending, $stored->getStatus());
+        self::assertSame(InstagramPublicationBatchStatus::Pending, $batch->getStatus());
+        self::assertNull($stored->getProcessingToken());
+        self::assertNull($stored->getLastDispatchedAt());
+        self::assertNull($stored->getLastError());
+        self::assertNull($batch->getLastError());
+        self::assertSame('poll-boundary-container', $batch->getContainerId());
+        self::assertSame('poll-boundary-container', $media->getContainerId());
+        self::assertNotNull($media->getMediaAsset());
+        self::assertSame(1, $client->getRequestsCount(), 'Le polling ne doit pas commencer sans sa réserve.');
+    }
+
+    public function testHttpBudgetYieldsBeforeMediaPublishAndPreservesReadyContainer(): void
+    {
+        $publication = $this->persistPublication([1]);
+        $publicationId = $this->requiredId($publication);
+        $clock = new MockClock(self::NOW);
+        $executionBudget = new InstagramExecutionBudget($clock, 120);
+        $executionBudget->activate(150);
+        $responseIndex = 0;
+        $responses = [
+            new MockResponse('{"id":"publish-boundary-container"}'),
+            new MockResponse('{"status_code":"FINISHED","status":"Ready"}'),
+        ];
+        $client = new MockHttpClient(
+            /** @param array<string, mixed> $options */
+            static function (string $method, string $url, array $options) use (
+                &$responseIndex,
+                $responses,
+                $clock,
+            ): MockResponse {
+                unset($method, $url, $options);
+                $response = $responses[$responseIndex++];
+                if (2 === $responseIndex) {
+                    $clock->sleep(131);
+                }
+
+                return $response;
+            },
+        );
+
+        ($this->handler($client, executionBudget: $executionBudget))(
+            new PublishInstagramContent($publicationId, self::EXECUTION_ID),
+        );
+
+        $stored = $this->reloadPublication($publicationId);
+        $batch = $this->onlyBatch($stored);
+        self::assertSame(InstagramPublicationStatus::Pending, $stored->getStatus());
+        self::assertSame(InstagramPublicationBatchStatus::Pending, $batch->getStatus());
+        self::assertSame('publish-boundary-container', $batch->getContainerId());
+        self::assertNull($batch->getInstagramMediaId());
+        self::assertNull($stored->getLastError());
+        self::assertNull($batch->getLastError());
+        self::assertSame(2, $client->getRequestsCount(), 'media_publish doit attendre la prochaine enveloppe.');
+    }
+
+    public function testHttpBudgetYieldsMidCarouselWithEveryCreatedChildCheckpointIntact(): void
+    {
+        $publication = $this->persistPublication([2]);
+        $publicationId = $this->requiredId($publication);
+        $clock = new MockClock(self::NOW);
+        $executionBudget = new InstagramExecutionBudget($clock, 120);
+        $executionBudget->activate(240);
+        $responseIndex = 0;
+        $responses = [
+            new MockResponse('{"id":"budget-child-1"}'),
+            new MockResponse('{"status_code":"FINISHED","status":"Ready"}'),
+            new MockResponse('{"id":"budget-child-2"}'),
+        ];
+        $client = new MockHttpClient(
+            /** @param array<string, mixed> $options */
+            static function (string $method, string $url, array $options) use (
+                &$responseIndex,
+                $responses,
+                $clock,
+            ): MockResponse {
+                unset($method, $url, $options);
+                $response = $responses[$responseIndex++];
+                if (2 === $responseIndex) {
+                    $clock->sleep(121);
+                }
+
+                return $response;
+            },
+        );
+
+        ($this->handler($client, executionBudget: $executionBudget))(
+            new PublishInstagramContent($publicationId, self::EXECUTION_ID),
+        );
+
+        $stored = $this->reloadPublication($publicationId);
+        $batch = $this->onlyBatch($stored);
+        $media = $this->mediaRepository->findForBatchOrdered($batch);
+        self::assertSame(InstagramPublicationStatus::Pending, $stored->getStatus());
+        self::assertSame(InstagramPublicationBatchStatus::Pending, $batch->getStatus());
+        self::assertNull($batch->getContainerId());
+        self::assertSame(['budget-child-1', 'budget-child-2'], array_map(
+            static fn (InstagramPublicationMedia $item): ?string => $item->getContainerId(),
+            $media,
+        ));
+        self::assertNotNull($media[0]->getMediaAsset());
+        self::assertNotNull($media[1]->getMediaAsset());
+        self::assertNull($stored->getLastError());
+        self::assertNull($batch->getLastError());
+        self::assertSame(3, $client->getRequestsCount(), 'Le polling du second enfant est reporté.');
+    }
+
+    public function testInactiveHttpBudgetLeavesMultiBatchCliHandlingUnchanged(): void
+    {
+        $publication = $this->persistPublication([1, 1]);
+        $client = new MockHttpClient([
+            new MockResponse('{"id":"inactive-1-container"}'),
+            new MockResponse('{"status_code":"FINISHED","status":"Ready"}'),
+            new MockResponse('{"id":"inactive-1-post"}'),
+            new MockResponse('{"id":"inactive-2-container"}'),
+            new MockResponse('{"status_code":"FINISHED","status":"Ready"}'),
+            new MockResponse('{"id":"inactive-2-post"}'),
+        ]);
+
+        ($this->handler($client))(
+            new PublishInstagramContent($this->requiredId($publication), self::EXECUTION_ID),
+        );
+
+        $stored = $this->reloadPublication($this->requiredId($publication));
+        self::assertSame(InstagramPublicationStatus::Published, $stored->getStatus());
+        self::assertSame(2, $stored->getPublishedBatchCount());
+        self::assertSame(6, $client->getRequestsCount());
     }
 
     public function testPartialFailureThenRetrySkipsPublishedBatchAndReusesCheckpointedContainer(): void
@@ -567,7 +789,11 @@ final class PublishInstagramContentHandlerTest extends IntegrationTestCase
     }
 
     /** @param Closure(): DateTimeImmutable|null $now */
-    private function handler(HttpClientInterface $httpClient, ?Closure $now = null): PublishInstagramContentHandler
+    private function handler(
+        HttpClientInterface $httpClient,
+        ?Closure $now = null,
+        ?InstagramExecutionBudget $executionBudget = null,
+    ): PublishInstagramContentHandler
     {
         $publisher = new InstagramPublisher(
             httpClient: $httpClient,
@@ -588,6 +814,7 @@ final class PublishInstagramContentHandlerTest extends IntegrationTestCase
             $this->mediaRepository,
             $publisher,
             $this->mediaDeletionService(),
+            $executionBudget ?? new InstagramExecutionBudget(new MockClock(self::NOW), 120),
             new NullLogger(),
             $now ?? static fn (): DateTimeImmutable => new DateTimeImmutable(self::NOW),
         );
