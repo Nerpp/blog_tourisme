@@ -59,9 +59,10 @@ final class StudioMobileNavigationPantherTest extends PantherTestCase
         self::assertSelectorNotExists('[data-studio-quick-nav].is-collapsed');
         self::assertTrue($webDriver->findElement(WebDriverBy::cssSelector('[data-studio-quick-nav-panel]'))->isDisplayed());
         self::assertSelectorTextContains('[data-studio-quick-nav-panel]', 'Retour au site public');
-        self::assertSelectorTextContains('[data-studio-quick-nav-panel]', 'Aperçu indisponible');
+        self::assertSelectorTextContains('[data-studio-quick-nav-panel]', 'Aperçu');
         self::assertSelectorTextContains('[data-studio-quick-nav-panel]', 'Enregistrer');
-        self::assertSelectorExists('.studio-quick-nav__item--disabled[aria-disabled="true"]');
+        self::assertSelectorExists('[data-studio-quick-nav-panel] a[href^="/randonnees/"]');
+        self::assertSelectorNotExists('.studio-quick-nav__item--disabled[aria-disabled="true"]');
         $this->assertPageHasNoHorizontalOverflow($webDriver);
 
         $webDriver->findElement(WebDriverBy::tagName('body'))->sendKeys(WebDriverKeys::ESCAPE);
