@@ -7,6 +7,7 @@ use App\Entity\HikeDraft;
 use App\Entity\HikeDraftMedia;
 use App\Entity\HikePoint;
 use App\Entity\HikePointMedia;
+use App\Entity\InstagramPublication;
 use App\Entity\MediaAsset;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
@@ -20,6 +21,7 @@ use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
+use App\Service\Instagram\InstagramPublicationScheduler;
 use App\Service\Media\DronePanoramaUploadService;
 use App\Service\Media\BulkMediaUploadService;
 use App\Service\Media\ImageTypeDetector;
@@ -75,6 +77,7 @@ final class HikeStudioController extends AbstractController
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
         private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
         private readonly LocationDraftHydrator $locationDraftHydrator,
+        private readonly InstagramPublicationScheduler $instagramPublicationScheduler,
     ) {}
 
     #[Route('/hikes/{id}/edit', name: 'admin_studio_hike_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -89,18 +92,20 @@ final class HikeStudioController extends AbstractController
                 return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
             }
 
-            $wasPublicStatus = $this->isPublicStatus($hikeDraft->getStatus());
-
             try {
-                /** @var array{bool, bool} $updateResult */
-                $updateResult = $this->entityManager->wrapInTransaction(function () use ($hikeDraft, $request, $wasPublicStatus): array {
-                    $this->entityManager->lock($hikeDraft, LockMode::PESSIMISTIC_WRITE);
+                /** @var array{bool, bool, InstagramPublication|null} $updateResult */
+                $updateResult = $this->entityManager->wrapInTransaction(function () use ($hikeDraft, $request): array {
+                    $this->entityManager->refresh($hikeDraft, LockMode::PESSIMISTIC_WRITE);
+                    $wasPublicStatus = $this->isPublicStatus($hikeDraft->getStatus());
                     $locationIsValid = $this->updateDraftFromRequest($hikeDraft, $request);
                     $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($hikeDraft->getStatus());
                     $this->normalizeClassicCoverImages($hikeDraft->getMediaLinks());
+                    $instagramPublication = $shouldNotifyPublication
+                        ? $this->instagramPublicationScheduler->prepareFirstPublication($hikeDraft)
+                        : null;
                     $this->entityManager->flush();
 
-                    return [$locationIsValid, $shouldNotifyPublication];
+                    return [$locationIsValid, $shouldNotifyPublication, $instagramPublication];
                 });
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
@@ -112,7 +117,10 @@ final class HikeStudioController extends AbstractController
                 return $this->redirectToStudioAfterRequest($hikeDraft, $request, 'section-publication');
             }
 
-            [$locationIsValid, $shouldNotifyPublication] = $updateResult;
+            [$locationIsValid, $shouldNotifyPublication, $instagramPublication] = $updateResult;
+            if ($instagramPublication instanceof InstagramPublication) {
+                $this->instagramPublicationScheduler->dispatchAfterCommit($instagramPublication);
+            }
             $this->notifyNewPublication($hikeDraft, $shouldNotifyPublication);
 
             if ($locationIsValid) {
@@ -564,6 +572,7 @@ final class HikeStudioController extends AbstractController
             'point_labels' => $pointTargetOptions,
             'point_media_enabled' => $pointMediaEnabled,
             'media_point_targets' => $mediaPointTargets,
+            'instagram_publication' => $this->instagramPublicationScheduler->findForContent($hikeDraft),
         ]);
     }
 
@@ -630,7 +639,14 @@ final class HikeStudioController extends AbstractController
             return;
         }
 
-        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($hikeDraft);
+        try {
+            $report = $this->publicationNotificationMailer->sendNewPublicationNotification($hikeDraft);
+        } catch (\Throwable) {
+            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
+
+            return;
+        }
+
         if ($report['errorCount'] > 0) {
             $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
         }

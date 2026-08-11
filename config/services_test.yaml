@@ -13,3 +13,22 @@ services:
     App\DataFixtures\MediaAssetFixtures:
         arguments:
             $projectDir: '%kernel.project_dir%'
+
+    App\Tests\Support\FailingInstagramResponseFactory: ~
+
+    instagram.http_client:
+        class: Symfony\Component\HttpClient\MockHttpClient
+        arguments:
+            $responseFactory: '@App\Tests\Support\FailingInstagramResponseFactory'
+            $baseUri: 'https://graph.instagram.com/'
+
+    App\Service\Instagram\InstagramPublisher:
+        public: true
+        arguments:
+            $httpClient: '@instagram.http_client'
+            $instagramUserId: 'test-instagram-user'
+            $instagramAccessToken: 'test-instagram-token'
+            $pollAttempts: 2
+            $pollDelayMilliseconds: 0
+            $requestTimeoutSeconds: 1.0
+            $apiBaseUrl: 'https://graph.instagram.com/'

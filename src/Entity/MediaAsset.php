@@ -123,6 +123,10 @@ class MediaAsset
     #[ORM\OneToMany(mappedBy: 'mediaAsset', targetEntity: CityVisitPointMedia::class)]
     private Collection $cityVisitPointLinks;
 
+    /** @var Collection<int, InstagramPublicationMedia> */
+    #[ORM\OneToMany(mappedBy: 'mediaAsset', targetEntity: InstagramPublicationMedia::class)]
+    private Collection $instagramPublicationMedia;
+
     public function __construct()
     {
         $this->featuredArticles = new ArrayCollection();
@@ -133,6 +137,7 @@ class MediaAsset
         $this->cityVisitDraftLinks = new ArrayCollection();
         $this->hikePointLinks = new ArrayCollection();
         $this->cityVisitPointLinks = new ArrayCollection();
+        $this->instagramPublicationMedia = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -414,5 +419,33 @@ class MediaAsset
     public function getCityVisitPointLinks(): Collection
     {
         return $this->cityVisitPointLinks;
+    }
+
+    /** @return Collection<int, InstagramPublicationMedia> */
+    public function getInstagramPublicationMedia(): Collection
+    {
+        return $this->instagramPublicationMedia;
+    }
+
+    public function addInstagramPublicationMedia(InstagramPublicationMedia $media): static
+    {
+        if (!$this->instagramPublicationMedia->contains($media)) {
+            $this->instagramPublicationMedia->add($media);
+        }
+
+        if ($media->getMediaAsset() !== $this) {
+            $media->setMediaAsset($this);
+        }
+
+        return $this;
+    }
+
+    public function removeInstagramPublicationMedia(InstagramPublicationMedia $media): static
+    {
+        if ($this->instagramPublicationMedia->removeElement($media) && $media->getMediaAsset() === $this) {
+            $media->setMediaAsset(null);
+        }
+
+        return $this;
     }
 }
