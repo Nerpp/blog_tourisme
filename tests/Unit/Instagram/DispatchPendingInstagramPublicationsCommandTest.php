@@ -13,6 +13,7 @@ use App\Repository\InstagramPublicationRepository;
 use App\Service\Instagram\InstagramCaptionBuilder;
 use App\Service\Instagram\InstagramMediaBatcher;
 use App\Service\Instagram\InstagramMediaCollector;
+use App\Service\Instagram\InstagramPublicationReconciler;
 use App\Service\Instagram\InstagramPublicationScheduler;
 use App\Service\Instagram\MediaPublicUrlResolver;
 use App\Service\Seo\PublicUrlGenerator;
@@ -22,6 +23,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\Lock\SharedLockInterface;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\RouterInterface;
@@ -33,11 +36,14 @@ final class DispatchPendingInstagramPublicationsCommandTest extends TestCase
         $repository = $this->createMock(InstagramPublicationRepository::class);
         $repository->expects(self::never())->method('findRecoverableForDispatch');
         $tester = new CommandTester(new DispatchPendingInstagramPublicationsCommand(
-            $repository,
-            $this->scheduler(
-                $this->createStub(EntityManagerInterface::class),
+            new InstagramPublicationReconciler(
                 $repository,
-                $this->successfulMessageBus(expectDispatch: false),
+                $this->scheduler(
+                    $this->createStub(EntityManagerInterface::class),
+                    $repository,
+                    $this->successfulMessageBus(expectDispatch: false),
+                ),
+                $this->createStub(LockFactory::class),
             ),
         ));
 
@@ -45,7 +51,7 @@ final class DispatchPendingInstagramPublicationsCommandTest extends TestCase
         self::assertStringContainsString('strictement positifs', $tester->getDisplay());
     }
 
-    public function testItDispatchesARecoverablePendingPublicationThroughTheScheduler(): void
+    public function testItDispatchesARecoverablePendingPublicationThroughTheSharedReconciler(): void
     {
         $publication = $this->pendingPublication(301)
             ->setLastDispatchedAt(new \DateTimeImmutable('-10 minutes'));
@@ -69,8 +75,11 @@ final class DispatchPendingInstagramPublicationsCommandTest extends TestCase
             ->willReturnCallback(static fn (callable $callback): mixed => $callback());
         $entityManager->expects(self::exactly(2))->method('flush');
         $command = new DispatchPendingInstagramPublicationsCommand(
-            $repository,
-            $this->scheduler($entityManager, $repository, $this->successfulMessageBus()),
+            new InstagramPublicationReconciler(
+                $repository,
+                $this->scheduler($entityManager, $repository, $this->successfulMessageBus()),
+                $this->lockFactory(expectedRefreshes: 1),
+            ),
         );
         $tester = new CommandTester($command);
 
@@ -81,6 +90,26 @@ final class DispatchPendingInstagramPublicationsCommandTest extends TestCase
         ]));
         self::assertStringContainsString('1 publication(s) Instagram reprogrammée(s) sur 1 candidate(s)', $tester->getDisplay());
         self::assertNotNull($publication->getLastDispatchedAt());
+    }
+
+    public function testItReturnsSuccessWithoutDispatchWhenAnotherReconciliationOwnsTheLock(): void
+    {
+        $repository = $this->createMock(InstagramPublicationRepository::class);
+        $repository->expects(self::never())->method('findRecoverableForDispatch');
+        $messageBus = $this->createMock(MessageBusInterface::class);
+        $messageBus->expects(self::never())->method('dispatch');
+        $command = new DispatchPendingInstagramPublicationsCommand(
+            new InstagramPublicationReconciler(
+                $repository,
+                $this->scheduler($this->createStub(EntityManagerInterface::class), $repository, $messageBus),
+                $this->lockFactory(acquired: false, expectedRefreshes: 0),
+            ),
+        );
+        $tester = new CommandTester($command);
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertStringContainsString('déjà en cours', $tester->getDisplay());
+        self::assertStringContainsString('Aucun doublon', $tester->getDisplay());
     }
 
     private function pendingPublication(int $id): InstagramPublication
@@ -135,6 +164,31 @@ final class DispatchPendingInstagramPublicationsCommandTest extends TestCase
             ->willReturnCallback(static fn (object $message): Envelope => new Envelope($message));
 
         return $messageBus;
+    }
+
+    private function lockFactory(bool $acquired = true, int $expectedRefreshes = 0): LockFactory
+    {
+        $lock = $this->createMock(SharedLockInterface::class);
+        $lock->expects(self::once())
+            ->method('acquire')
+            ->with(false)
+            ->willReturn($acquired);
+        $releaseExpectation = $acquired ? $lock->expects(self::once()) : $lock->expects(self::never());
+        $releaseExpectation->method('release');
+        $lock->expects(self::exactly($expectedRefreshes))
+            ->method('refresh')
+            ->with(InstagramPublicationReconciler::LOCK_TTL_SECONDS);
+
+        $lockFactory = $this->createMock(LockFactory::class);
+        $lockFactory->expects(self::once())
+            ->method('createLock')
+            ->with(
+                InstagramPublicationReconciler::LOCK_RESOURCE,
+                InstagramPublicationReconciler::LOCK_TTL_SECONDS,
+            )
+            ->willReturn($lock);
+
+        return $lockFactory;
     }
 
     private function setId(object $entity, int $id): void

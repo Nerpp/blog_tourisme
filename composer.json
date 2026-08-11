@@ -37,6 +37,7 @@
         "symfony/http-client": "^8.0",
         "symfony/http-foundation": "8.1.*",
         "symfony/http-kernel": "8.1.*",
+        "symfony/lock": "^8.1",
         "symfony/mailer": "8.1.*",
         "symfony/messenger": "^8.1",
         "symfony/mime": "8.1.*",

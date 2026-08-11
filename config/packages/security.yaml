@@ -19,6 +19,10 @@ security:
             pattern: ^/(_(profiler|wdt)|css|images|js|build)/
             security: false
 
+        instagram_webcron:
+            pattern: ^/_internal/cron/instagram$
+            stateless: true
+
         main:
             lazy: true
             provider: app_user_provider
@@ -41,6 +45,7 @@ security:
                 csrf_token_id: logout
 
     access_control:
+        - { path: ^/_internal/cron/instagram$, roles: PUBLIC_ACCESS }
         - { path: ^/admin, roles: ADMIN_ACCESS }
         - { path: ^/profile, roles: ROLE_USER }
         - { path: ^/comments, roles: ROLE_USER }

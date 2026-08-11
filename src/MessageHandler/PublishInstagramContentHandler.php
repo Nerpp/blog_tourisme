@@ -13,6 +13,8 @@ use App\Repository\InstagramPublicationBatchRepository;
 use App\Repository\InstagramPublicationMediaRepository;
 use App\Repository\InstagramPublicationRepository;
 use App\Service\Instagram\InstagramContainerStatus;
+use App\Service\Instagram\InstagramExecutionBudget;
+use App\Service\Instagram\InstagramExecutionBudgetExhausted;
 use App\Service\Instagram\InstagramPublisher;
 use App\Service\Instagram\InstagramPublisherException;
 use App\Service\Instagram\InstagramPublisherFailure;
@@ -64,6 +66,9 @@ use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
 final class PublishInstagramContentHandler
 {
     private const PROCESSING_LEASE_MINUTES = 30;
+    // A create/media_publish request is bounded by the 15s HTTP timeout. The
+    // extra five seconds leave room for its immediate durable checkpoint.
+    private const REMOTE_WRITE_RESERVE_SECONDS = 20;
 
     /** @var Closure(): DateTimeImmutable */
     private readonly Closure $now;
@@ -75,6 +80,7 @@ final class PublishInstagramContentHandler
         private readonly InstagramPublicationMediaRepository $mediaRepository,
         private readonly InstagramPublisher $publisher,
         private readonly MediaDeletionService $mediaDeletionService,
+        private readonly InstagramExecutionBudget $executionBudget,
         private readonly LoggerInterface $logger,
         ?Closure $now = null,
     ) {
@@ -94,7 +100,21 @@ final class PublishInstagramContentHandler
             return;
         }
 
+        $publishedBatchDuringExecution = false;
         foreach ($claim['batches'] as $batchReference) {
+            if ($publishedBatchDuringExecution && $this->executionBudget->shouldYieldBeforeNextBatch()) {
+                if (!$this->yieldPublicationForBudget(
+                    $claim,
+                    $message->executionId,
+                    null,
+                    $this->executionBudget->minimumRemainingSeconds(),
+                )) {
+                    $this->logOwnershipLost($claim, $batchReference);
+                }
+
+                return;
+            }
+
             $batchClaim = $this->claimBatch(
                 $claim['publicationId'],
                 $batchReference['id'],
@@ -114,6 +134,17 @@ final class PublishInstagramContentHandler
 
             try {
                 $completion = $this->publishBatch($claim, $batch, $message->executionId);
+            } catch (InstagramExecutionBudgetExhausted $exception) {
+                if (!$this->yieldPublicationForBudget(
+                    $claim,
+                    $message->executionId,
+                    $batch['id'],
+                    $exception->requiredSeconds,
+                )) {
+                    $this->logOwnershipLost($claim, $batchReference);
+                }
+
+                return;
             } catch (InstagramPublisherException $exception) {
                 $failureCode = $this->failureCode($exception);
                 $failure = $this->recordBatchFailure(
@@ -168,7 +199,69 @@ final class PublishInstagramContentHandler
                 'published_batch_count' => $completion['counters']['publishedBatchCount'],
                 'total_batch_count' => $completion['counters']['totalBatchCount'],
             ]);
+            $publishedBatchDuringExecution = true;
         }
+    }
+
+    /**
+     * Cooperatively yields at a safe database checkpoint (between lots or before
+     * a remote call). The Messenger envelope is acknowledged normally and the
+     * reconciler dispatches a fresh one without consuming a transport retry.
+     *
+     * @param PublicationClaim $claim
+     */
+    private function yieldPublicationForBudget(
+        array $claim,
+        string $executionId,
+        ?int $batchId,
+        int $requiredSeconds,
+    ): bool
+    {
+        $yielded = $this->entityManager->wrapInTransaction(function () use (
+            $claim,
+            $executionId,
+            $batchId,
+        ): bool {
+            $publication = $this->lockedOwnedPublication($claim['publicationId'], $executionId);
+            if (null === $publication) {
+                return false;
+            }
+
+            if ($publication->isTerminal()) {
+                return true;
+            }
+
+            if (null !== $batchId) {
+                $batch = $this->lockedBatch($batchId, $claim['publicationId']);
+                if (InstagramPublicationBatchStatus::Published !== $batch->getStatus()) {
+                    $batch
+                        ->setStatus(InstagramPublicationBatchStatus::Pending)
+                        ->clearLastError();
+                }
+            }
+
+            $publication
+                ->synchronizeCounters()
+                ->setStatus(InstagramPublicationStatus::Pending)
+                ->setLastAttemptAt($this->currentTime())
+                ->setLastDispatchedAt(null)
+                ->clearProcessingToken()
+                ->clearLastError();
+
+            return true;
+        });
+
+        if ($yielded) {
+            $this->logger->info('Publication Instagram suspendue à une frontière sûre.', [
+                ...$this->publicationLogContext($claim),
+                'reason' => 'http_execution_budget',
+                'remaining_seconds' => (int) floor($this->executionBudget->remainingSeconds() ?? 0.0),
+                'required_seconds' => $requiredSeconds,
+                'batch_id' => $batchId,
+            ]);
+        }
+
+        return $yielded;
     }
 
     /**
@@ -383,6 +476,7 @@ final class PublishInstagramContentHandler
         $containerId = $batch['containerId'] ?? $media['containerId'];
 
         if (null === $containerId) {
+            $this->requireRemoteOperationBudget(self::REMOTE_WRITE_RESERVE_SECONDS);
             $containerId = $this->publisher->createImageContainer(
                 $media['publicUrl'],
                 $batch['caption'],
@@ -419,6 +513,7 @@ final class PublishInstagramContentHandler
             }
         }
 
+        $this->requireRemoteOperationBudget($this->executionBudget->minimumRemainingSeconds());
         $status = $this->publisher->waitUntilReady($containerId);
         if (InstagramContainerStatus::Published === $status) {
             $counters = $this->completeBatch(
@@ -436,6 +531,7 @@ final class PublishInstagramContentHandler
             ];
         }
 
+        $this->requireRemoteOperationBudget(self::REMOTE_WRITE_RESERVE_SECONDS);
         $instagramMediaId = $this->publisher->publishContainer($containerId);
         $counters = $this->completeBatch(
             $claim['publicationId'],
@@ -472,6 +568,7 @@ final class PublishInstagramContentHandler
             foreach ($batch['media'] as $media) {
                 $childContainerId = $media['containerId'];
                 if (null === $childContainerId) {
+                    $this->requireRemoteOperationBudget(self::REMOTE_WRITE_RESERVE_SECONDS);
                     $childContainerId = $this->publisher->createImageContainer(
                         $media['publicUrl'],
                         null,
@@ -498,6 +595,7 @@ final class PublishInstagramContentHandler
                     ]);
                 }
 
+                $this->requireRemoteOperationBudget($this->executionBudget->minimumRemainingSeconds());
                 $childStatus = $this->publisher->waitUntilReady($childContainerId);
                 if (InstagramContainerStatus::Published === $childStatus) {
                     // A carousel child only becomes PUBLISHED through its parent. This closes
@@ -520,6 +618,7 @@ final class PublishInstagramContentHandler
                 $childContainerIds[] = $childContainerId;
             }
 
+            $this->requireRemoteOperationBudget(self::REMOTE_WRITE_RESERVE_SECONDS);
             $parentContainerId = $this->publisher->createCarouselContainer(
                 $childContainerIds,
                 $batch['caption'] ?? '',
@@ -542,6 +641,7 @@ final class PublishInstagramContentHandler
             ]);
         }
 
+        $this->requireRemoteOperationBudget($this->executionBudget->minimumRemainingSeconds());
         $parentStatus = $this->publisher->waitUntilReady($parentContainerId);
         if (InstagramContainerStatus::Published === $parentStatus) {
             $counters = $this->completeBatch(
@@ -559,6 +659,7 @@ final class PublishInstagramContentHandler
             ];
         }
 
+        $this->requireRemoteOperationBudget(self::REMOTE_WRITE_RESERVE_SECONDS);
         $instagramMediaId = $this->publisher->publishContainer($parentContainerId);
         $counters = $this->completeBatch(
             $claim['publicationId'],
@@ -897,6 +998,13 @@ final class PublishInstagramContentHandler
         }
 
         return $now;
+    }
+
+    private function requireRemoteOperationBudget(int $requiredSeconds): void
+    {
+        if ($this->executionBudget->shouldYieldBeforeRemoteOperation($requiredSeconds)) {
+            throw new InstagramExecutionBudgetExhausted($requiredSeconds);
+        }
     }
 
     private function failureCode(InstagramPublisherException $exception): string

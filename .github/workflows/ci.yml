@@ -336,6 +336,7 @@ jobs:
           for secret_name in \
             BREVO_MAILER_DSN \
             INSTAGRAM_ACCESS_TOKEN \
+            INSTAGRAM_CRON_SECRET \
             OAUTH_GOOGLE_CLIENT_ID \
             OAUTH_GOOGLE_CLIENT_SECRET
           do
@@ -441,8 +442,8 @@ jobs:
             --env=prod \
             --no-debug
 
-          # A supervised Messenger consumer exits cleanly and is restarted with
-          # the freshly deployed code. This does not start a worker by itself.
+          # Stop any legacy/manual consumer still using the previous code. The
+          # shared-hosting WebCron starts no permanent background worker.
           "$PHP_BIN" bin/console messenger:stop-workers \
             --env=prod \
             --no-debug
@@ -461,6 +462,7 @@ jobs:
           for secret_name in \
             BREVO_MAILER_DSN \
             INSTAGRAM_ACCESS_TOKEN \
+            INSTAGRAM_CRON_SECRET \
             OAUTH_GOOGLE_CLIENT_ID \
             OAUTH_GOOGLE_CLIENT_SECRET
           do

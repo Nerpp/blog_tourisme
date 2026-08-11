@@ -25,6 +25,8 @@ PUBLIC_KEY="$VAULT_DIR/prod.encrypt.public.php"
 SECRET_LIST="$VAULT_DIR/prod.list.php"
 REQUIRED_SECRETS=(
     BREVO_MAILER_DSN
+    INSTAGRAM_ACCESS_TOKEN
+    INSTAGRAM_CRON_SECRET
     OAUTH_GOOGLE_CLIENT_ID
     OAUTH_GOOGLE_CLIENT_SECRET
 )
@@ -159,6 +161,8 @@ test -f "$vault_dir/prod.list.php"
 
 for secret_name in \
     BREVO_MAILER_DSN \
+    INSTAGRAM_ACCESS_TOKEN \
+    INSTAGRAM_CRON_SECRET \
     OAUTH_GOOGLE_CLIENT_ID \
     OAUTH_GOOGLE_CLIENT_SECRET
 do
@@ -183,6 +187,8 @@ fi
 
 for secret_name in \
     BREVO_MAILER_DSN \
+    INSTAGRAM_ACCESS_TOKEN \
+    INSTAGRAM_CRON_SECRET \
     OAUTH_GOOGLE_CLIENT_ID \
     OAUTH_GOOGLE_CLIENT_SECRET
 do
@@ -235,6 +241,6 @@ awk '
 printf '\nSynchronisation terminée avec succès.\n'
 printf '  - sauvegarde distante créée et limitée aux 10 plus récentes\n'
 printf '  - clé privée distante préservée\n'
-printf '  - trois secrets obligatoires détectés sans révéler leur valeur\n'
+printf '  - cinq secrets obligatoires détectés sans révéler leur valeur\n'
 printf '  - cache de production reconstruit\n'
 printf '  - contrôles HTTP /, /login et /connect/google réussis\n'

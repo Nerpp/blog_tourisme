@@ -2,8 +2,7 @@
 
 namespace App\Command;
 
-use App\Repository\InstagramPublicationRepository;
-use App\Service\Instagram\InstagramPublicationScheduler;
+use App\Service\Instagram\InstagramPublicationReconciler;
 use DateTimeImmutable;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -18,13 +17,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 final class DispatchPendingInstagramPublicationsCommand extends Command
 {
-    private const int DEFAULT_LIMIT = 50;
-    private const int DEFAULT_PENDING_AGE_SECONDS = 300;
-    private const int DEFAULT_PROCESSING_AGE_SECONDS = 1800;
-
     public function __construct(
-        private readonly InstagramPublicationRepository $publicationRepository,
-        private readonly InstagramPublicationScheduler $publicationScheduler,
+        private readonly InstagramPublicationReconciler $publicationReconciler,
     ) {
         parent::__construct();
     }
@@ -32,9 +26,9 @@ final class DispatchPendingInstagramPublicationsCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Nombre maximal de tâches reprogrammées.', (string) self::DEFAULT_LIMIT)
-            ->addOption('pending-age', null, InputOption::VALUE_REQUIRED, 'Âge minimal en secondes d’une tâche pending.', (string) self::DEFAULT_PENDING_AGE_SECONDS)
-            ->addOption('processing-age', null, InputOption::VALUE_REQUIRED, 'Âge minimal en secondes d’une tâche processing considérée abandonnée.', (string) self::DEFAULT_PROCESSING_AGE_SECONDS);
+            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Nombre maximal de tâches reprogrammées.', (string) InstagramPublicationReconciler::DEFAULT_LIMIT)
+            ->addOption('pending-age', null, InputOption::VALUE_REQUIRED, 'Âge minimal en secondes d’une tâche pending.', (string) InstagramPublicationReconciler::DEFAULT_PENDING_AGE_SECONDS)
+            ->addOption('processing-age', null, InputOption::VALUE_REQUIRED, 'Âge minimal en secondes d’une tâche processing considérée abandonnée.', (string) InstagramPublicationReconciler::DEFAULT_PROCESSING_AGE_SECONDS);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,31 +44,22 @@ final class DispatchPendingInstagramPublicationsCommand extends Command
             return Command::INVALID;
         }
 
-        $now = new DateTimeImmutable();
-        $pendingCutoff = $now->modify(sprintf('-%d seconds', $pendingAge));
-        $processingCutoff = $now->modify(sprintf('-%d seconds', $processingAge));
-        $publications = $this->publicationRepository->findRecoverableForDispatch(
-            $pendingCutoff,
-            $processingCutoff,
-            min($limit, 500),
+        $result = $this->publicationReconciler->reconcile(
+            new DateTimeImmutable(),
+            $pendingAge,
+            $processingAge,
+            $limit,
         );
+        if ($result->skippedDueToLock) {
+            $io->note('Une réconciliation Instagram est déjà en cours. Aucun doublon n’a été programmé.');
 
-        $dispatched = 0;
-        foreach ($publications as $publication) {
-            $publicationId = $publication->getId();
-            if ($publicationId !== null && $this->publicationScheduler->recoverAndDispatch(
-                $publicationId,
-                $pendingCutoff,
-                $processingCutoff,
-            )) {
-                ++$dispatched;
-            }
+            return Command::SUCCESS;
         }
 
         $io->success(sprintf(
             '%d publication(s) Instagram reprogrammée(s) sur %d candidate(s).',
-            $dispatched,
-            count($publications),
+            $result->dispatchedCount,
+            $result->candidateCount,
         ));
 
         return Command::SUCCESS;
