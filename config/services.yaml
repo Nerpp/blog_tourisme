@@ -3,6 +3,9 @@ parameters:
     app.media.standard_webp_quality: 78
     app.public_url_default: 'https://estela-exploration.fr'
     app.public_url: '%env(default:app.public_url_default:APP_PUBLIC_URL)%'
+    app.instagram.api_base_url: 'https://graph.instagram.com/'
+    app.instagram.poll_attempts: 6
+    app.instagram.poll_delay_milliseconds: 2000
 
 services:
     _defaults:
@@ -29,6 +32,28 @@ services:
     App\Service\Seo\PublicUrlGenerator:
         arguments:
             $publicBaseUrl: '%app.public_url%'
+
+    instagram.http_client:
+        class: Symfony\Contracts\HttpClient\HttpClientInterface
+        factory: ['Symfony\Component\HttpClient\HttpClient', 'createForBaseUri']
+        arguments:
+            - '%app.instagram.api_base_url%'
+            -
+                headers:
+                    Accept: 'application/json'
+                timeout: 15
+                max_duration: 30
+                max_redirects: 0
+
+    App\Service\Instagram\InstagramPublisher:
+        arguments:
+            $httpClient: '@instagram.http_client'
+            $instagramUserId: '%env(INSTAGRAM_USER_ID)%'
+            $instagramAccessToken: '%env(INSTAGRAM_ACCESS_TOKEN)%'
+            $pollAttempts: '%app.instagram.poll_attempts%'
+            $pollDelayMilliseconds: '%app.instagram.poll_delay_milliseconds%'
+            $requestTimeoutSeconds: 15.0
+            $apiBaseUrl: '%app.instagram.api_base_url%'
 
     App\Service\CommentModerationService:
         arguments:

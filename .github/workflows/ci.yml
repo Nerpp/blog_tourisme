@@ -335,6 +335,7 @@ jobs:
           shopt -s nullglob
           for secret_name in \
             BREVO_MAILER_DSN \
+            INSTAGRAM_ACCESS_TOKEN \
             OAUTH_GOOGLE_CLIENT_ID \
             OAUTH_GOOGLE_CLIENT_SECRET
           do
@@ -440,6 +441,12 @@ jobs:
             --env=prod \
             --no-debug
 
+          # A supervised Messenger consumer exits cleanly and is restarted with
+          # the freshly deployed code. This does not start a worker by itself.
+          "$PHP_BIN" bin/console messenger:stop-workers \
+            --env=prod \
+            --no-debug
+
           secrets_output="$(mktemp)"
           trap 'rm -f "$secrets_output"' EXIT HUP INT TERM
           chmod 600 "$secrets_output"
@@ -453,6 +460,7 @@ jobs:
 
           for secret_name in \
             BREVO_MAILER_DSN \
+            INSTAGRAM_ACCESS_TOKEN \
             OAUTH_GOOGLE_CLIENT_ID \
             OAUTH_GOOGLE_CLIENT_SECRET
           do

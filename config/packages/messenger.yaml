@@ -1,0 +1,27 @@
+framework:
+    messenger:
+        failure_transport: failed
+
+        transports:
+            instagram_async:
+                dsn: 'doctrine://default'
+                options:
+                    table_name: messenger_messages
+                    queue_name: instagram_async
+                    auto_setup: false
+                retry_strategy:
+                    max_retries: 3
+                    delay: 60000
+                    multiplier: 3
+                    max_delay: 900000
+                    jitter: 0.15
+
+            failed:
+                dsn: 'doctrine://default'
+                options:
+                    table_name: messenger_messages
+                    queue_name: failed
+                    auto_setup: false
+
+        routing:
+            App\Message\PublishInstagramContent: instagram_async

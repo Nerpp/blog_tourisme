@@ -7,6 +7,7 @@ use App\Entity\CityVisitDraftMedia;
 use App\Entity\CityVisitPoint;
 use App\Entity\CityVisitPointMedia;
 use App\Entity\Destination;
+use App\Entity\InstagramPublication;
 use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\CityVisitPointType;
@@ -20,6 +21,7 @@ use App\Security\ActionRateLimiter;
 use App\Security\Voter\AdminAccessVoter;
 use App\Security\Voter\ContentEditVoter;
 use App\Service\ImageUploadSecurity;
+use App\Service\Instagram\InstagramPublicationScheduler;
 use App\Service\Media\BulkMediaUploadService;
 use App\Service\Media\DronePanoramaUploadService;
 use App\Service\Media\ImageTypeDetector;
@@ -73,6 +75,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly PublicationNotificationMailer $publicationNotificationMailer,
         private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
         private readonly LocationDraftHydrator $locationDraftHydrator,
+        private readonly InstagramPublicationScheduler $instagramPublicationScheduler,
     ) {}
 
     #[Route('/city-visits/{id}/edit', name: 'admin_studio_city_visit_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -87,18 +90,20 @@ final class CityVisitStudioController extends AbstractController
                 return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
             }
 
-            $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
-
             try {
-                /** @var array{bool, bool} $updateResult */
-                $updateResult = $this->entityManager->wrapInTransaction(function () use ($cityVisitDraft, $request, $wasPublicStatus): array {
-                    $this->entityManager->lock($cityVisitDraft, LockMode::PESSIMISTIC_WRITE);
+                /** @var array{bool, bool, InstagramPublication|null} $updateResult */
+                $updateResult = $this->entityManager->wrapInTransaction(function () use ($cityVisitDraft, $request): array {
+                    $this->entityManager->refresh($cityVisitDraft, LockMode::PESSIMISTIC_WRITE);
+                    $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
                     $locationIsValid = $this->updateDraftFromRequest($cityVisitDraft, $request);
                     $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
                     $this->normalizeClassicCoverImages($cityVisitDraft->getMediaLinks());
+                    $instagramPublication = $shouldNotifyPublication
+                        ? $this->instagramPublicationScheduler->prepareFirstPublication($cityVisitDraft)
+                        : null;
                     $this->entityManager->flush();
 
-                    return [$locationIsValid, $shouldNotifyPublication];
+                    return [$locationIsValid, $shouldNotifyPublication, $instagramPublication];
                 });
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
@@ -110,7 +115,10 @@ final class CityVisitStudioController extends AbstractController
                 return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
             }
 
-            [$locationIsValid, $shouldNotifyPublication] = $updateResult;
+            [$locationIsValid, $shouldNotifyPublication, $instagramPublication] = $updateResult;
+            if ($instagramPublication instanceof InstagramPublication) {
+                $this->instagramPublicationScheduler->dispatchAfterCommit($instagramPublication);
+            }
             $this->notifyNewPublication($cityVisitDraft, $shouldNotifyPublication);
 
             if ($locationIsValid) {
@@ -513,6 +521,7 @@ final class CityVisitStudioController extends AbstractController
             'point_labels' => $pointTargetOptions,
             'point_media_enabled' => $pointMediaEnabled,
             'media_point_targets' => $mediaPointTargets,
+            'instagram_publication' => $this->instagramPublicationScheduler->findForContent($cityVisitDraft),
         ]);
     }
 
@@ -617,7 +626,14 @@ final class CityVisitStudioController extends AbstractController
             return;
         }
 
-        $report = $this->publicationNotificationMailer->sendNewPublicationNotification($cityVisitDraft);
+        try {
+            $report = $this->publicationNotificationMailer->sendNewPublicationNotification($cityVisitDraft);
+        } catch (\Throwable) {
+            $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
+
+            return;
+        }
+
         if ($report['errorCount'] > 0) {
             $this->addFlash('warning', 'La publication a été enregistrée, mais l’envoi des notifications a rencontré une erreur.');
         }

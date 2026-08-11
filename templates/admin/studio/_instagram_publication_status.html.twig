@@ -1,0 +1,114 @@
+{% set publication = instagram_publication|default(null) %}
+
+{% if publication %}
+    {% set status = publication.status.value %}
+    {% set status_presentations = {
+        pending: {
+            label: 'Publication programmée',
+            badge: 'admin-badge--info',
+            icon: '⏳',
+            description: 'Les photos compatibles seront envoyées automatiquement en arrière-plan.'
+        },
+        processing: {
+            label: 'Publication en cours',
+            badge: 'admin-badge--info',
+            icon: '⏳',
+            description: 'Instagram traite actuellement les éléments préparés par Estela.'
+        },
+        published: {
+            label: 'Publié',
+            badge: '',
+            icon: '✓',
+            description: 'Tous les lots Instagram ont été publiés.'
+        },
+        failed: {
+            label: 'Publication Instagram échouée',
+            badge: 'admin-badge--danger',
+            icon: '⚠',
+            description: 'Le contenu est bien publié sur Estela, mais les photos n’ont pas pu être envoyées sur Instagram.'
+        },
+        partial_failure: {
+            label: 'Publication Instagram incomplète',
+            badge: 'admin-badge--warning',
+            icon: '⚠',
+            description: 'Le contenu est bien publié sur Estela. Seuls les lots Instagram manquants seront renvoyés.'
+        },
+        no_media: {
+            label: 'Aucune photo compatible à publier',
+            badge: 'admin-badge--info',
+            icon: 'ℹ',
+            description: 'Aucune photo compatible avec Instagram n’était disponible lors de la publication.'
+        },
+        legacy_skipped: {
+            label: 'Non envoyé automatiquement sur Instagram',
+            badge: 'admin-badge--muted',
+            icon: 'ℹ',
+            description: 'Ce contenu était déjà publié sur Estela avant l’activation de la publication automatique vers Instagram. Il n’a donc pas été envoyé automatiquement sur Instagram.'
+        }
+    } %}
+    {% set presentation = status_presentations[status]|default({
+        label: 'État indisponible',
+        badge: 'admin-badge--muted',
+        icon: 'ℹ',
+        description: 'Le statut Instagram n’a pas pu être interprété.'
+    }) %}
+
+    <span id="section-instagram" class="studio-scroll-anchor" aria-hidden="true"></span>
+    <section
+        id="studio-instagram"
+        class="studio-section"
+        data-instagram-status="{{ status }}"
+        aria-labelledby="studio-instagram-title"
+    >
+        <div class="studio-section__header">
+            <div>
+                <h2 id="studio-instagram-title">Instagram</h2>
+                <p>{{ presentation.description }}</p>
+            </div>
+            <span class="admin-badge {{ presentation.badge }}" role="status">
+                <span aria-hidden="true">{{ presentation.icon }}</span>
+                {{ presentation.label }}
+            </span>
+        </div>
+
+        {% if status not in ['no_media', 'legacy_skipped'] %}
+            <div class="studio-status-list" aria-label="Progression Instagram">
+                <div class="studio-status-row">
+                    <span class="studio-status-label">Photos publiées</span>
+                    <strong>{{ publication.publishedMediaCount }} / {{ publication.totalMediaCount }}</strong>
+                </div>
+                <div class="studio-status-row">
+                    <span class="studio-status-label">Publications créées</span>
+                    <strong>{{ publication.publishedBatchCount }} / {{ publication.totalBatchCount }}</strong>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if publication.publishedAt %}
+            <p><strong>Publié le :</strong> {{ publication.publishedAt|date('d/m/Y à H:i') }}</p>
+        {% endif %}
+
+        {% if publication.lastAttemptAt %}
+            <p><strong>Dernière tentative :</strong> {{ publication.lastAttemptAt|date('d/m/Y à H:i') }}</p>
+        {% endif %}
+
+        {% if publication.lastError %}
+            <p data-instagram-error><strong>Erreur :</strong> {{ publication.lastError }}</p>
+        {% endif %}
+
+        {% if publication.canRetry and publication.id %}
+            <form
+                method="post"
+                action="{{ path('admin_studio_instagram_retry', { id: publication.id }) }}"
+                class="studio-actions"
+                data-instagram-retry
+            >
+                <input type="hidden" name="_token" value="{{ csrf_token('instagram_publication_retry_' ~ publication.id) }}">
+                <input type="hidden" name="_redirect_anchor" value="section-instagram">
+                <button class="admin-button" type="submit">
+                    {{ status == 'partial_failure' ? 'Renvoyer les éléments manquants' : 'Renvoyer sur Instagram' }}
+                </button>
+            </form>
+        {% endif %}
+    </section>
+{% endif %}

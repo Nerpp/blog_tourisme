@@ -1,0 +1,5 @@
+framework:
+    messenger:
+        transports:
+            instagram_async: 'in-memory://'
+            failed: 'in-memory://'

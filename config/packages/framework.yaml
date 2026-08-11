@@ -60,3 +60,6 @@ framework:
 
     mailer:
         dsn: '%env(MAILER_DSN)%'
+        # Keep the existing synchronous email workflow isolated from the
+        # dedicated Instagram queue introduced below.
+        message_bus: false
