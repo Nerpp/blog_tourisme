@@ -7,6 +7,7 @@
 
 {% block body %}
     {% set main_form_id = 'studio-city-visit-main-form' %}
+    {% set preview_url = city_visit.slug is not empty ? path('app_city_visit_show', { slug: city_visit.slug }) : null %}
     <form id="{{ main_form_id }}" method="post" action="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}"></form>
     <input form="{{ main_form_id }}" type="hidden" name="_token" value="{{ csrf_token('studio_city_visit_edit_' ~ city_visit.id) }}">
     <input form="{{ main_form_id }}" type="hidden" name="_redirect_anchor" value="section-publication">
@@ -15,9 +16,9 @@
         nav_id: 'studio-city-visit-quick-nav',
         action_links: [
             { label: 'Retour au site public', href: path('app_home') },
-            city_visit.slug is not empty and city_visit.status.value in ['finished', 'converted']
-                ? { label: 'Aperçu public', href: path('app_city_visit_show', { slug: city_visit.slug }), target: '_blank', rel: 'noopener noreferrer' }
-                : { label: 'Aperçu public', disabled_label: 'Aperçu indisponible' }
+            preview_url
+                ? { label: 'Aperçu', href: preview_url, target: '_blank', rel: 'noopener noreferrer' }
+                : { label: 'Aperçu', disabled_label: 'Aperçu indisponible' }
         ],
         items: [
             { label: 'Général', anchor: 'studio-general' },
@@ -45,8 +46,8 @@
                 </div>
             </div>
             <div class="studio-actions">
-                {% if city_visit.slug is not empty and city_visit.status.value in ['finished', 'converted'] %}
-                    <a class="admin-button admin-button--secondary" href="{{ path('app_city_visit_show', { slug: city_visit.slug }) }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
+                {% if preview_url and city_visit.status.value in ['finished', 'converted'] %}
+                    <a class="admin-button admin-button--secondary" href="{{ preview_url }}" target="_blank" rel="noopener noreferrer">Aperçu public</a>
                 {% endif %}
                 {% if google_maps_url %}
                     <a class="admin-button admin-button--secondary" href="{{ google_maps_url }}" target="_blank" rel="noopener noreferrer">Google Maps</a>
