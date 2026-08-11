@@ -74,6 +74,36 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testHikeEditorExposesPreviewLinksForDraftAndPublishedContents(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createHikeDraft($admin);
+        $published = $this->createPublishedHike($admin);
+        $client->loginUser($admin);
+
+        foreach ([$draft, $published] as $hike) {
+            $previewPath = sprintf('/randonnees/%s', $hike->getSlug());
+            $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+
+            self::assertResponseIsSuccessful();
+            self::assertStringNotContainsString('Aperçu indisponible', (string) $client->getResponse()->getContent());
+            $previewLink = $crawler->filter(sprintf('[data-studio-quick-nav-panel] a[href="%s"]', $previewPath));
+            self::assertCount(1, $previewLink);
+            self::assertSame('Aperçu', trim($previewLink->text()));
+            self::assertSame('_blank', $previewLink->attr('target'));
+            self::assertSame('noopener noreferrer', $previewLink->attr('rel'));
+
+            $previewCrawler = $client->request('GET', $previewPath);
+            self::assertResponseIsSuccessful();
+            self::assertSelectorTextContains('body', (string) $hike->getTitle());
+            self::assertCount(
+                $hike->getStatus() === HikeDraftStatus::Draft ? 1 : 0,
+                $previewCrawler->filter('.draft-preview-banner'),
+            );
+        }
+    }
+
     public function testVerifiedAdminGetsNotFoundForMissingHikeDraft(): void
     {
         $client = static::createClient();

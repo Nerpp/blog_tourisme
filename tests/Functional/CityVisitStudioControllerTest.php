@@ -73,6 +73,36 @@ final class CityVisitStudioControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testCityVisitEditorExposesPreviewLinksForDraftAndPublishedContents(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $draft = $this->createCityVisitDraft($admin);
+        $published = $this->createPublishedCityVisit($admin);
+        $client->loginUser($admin);
+
+        foreach ([$draft, $published] as $cityVisit) {
+            $previewPath = sprintf('/visites-de-ville/%s', $cityVisit->getSlug());
+            $crawler = $client->request('GET', sprintf('/admin/studio/city-visits/%d/edit', $cityVisit->getId()));
+
+            self::assertResponseIsSuccessful();
+            self::assertStringNotContainsString('Aperçu indisponible', (string) $client->getResponse()->getContent());
+            $previewLink = $crawler->filter(sprintf('[data-studio-quick-nav-panel] a[href="%s"]', $previewPath));
+            self::assertCount(1, $previewLink);
+            self::assertSame('Aperçu', trim($previewLink->text()));
+            self::assertSame('_blank', $previewLink->attr('target'));
+            self::assertSame('noopener noreferrer', $previewLink->attr('rel'));
+
+            $previewCrawler = $client->request('GET', $previewPath);
+            self::assertResponseIsSuccessful();
+            self::assertSelectorTextContains('body', (string) $cityVisit->getTitle());
+            self::assertCount(
+                $cityVisit->getStatus() === CityVisitDraftStatus::Draft ? 1 : 0,
+                $previewCrawler->filter('.draft-preview-banner'),
+            );
+        }
+    }
+
     public function testVerifiedAdminGetsNotFoundForMissingCityVisitDraft(): void
     {
         $client = static::createClient();
