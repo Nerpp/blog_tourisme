@@ -2,16 +2,6 @@
 
 {% block admin_title %}Visites{% endblock %}
 
-{% block stylesheets %}
-    <style>
-        .studio-city-visit-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-    </style>
-{% endblock %}
-
 {% block body %}
     <header class="admin-header">
         <div>
@@ -52,7 +42,7 @@
                         </td>
                         <td>{{ city_visit.createdAt ? city_visit.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
                         <td>
-                            <div class="studio-city-visit-actions">
+                            <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_city_visit_edit', { id: city_visit.id }) }}">Ouvrir</a>
                                 <a
                                     class="admin-button admin-button--small admin-button--secondary"
