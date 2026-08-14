@@ -2,16 +2,6 @@
 
 {% block admin_title %}Randonnées{% endblock %}
 
-{% block stylesheets %}
-    <style>
-        .studio-hike-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-    </style>
-{% endblock %}
-
 {% block body %}
     <header class="admin-header">
         <div>
@@ -44,7 +34,7 @@
                         <td>{{ hike.points|length }}</td>
                         <td>{{ hike.createdAt ? hike.createdAt|date('d/m/Y H:i') : 'Non renseignée' }}</td>
                         <td>
-                            <div class="studio-hike-actions">
+                            <div class="admin-row-actions">
                                 <a class="admin-button admin-button--small admin-button--secondary" href="{{ path('admin_studio_hike_edit', { id: hike.id }) }}">Ouvrir</a>
                                 <a
                                     class="admin-button admin-button--small admin-button--secondary"
