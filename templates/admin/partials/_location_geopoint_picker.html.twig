@@ -44,7 +44,6 @@
 
 {% set picker_id = picker_id|default('location-geopoint-picker') %}
 {% set render_root = render_root|default(true) %}
-{% set render_styles = render_styles is defined ? render_styles : true %}
 {% set mode = mode|default('default') %}
 {% set ui_context = ui_context|default('admin') %}
 {% set row_class = row_class|default(ui_context == 'field' ? 'field-row' : 'admin-field') %}
@@ -114,100 +113,6 @@
         communeCenterLatitude: data_attrs_by_key.communeCenterLatitude|merge({ 'data-prevision-commune-center-latitude': true }),
         communeCenterLongitude: data_attrs_by_key.communeCenterLongitude|merge({ 'data-prevision-commune-center-longitude': true })
     }) %}
-{% endif %}
-
-{% if render_styles %}
-<style>
-    .location-picker,
-    .location-picker__section,
-    .location-picker__search,
-    .location-picker__results,
-    .location-picker__selection,
-    .location-picker__map-panel,
-    .location-picker__point-tools,
-    .location-picker__links {
-        display: grid;
-        gap: 12px;
-    }
-
-    .location-picker__section h2,
-    .location-picker__section h3 {
-        margin: 0;
-        font-size: 1.05rem;
-    }
-
-    .location-picker__results[hidden],
-    .location-picker__selection[hidden],
-    .location-picker__map-panel[hidden],
-    .location-picker__placeholder[hidden],
-    .location-picker__links[hidden],
-    .location-picker__search[hidden] {
-        display: none;
-    }
-
-    .location-picker__selection {
-        padding: 12px;
-        border: 1px solid #b8ddc4;
-        border-radius: var(--admin-radius, var(--field-radius, 8px));
-        background: #f2fbf5;
-    }
-
-    .location-picker__selection-label {
-        color: var(--admin-muted, var(--field-muted, #657067));
-        font-weight: 800;
-    }
-
-    .location-picker__result {
-        width: 100%;
-        padding: 10px 12px;
-        border: 1px solid var(--admin-line, var(--field-line, #d8ddd8));
-        border-radius: var(--admin-radius, var(--field-radius, 8px));
-        background: #fff;
-        color: var(--admin-text, var(--field-text, #18201b));
-        cursor: pointer;
-        font: inherit;
-        font-weight: 750;
-        text-align: left;
-    }
-
-    .location-picker__result:hover,
-    .location-picker__result:focus-visible {
-        border-color: var(--admin-primary, var(--field-primary, #146c43));
-        outline: none;
-    }
-
-    .location-picker__placeholder {
-        padding: 18px;
-        border: 1px dashed var(--admin-line, var(--field-line, #d8ddd8));
-        border-radius: var(--admin-radius, var(--field-radius, 8px));
-        background: #f9fbf9;
-        color: var(--admin-muted, var(--field-muted, #657067));
-        font-weight: 750;
-    }
-
-    .location-picker__map {
-        min-height: 360px;
-        overflow: hidden;
-        border: 1px solid var(--admin-line, var(--field-line, #d8ddd8));
-        border-radius: var(--admin-radius, var(--field-radius, 8px));
-        background: #eef1ee;
-    }
-
-    .location-picker__status {
-        min-height: 22px;
-        margin: 0;
-        color: var(--admin-muted, var(--field-muted, #657067));
-        font-weight: 700;
-    }
-
-    .location-picker__links {
-        grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
-    }
-
-    .location-picker__link[aria-disabled="true"] {
-        pointer-events: none;
-    }
-</style>
 {% endif %}
 
 {% if render_root %}
