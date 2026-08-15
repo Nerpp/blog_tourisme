@@ -2,7 +2,10 @@
 
 namespace App\Tests\Unit\Instagram;
 
+use App\Repository\FacebookPublicationRepository;
 use App\Repository\InstagramPublicationRepository;
+use App\Service\Facebook\FacebookPublicationReconciler;
+use App\Service\Facebook\FacebookPublicationScheduler;
 use App\Service\Instagram\InstagramExecutionBudget;
 use App\Service\Instagram\InstagramMessageConsumer;
 use App\Service\Instagram\InstagramPublicationReconciler;
@@ -33,7 +36,7 @@ final class InstagramWebCronProcessorTest extends TestCase
             ->willReturnCallback(
                 /** @return list<\App\Entity\InstagramPublication> */
                 static function () use ($clock): array {
-                    $clock->sleep(130);
+                    $clock->sleep(65);
 
                     return [];
                 },
@@ -46,9 +49,30 @@ final class InstagramWebCronProcessorTest extends TestCase
             $scheduler,
             new LockFactory(new InMemoryStore()),
         );
-        $receiver = new BudgetProbeReceiver();
+        $facebookPublicationRepository = $this->createMock(FacebookPublicationRepository::class);
+        $facebookPublicationRepository
+            ->expects(self::once())
+            ->method('findPendingForDispatch')
+            ->willReturnCallback(
+                /** @return list<\App\Entity\FacebookPublication> */
+                static function () use ($clock): array {
+                    $clock->sleep(65);
+
+                    return [];
+                },
+            );
+        $facebookScheduler = (new ReflectionClass(FacebookPublicationScheduler::class))
+            ->newInstanceWithoutConstructor();
+        self::assertInstanceOf(FacebookPublicationScheduler::class, $facebookScheduler);
+        $facebookReconciler = new FacebookPublicationReconciler(
+            $facebookPublicationRepository,
+            $facebookScheduler,
+        );
+        $instagramReceiver = new BudgetProbeReceiver();
+        $facebookReceiver = new BudgetProbeReceiver();
         $consumer = new InstagramMessageConsumer(
-            $receiver,
+            $instagramReceiver,
+            $facebookReceiver,
             new BudgetProbeBus(),
             new EventDispatcher(),
             $clock,
@@ -57,6 +81,7 @@ final class InstagramWebCronProcessorTest extends TestCase
         );
         $processor = new InstagramWebCronProcessor(
             $reconciler,
+            $facebookReconciler,
             $consumer,
             $budget,
             $clock,
@@ -67,7 +92,8 @@ final class InstagramWebCronProcessorTest extends TestCase
 
         $processor->run();
 
-        self::assertSame(0, $receiver->getCalls, 'Aucune enveloppe ne doit démarrer avec moins de 120 s restantes.');
+        self::assertSame(0, $instagramReceiver->getCalls, 'Aucune enveloppe Instagram ne doit démarrer avec moins de 120 s restantes.');
+        self::assertSame(0, $facebookReceiver->getCalls, 'Aucune enveloppe Facebook ne doit démarrer avec moins de 120 s restantes.');
         self::assertSame('2026-08-11T12:02:10+02:00', $clock->now()->format('c'));
         self::assertFalse($budget->isActive());
     }

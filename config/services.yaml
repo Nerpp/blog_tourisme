@@ -3,6 +3,8 @@ parameters:
     app.media.standard_webp_quality: 78
     app.public_url_default: 'https://estela-exploration.fr'
     app.public_url: '%env(default:app.public_url_default:APP_PUBLIC_URL)%'
+    app.facebook.api_base_url: 'https://graph.facebook.com/'
+    app.facebook.api_version: 'v26.0'
     app.instagram.api_base_url: 'https://graph.instagram.com/'
     app.instagram.poll_attempts: 6
     app.instagram.poll_delay_milliseconds: 2000
@@ -37,6 +39,25 @@ services:
         arguments:
             $publicBaseUrl: '%app.public_url%'
 
+    facebook.http_client:
+        class: Symfony\Contracts\HttpClient\HttpClientInterface
+        factory: ['Symfony\Component\HttpClient\HttpClient', 'createForBaseUri']
+        arguments:
+            - '%app.facebook.api_base_url%'
+            -
+                headers:
+                    Accept: 'application/json'
+                timeout: 15
+                max_duration: 30
+                max_redirects: 0
+
+    App\Service\Facebook\FacebookPublisher:
+        arguments:
+            $httpClient: '@facebook.http_client'
+            $facebookPageId: '%env(FACEBOOK_PAGE_ID)%'
+            $facebookPageAccessToken: '%env(FACEBOOK_PAGE_ACCESS_TOKEN)%'
+            $apiVersion: '%app.facebook.api_version%'
+
     instagram.http_client:
         class: Symfony\Contracts\HttpClient\HttpClientInterface
         factory: ['Symfony\Component\HttpClient\HttpClient', 'createForBaseUri']
@@ -66,6 +87,7 @@ services:
     App\Service\Instagram\InstagramMessageConsumer:
         arguments:
             $instagramReceiver: '@messenger.transport.instagram_async'
+            $facebookReceiver: '@messenger.transport.facebook_async'
             $bus: '@messenger.routable_message_bus'
             $logger: '@monolog.logger.messenger'
 

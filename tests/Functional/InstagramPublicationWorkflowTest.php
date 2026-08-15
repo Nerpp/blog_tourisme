@@ -4,6 +4,7 @@ namespace App\Tests\Functional;
 
 use App\Entity\Article;
 use App\Entity\CityVisitDraft;
+use App\Entity\FacebookPublication;
 use App\Entity\HikeDraft;
 use App\Entity\InstagramPublication;
 use App\Entity\InstagramPublicationBatch;
@@ -11,12 +12,16 @@ use App\Entity\InstagramPublicationMedia;
 use App\Enum\CategoryType;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\ContentStatus;
+use App\Enum\FacebookPublicationSourceType;
+use App\Enum\FacebookPublicationStatus;
 use App\Enum\HikeDraftStatus;
 use App\Enum\InstagramPublicationBatchStatus;
 use App\Enum\InstagramPublicationSourceType;
 use App\Enum\InstagramPublicationStatus;
 use App\Enum\MediaRole;
+use App\Message\PublishFacebookContent;
 use App\Message\PublishInstagramContent;
+use App\Repository\FacebookPublicationRepository;
 use App\Repository\InstagramPublicationRepository;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
@@ -39,14 +44,33 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         self::assertSame(1, $publication->getTotalBatchCount());
         $this->assertSingleInstagramMessage($publication);
         $publicationId = $this->entityId($publication);
+        $facebookPublication = $this->facebookPublicationFor(
+            FacebookPublicationSourceType::Hike,
+            $this->entityId($hike),
+        );
+        self::assertSame(FacebookPublicationStatus::Pending, $facebookPublication->getStatus());
+        self::assertNotSame('', trim($facebookPublication->getMessage()));
+        self::assertStringStartsWith('https://', $facebookPublication->getLink());
+        $this->assertSingleFacebookMessage($facebookPublication);
+        $facebookPublicationId = $this->entityId($facebookPublication);
 
         $this->saveHike($client, $hike, HikeDraftStatus::Finished);
 
         self::assertCount(0, $this->instagramTransport()->getSent());
+        self::assertCount(0, $this->facebookTransport()->getSent());
         $samePublication = $this->publicationFor(InstagramPublicationSourceType::Hike, $this->entityId($hike));
         self::assertSame($publicationId, $samePublication->getId());
         self::assertSame(1, $this->publicationRepository()->count([
             'sourceType' => InstagramPublicationSourceType::Hike,
+            'sourceId' => $this->entityId($hike),
+        ]));
+        $sameFacebookPublication = $this->facebookPublicationFor(
+            FacebookPublicationSourceType::Hike,
+            $this->entityId($hike),
+        );
+        self::assertSame($facebookPublicationId, $sameFacebookPublication->getId());
+        self::assertSame(1, $this->facebookPublicationRepository()->count([
+            'sourceType' => FacebookPublicationSourceType::Hike,
             'sourceId' => $this->entityId($hike),
         ]));
     }
@@ -67,19 +91,38 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         self::assertSame(1, $publication->getTotalBatchCount());
         $this->assertSingleInstagramMessage($publication);
         $publicationId = $this->entityId($publication);
+        $facebookPublication = $this->facebookPublicationFor(
+            FacebookPublicationSourceType::CityVisit,
+            $this->entityId($cityVisit),
+        );
+        self::assertSame(FacebookPublicationStatus::Pending, $facebookPublication->getStatus());
+        self::assertNotSame('', trim($facebookPublication->getMessage()));
+        self::assertStringStartsWith('https://', $facebookPublication->getLink());
+        $this->assertSingleFacebookMessage($facebookPublication);
+        $facebookPublicationId = $this->entityId($facebookPublication);
 
         $this->saveCityVisit($client, $cityVisit, CityVisitDraftStatus::Finished);
 
         self::assertCount(0, $this->instagramTransport()->getSent());
+        self::assertCount(0, $this->facebookTransport()->getSent());
         $samePublication = $this->publicationFor(InstagramPublicationSourceType::CityVisit, $this->entityId($cityVisit));
         self::assertSame($publicationId, $samePublication->getId());
         self::assertSame(1, $this->publicationRepository()->count([
             'sourceType' => InstagramPublicationSourceType::CityVisit,
             'sourceId' => $this->entityId($cityVisit),
         ]));
+        $sameFacebookPublication = $this->facebookPublicationFor(
+            FacebookPublicationSourceType::CityVisit,
+            $this->entityId($cityVisit),
+        );
+        self::assertSame($facebookPublicationId, $sameFacebookPublication->getId());
+        self::assertSame(1, $this->facebookPublicationRepository()->count([
+            'sourceType' => FacebookPublicationSourceType::CityVisit,
+            'sourceId' => $this->entityId($cityVisit),
+        ]));
     }
 
-    public function testPublicationWithoutCompatibleMediaRecordsNoMediaAndDoesNotDispatch(): void
+    public function testPublicationWithoutCompatibleMediaRecordsInstagramNoMediaAndDispatchesFacebook(): void
     {
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
@@ -93,6 +136,12 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         self::assertSame(0, $publication->getTotalMediaCount());
         self::assertSame(0, $publication->getTotalBatchCount());
         self::assertCount(0, $this->instagramTransport()->getSent());
+        $facebookPublication = $this->facebookPublicationFor(
+            FacebookPublicationSourceType::Hike,
+            $this->entityId($hike),
+        );
+        self::assertSame(FacebookPublicationStatus::Pending, $facebookPublication->getStatus());
+        $this->assertSingleFacebookMessage($facebookPublication);
     }
 
     public function testReturningToDraftThenRepublishingDoesNotCreateOrDispatchAgain(): void
@@ -107,13 +156,21 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         $publication = $this->publicationFor(InstagramPublicationSourceType::Hike, $this->entityId($hike));
         $publicationId = $this->entityId($publication);
         $this->assertSingleInstagramMessage($publication);
+        $facebookPublication = $this->facebookPublicationFor(
+            FacebookPublicationSourceType::Hike,
+            $this->entityId($hike),
+        );
+        $facebookPublicationId = $this->entityId($facebookPublication);
+        $this->assertSingleFacebookMessage($facebookPublication);
 
         $this->saveHike($client, $hike, HikeDraftStatus::Draft);
         self::assertCount(0, $this->instagramTransport()->getSent());
+        self::assertCount(0, $this->facebookTransport()->getSent());
 
         $this->saveHike($client, $hike, HikeDraftStatus::Finished);
 
         self::assertCount(0, $this->instagramTransport()->getSent());
+        self::assertCount(0, $this->facebookTransport()->getSent());
         $samePublication = $this->publicationFor(InstagramPublicationSourceType::Hike, $this->entityId($hike));
         self::assertSame($publicationId, $samePublication->getId());
         self::assertSame(InstagramPublicationStatus::Pending, $samePublication->getStatus());
@@ -121,19 +178,31 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
             'sourceType' => InstagramPublicationSourceType::Hike,
             'sourceId' => $this->entityId($hike),
         ]));
+        $sameFacebookPublication = $this->facebookPublicationFor(
+            FacebookPublicationSourceType::Hike,
+            $this->entityId($hike),
+        );
+        self::assertSame($facebookPublicationId, $sameFacebookPublication->getId());
+        self::assertSame(FacebookPublicationStatus::Pending, $sameFacebookPublication->getStatus());
+        self::assertSame(1, $this->facebookPublicationRepository()->count([
+            'sourceType' => FacebookPublicationSourceType::Hike,
+            'sourceId' => $this->entityId($hike),
+        ]));
     }
 
-    public function testPublishingAnArticleDoesNotCreateOrDispatchInstagramPublication(): void
+    public function testPublishingAnArticleDoesNotCreateOrDispatchSocialPublication(): void
     {
         $client = static::createClient();
         $admin = $this->createVerifiedAdmin();
         $category = $this->createCategory(CategoryType::Article);
         $publicationCount = $this->publicationRepository()->count([]);
+        $facebookPublicationCount = $this->facebookPublicationRepository()->count([]);
         $title = 'Article hors périmètre Instagram '.$this->uniqueToken('article');
         $client->loginUser($admin);
         $crawler = $client->request('GET', '/admin/articles/new');
         self::assertResponseIsSuccessful();
         $this->instagramTransport()->reset();
+        $this->facebookTransport()->reset();
 
         $client->request('POST', '/admin/articles/new', [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
@@ -152,6 +221,41 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         self::assertInstanceOf(Article::class, $article);
         self::assertSame(ContentStatus::Published, $article->getStatus());
         self::assertSame($publicationCount, $this->publicationRepository()->count([]));
+        self::assertSame($facebookPublicationCount, $this->facebookPublicationRepository()->count([]));
+        self::assertCount(0, $this->instagramTransport()->getSent());
+        self::assertCount(0, $this->facebookTransport()->getSent());
+    }
+
+    public function testEditingHistoricalPublicContentDoesNotCreateOrDispatchSocialPublication(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createPublishedHike($admin);
+        $cityVisit = $this->createPublishedCityVisit($admin);
+        $client->loginUser($admin);
+
+        self::assertNull($this->facebookPublicationRepository()->findOneBySource(
+            FacebookPublicationSourceType::Hike,
+            $this->entityId($hike),
+        ));
+        $this->saveHike($client, $hike, HikeDraftStatus::Finished);
+        self::assertNull($this->facebookPublicationRepository()->findOneBySource(
+            FacebookPublicationSourceType::Hike,
+            $this->entityId($hike),
+        ));
+        self::assertCount(0, $this->facebookTransport()->getSent());
+        self::assertCount(0, $this->instagramTransport()->getSent());
+
+        self::assertNull($this->facebookPublicationRepository()->findOneBySource(
+            FacebookPublicationSourceType::CityVisit,
+            $this->entityId($cityVisit),
+        ));
+        $this->saveCityVisit($client, $cityVisit, CityVisitDraftStatus::Finished);
+        self::assertNull($this->facebookPublicationRepository()->findOneBySource(
+            FacebookPublicationSourceType::CityVisit,
+            $this->entityId($cityVisit),
+        ));
+        self::assertCount(0, $this->facebookTransport()->getSent());
         self::assertCount(0, $this->instagramTransport()->getSent());
     }
 
@@ -223,6 +327,7 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         $crawler = $client->request('GET', $path);
         self::assertResponseIsSuccessful();
         $this->instagramTransport()->reset();
+        $this->facebookTransport()->reset();
 
         $client->request('POST', $path, [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
@@ -245,6 +350,7 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         $crawler = $client->request('GET', $path);
         self::assertResponseIsSuccessful();
         $this->instagramTransport()->reset();
+        $this->facebookTransport()->reset();
 
         $client->request('POST', $path, [
             '_token' => $this->inputValue($crawler, 'input[name="_token"]'),
@@ -269,10 +375,28 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         return $repository;
     }
 
+    private function facebookPublicationRepository(): FacebookPublicationRepository
+    {
+        $repository = static::getContainer()->get(FacebookPublicationRepository::class);
+        self::assertInstanceOf(FacebookPublicationRepository::class, $repository);
+
+        return $repository;
+    }
+
     private function publicationFor(InstagramPublicationSourceType $sourceType, int $sourceId): InstagramPublication
     {
         $publication = $this->publicationRepository()->findOneBySource($sourceType, $sourceId);
         self::assertInstanceOf(InstagramPublication::class, $publication);
+
+        return $publication;
+    }
+
+    private function facebookPublicationFor(
+        FacebookPublicationSourceType $sourceType,
+        int $sourceId,
+    ): FacebookPublication {
+        $publication = $this->facebookPublicationRepository()->findOneBySource($sourceType, $sourceId);
+        self::assertInstanceOf(FacebookPublication::class, $publication);
 
         return $publication;
     }
@@ -301,12 +425,29 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
         return $transport;
     }
 
+    private function facebookTransport(): InMemoryTransport
+    {
+        $transport = static::getContainer()->get('messenger.transport.facebook_async');
+        self::assertInstanceOf(InMemoryTransport::class, $transport);
+
+        return $transport;
+    }
+
     private function assertSingleInstagramMessage(InstagramPublication $publication): void
     {
         $sent = $this->instagramTransport()->getSent();
         self::assertCount(1, $sent);
         $message = $sent[0]->getMessage();
         self::assertInstanceOf(PublishInstagramContent::class, $message);
+        self::assertSame($this->entityId($publication), $message->publicationId);
+    }
+
+    private function assertSingleFacebookMessage(FacebookPublication $publication): void
+    {
+        $sent = $this->facebookTransport()->getSent();
+        self::assertCount(1, $sent);
+        $message = $sent[0]->getMessage();
+        self::assertInstanceOf(PublishFacebookContent::class, $message);
         self::assertSame($this->entityId($publication), $message->publicationId);
     }
 
@@ -357,7 +498,7 @@ final class InstagramPublicationWorkflowTest extends FunctionalTestCase
     }
 
     private function entityId(
-        HikeDraft|CityVisitDraft|InstagramPublication|InstagramPublicationBatch $entity,
+        HikeDraft|CityVisitDraft|FacebookPublication|InstagramPublication|InstagramPublicationBatch $entity,
     ): int
     {
         $id = $entity->getId();
