@@ -14,6 +14,22 @@ services:
         arguments:
             $projectDir: '%kernel.project_dir%'
 
+    App\Tests\Support\FailingFacebookResponseFactory: ~
+
+    facebook.http_client:
+        class: Symfony\Component\HttpClient\MockHttpClient
+        arguments:
+            $responseFactory: '@App\Tests\Support\FailingFacebookResponseFactory'
+            $baseUri: 'https://graph.facebook.com/'
+
+    App\Service\Facebook\FacebookPublisher:
+        public: true
+        arguments:
+            $httpClient: '@facebook.http_client'
+            $facebookPageId: '1278125198721340'
+            $facebookPageAccessToken: 'test-facebook-page-token'
+            $apiVersion: 'v26.0'
+
     App\Tests\Support\FailingInstagramResponseFactory: ~
 
     instagram.http_client:
