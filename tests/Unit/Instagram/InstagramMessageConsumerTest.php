@@ -13,6 +13,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Event\WorkerMessageFailedEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageHandledEvent;
+use Symfony\Component\Messenger\Event\WorkerMessageReceivedEvent;
 use Symfony\Component\Messenger\Event\WorkerMessageRetriedEvent;
 use Symfony\Component\Messenger\Event\WorkerRunningEvent;
 use Symfony\Component\Messenger\EventListener\SendFailedMessageForRetryListener;
@@ -50,6 +51,54 @@ final class InstagramMessageConsumerTest extends TestCase
         self::assertSame(0, $result->elapsedMilliseconds);
         self::assertFalse($budget->isActive());
         self::assertSame([], $dispatcher->getListeners(WorkerRunningEvent::class));
+        self::assertSame([], $dispatcher->getListeners(WorkerMessageReceivedEvent::class));
+        self::assertSame([], $dispatcher->getListeners(WorkerMessageHandledEvent::class));
+        self::assertSame([], $dispatcher->getListeners(WorkerMessageFailedEvent::class));
+        self::assertSame([], $dispatcher->getListeners(WorkerMessageRetriedEvent::class));
+    }
+
+    public function testItConsumesBothQueuesInOneInvocationWithoutExceedingTheGlobalLimit(): void
+    {
+        $clock = new MockClock('2026-08-11T12:00:00+02:00');
+        $instagramTransport = new InMemoryTransport(clock: $clock);
+        $facebookTransport = new InMemoryTransport(clock: $clock);
+        for ($id = 1; $id <= 5; ++$id) {
+            $instagramTransport->send(new Envelope(new ConsumerProbeMessage($id, 'instagram')));
+            $facebookTransport->send(new Envelope(new ConsumerProbeMessage($id, 'facebook')));
+        }
+
+        $handledPlatforms = [];
+        $dispatcher = new EventDispatcher();
+        $consumer = $this->consumer(
+            $instagramTransport,
+            new CallbackMessageBus(static function (Envelope $envelope) use (&$handledPlatforms): Envelope {
+                $message = $envelope->getMessage();
+                self::assertInstanceOf(ConsumerProbeMessage::class, $message);
+                $handledPlatforms[] = $message->platform;
+
+                return $envelope;
+            }),
+            $dispatcher,
+            $clock,
+            new InstagramExecutionBudget($clock, 120),
+            $facebookTransport,
+        );
+
+        $result = $consumer->consume(5, 150);
+
+        self::assertSame(5, $result->handled);
+        self::assertSame(5, $result->processed());
+        self::assertSame(['facebook', 'instagram', 'instagram', 'instagram', 'instagram'], $handledPlatforms);
+        self::assertCount(
+            1,
+            $facebookTransport->getAcknowledged(),
+            'Facebook doit obtenir une place même si les deux files sont pleines.',
+        );
+        self::assertCount(4, $instagramTransport->getAcknowledged());
+        self::assertCount(5, $facebookTransport->getSent());
+        self::assertCount(5, $instagramTransport->getSent());
+        self::assertSame([], $dispatcher->getListeners(WorkerRunningEvent::class));
+        self::assertSame([], $dispatcher->getListeners(WorkerMessageReceivedEvent::class));
         self::assertSame([], $dispatcher->getListeners(WorkerMessageHandledEvent::class));
         self::assertSame([], $dispatcher->getListeners(WorkerMessageFailedEvent::class));
         self::assertSame([], $dispatcher->getListeners(WorkerMessageRetriedEvent::class));
@@ -215,6 +264,7 @@ final class InstagramMessageConsumerTest extends TestCase
 
         self::assertFalse($budget->isActive());
         self::assertSame([], $dispatcher->getListeners(WorkerRunningEvent::class));
+        self::assertSame([], $dispatcher->getListeners(WorkerMessageReceivedEvent::class));
         self::assertSame([], $dispatcher->getListeners(WorkerMessageHandledEvent::class));
         self::assertSame([], $dispatcher->getListeners(WorkerMessageFailedEvent::class));
         self::assertSame([], $dispatcher->getListeners(WorkerMessageRetriedEvent::class));
@@ -226,9 +276,11 @@ final class InstagramMessageConsumerTest extends TestCase
         EventDispatcher $dispatcher,
         MockClock $clock,
         InstagramExecutionBudget $budget,
+        ?ReceiverInterface $facebookTransport = null,
     ): InstagramMessageConsumer {
         return new InstagramMessageConsumer(
             $transport,
+            $facebookTransport ?? new InMemoryTransport(clock: $clock),
             $bus,
             $dispatcher,
             $clock,
@@ -242,6 +294,7 @@ final class InstagramMessageConsumerTest extends TestCase
     {
         return [
             WorkerRunningEvent::class => count($dispatcher->getListeners(WorkerRunningEvent::class)),
+            WorkerMessageReceivedEvent::class => count($dispatcher->getListeners(WorkerMessageReceivedEvent::class)),
             WorkerMessageHandledEvent::class => count($dispatcher->getListeners(WorkerMessageHandledEvent::class)),
             WorkerMessageFailedEvent::class => count($dispatcher->getListeners(WorkerMessageFailedEvent::class)),
             WorkerMessageRetriedEvent::class => count($dispatcher->getListeners(WorkerMessageRetriedEvent::class)),
@@ -267,8 +320,10 @@ final class FailingReceiver implements ReceiverInterface
 
 final readonly class ConsumerProbeMessage
 {
-    public function __construct(public int $id)
-    {
+    public function __construct(
+        public int $id,
+        public string $platform = 'instagram',
+    ) {
     }
 }
 

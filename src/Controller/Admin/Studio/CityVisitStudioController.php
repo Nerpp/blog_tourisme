@@ -7,7 +7,6 @@ use App\Entity\CityVisitDraftMedia;
 use App\Entity\CityVisitPoint;
 use App\Entity\CityVisitPointMedia;
 use App\Entity\Destination;
-use App\Entity\InstagramPublication;
 use App\Entity\MediaAsset;
 use App\Enum\CityVisitDraftStatus;
 use App\Enum\CityVisitPointType;
@@ -35,6 +34,8 @@ use App\Service\Geography\LocationDraftHydrationException;
 use App\Service\Geography\LocationDraftHydrator;
 use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
+use App\Service\Social\PreparedSocialPublications;
+use App\Service\Social\SocialPublicationCoordinator;
 use DateTimeImmutable;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
@@ -76,6 +77,7 @@ final class CityVisitStudioController extends AbstractController
         private readonly OrphanLocationCleanupService $orphanLocationCleanupService,
         private readonly LocationDraftHydrator $locationDraftHydrator,
         private readonly InstagramPublicationScheduler $instagramPublicationScheduler,
+        private readonly SocialPublicationCoordinator $socialPublicationCoordinator,
     ) {}
 
     #[Route('/city-visits/{id}/edit', name: 'admin_studio_city_visit_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -91,19 +93,19 @@ final class CityVisitStudioController extends AbstractController
             }
 
             try {
-                /** @var array{bool, bool, InstagramPublication|null} $updateResult */
+                /** @var array{bool, bool, PreparedSocialPublications|null} $updateResult */
                 $updateResult = $this->entityManager->wrapInTransaction(function () use ($cityVisitDraft, $request): array {
                     $this->entityManager->refresh($cityVisitDraft, LockMode::PESSIMISTIC_WRITE);
                     $wasPublicStatus = $this->isPublicStatus($cityVisitDraft->getStatus());
                     $locationIsValid = $this->updateDraftFromRequest($cityVisitDraft, $request);
                     $shouldNotifyPublication = !$wasPublicStatus && $this->isPublicStatus($cityVisitDraft->getStatus());
                     $this->normalizeClassicCoverImages($cityVisitDraft->getMediaLinks());
-                    $instagramPublication = $shouldNotifyPublication
-                        ? $this->instagramPublicationScheduler->prepareFirstPublication($cityVisitDraft)
+                    $socialPublications = $shouldNotifyPublication
+                        ? $this->socialPublicationCoordinator->prepareFirstPublications($cityVisitDraft)
                         : null;
                     $this->entityManager->flush();
 
-                    return [$locationIsValid, $shouldNotifyPublication, $instagramPublication];
+                    return [$locationIsValid, $shouldNotifyPublication, $socialPublications];
                 });
             } catch (LocationDraftHydrationException $exception) {
                 $this->addFlash('error', $exception->getMessage());
@@ -115,9 +117,9 @@ final class CityVisitStudioController extends AbstractController
                 return $this->redirectToStudioAfterRequest($cityVisitDraft, $request, 'section-publication');
             }
 
-            [$locationIsValid, $shouldNotifyPublication, $instagramPublication] = $updateResult;
-            if ($instagramPublication instanceof InstagramPublication) {
-                $this->instagramPublicationScheduler->dispatchAfterCommit($instagramPublication);
+            [$locationIsValid, $shouldNotifyPublication, $socialPublications] = $updateResult;
+            if ($socialPublications instanceof PreparedSocialPublications) {
+                $this->socialPublicationCoordinator->dispatchAfterCommit($socialPublications);
             }
             $this->notifyNewPublication($cityVisitDraft, $shouldNotifyPublication);
 

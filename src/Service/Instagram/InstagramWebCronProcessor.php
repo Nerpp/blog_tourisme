@@ -2,15 +2,17 @@
 
 namespace App\Service\Instagram;
 
+use App\Service\Facebook\FacebookPublicationReconciler;
 use DateTimeImmutable;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Clock\ClockInterface;
 
-/** Coordinates recovery before draining the bounded instagram_async receiver. */
+/** Coordinates both publication recoveries before draining the bounded social receivers. */
 final readonly class InstagramWebCronProcessor implements InstagramWebCronProcessorInterface
 {
     public function __construct(
         private InstagramPublicationReconciler $publicationReconciler,
+        private FacebookPublicationReconciler $facebookPublicationReconciler,
         private InstagramMessageConsumer $messageConsumer,
         private InstagramExecutionBudget $executionBudget,
         private ClockInterface $clock,
@@ -35,6 +37,9 @@ final readonly class InstagramWebCronProcessor implements InstagramWebCronProces
             $reconciliation = $this->publicationReconciler->reconcile(
                 DateTimeImmutable::createFromInterface($this->clock->now()),
             );
+            $facebookReconciliation = $this->facebookPublicationReconciler->reconcile(
+                DateTimeImmutable::createFromInterface($this->clock->now()),
+            );
             $consumption = $this->messageConsumer->consume(
                 $this->messageLimit,
                 $this->timeLimitSeconds,
@@ -47,6 +52,8 @@ final readonly class InstagramWebCronProcessor implements InstagramWebCronProces
             'reconciliation_candidate_count' => $reconciliation->candidateCount,
             'reconciliation_dispatched_count' => $reconciliation->dispatchedCount,
             'reconciliation_skipped_due_to_lock' => $reconciliation->skippedDueToLock,
+            'facebook_reconciliation_candidate_count' => $facebookReconciliation->candidateCount,
+            'facebook_reconciliation_dispatched_count' => $facebookReconciliation->dispatchedCount,
             'handled_count' => $consumption->handled,
             'failed_count' => $consumption->failed,
             'retried_count' => $consumption->retried,
