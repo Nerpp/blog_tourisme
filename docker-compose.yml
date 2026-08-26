@@ -110,6 +110,9 @@ services:
     container_name: blog_tourisme_node
     user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
     working_dir: /var/www/html
+    environment:
+      HOME: /tmp
+      NPM_CONFIG_CACHE: /tmp/.npm
     command: sh -c "npm ci && npm run build"
     ports:
       - "5173:5173"
