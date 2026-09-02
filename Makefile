@@ -1,5 +1,9 @@
 COMPOSE ?= docker compose
+DOCKER_UID ?= $(shell id -u)
+DOCKER_GID ?= $(shell id -g)
 SURVEY_AFTER_MERGE ?= 1
+
+export DOCKER_UID DOCKER_GID
 
 .PHONY: setup build up composer-install composer-update-patch node-install node-build node-dev \
 	test-db-reset test test-all quality panther-doctor panther-browser-check e2e quality-e2e coverage \
@@ -70,7 +74,7 @@ test-all:
 	$(COMPOSE) exec -T php composer audit
 	$(COMPOSE) exec -T php php bin/console lint:container
 	$(COMPOSE) exec -T php php bin/console lint:twig templates
-	$(COMPOSE) run --rm --user root node chown -R $${DOCKER_UID:-1000}:$${DOCKER_GID:-1000} /var/www/html/node_modules
+	$(COMPOSE) run --rm --user root node chown -R $(DOCKER_UID):$(DOCKER_GID) /var/www/html/node_modules
 	$(COMPOSE) run --rm node
 	$(COMPOSE) exec -T php php vendor/bin/phpstan analyse
 	$(MAKE) test-db-reset
