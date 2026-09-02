@@ -1,12 +1,12 @@
 {% extends 'emails/base.html.twig' %}
 
-{% block subject %}Confirmez votre adresse email - Estela Explorations{% endblock %}
-{% block preheader %}Confirmez votre adresse et choisissez votre mot de passe Estela Explorations.{% endblock %}
+{% block subject %}Confirmez votre adresse email - {{ site_name }}{% endblock %}
+{% block preheader %}Confirmez votre adresse et choisissez votre mot de passe {{ site_name }}.{% endblock %}
 {% block email_title %}Confirmez votre adresse email{% endblock %}
 
 {% block content %}
     <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
-        Bienvenue sur Estela Explorations.
+        Bienvenue sur {{ site_name }}.
     </p>
     <p style="margin:0 0 22px;color:#243b36;font-size:16px;line-height:1.7;">
         Ouvrez ce lien sécurisé pour confirmer votre adresse, puis choisissez vous-même votre premier mot de passe.

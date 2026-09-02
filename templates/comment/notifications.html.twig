@@ -1,7 +1,10 @@
 {% extends 'layouts/comments.html.twig' %}
 {% set comment_styles_required = true %}
 
-{% block title %}Notifications commentaires - Blog Tourisme{% endblock %}
+{% block title %}Notifications commentaires | {{ site_name }}{% endblock %}
+{% block robots %}<meta name="robots" content="noindex, follow">{% endblock %}
+{% block canonical %}{% endblock %}
+{% block open_graph_url %}{% endblock %}
 
 {% block body %}
     <main class="comment-notifications-page">

@@ -44,7 +44,7 @@ final class RegistrationControllerTest extends FunctionalTestCase
         self::assertEmailCount(1);
         $confirmationEmail = self::getMailerMessage();
         self::assertInstanceOf(TemplatedEmail::class, $confirmationEmail);
-        self::assertSame('Confirmez votre adresse email Estela Explorations', $confirmationEmail->getSubject());
+        self::assertSame('Confirmez votre adresse email Estela Exploration', $confirmationEmail->getSubject());
         self::assertStringContainsString('/verify/email?', (string) $confirmationEmail->getHtmlBody());
         $loginPage = $client->followRedirect();
         self::assertSame(1, $loginPage->filter('a[href="/verify/resend"]')->count());

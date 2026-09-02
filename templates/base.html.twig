@@ -6,16 +6,17 @@
 		<link rel="icon" type="image/webp" sizes="32x32" href="{{ asset('images/brand/estela-favicon-32.webp') }}">
 		<link rel="icon" type="image/webp" sizes="48x48" href="{{ asset('images/brand/estela-favicon-48.webp') }}">
 		<title>
-			{% block title %}Estela Explorations
+			{% block title %}{{ site_name }}
 			{% endblock %}
 		</title>
-		<meta name="description" content="{% block meta_description %}Articles, itineraires et conseils pour decouvrir les plus belles destinations touristiques.{% endblock %}">
+		<meta name="description" content="{% block meta_description %}Articles, itinéraires et conseils pour découvrir les plus belles destinations des Pyrénées.{% endblock %}">
 		{% block robots %}{% endblock %}
 		{% block canonical %}<link rel="canonical" href="{{ public_canonical_url() }}">
 		{% endblock %}
 		{% block open_graph_url %}<meta property="og:url" content="{{ public_canonical_url() }}">{% endblock %}
 		<meta property="og:title" content="{% block open_graph_title %}{{ block('title') }}{% endblock %}">
 		<meta property="og:description" content="{% block open_graph_description %}{{ block('meta_description') }}{% endblock %}"> {% block open_graph_image %}{% endblock %}
+		<meta property="og:site_name" content="{{ site_name }}">
 		{% block preloads %}{% endblock %}
 		{% block stylesheets %}
 			{{ vite_entry_link_tags('app') }}

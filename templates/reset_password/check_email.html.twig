@@ -1,13 +1,13 @@
 {% extends 'layouts/auth.html.twig' %}
 
-{% block title %}Email envoyé - Blog Tourisme{% endblock %}
+{% block title %}Email envoyé | {{ site_name }}{% endblock %}
 
 {% block body %}
     <main class="login-page auth-reset-page auth-reset-page--check">
         <section class="login-shell auth-reset-shell" aria-labelledby="reset-check-title">
             <aside class="login-hero auth-reset-hero" aria-label="Email de réinitialisation">
                 <div class="login-hero__content auth-reset-hero__content">
-                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <a class="login-brand" href="{{ path('app_home') }}">{{ site_name }}</a>
                     <p class="login-eyebrow">Lien temporaire</p>
                     <h1 id="reset-check-title" class="auth-reset-title">Vérifiez votre boîte mail</h1>
                     <p class="login-hero__text auth-reset-subtitle">

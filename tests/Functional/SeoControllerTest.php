@@ -27,13 +27,23 @@ final class SeoControllerTest extends FunctionalTestCase
         self::assertSame('/articles', $footerLinks['Articles'] ?? null);
         self::assertSame('/places', $footerLinks['Lieux'] ?? null);
         self::assertSame('/plan-du-site', $footerLinks['Plan du site'] ?? null);
+        self::assertSame('/mentions-legales', $footerLinks['Mentions légales'] ?? null);
+        self::assertSame('/politique-de-confidentialite', $footerLinks['Politique de confidentialité'] ?? null);
 
         $youtube = $crawler->filter('footer.site-footer a[href="https://www.youtube.com/channel/UCKv62tsRzbWy_rfm6_oKM-A"]');
         self::assertSame(1, $youtube->count());
         self::assertSame('_blank', $youtube->attr('target'));
         self::assertSame('noopener noreferrer', $youtube->attr('rel'));
-        self::assertSame('Voir la chaîne YouTube Estela', $youtube->attr('aria-label'));
+        self::assertSame('YouTube Estela Exploration', $youtube->attr('aria-label'));
         self::assertSame(1, $youtube->filter('svg.site-footer__social-icon--youtube[aria-hidden="true"]')->count());
+
+        $instagram = $crawler->filter('footer.site-footer a[href="https://www.instagram.com/estela_exploration/"]');
+        self::assertSame(1, $instagram->count());
+        self::assertSame('_blank', $instagram->attr('target'));
+        self::assertSame('noopener noreferrer', $instagram->attr('rel'));
+        self::assertSame('Instagram Estela Exploration', $instagram->attr('aria-label'));
+        self::assertStringContainsString('Instagram', $instagram->text());
+        self::assertSame(1, $instagram->filter('svg.site-footer__social-icon--instagram[aria-hidden="true"]')->count());
 
         $client->loginUser($this->createVerifiedAdmin());
         $adminCrawler = $client->request('GET', '/admin');
@@ -45,6 +55,13 @@ final class SeoControllerTest extends FunctionalTestCase
     public function testPlanDuSiteIsPublicUsefulAndLinkedFromFooter(): void
     {
         $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $destination = $this->createDestination('Destination plan dynamique');
+        $article = $this->createArticle($admin, $destination)->setTitle('Article plan dynamique');
+        $hike = $this->createPublishedHike($admin, $destination)->setTitle('Randonnée plan dynamique');
+        $cityVisit = $this->createPublishedCityVisit($admin, $destination)->setTitle('Visite plan dynamique');
+        $place = $this->createPublishedPlace($destination)->setName('Lieu plan dynamique');
+        $this->persistAndFlush($article, $hike, $cityVisit, $place);
         $crawler = $client->request('GET', '/plan-du-site');
 
         self::assertResponseIsSuccessful();
@@ -59,12 +76,119 @@ final class SeoControllerTest extends FunctionalTestCase
         self::assertSame('/articles', $mainLinks['Articles'] ?? null);
         self::assertSame('/places', $mainLinks['Lieux'] ?? null);
         self::assertSame('/plan-du-site', $mainLinks['Plan du site'] ?? null);
+        self::assertSame('/mentions-legales', $mainLinks['Mentions légales'] ?? null);
+        self::assertSame('/politique-de-confidentialite', $mainLinks['Politique de confidentialité'] ?? null);
+        self::assertSame('/destinations/'.$destination->getSlug(), $mainLinks['Destination plan dynamique'] ?? null);
+        self::assertSame('/articles/'.$article->getSlug(), $mainLinks['Article plan dynamique'] ?? null);
+        self::assertSame('/randonnees/'.$hike->getSlug(), $mainLinks['Randonnée plan dynamique'] ?? null);
+        self::assertSame('/visites-de-ville/'.$cityVisit->getSlug(), $mainLinks['Visite plan dynamique'] ?? null);
+        self::assertSame('/places/'.$place->getSlug(), $mainLinks['Lieu plan dynamique'] ?? null);
 
         foreach (['/admin', '/login', '/register', '/profile', '/notifications'] as $privatePath) {
             self::assertNotContains($privatePath, array_values($mainLinks));
         }
 
         self::assertSame(1, $crawler->filter('footer.site-footer a[href="/plan-du-site"]')->count());
+    }
+
+    public function testLegalNoticeUsesTheAnonymousNonProfessionalPublisherRegime(): void
+    {
+        $client = static::createClient();
+        $crawler = $client->request('GET', '/mentions-legales');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('h1', 'Mentions légales');
+        self::assertSame(0, $crawler->filter('meta[name="robots"][content="noindex, follow"]')->count());
+        self::assertSame(1, $crawler->filter('link[rel="canonical"][href="'.self::PUBLIC_ORIGIN.'/mentions-legales"]')->count());
+        self::assertSame(1, $crawler->filter('meta[property="og:url"][content="'.self::PUBLIC_ORIGIN.'/mentions-legales"]')->count());
+        self::assertSelectorTextContains('body', 'Estela Exploration est un site personnel édité à titre non professionnel');
+        self::assertSelectorTextContains('body', 'l’article 1-1, II de la loi n° 2004-575 du 21 juin 2004');
+        self::assertSelectorTextContains('body', 'Infomaniak Network SA');
+        self::assertSelectorTextContains('body', 'Rue Eugène Marziano 25');
+        self::assertSelectorTextContains('body', '1227 Les Acacias (GE)');
+        self::assertSelectorTextContains('body', 'Suisse');
+        self::assertSame(1, $crawler->filter('a[href="https://www.infomaniak.com/fr/cgv/mentions-legales"]')->count());
+
+        $visibleText = mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('body')->text())));
+        foreach (['todo', 'à compléter', 'à renseigner', 'valeur manquante', 'null'] as $placeholder) {
+            self::assertStringNotContainsString($placeholder, $visibleText);
+        }
+
+        foreach (['nom ou raison sociale', 'adresse de l’éditeur', 'immatriculation', 'siret', 'rcs', 'rne', 'directeur ou directrice de la publication', 'téléphone'] as $publisherField) {
+            self::assertStringNotContainsString($publisherField, $visibleText);
+        }
+    }
+
+    public function testIncompletePrivacyPolicyStaysNoindexWithoutPublisherIdentityOrPlaceholders(): void
+    {
+        $client = static::createClient();
+        $crawler = $client->request('GET', '/politique-de-confidentialite');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('h1', 'Politique de confidentialité');
+        self::assertSame(1, $crawler->filter('meta[name="robots"][content="noindex, follow"]')->count());
+        self::assertSame(0, $crawler->filter('link[rel="canonical"]')->count());
+        self::assertSame(0, $crawler->filter('meta[property="og:url"]')->count());
+        self::assertSelectorTextContains('body', 'Publication en attente de validation');
+        self::assertSelectorTextContains('body', 'L’éditeur non professionnel du site Estela Exploration');
+        self::assertSelectorTextContains('body', 'Infomaniak Network SA');
+
+        $visibleText = mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('body')->text())));
+        foreach (['todo', 'à compléter', 'à renseigner', 'valeur manquante', 'null', 'nom ou raison sociale', 'immatriculation', 'directeur ou directrice de la publication'] as $forbiddenText) {
+            self::assertStringNotContainsString($forbiddenText, $visibleText);
+        }
+
+        self::assertStringContainsString('180 jours', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('youtube-nocookie.com', (string) $client->getResponse()->getContent());
+    }
+
+    #[DataProvider('primaryPublicTitleProvider')]
+    public function testPrimaryPublicTitlesUseEstelaExploration(string $path, string $expectedTitle): void
+    {
+        $client = static::createClient();
+        $crawler = $client->request('GET', $path);
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($expectedTitle, trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('title')->text())));
+        self::assertStringNotContainsString('Blog Tourisme', (string) $client->getResponse()->getContent());
+        self::assertStringNotContainsString('Blog tourisme', (string) $client->getResponse()->getContent());
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function primaryPublicTitleProvider(): iterable
+    {
+        yield 'home' => ['/', 'Estela Exploration — Randonnées, destinations et histoires des Pyrénées'];
+        yield 'hikes' => ['/randonnees', 'Randonnées | Estela Exploration'];
+        yield 'articles' => ['/articles', 'Articles | Estela Exploration'];
+        yield 'destinations' => ['/destinations', 'Destinations | Estela Exploration'];
+        yield 'visits' => ['/visites', 'Visites | Estela Exploration'];
+        yield 'places' => ['/places', 'Lieux | Estela Exploration'];
+        yield 'site map' => ['/plan-du-site', 'Plan du site | Estela Exploration'];
+        yield 'login' => ['/login', 'Connexion | Estela Exploration'];
+        yield 'register' => ['/register', 'Créer un compte | Estela Exploration'];
+    }
+
+    public function testDetailTitlesUseTheSharedBrandConvention(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $destination = $this->createDestination('Py test SEO');
+        $hike = $this->createPublishedHike($admin, $destination)->setTitle('Boucle SEO test');
+        $cityVisit = $this->createPublishedCityVisit($admin, $destination)->setTitle('Visite SEO test');
+        $place = $this->createPublishedPlace($destination)->setName('Lieu SEO test');
+        $this->persistAndFlush($hike, $cityVisit, $place);
+
+        foreach ([
+            '/destinations/'.$destination->getSlug() => 'Py test SEO — randonnées et découvertes | Estela Exploration',
+            '/randonnees/'.$hike->getSlug() => 'Boucle SEO test — itinéraire, photos et GPS | Estela Exploration',
+            '/visites-de-ville/'.$cityVisit->getSlug() => 'Visite SEO test — parcours et découvertes | Estela Exploration',
+            '/places/'.$place->getSlug() => 'Lieu SEO test | Estela Exploration',
+        ] as $path => $expectedTitle) {
+            $crawler = $client->request('GET', $path);
+            self::assertResponseIsSuccessful();
+            self::assertSame($expectedTitle, trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('title')->text())));
+            self::assertSame($expectedTitle, $crawler->filter('meta[property="og:title"]')->attr('content'));
+        }
     }
 
     public function testSitemapContainsCanonicalPublishedContentOnlyWithoutDuplicates(): void

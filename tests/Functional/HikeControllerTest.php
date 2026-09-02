@@ -3,6 +3,7 @@
 namespace App\Tests\Functional;
 
 use App\Entity\ArticleHike;
+use App\Entity\HikeDraft;
 use App\Enum\DestinationType;
 use App\Enum\HikeDraftStatus;
 use App\Enum\HikePointType;
@@ -169,6 +170,15 @@ final class HikeControllerTest extends FunctionalTestCase
             $cardImage->attr('srcset'),
         );
         self::assertSame('/uploads/media/variants/photo-large.webp', $crawler->filter('.gallery-modal__slide img')->first()->attr('data-gallery-src'));
+        $modal = $crawler->filter('.gallery-modal.js-gallery-modal')->first();
+        self::assertSame('dialog', $modal->attr('role'));
+        self::assertSame('true', $modal->attr('aria-modal'));
+        self::assertSame('true', $modal->attr('aria-hidden'));
+        self::assertNotNull($modal->attr('hidden'));
+        self::assertNotNull($modal->attr('inert'));
+        self::assertSame(1, $modal->filter('[aria-label="Fermer la galerie"]')->count());
+        self::assertSame(1, $modal->filter('[aria-label="Photo précédente"]')->count());
+        self::assertSame(1, $modal->filter('[aria-label="Photo suivante"]')->count());
         self::assertStringNotContainsString('.jpg', $cardImage->outerHtml());
         self::assertStringNotContainsString('image/avif', $crawler->filter('.journey-gallery picture')->first()->outerHtml());
     }
@@ -187,6 +197,8 @@ final class HikeControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $published->getTitle());
         self::assertStringNotContainsString((string) $draft->getTitle(), (string) $client->getResponse()->getContent());
+        self::assertSame(0, $crawler->filter('.article-index-empty')->count());
+        self::assertStringNotContainsString('Aucune randonnée publiée pour le moment.', (string) $client->getResponse()->getContent());
         self::assertSame(
             '/images/placeholders/destination-card-placeholder.webp',
             $crawler->filter('.article-list-card__visual picture > img.article-list-card__image')->first()->attr('src'),
@@ -224,6 +236,23 @@ final class HikeControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Aucune randonnée ne correspond à cette recherche.');
+        self::assertSelectorExists('.article-index-empty');
+    }
+
+    public function testHikeIndexWithoutPublishedHikesRendersInitialEmptyState(): void
+    {
+        $client = static::createClient();
+        foreach ($this->entityManager()->getRepository(HikeDraft::class)->findAll() as $hike) {
+            $hike->setStatus(HikeDraftStatus::Draft);
+        }
+        $this->entityManager()->flush();
+
+        $crawler = $client->request('GET', '/randonnees');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('[data-public-list-card]')->count());
+        self::assertSame(1, $crawler->filter('.article-index-empty')->count());
+        self::assertSelectorTextContains('.article-index-empty', 'Aucune randonnée publiée pour le moment.');
     }
 
     public function testHikeSuggestionsRequireTwoCharactersAndReturnLimitedPublicResults(): void
@@ -263,6 +292,8 @@ final class HikeControllerTest extends FunctionalTestCase
         $firstPoint = $this->createHikePoint($hike, 42.7000, 2.9000, 1);
         $secondPoint = $this->createHikePoint($hike, 42.7040, 2.9060, 2);
         $thirdPoint = $this->createHikePoint($hike, 42.7080, 2.9120, 3);
+        $firstPoint->setType(HikePointType::Start);
+        $this->persistAndFlush($firstPoint);
 
         $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
 
@@ -287,6 +318,9 @@ final class HikeControllerTest extends FunctionalTestCase
         $points = json_decode($map->attr('data-points') ?? '[]', true, flags: JSON_THROW_ON_ERROR);
         self::assertCount(3, $points);
         self::assertSame('Point randonnée 1', $points[0]['title'] ?? null);
+        self::assertSame('Départ', $points[0]['type'] ?? null);
+        self::assertSelectorTextContains('.public-point-type', 'Départ');
+        self::assertStringNotContainsString('>start<', (string) $client->getResponse()->getContent());
         self::assertSame(42.7, $points[0]['latitude'] ?? null);
         self::assertSame([
             $firstPoint->getId(),

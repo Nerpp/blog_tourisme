@@ -33,7 +33,7 @@ final class ArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(
-            'Titre éditorial automatique - Blog Tourisme',
+            'Titre éditorial automatique | Estela Exploration',
             trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('title')->text())),
         );
         self::assertSame(
@@ -49,7 +49,7 @@ final class ArticleControllerTest extends FunctionalTestCase
             'https://estela-exploration.fr/articles/titre-editorial-automatique',
             $crawler->filter('meta[property="og:url"]')->attr('content'),
         );
-        self::assertSame('Titre éditorial automatique', $crawler->filter('meta[property="og:title"]')->attr('content'));
+        self::assertSame('Titre éditorial automatique | Estela Exploration', $crawler->filter('meta[property="og:title"]')->attr('content'));
         self::assertSame(
             'https://estela-exploration.fr/images/placeholders/destination-card-placeholder.webp',
             $crawler->filter('meta[property="og:image"]')->attr('content'),
@@ -65,7 +65,7 @@ final class ArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(
-            'Titre éditorial modifié - Blog Tourisme',
+            'Titre éditorial modifié | Estela Exploration',
             trim((string) preg_replace('/\s+/u', ' ', $crawler->filter('title')->text())),
         );
         self::assertSame(
@@ -163,6 +163,8 @@ final class ArticleControllerTest extends FunctionalTestCase
             $crawler->filter('.article-list-card__visual picture > img.article-list-card__image')->attr('src'),
         );
         self::assertSame(1, $crawler->filter('.article-list-card__visual > picture')->count());
+        self::assertSame(0, $crawler->filter('.article-index-empty')->count());
+        self::assertStringNotContainsString('Aucun article publié pour le moment.', (string) $client->getResponse()->getContent());
     }
 
     public function testArticleIndexDoesNotListDraftArticles(): void
@@ -246,6 +248,25 @@ final class ArticleControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Aucun article ne correspond à cette recherche.');
+        self::assertSelectorExists('.article-index-empty');
+    }
+
+    public function testArticleIndexWithoutPublishedArticlesRendersInitialEmptyState(): void
+    {
+        $client = static::createClient();
+        foreach ($this->entityManager()->getRepository(Article::class)->findAll() as $article) {
+            $article
+                ->setStatus(ContentStatus::Draft)
+                ->setPublishedAt(null);
+        }
+        $this->entityManager()->flush();
+
+        $crawler = $client->request('GET', '/articles');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('[data-public-list-card]')->count());
+        self::assertSame(1, $crawler->filter('.article-index-empty')->count());
+        self::assertSelectorTextContains('.article-index-empty', 'Aucun article publié pour le moment.');
     }
 
     public function testArticleIndexShowsAllPublicArticlesAndOnlyUsefulCategoryChips(): void

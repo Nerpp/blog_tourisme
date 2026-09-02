@@ -1,13 +1,13 @@
 {% extends 'layouts/auth.html.twig' %}
 
-{% block title %}Renvoyer l’email de confirmation - Blog Tourisme{% endblock %}
+{% block title %}Renvoyer l’email de confirmation | {{ site_name }}{% endblock %}
 
 {% block body %}
     <main class="login-page">
         <section class="login-shell" aria-labelledby="verify-resend-title">
-            <aside class="login-hero" aria-label="Confirmation email Blog Tourisme">
+            <aside class="login-hero" aria-label="Confirmation email {{ site_name }}">
                 <div class="login-hero__content">
-                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <a class="login-brand" href="{{ path('app_home') }}">{{ site_name }}</a>
                     <p class="login-eyebrow">Compte voyageur</p>
                     <h1 id="verify-resend-title">Confirmer votre email</h1>
                     <p class="login-hero__text">

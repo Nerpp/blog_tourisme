@@ -13,9 +13,13 @@ final class PublicPagesTest extends FunctionalTestCase
     {
         $client = static::createClient();
 
-        $client->request('GET', '/');
+        $crawler = $client->request('GET', '/');
 
         self::assertResponseIsSuccessful();
+        self::assertGreaterThan(0, $crawler->filter('.home-destination-card__chip')->count());
+        foreach ($crawler->filter('.home-destination-card__chip') as $chip) {
+            self::assertNotContains(trim($chip->textContent), ['country', 'region', 'department', 'city', 'area']);
+        }
     }
 
     public function testHomepageCardsRenderThumbOnlyWebpWithoutResponsiveCandidates(): void

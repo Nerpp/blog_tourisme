@@ -1,7 +1,7 @@
 {% extends 'layouts/destination.html.twig' %}
 
-{% block title %}Destinations - Blog Tourisme{% endblock %}
-{% block meta_description %}Explorez la hierarchie des destinations touristiques : pays, regions, departements et villes.{% endblock %}
+{% block title %}Destinations | {{ site_name }}{% endblock %}
+{% block meta_description %}Explorez la hiérarchie des destinations touristiques : pays, régions, départements et villes.{% endblock %}
 
 {% block body %}
     <main class="destinations-page" data-destination-browser>
@@ -9,7 +9,7 @@
             <div class="destinations-container">
                 <p class="destinations-kicker">Destinations</p>
                 <h1 class="destinations-title">Explorer les destinations</h1>
-                <p class="destinations-intro">Parcourez la hierarchie geographique du blog et retrouvez rapidement les pays, regions, departements et villes associes aux contenus publics.</p>
+                <p class="destinations-intro">Parcourez la hiérarchie géographique d’Estela Exploration et retrouvez rapidement les pays, régions, départements et villes associés aux contenus publics.</p>
             </div>
         </section>
 
@@ -21,7 +21,7 @@
                             <span>Rechercher</span>
                             <input
                                 type="search"
-                                placeholder="Rechercher une ville, une region, un departement..."
+                                placeholder="Rechercher une ville, une région, un département…"
                                 list="destination-suggestions"
                                 autocomplete="off"
                                 data-destination-search
@@ -40,7 +40,7 @@
                         {% endfor %}
                     </datalist>
 
-                    <div class="destinations-summary-grid" aria-label="Resume des contenus publics">
+                    <div class="destinations-summary-grid" aria-label="Résumé des contenus publics">
                         <a
                             class="destination-summary-card"
                             href="{{ path('app_article_index') }}"
@@ -72,7 +72,7 @@
                         destination_counts: destination_counts
                     } only %}
 
-                    <p class="destinations-empty" data-destination-empty hidden>Aucune destination ne correspond a cette recherche.</p>
+                    <p class="destinations-empty" data-destination-empty aria-live="polite" aria-atomic="true" hidden>Aucune destination ne correspond à cette recherche.</p>
                 </div>
             </div>
         </section>

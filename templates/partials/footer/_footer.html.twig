@@ -21,6 +21,8 @@
                 <h2 id="footer-information-title">Informations</h2>
                 <ul>
                     <li><a href="{{ path('app_sitemap_html') }}">Plan du site</a></li>
+                    <li><a href="{{ path('app_legal_notice') }}">Mentions légales</a></li>
+                    <li><a href="{{ path('app_privacy_policy') }}">Politique de confidentialité</a></li>
                 </ul>
             </section>
 
@@ -28,12 +30,31 @@
                 <h2 id="footer-follow-title">Suivre Estela</h2>
                 <ul>
                     <li>
-                        <a class="site-footer__social-link site-footer__social-link--youtube" href="https://www.youtube.com/channel/UCKv62tsRzbWy_rfm6_oKM-A" target="_blank" rel="noopener noreferrer" aria-label="Voir la chaîne YouTube Estela">
+                        <a class="site-footer__social-link site-footer__social-link--youtube" href="https://www.youtube.com/channel/UCKv62tsRzbWy_rfm6_oKM-A" target="_blank" rel="noopener noreferrer" aria-label="YouTube Estela Exploration">
                             <svg class="site-footer__social-icon site-footer__social-icon--youtube" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                 <path fill="currentColor" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8Z"/>
                                 <path fill="#fff" d="m9.6 15.6 6.2-3.6-6.2-3.6v7.2Z"/>
                             </svg>
                             YouTube <span aria-hidden="true">↗</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="site-footer__social-link" href="https://www.instagram.com/estela_exploration/" target="_blank" rel="noopener noreferrer" aria-label="Instagram Estela Exploration">
+                            <svg class="site-footer__social-icon site-footer__social-icon--instagram" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <defs>
+                                    <linearGradient id="footer-instagram-gradient" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse">
+                                        <stop offset="0" stop-color="#feda75"/>
+                                        <stop offset="0.25" stop-color="#fa7e1e"/>
+                                        <stop offset="0.5" stop-color="#d62976"/>
+                                        <stop offset="0.75" stop-color="#962fbf"/>
+                                        <stop offset="1" stop-color="#4f5bd5"/>
+                                    </linearGradient>
+                                </defs>
+                                <rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="url(#footer-instagram-gradient)" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="4" fill="none" stroke="url(#footer-instagram-gradient)" stroke-width="2"/>
+                                <circle cx="17.4" cy="6.6" r="1.2" fill="url(#footer-instagram-gradient)"/>
+                            </svg>
+                            Instagram <span aria-hidden="true">↗</span>
                         </a>
                     </li>
                 </ul>

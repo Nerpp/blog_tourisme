@@ -9,6 +9,23 @@
 {% set hike_map_points = [] %}
 {% set route_map_id = gallery_id ~ '-route-map' %}
 {% set point_media_gallery_links = [] %}
+{% set point_type_labels = {
+    start: 'Départ',
+    interest: 'Point d’intérêt',
+    viewpoint: 'Point de vue',
+    photo: 'Photo',
+    water: 'Point d’eau',
+    danger: 'Point de vigilance',
+    rest: 'Pause',
+    monument: 'Monument',
+    museum: 'Musée',
+    church: 'Église',
+    square: 'Place',
+    restaurant: 'Restaurant',
+    parking: 'Parking',
+    end: 'Arrivée',
+    other: 'Autre étape'
+} %}
 {% set use_panther_embed_placeholder = app.environment == 'test' and app.request.query.get('panther_external_embed_placeholder') == '1' %}
 
 {% for mediaLink in item.mediaLinks %}
@@ -38,7 +55,7 @@
             id: point.id,
             position: point.position,
             title: point.title ?: 'Étape ' ~ loop.index,
-            type: point.type.value,
+            type: point_type_labels[point.type.value]|default('Étape'),
             latitude: point.latitude,
             longitude: point.longitude
         }]) %}
@@ -185,6 +202,7 @@
             aria-modal="true"
             aria-hidden="true"
             aria-labelledby="{{ gallery_id }}-video-gallery-title"
+            inert
             hidden
         >
             <div class="gallery-modal__dialog gallery-modal__dialog--video" role="document">
@@ -389,6 +407,7 @@
             aria-modal="true"
             aria-hidden="true"
             aria-labelledby="{{ gallery_id }}-immersive-gallery-title"
+            inert
             hidden
         >
             <div class="gallery-modal__dialog gallery-modal__dialog--immersive" role="document">
@@ -657,7 +676,7 @@
                 </div>
 
                 <div>
-                    <p class="public-point-type">{{ point.type.value }}</p>
+                    <p class="public-point-type">{{ point_type_labels[point.type.value]|default('Étape') }}</p>
 
                     <h3>{{ point.title ?: 'Étape ' ~ loop.index }}</h3>
 
@@ -870,6 +889,7 @@
             aria-hidden="true"
             aria-labelledby="{{ gallery_id }}-point-media-gallery-title"
             data-gallery-autoplay="false"
+            inert
             hidden
         >
             <div class="gallery-modal__dialog gallery-modal__dialog--point-media" role="document">

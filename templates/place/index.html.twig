@@ -1,14 +1,14 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Carnet de lieux - Blog Tourisme{% endblock %}
-{% block meta_description %}Repérages prives, notes terrain et points utiles pour preparer les contenus publics.{% endblock %}
+{% block title %}Lieux | {{ site_name }}{% endblock %}
+{% block meta_description %}Repérages privés, notes terrain et points utiles pour préparer les contenus publics.{% endblock %}
 
 {% block body %}
     <main class="page-shell">
         <header class="page-header">
             <p class="eyebrow">Repérages</p>
             <h1>Carnet de lieux</h1>
-            <p>Filtrez les repérages par destination, categorie ou tag pour preparer les articles, randonnées et visites de ville.</p>
+            <p>Filtrez les repérages par destination, catégorie ou tag pour préparer les articles, randonnées et visites de ville.</p>
         </header>
 
         <form class="filters" method="get" action="{{ path('app_place_index') }}">
@@ -22,7 +22,7 @@
                 </select>
             </label>
             <label>
-                Categorie
+                Catégorie
                 <select name="category">
                     <option value="">Toutes</option>
                     {% for category in categories %}
@@ -40,14 +40,14 @@
                 </select>
             </label>
             <button type="submit">Filtrer</button>
-            <a href="{{ path('app_place_index') }}">Reinitialiser</a>
+            <a href="{{ path('app_place_index') }}">Réinitialiser</a>
         </form>
 
         <div class="card-grid">
             {% for place in places %}
                 {% include 'partials/_place_card.html.twig' with { place: place, heading_level: 2 } only %}
             {% else %}
-                <p>Aucun repérage ne correspond a ces filtres.</p>
+                <p>Aucun repérage ne correspond à ces filtres.</p>
             {% endfor %}
         </div>
     </main>

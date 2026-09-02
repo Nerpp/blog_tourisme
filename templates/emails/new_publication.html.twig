@@ -1,8 +1,8 @@
 {% extends 'emails/base.html.twig' %}
 
-{% block subject %}Nouvelle publication - Estela Explorations{% endblock %}
-{% block preheader %}Une nouvelle publication est disponible sur Estela Explorations.{% endblock %}
-{% block email_title %}Nouvelle publication sur Estela Explorations{% endblock %}
+{% block subject %}Nouvelle publication - {{ site_name }}{% endblock %}
+{% block preheader %}Une nouvelle publication est disponible sur {{ site_name }}.{% endblock %}
+{% block email_title %}Nouvelle publication sur {{ site_name }}{% endblock %}
 
 {% block content %}
     <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">

@@ -38,11 +38,10 @@
 	{% endif %}
 {% endfor %}
 
-{% block title %}{{ article_seo.title }} - Blog Tourisme{% endblock %}
+{% block title %}{{ article_seo.title }} | {{ site_name }}{% endblock %}
 {% block meta_description %}{{ article_seo.description }}{% endblock %}
 {% block canonical %}<link rel="canonical" href="{{ article_seo.canonical }}">
 {% endblock %}
-{% block open_graph_title %}{{ article_seo.title }}{% endblock %}
 {% block open_graph_description %}{{ article_seo.description }}{% endblock %}
 {% block open_graph_image %}<meta property="og:image" content="{{ public_url(article_cover_image) }}">{% endblock %}
 

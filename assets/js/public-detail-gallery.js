@@ -1,4 +1,13 @@
 export function initPublicDetailGallery() {
+  const FOCUSABLE_SELECTOR = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+  ].join(',');
+
   const init = () => {
     const modals = document.querySelectorAll('.js-gallery-modal');
 
@@ -193,8 +202,10 @@ export function initPublicDetailGallery() {
       const openModal = (index = 0) => {
         previousFocus = document.activeElement;
 
+        modal.inert = false;
         modal.hidden = false;
         modal.removeAttribute('hidden');
+        modal.removeAttribute('inert');
         modal.setAttribute('aria-hidden', 'false');
         document.documentElement.classList.add('has-gallery-modal');
 
@@ -210,6 +221,8 @@ export function initPublicDetailGallery() {
       const closeModal = () => {
         modal.hidden = true;
         modal.setAttribute('hidden', '');
+        modal.inert = true;
+        modal.setAttribute('inert', '');
         modal.setAttribute('aria-hidden', 'true');
         document.documentElement.classList.remove('has-gallery-modal');
         stopAllVideos();
@@ -249,7 +262,9 @@ export function initPublicDetailGallery() {
 
       modal.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
+          event.preventDefault();
           closeModal();
+          return;
         }
 
         if (event.key === 'ArrowRight') {
@@ -258,6 +273,27 @@ export function initPublicDetailGallery() {
 
         if (event.key === 'ArrowLeft') {
           setActiveSlide(currentIndex - 1);
+        }
+
+        if (event.key === 'Tab') {
+          const focusableElements = Array.from(modal.querySelectorAll(FOCUSABLE_SELECTOR))
+            .filter((element) => !element.closest('[hidden]') && element.getClientRects().length > 0);
+
+          if (focusableElements.length === 0) {
+            event.preventDefault();
+            return;
+          }
+
+          const first = focusableElements[0];
+          const last = focusableElements[focusableElements.length - 1];
+
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
         }
       });
 
