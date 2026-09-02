@@ -1,3 +1,11 @@
+{% set destination_type_labels = {
+    country: 'Pays',
+    region: 'Région',
+    department: 'Département',
+    city: 'Ville',
+    area: 'Lieu'
+} %}
+
 <a class="home-destination-card" href="{{ path('app_destination_show', { slug: destination.slug }) }}">
     <div class="home-destination-card__image">
         {% include 'public_detail/_responsive_image.html.twig' with {
@@ -12,7 +20,7 @@
 
         <div class="home-destination-card__overlay">
             <span class="home-destination-card__chip">
-                {{ destination.type.value }}
+                {{ destination_type_labels[destination.type.value]|default('Destination') }}
             </span>
 
             <h3>{{ destination.name }}</h3>

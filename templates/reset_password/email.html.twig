@@ -2,13 +2,13 @@
 
 {% set resetLink = public_route_url('app_reset_password', { token: reset_token.token }) %}
 
-{% block subject %}Réinitialisation de votre mot de passe - Estela Explorations{% endblock %}
+{% block subject %}Réinitialisation de votre mot de passe - {{ site_name }}{% endblock %}
 {% block preheader %}Votre lien sécurisé de réinitialisation est disponible.{% endblock %}
 {% block email_title %}Réinitialisation de votre mot de passe{% endblock %}
 
 {% block content %}
     <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
-        Vous avez demandé à réinitialiser votre mot de passe sur Estela Explorations.
+        Vous avez demandé à réinitialiser votre mot de passe sur {{ site_name }}.
     </p>
     <p style="margin:0 0 22px;color:#66756d;font-size:15px;line-height:1.7;">
         Votre accès reste protégé, comme une étape tranquille avant de reprendre la route.

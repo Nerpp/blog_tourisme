@@ -53,7 +53,7 @@ final class EmailVerifier
         $email = (new TemplatedEmail())
             ->from($this->mailerFrom)
             ->to((string) $user->getEmail())
-            ->subject('Confirmez votre adresse email Estela Explorations')
+            ->subject('Confirmez votre adresse email Estela Exploration')
             ->htmlTemplate('registration/confirmation_email.html.twig')
             ->context([
                 'signedUrl' => $signedUrl,

@@ -489,7 +489,7 @@ final class AdminArticleControllerTest extends FunctionalTestCase
         $publicCrawler = $client->request('GET', '/articles/'.$article->getSlug());
         self::assertResponseIsSuccessful();
         self::assertStringContainsString($title, (string) $client->getResponse()->getContent());
-        self::assertSame($title.' - Blog Tourisme', trim((string) preg_replace('/\s+/u', ' ', $publicCrawler->filter('title')->text())));
+        self::assertSame($title.' | Estela Exploration', trim((string) preg_replace('/\s+/u', ' ', $publicCrawler->filter('title')->text())));
         self::assertSame('Résumé complet destiné aux listes publiques.', $publicCrawler->filter('meta[name="description"]')->attr('content'));
         self::assertSame(
             'https://estela-exploration.fr/articles/'.$article->getSlug(),

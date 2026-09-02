@@ -28,7 +28,7 @@ final class CommentModerationMailerTest extends TestCase
             ->with(self::callback(static function (TemplatedEmail $email) use ($author, $comment): bool {
                 return ($email->getFrom()[0]->getAddress() ?? null) === 'moderation@example.test'
                     && ($email->getTo()[0]->getAddress() ?? null) === 'reader@example.test'
-                    && $email->getSubject() === 'Votre commentaire n’a pas été accepté sur Estela Explorations'
+                    && $email->getSubject() === 'Votre commentaire n’a pas été accepté sur Estela Exploration'
                     && $email->getHtmlTemplate() === 'emails/comment_rejected.html.twig'
                     && ($email->getContext()['author'] ?? null) === $author
                     && ($email->getContext()['comment'] ?? null) === $comment

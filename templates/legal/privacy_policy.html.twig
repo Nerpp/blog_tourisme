@@ -1,0 +1,84 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Politique de confidentialité | {{ site_name }}{% endblock %}
+{% block meta_description %}Données personnelles, cookies nécessaires, statistiques internes et droits des utilisateurs d’Estela Exploration.{% endblock %}
+{% block canonical %}{% if privacy_policy_complete %}<link rel="canonical" href="{{ public_route_url('app_privacy_policy') }}">{% endif %}{% endblock %}
+{% block open_graph_url %}{% if privacy_policy_complete %}{{ parent() }}{% endif %}{% endblock %}
+{% block robots %}{% if not privacy_policy_complete %}<meta name="robots" content="noindex, follow">{% endif %}{% endblock %}
+
+{% block body %}
+    <main class="page-shell legal-page">
+        <header class="page-header">
+            <p class="eyebrow">Vie privée</p>
+            <h1>Politique de confidentialité</h1>
+            <p>Cette page décrit les traitements effectivement présents dans {{ site_name }}.</p>
+        </header>
+
+        {% if not privacy_policy_complete %}
+            <section class="section-block" aria-labelledby="privacy-unpublished-title">
+                <h2 id="privacy-unpublished-title">Publication en attente de validation</h2>
+                <p>Cette politique reste non indexable tant qu’une adresse de contact dédiée à l’exercice des droits n’a pas été validée.</p>
+            </section>
+        {% endif %}
+
+        <section class="section-block" aria-labelledby="privacy-controller-title">
+            <h2 id="privacy-controller-title">Responsable du traitement</h2>
+            <p>L’éditeur non professionnel du site {{ site_name }} est responsable des traitements décrits dans cette politique.</p>
+            {% if privacy_policy_complete %}
+                <p>Contact : <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
+            {% endif %}
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-account-title">
+            <h2 id="privacy-account-title">Compte et authentification</h2>
+            <p>La création d’un compte collecte obligatoirement une adresse email et un nom affiché. L’avatar et l’inscription aux emails de nouvelles publications sont facultatifs. Le mot de passe est stocké sous forme hachée. Les liens d’activation et de réinitialisation expirent après une heure.</p>
+            <p>Ces données servent à créer et sécuriser le compte, afficher l’identité choisie avec les commentaires, gérer les préférences et envoyer les messages demandés. Le traitement du compte est nécessaire à la fourniture de ces fonctionnalités ; l’envoi facultatif des nouvelles publications repose sur le choix exprimé dans le profil.</p>
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-google-title">
+            <h2 id="privacy-google-title">Connexion avec Google</h2>
+            <p>La connexion Google est déclenchée uniquement lorsque l’utilisateur choisit cette option. L’application demande les informations OpenID, email et profil, puis conserve l’identifiant Google, l’adresse email vérifiée et le nom utilisé pour créer ou rattacher le compte. Google reçoit alors les données techniques nécessaires à l’authentification selon ses propres règles.</p>
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-community-title">
+            <h2 id="privacy-community-title">Commentaires, réactions et modération</h2>
+            <p>L’application conserve les commentaires et réponses, mentions, likes, signalements, notifications associées et données de modération. L’adresse IP et l’agent utilisateur peuvent être enregistrés avec les commentaires et signalements pour prévenir les abus et assurer la sécurité. Le nom affiché et l’avatar éventuel sont publics à côté des contributions approuvées ; l’adresse email ne l’est pas.</p>
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-traffic-title">
+            <h2 id="privacy-traffic-title">Mesure d’audience interne</h2>
+            <p>Le site mesure en interne les pages consultées, le statut de réponse, le temps de traitement, le domaine référent, les paramètres de campagne, le type d’appareil et des familles générales de navigateur et de système. L’adresse IP et l’agent utilisateur bruts servent seulement en mémoire à produire des empreintes grossières et rotatives ; ils ne sont pas enregistrés en clair dans les statistiques.</p>
+            <p>Une commande de maintenance prévoit la suppression des événements statistiques de plus de 180 jours. Son exécution automatisée en production doit être confirmée par l’éditeur.</p>
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-providers-title">
+            <h2 id="privacy-providers-title">Prestataires et contenus externes</h2>
+            <ul>
+                {% if legal_notice_complete %}<li>{{ host_name }} pour l’hébergement technique.</li>{% endif %}
+                <li>Brevo pour l’acheminement des emails transactionnels et des notifications choisies.</li>
+                <li>Google uniquement lorsque la connexion Google ou un lien Google Maps est utilisé.</li>
+                <li>OpenStreetMap pour la carte du parcours.</li>
+                <li>YouTube en mode de confidentialité renforcée (<code>youtube-nocookie.com</code>) ; la vidéo distante n’est chargée qu’après l’ouverture de la galerie par l’utilisateur.</li>
+            </ul>
+            <p>Les outils de publication Facebook et Instagram sont réservés au Studio d’administration ; aucun pixel Facebook ou Instagram n’est chargé sur les pages publiques.</p>
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-cookies-title">
+            <h2 id="privacy-cookies-title">Cookies et traceurs</h2>
+            <p>Le site utilise un cookie de session Symfony strictement nécessaire à la sécurité, à l’authentification, aux messages de formulaire et à la protection CSRF. Il est configuré <code>HttpOnly</code>, <code>Secure</code> lorsque la connexion est HTTPS et <code>SameSite=Lax</code>. Aucun cookie « se souvenir de moi », outil publicitaire, pixel marketing ou cookie de mesure d’audience tiers n’est configuré.</p>
+            <p>En l’état actuel du projet, aucun bandeau de consentement n’est nécessaire. Cette conclusion doit être réévaluée avant l’ajout de tout nouveau script, média externe chargé automatiquement ou outil de suivi non indispensable.</p>
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-retention-title">
+            <h2 id="privacy-retention-title">Durées de conservation</h2>
+            <p>Le projet définit une expiration d’une heure pour les liens d’activation et de réinitialisation et une purge statistique prévue à 180 jours. Il ne définit pas encore de durée générale pour les comptes, avatars, commentaires, signalements, adresses IP et agents utilisateur liés à la modération. Ces durées et la procédure opérationnelle de suppression de compte doivent être arrêtées par le responsable du traitement avant publication définitive.</p>
+        </section>
+
+        <section class="section-block" aria-labelledby="privacy-rights-title">
+            <h2 id="privacy-rights-title">Vos droits</h2>
+            <p>Selon le traitement concerné, vous pouvez demander l’accès, la rectification, l’effacement ou la limitation de vos données, vous opposer à certains traitements et retirer votre choix concernant les emails de nouvelles publications depuis votre profil.</p>
+            {% if privacy_policy_complete %}<p>Pour exercer ces droits, écrivez à <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>{% endif %}
+            <p>Vous pouvez également adresser une réclamation à la <a href="https://www.cnil.fr/" rel="noopener noreferrer">CNIL</a>.</p>
+        </section>
+    </main>
+{% endblock %}

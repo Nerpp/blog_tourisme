@@ -1,17 +1,17 @@
 {% extends 'layouts/auth.html.twig' %}
 
-{% block title %}Inscription - Blog Tourisme
+{% block title %}Créer un compte | {{ site_name }}
 {% endblock %}
 
 {% block body %}
 	<main class="register-page">
 		<section class="register-shell" aria-labelledby="register-title">
-			<aside class="register-hero" aria-label="Présentation de l’espace Blog Tourisme">
-				<a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+			<aside class="register-hero" aria-label="Présentation de l’espace {{ site_name }}">
+				<a class="login-brand" href="{{ path('app_home') }}">{{ site_name }}</a>
 				<p class="login-eyebrow">Rejoindre l’exploration</p>
 				<h1 id="register-title">Créer un compte</h1>
 				<p>
-					Rejoignez l’espace Blog Tourisme pour commenter, signaler et suivre vos découvertes.
+					Rejoignez l’espace {{ site_name }} pour commenter, signaler et suivre vos découvertes.
 				</p>
 				<div class="login-badges" aria-label="Usages du compte">
 					<span>Commentaires</span>

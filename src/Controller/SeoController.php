@@ -20,9 +20,20 @@ final class SeoController extends AbstractController
     }
 
     #[Route('/plan-du-site', name: 'app_sitemap_html', methods: ['GET'])]
-    public function htmlSitemap(): Response
-    {
-        return $this->render('seo/sitemap.html.twig');
+    public function htmlSitemap(
+        DestinationRepository $destinationRepository,
+        ArticleRepository $articleRepository,
+        HikeDraftRepository $hikeDraftRepository,
+        CityVisitDraftRepository $cityVisitDraftRepository,
+        PlaceRepository $placeRepository,
+    ): Response {
+        return $this->render('seo/sitemap.html.twig', [
+            'destinations' => $destinationRepository->findForSitemap(),
+            'articles' => $articleRepository->findPublishedForSitemap(),
+            'hikes' => $hikeDraftRepository->findPublicForSitemap(),
+            'city_visits' => $cityVisitDraftRepository->findPublicForSitemap(),
+            'places' => $placeRepository->findPublishedForSitemap(),
+        ]);
     }
 
     #[Route('/sitemap.xml', name: 'app_sitemap_xml', methods: ['GET'])]

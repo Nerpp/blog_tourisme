@@ -1,4 +1,11 @@
 parameters:
+    app.site_name: 'Estela Exploration'
+    app.legal.empty: ''
+    app.legal.host_name_default: 'Infomaniak Network SA'
+    app.legal.host_address_default: 'Rue Eugène Marziano 25, 1227 Les Acacias (GE), Suisse'
+    app.legal.contact_email: '%env(default:app.legal.empty:LEGAL_CONTACT_EMAIL)%'
+    app.legal.host_name: '%env(default:app.legal.host_name_default:LEGAL_HOST_NAME)%'
+    app.legal.host_address: '%env(default:app.legal.host_address_default:LEGAL_HOST_ADDRESS)%'
     vite_dev_server_url: ''
     app.media.standard_webp_quality: 78
     app.public_url_default: 'https://estela-exploration.fr'
@@ -38,6 +45,12 @@ services:
     App\Service\Seo\PublicUrlGenerator:
         arguments:
             $publicBaseUrl: '%app.public_url%'
+
+    App\Controller\LegalController:
+        arguments:
+            $contactEmail: '%app.legal.contact_email%'
+            $hostName: '%app.legal.host_name%'
+            $hostAddress: '%app.legal.host_address%'
 
     facebook.http_client:
         class: Symfony\Contracts\HttpClient\HttpClientInterface

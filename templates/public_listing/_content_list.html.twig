@@ -98,9 +98,11 @@
             </span>
         </div>
 
-        <p class="article-index-empty" {% if visible_item_count > 0 %}hidden{% endif %}>
-            {{ search_query ? empty_search_message : empty_initial_message }}
-        </p>
+        {% if visible_item_count == 0 %}
+            <p class="article-index-empty">
+                {{ search_query ? empty_search_message : empty_initial_message }}
+            </p>
+        {% endif %}
 
         <div class="article-index-grid" data-public-list-grid>
             {% for item in items %}

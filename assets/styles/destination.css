@@ -442,6 +442,10 @@ a.destination-stat:focus-visible {
   font-weight: 800;
 }
 
+.destinations-empty[hidden] {
+  display: none;
+}
+
 .destination-show-page {
   scroll-behavior: smooth;
 }

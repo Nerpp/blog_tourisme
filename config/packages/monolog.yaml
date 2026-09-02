@@ -57,7 +57,7 @@ when@prod:
                 type: symfony_mailer
                 from_email: '%env(MONOLOG_FROM_EMAIL)%'
                 to_email: '%env(MONOLOG_TO_EMAIL)%'
-                subject: '[Blog Tourisme] %%level_name%% - %%message%%'
+                subject: '[Estela Exploration] %%level_name%% - %%message%%'
                 level: error
                 formatter: monolog.formatter.html
                 content_type: text/html

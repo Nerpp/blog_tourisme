@@ -9,6 +9,54 @@ use Facebook\WebDriver\WebDriverWait;
 
 final class DestinationNavigationPantherTest extends PantherTestCase
 {
+    public function testDestinationIndexEmptyStateTracksAnActiveSearch(): void
+    {
+        $client = self::createBrowser();
+        $webDriver = $client->getWebDriver();
+
+        $client->request('GET', '/destinations');
+        $client->waitFor('[data-destination-search]');
+
+        $emptyState = $webDriver->findElement(WebDriverBy::cssSelector('[data-destination-empty]'));
+        self::assertFalse($emptyState->isDisplayed());
+        self::assertSame('polite', $emptyState->getAttribute('aria-live'));
+
+        $input = $webDriver->findElement(WebDriverBy::cssSelector('[data-destination-search]'));
+        $input->sendKeys('destination introuvable 987654321');
+        (new WebDriverWait($webDriver, 8))->until(static fn (): bool => $emptyState->isDisplayed());
+
+        $input->clear();
+        $input->sendKeys(' ');
+        (new WebDriverWait($webDriver, 8))->until(static fn (): bool => !$emptyState->isDisplayed());
+        self::assertGreaterThan(0, count($webDriver->findElements(WebDriverBy::cssSelector('[data-destination-node]:not(.is-hidden)'))));
+        $this->assertNoBrowserSevereErrors($client);
+    }
+
+    public function testDestinationGlobalEmptyStateAppearsOnlyForAnActiveZeroResultFilter(): void
+    {
+        $client = self::createBrowser();
+        $webDriver = $client->getWebDriver();
+
+        $client->request('GET', '/destinations/pyrenees-orientales');
+        $client->waitFor('.js-destination-detail-search-input');
+
+        $emptyState = $webDriver->findElement(WebDriverBy::cssSelector('.js-destination-detail-empty'));
+        self::assertFalse($emptyState->isDisplayed());
+        self::assertSame('polite', $emptyState->getAttribute('aria-live'));
+
+        $input = $webDriver->findElement(WebDriverBy::cssSelector('.js-destination-detail-search-input'));
+        $input->sendKeys('résultat totalement introuvable 987654321');
+
+        (new WebDriverWait($webDriver, 8))->until(static fn (): bool => $emptyState->isDisplayed());
+        self::assertSame('Aucun résultat trouvé.', trim($emptyState->getText()));
+
+        $resetButton = $webDriver->findElement(WebDriverBy::cssSelector('.js-destination-detail-search-reset'));
+        $resetButton->click();
+        (new WebDriverWait($webDriver, 8))->until(static fn (): bool => !$emptyState->isDisplayed());
+        self::assertFalse($resetButton->isDisplayed());
+        $this->assertNoBrowserSevereErrors($client);
+    }
+
     public function testDestinationNavigationIsResponsiveAndKeepsAdminActionProtected(): void
     {
         $client = self::createBrowser();

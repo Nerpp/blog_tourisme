@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Plan du site - Estela{% endblock %}
+{% block title %}Plan du site | {{ site_name }}{% endblock %}
 {% block meta_description %}Retrouvez les principales rubriques publiques d’Estela : destinations, randonnées, visites, articles et lieux.{% endblock %}
 {% block canonical %}<link rel="canonical" href="{{ public_route_url('app_sitemap_html') }}">{% endblock %}
 
@@ -29,8 +29,70 @@
                 <h2 id="site-map-information-title">Informations</h2>
                 <ul>
                     <li><a href="{{ path('app_sitemap_html') }}" aria-current="page">Plan du site</a></li>
+                    <li><a href="{{ path('app_legal_notice') }}">Mentions légales</a></li>
+                    <li><a href="{{ path('app_privacy_policy') }}">Politique de confidentialité</a></li>
                 </ul>
             </section>
+
+            {% if destinations|length > 0 %}
+                <section class="site-map-section" aria-labelledby="site-map-destinations-title">
+                    <h2 id="site-map-destinations-title">Destinations</h2>
+                    <ul>
+                        {% for destination in destinations|slice(0, 50) %}
+                            <li><a href="{{ path('app_destination_show', { slug: destination.slug }) }}">{{ destination.name }}</a></li>
+                        {% endfor %}
+                        {% if destinations|length > 50 %}<li><a href="{{ path('app_destination_index') }}">Voir toutes les destinations</a></li>{% endif %}
+                    </ul>
+                </section>
+            {% endif %}
+
+            {% if hikes|length > 0 %}
+                <section class="site-map-section" aria-labelledby="site-map-hikes-title">
+                    <h2 id="site-map-hikes-title">Randonnées publiées</h2>
+                    <ul>
+                        {% for hike in hikes|slice(0, 50) %}
+                            <li><a href="{{ path('app_hike_show', { slug: hike.slug }) }}">{{ hike.title }}</a></li>
+                        {% endfor %}
+                        {% if hikes|length > 50 %}<li><a href="{{ path('app_hike_index') }}">Voir toutes les randonnées</a></li>{% endif %}
+                    </ul>
+                </section>
+            {% endif %}
+
+            {% if articles|length > 0 %}
+                <section class="site-map-section" aria-labelledby="site-map-articles-title">
+                    <h2 id="site-map-articles-title">Articles publiés</h2>
+                    <ul>
+                        {% for article in articles|slice(0, 50) %}
+                            <li><a href="{{ path('app_article_show', { slug: article.slug }) }}">{{ article.title }}</a></li>
+                        {% endfor %}
+                        {% if articles|length > 50 %}<li><a href="{{ path('app_article_index') }}">Voir tous les articles</a></li>{% endif %}
+                    </ul>
+                </section>
+            {% endif %}
+
+            {% if city_visits|length > 0 %}
+                <section class="site-map-section" aria-labelledby="site-map-visits-title">
+                    <h2 id="site-map-visits-title">Visites publiées</h2>
+                    <ul>
+                        {% for city_visit in city_visits|slice(0, 50) %}
+                            <li><a href="{{ path('app_city_visit_show', { slug: city_visit.slug }) }}">{{ city_visit.title }}</a></li>
+                        {% endfor %}
+                        {% if city_visits|length > 50 %}<li><a href="{{ path('app_city_visit_index') }}">Voir toutes les visites</a></li>{% endif %}
+                    </ul>
+                </section>
+            {% endif %}
+
+            {% if places|length > 0 %}
+                <section class="site-map-section" aria-labelledby="site-map-places-title">
+                    <h2 id="site-map-places-title">Lieux publiés</h2>
+                    <ul>
+                        {% for place in places|slice(0, 50) %}
+                            <li><a href="{{ path('app_place_show', { slug: place.slug }) }}">{{ place.name }}</a></li>
+                        {% endfor %}
+                        {% if places|length > 50 %}<li><a href="{{ path('app_place_index') }}">Voir tous les lieux</a></li>{% endif %}
+                    </ul>
+                </section>
+            {% endif %}
         </div>
     </main>
 {% endblock %}

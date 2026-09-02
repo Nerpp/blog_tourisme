@@ -1,14 +1,14 @@
 {% extends 'layouts/auth.html.twig' %}
 
-{% block title %}Connexion - Blog Tourisme
+{% block title %}Connexion | {{ site_name }}
 {% endblock %}
 
 {% block body %}
 	<main class="login-page">
 		<section class="login-shell" aria-labelledby="login-title">
-			<aside class="login-hero" aria-label="Présentation Blog Tourisme">
+			<aside class="login-hero" aria-label="Présentation {{ site_name }}">
 				<div class="login-hero__content">
-					<a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+					<a class="login-brand" href="{{ path('app_home') }}">{{ site_name }}</a>
 					<p class="login-eyebrow">Carnet de voyage</p>
 					<h1 id="login-title">Votre carnet de voyage</h1>
 					<p class="login-hero__text">
@@ -19,7 +19,7 @@
 						<span>Points GPS</span>
 						<span>Photos 360°</span>
 						<span>Visites de ville</span>
-						<span>Blog tourisme</span>
+						<span>Exploration locale</span>
 					</div>
 				</div>
 

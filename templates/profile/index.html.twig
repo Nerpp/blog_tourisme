@@ -6,7 +6,7 @@
 {% set avatar_version = profile_user.updatedAt ? profile_user.updatedAt|date('U') : profile_user.id %}
 {% set avatar_src = profile_user.avatarPath ? asset(profile_user.avatarPath) ~ '?v=' ~ avatar_version : '' %}
 
-{% block title %}Profil - Blog Tourisme{% endblock %}
+{% block title %}Profil | {{ site_name }}{% endblock %}
 
 {% block body %}
     <main class="profile-page">

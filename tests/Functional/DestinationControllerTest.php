@@ -15,12 +15,15 @@ final class DestinationControllerTest extends FunctionalTestCase
     public function testDestinationIndexListsRootDestinations(): void
     {
         $client = static::createClient();
-        $this->createDestination('France fonctionnelle', DestinationType::Country);
+        $destination = $this->createDestination('France fonctionnelle', DestinationType::Country);
+        $this->createPublishedHike($this->createVerifiedAdmin(), $destination);
 
-        $client->request('GET', '/destinations');
+        $crawler = $client->request('GET', '/destinations');
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', 'Destinations');
+        self::assertSame(1, $crawler->filter('.destinations-empty[hidden][aria-live="polite"]')->count());
+        self::assertStringContainsString('Aucune destination ne correspond à cette recherche.', (string) $crawler->filter('.destinations-empty')->text());
     }
 
     public function testDestinationIndexDisplaysClickablePublicContentCounters(): void
@@ -61,6 +64,30 @@ final class DestinationControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('body', (string) $destination->getName());
+    }
+
+    public function testDestinationWithHikeWithoutArticleKeepsOnlySpecificEmptyStates(): void
+    {
+        $client = static::createClient();
+        $country = $this->createDestination('France états destination', DestinationType::Country);
+        $region = $this->createDestination('Occitanie états destination', DestinationType::Region, $country);
+        $department = $this->createDestination('Ariège états destination', DestinationType::Department, $region, '09-empty-state');
+        $city = $this->createDestination('Auzat états destination', DestinationType::City, $department, '09030-empty-state');
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin(), $city)
+            ->setGeographicDestination($city)
+            ->setTitle('Randonnée visible à Auzat');
+        $this->persistAndFlush($hike);
+
+        $crawler = $client->request('GET', '/destinations/'.$city->getSlug());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('body', 'Randonnée visible à Auzat');
+        self::assertSelectorTextContains('#articles', '0 résultat');
+        self::assertSelectorTextContains('#articles', 'Aucun article publié pour cette destination pour le moment.');
+        self::assertSelectorTextContains('#visites', '0 résultat');
+        self::assertSame(1, $crawler->filter('.js-destination-detail-empty[hidden][aria-live="polite"]')->count());
+        self::assertStringContainsString('Aucun résultat trouvé.', $crawler->filter('.js-destination-detail-empty')->text());
+        self::assertStringNotContainsString('Aucune randonnée publique pour cette destination', (string) $client->getResponse()->getContent());
     }
 
     public function testDestinationShowUsesRealHierarchyForBreadcrumbAndSearchNavigation(): void
