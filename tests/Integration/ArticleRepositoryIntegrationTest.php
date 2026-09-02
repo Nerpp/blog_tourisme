@@ -4,11 +4,17 @@ namespace App\Tests\Integration;
 
 use App\Entity\Article;
 use App\Entity\ArticleDestination;
+use App\Entity\ArticleMedia;
+use App\Entity\ArticleTag;
 use App\Entity\Category;
 use App\Entity\Destination;
+use App\Entity\MediaAsset;
+use App\Entity\Tag;
 use App\Enum\CategoryType;
 use App\Enum\ContentStatus;
 use App\Enum\DestinationType;
+use App\Enum\MediaRole;
+use App\Enum\MediaType;
 use App\Repository\ArticleRepository;
 
 final class ArticleRepositoryIntegrationTest extends IntegrationTestCase
@@ -59,16 +65,69 @@ final class ArticleRepositoryIntegrationTest extends IntegrationTestCase
         self::assertContains($publicArticles[4]->getId(), $listedIds, 'Un article public sans relation facultative doit être compté.');
     }
 
-    public function testCountPublicArticlesIsIndependentFromListingLimit(): void
+    public function testListingReturnsAllSevenPublicArticlesOnceDespiteCollectionJoins(): void
     {
-        $token = $this->uniqueToken('public-pagination');
+        $token = $this->uniqueToken('public-listing-relations');
+        $firstCategory = $this->category('Première catégorie '.$token);
+        $secondCategory = $this->category('Seconde catégorie '.$token);
+        $firstDestination = $this->destination('Première destination '.$token);
+        $secondDestination = $this->destination('Seconde destination '.$token);
+        $articles = [];
 
         for ($index = 1; $index <= 7; ++$index) {
-            $this->article($token, $index);
+            $articles[] = $this->article(
+                $token,
+                $index,
+                category: $index <= 4 ? $firstCategory : $secondCategory,
+            );
+        }
+        $articles[0]->setPublishedAt(new \DateTimeImmutable('2099-01-01 12:00:00'));
+
+        foreach ([$firstDestination, $secondDestination] as $position => $destination) {
+            $this->entityManager->persist(
+                (new ArticleDestination())
+                    ->setArticle($articles[0])
+                    ->setDestination($destination)
+                    ->setPosition($position),
+            );
+        }
+
+        for ($index = 1; $index <= 3; ++$index) {
+            $tag = (new Tag())
+                ->setName(sprintf('Tag article %s %d', $token, $index))
+                ->setSlug(sprintf('tag-article-%s-%d', $token, $index));
+            $this->entityManager->persist($tag);
+            $this->entityManager->persist(
+                (new ArticleTag())
+                    ->setArticle($articles[0])
+                    ->setTag($tag),
+            );
+        }
+
+        for ($index = 1; $index <= 4; ++$index) {
+            $media = (new MediaAsset())
+                ->setTitle(sprintf('Média article %s %d', $token, $index))
+                ->setMediaType(MediaType::Image)
+                ->setFilePath(sprintf('/uploads/tests/%s-%d.jpg', $token, $index));
+            $this->entityManager->persist($media);
+            $this->entityManager->persist(
+                (new ArticleMedia())
+                    ->setArticle($articles[0])
+                    ->setMediaAsset($media)
+                    ->setRole(MediaRole::Content)
+                    ->setPosition($index),
+            );
         }
         $this->entityManager->flush();
+        $expectedIds = array_map(static fn (Article $article): ?int => $article->getId(), $articles);
+        $this->entityManager->clear();
 
-        self::assertCount(6, $this->repository()->findPublishedForListing($token, 6));
+        $listedArticles = $this->repository()->findPublishedForListing($token);
+        $listedIds = array_map(static fn (Article $article): ?int => $article->getId(), $listedArticles);
+
+        self::assertCount(7, $listedArticles);
+        self::assertCount(7, array_unique($listedIds));
+        self::assertEqualsCanonicalizing($expectedIds, $listedIds);
         self::assertSame(7, $this->repository()->countPublicArticles($token));
     }
 

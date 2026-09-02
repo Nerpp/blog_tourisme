@@ -38,7 +38,7 @@ class PlaceRepository extends ServiceEntityRepository
     }
 
     /** @return list<Place> */
-    public function findPublished(?Destination $destination = null, ?Category $category = null, ?Tag $tag = null, int $limit = 24): array
+    public function findPublished(?Destination $destination = null, ?Category $category = null, ?Tag $tag = null): array
     {
         $qb = $this->createPublishedQueryBuilder();
 
@@ -61,10 +61,7 @@ class PlaceRepository extends ServiceEntityRepository
         }
 
         /** @var list<Place> $places */
-        $places = $qb
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+        $places = $qb->getQuery()->getResult();
 
         return $places;
     }
@@ -101,9 +98,9 @@ class PlaceRepository extends ServiceEntityRepository
     }
 
     /** @return list<Place> */
-    public function findByDestination(Destination $destination, int $limit = 12): array
+    public function findByDestination(Destination $destination): array
     {
-        return $this->findPublished(destination: $destination, limit: $limit);
+        return $this->findPublished(destination: $destination);
     }
 
     public function findLatestPublishedWithMediaByDestination(Destination $destination): ?Place
@@ -170,11 +167,39 @@ class PlaceRepository extends ServiceEntityRepository
     /** @return list<Place> */
     public function findFeaturedPublished(int $limit): array
     {
-        /** @var list<Place> $places */
-        $places = $this->createPublishedQueryBuilder()
+        if ($limit <= 0) {
+            return [];
+        }
+
+        /** @var list<array{id: int|string}> $rows */
+        $rows = $this->createQueryBuilder('p')
+            ->select('p.id')
+            ->andWhere('p.status = :status')
+            ->setParameter('status', ContentStatus::Published)
+            ->orderBy('p.publishedAt', 'DESC')
+            ->addOrderBy('p.name', 'ASC')
+            ->addOrderBy('p.id', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
+            ->getScalarResult();
+        $placeIds = array_map(static fn (array $row): int => (int) $row['id'], $rows);
+
+        if ($placeIds === []) {
+            return [];
+        }
+
+        /** @var list<Place> $places */
+        $places = $this->createPublishedQueryBuilder()
+            ->andWhere('p.id IN (:placeIds)')
+            ->setParameter('placeIds', $placeIds, ArrayParameterType::INTEGER)
+            ->getQuery()
             ->getResult();
+
+        $positions = array_flip($placeIds);
+        usort(
+            $places,
+            static fn (Place $left, Place $right): int => ($positions[$left->getId()] ?? PHP_INT_MAX) <=> ($positions[$right->getId()] ?? PHP_INT_MAX),
+        );
 
         return $places;
     }

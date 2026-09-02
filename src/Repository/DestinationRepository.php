@@ -232,10 +232,25 @@ class DestinationRepository extends ServiceEntityRepository
     }
 
     /** @return list<Destination> */
-    public function findDiscoverableDestinations(int $limit = 6): array
+    public function findDiscoverableDestinations(): array
     {
-        $rows = $this->getEntityManager()->getConnection()->executeQuery(
-            <<<'SQL'
+        return $this->findDiscoverableDestinationsWithLimit();
+    }
+
+    /** @return list<Destination> */
+    public function findFeaturedDiscoverableDestinations(int $limit): array
+    {
+        if ($limit <= 0) {
+            return [];
+        }
+
+        return $this->findDiscoverableDestinationsWithLimit($limit);
+    }
+
+    /** @return list<Destination> */
+    private function findDiscoverableDestinationsWithLimit(?int $limit = null): array
+    {
+        $sql = <<<'SQL'
                 SELECT public_destination.destination_id, MAX(public_destination.latest_published_at) AS latest_published_at
                 FROM (
                     SELECT ad.destination_id, a.published_at AS latest_published_at
@@ -293,26 +308,30 @@ class DestinationRepository extends ServiceEntityRepository
                 WHERE public_destination.destination_id IS NOT NULL
                 GROUP BY public_destination.destination_id
                 ORDER BY latest_published_at DESC, public_destination.destination_id DESC
-                LIMIT :limit
-            SQL,
-            [
-                'articleStatus' => ContentStatus::Published->value,
-                'hikeStatuses' => [
-                    HikeDraftStatus::Finished->value,
-                    HikeDraftStatus::Converted->value,
-                ],
-                'cityVisitStatuses' => [
-                    CityVisitDraftStatus::Finished->value,
-                    CityVisitDraftStatus::Converted->value,
-                ],
-                'limit' => $limit,
+            SQL;
+        $parameters = [
+            'articleStatus' => ContentStatus::Published->value,
+            'hikeStatuses' => [
+                HikeDraftStatus::Finished->value,
+                HikeDraftStatus::Converted->value,
             ],
-            [
-                'hikeStatuses' => ArrayParameterType::STRING,
-                'cityVisitStatuses' => ArrayParameterType::STRING,
-                'limit' => ParameterType::INTEGER,
+            'cityVisitStatuses' => [
+                CityVisitDraftStatus::Finished->value,
+                CityVisitDraftStatus::Converted->value,
             ],
-        )->fetchAllAssociative();
+        ];
+        $types = [
+            'hikeStatuses' => ArrayParameterType::STRING,
+            'cityVisitStatuses' => ArrayParameterType::STRING,
+        ];
+
+        if ($limit !== null) {
+            $sql .= "\nLIMIT :limit";
+            $parameters['limit'] = $limit;
+            $types['limit'] = ParameterType::INTEGER;
+        }
+
+        $rows = $this->getEntityManager()->getConnection()->executeQuery($sql, $parameters, $types)->fetchAllAssociative();
 
         $ids = [];
         foreach ($rows as $row) {

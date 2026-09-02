@@ -40,7 +40,7 @@ final class PlaceController extends AbstractController
 
         return $this->render('place/index.html.twig', [
             'places' => $placeRepository->findPublished($destination, $category, $tag),
-            'destinations' => $destinationRepository->findDiscoverableDestinations(20),
+            'destinations' => $destinationRepository->findDiscoverableDestinations(),
             'categories' => $categoryRepository->findBy([], ['name' => 'ASC']),
             'tags' => $tagRepository->findBy([], ['name' => 'ASC']),
             'current_destination' => $destination,
