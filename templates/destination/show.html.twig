@@ -48,10 +48,8 @@
 {% set child_filter_label = is_country ? 'Régions' : (is_region ? 'Départements' : 'Lieux à découvrir') %}
 {% set child_cta_label = is_country ? 'Explorer la région' : (is_region ? 'Explorer le département' : 'Explorer ce lieu') %}
 
-{% block title %}{{ destination.seoTitle ?: destination.name }} - Blog Tourisme{% endblock %}
-{% block meta_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique à découvrir sur Blog Tourisme.' }}{% endblock %}
-{% block open_graph_title %}{{ destination.seoTitle ?: destination.name }}{% endblock %}
-{% block open_graph_description %}{{ destination.seoDescription ?: destination.description ?: 'Destination touristique à découvrir sur Blog Tourisme.' }}{% endblock %}
+{% block title %}{{ destination.seoTitle ?: destination.name ~ ' — randonnées et découvertes' }} | {{ site_name }}{% endblock %}
+{% block meta_description %}{{ destination.seoDescription ?: destination.description ?: 'Randonnées, visites et découvertes autour de cette destination sur Estela Exploration.' }}{% endblock %}
 
 {% block body %}
     <main class="destination-detail-page">
@@ -153,8 +151,10 @@
                     type="search"
                     autocomplete="off"
                     placeholder="Rechercher un article, une randonnée, une visite…"
+                    role="combobox"
                     aria-autocomplete="list"
                     aria-controls="destination-detail-search-suggestions"
+                    aria-expanded="false"
                 >
                 <button class="js-destination-detail-search-reset" type="button" hidden>Réinitialiser</button>
             </div>
@@ -180,7 +180,7 @@
                     </button>
                 {% endif %}
             </div>
-            <p class="destination-detail-empty js-destination-detail-empty" hidden>Aucun résultat trouvé.</p>
+            <p class="destination-detail-empty js-destination-detail-empty" aria-live="polite" aria-atomic="true" hidden>Aucun résultat trouvé.</p>
         </section>
 
         {% if child_count > 0 or not is_content_level %}

@@ -104,7 +104,7 @@ final class PublicationNotificationMailerTest extends TestCase
             ->expects(self::once())
             ->method('send')
             ->with(self::callback(static function (TemplatedEmail $email): bool {
-                return $email->getSubject() === 'Nouvelle publication sur Estela Explorations'
+                return $email->getSubject() === 'Nouvelle publication sur Estela Exploration'
                     && $email->getHtmlTemplate() === 'emails/new_publication.html.twig'
                     && ($email->getContext()['content_title'] ?? null) === 'Article public'
                     && ($email->getContext()['publication_url'] ?? null) === 'https://example.test/articles/article-public'

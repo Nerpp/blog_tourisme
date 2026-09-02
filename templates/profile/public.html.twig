@@ -1,6 +1,6 @@
 {% extends 'layouts/profile.html.twig' %}
 
-{% block title %}{{ profile_user.displayName ?: profile_user.userIdentifier }} - Profil{% endblock %}
+{% block title %}{{ profile_user.displayName ?: profile_user.userIdentifier }} | {{ site_name }}{% endblock %}
 
 {% block body %}
     <main class="profile-page">

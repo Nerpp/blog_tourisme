@@ -1,6 +1,6 @@
 {% extends 'emails/base.html.twig' %}
 
-{% block subject %}Votre commentaire n’a pas été accepté - Estela Explorations{% endblock %}
+{% block subject %}Votre commentaire n’a pas été accepté - {{ site_name }}{% endblock %}
 {% block preheader %}Information de modération concernant votre commentaire.{% endblock %}
 {% block email_title %}Votre commentaire n’a pas été accepté{% endblock %}
 
@@ -10,7 +10,7 @@
     </p>
 
     <p style="margin:0 0 18px;color:#243b36;font-size:16px;line-height:1.7;">
-        Votre commentaire publié sur Estela Explorations n’a pas été accepté par la modération.
+        Votre commentaire publié sur {{ site_name }} n’a pas été accepté par la modération.
     </p>
 
     <div style="margin:22px 0;padding:16px;border:1px solid #e7dfcf;border-left:4px solid #d6b16a;border-radius:10px;background:#fff8e8;">

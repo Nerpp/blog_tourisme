@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Mentions légales | {{ site_name }}{% endblock %}
+{% block meta_description %}Mentions légales d’Estela Exploration : édition non professionnelle et hébergement du site.{% endblock %}
+{% block canonical %}{% if legal_notice_complete %}<link rel="canonical" href="{{ public_route_url('app_legal_notice') }}">{% endif %}{% endblock %}
+{% block open_graph_url %}{% if legal_notice_complete %}{{ parent() }}{% endif %}{% endblock %}
+{% block robots %}{% if not legal_notice_complete %}<meta name="robots" content="noindex, follow">{% endif %}{% endblock %}
+
+{% block body %}
+    <main class="page-shell legal-page">
+        <header class="page-header">
+            <p class="eyebrow">Informations</p>
+            <h1>Mentions légales</h1>
+            <p>Informations relatives à l’édition et à l’hébergement de {{ site_name }}.</p>
+        </header>
+
+        {% if not legal_notice_complete %}
+            <section class="section-block" aria-labelledby="legal-unpublished-title">
+                <h2 id="legal-unpublished-title">Publication en attente de validation</h2>
+                <p>Cette page reste non indexable tant que les informations publiques de l’hébergeur n’ont pas été validées.</p>
+            </section>
+        {% endif %}
+
+        <section class="section-block" aria-labelledby="legal-editor-title">
+            <h2 id="legal-editor-title">Édition du site</h2>
+            <p>{{ site_name }} est un site personnel édité à titre non professionnel.</p>
+            <p>Conformément à l’article 1-1, II de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l’économie numérique, l’éditeur a choisi de préserver son anonymat. Ses éléments d’identification ont été communiqués à son fournisseur de services d’hébergement dans les conditions prévues par la loi.</p>
+        </section>
+
+        {% if legal_notice_complete %}
+            <section class="section-block" aria-labelledby="legal-host-title">
+                <h2 id="legal-host-title">Hébergement</h2>
+                <p>Le site est hébergé par :</p>
+                <address>
+                    <strong>{{ host_name }}</strong><br>
+                    {% for address_line in host_address|split(', ') %}
+                        {{ address_line }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                </address>
+                <p><a href="https://www.infomaniak.com/fr/cgv/mentions-legales" rel="noopener noreferrer">Consulter les mentions légales officielles d’Infomaniak</a>.</p>
+            </section>
+        {% endif %}
+
+        <section class="section-block" aria-labelledby="legal-data-title">
+            <h2 id="legal-data-title">Données personnelles</h2>
+            <p>Les traitements réellement mis en œuvre sont détaillés dans la <a href="{{ path('app_privacy_policy') }}">politique de confidentialité</a>.</p>
+        </section>
+    </main>
+{% endblock %}

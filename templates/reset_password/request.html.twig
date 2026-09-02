@@ -1,13 +1,13 @@
 {% extends 'layouts/auth.html.twig' %}
 
-{% block title %}Mot de passe oublié - Blog Tourisme{% endblock %}
+{% block title %}Mot de passe oublié | {{ site_name }}{% endblock %}
 
 {% block body %}
     <main class="login-page auth-reset-page auth-reset-page--request">
         <section class="login-shell auth-reset-shell" aria-labelledby="reset-request-title">
             <aside class="login-hero auth-reset-hero" aria-label="Réinitialisation sécurisée">
                 <div class="login-hero__content auth-reset-hero__content">
-                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <a class="login-brand" href="{{ path('app_home') }}">{{ site_name }}</a>
                     <p class="login-eyebrow">Accès sécurisé</p>
                     <h1 id="reset-request-title" class="auth-reset-title">Réinitialiser votre mot de passe</h1>
                     <p class="login-hero__text auth-reset-subtitle">

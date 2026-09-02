@@ -8,7 +8,7 @@ use DOMDocument;
 
 final class HikeGpxExporter
 {
-    private const CREATOR = 'Blog Tourisme';
+    private const CREATOR = 'Estela Exploration';
 
     public function isAvailable(HikeDraft $hike): bool
     {

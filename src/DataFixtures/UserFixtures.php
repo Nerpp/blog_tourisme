@@ -39,7 +39,7 @@ final class UserFixtures extends Fixture implements FixtureGroupInterface
                 'email' => self::ADMIN_EMAIL,
                 'password' => self::ADMIN_PASSWORD,
                 'roles' => ['ROLE_ADMIN', 'ROLE_USER'],
-                'displayName' => 'Admin Blog Tourisme',
+                'displayName' => 'Admin Estela Exploration',
                 'trustedCommenter' => true,
                 'approvedCommentsCount' => 10,
                 'isVerified' => true,

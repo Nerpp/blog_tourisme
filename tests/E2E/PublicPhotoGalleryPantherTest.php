@@ -267,11 +267,19 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
 
         $slideCount = $webDriver->findElements(WebDriverBy::cssSelector($modalSelector.' .js-gallery-slide'));
         self::assertCount(2, $slideCount);
+        self::assertTrue((bool) $webDriver->executeScript(
+            'const modal = document.querySelector(arguments[0]); return modal?.hidden === true && modal?.hasAttribute("inert");',
+            [$modalSelector]
+        ));
 
         $trigger->click();
         $this->waitForGalleryIndex($webDriver, $modalSelector, 1);
 
         self::assertSame('false', $webDriver->findElement(WebDriverBy::cssSelector($modalSelector))->getAttribute('aria-hidden'));
+        self::assertFalse((bool) $webDriver->executeScript(
+            'return document.querySelector(arguments[0])?.hasAttribute("inert");',
+            [$modalSelector]
+        ));
         self::assertSame('2 / 2', trim($webDriver->findElement(WebDriverBy::cssSelector($modalSelector.' .js-gallery-counter'))->getText()));
         self::assertTrue((bool) $webDriver->executeScript(
             'return document.activeElement === document.querySelector(arguments[0] + " .js-gallery-close");',
@@ -286,10 +294,24 @@ final class PublicPhotoGalleryPantherTest extends PantherTestCase
         $this->waitForGalleryIndex($webDriver, $modalSelector, 1);
         self::assertSame('2 / 2', trim($webDriver->findElement(WebDriverBy::cssSelector($modalSelector.' .js-gallery-counter'))->getText()));
 
+        $webDriver->executeScript(
+            'document.querySelectorAll(arguments[0] + " .js-gallery-dot").item(1)?.focus();',
+            [$modalSelector]
+        );
+        $webDriver->getKeyboard()->sendKeys(WebDriverKeys::TAB);
+        self::assertTrue((bool) $webDriver->executeScript(
+            'return document.activeElement === document.querySelector(arguments[0] + " .js-gallery-close");',
+            [$modalSelector]
+        ));
+
         $webDriver->getKeyboard()->sendKeys(WebDriverKeys::ESCAPE);
 
         (new WebDriverWait($webDriver, 8))->until(static fn () => (bool) $webDriver->executeScript(
             'const modal = document.querySelector(arguments[0]); return modal?.hidden === true && modal?.getAttribute("aria-hidden") === "true";',
+            [$modalSelector]
+        ));
+        self::assertTrue((bool) $webDriver->executeScript(
+            'return document.querySelector(arguments[0])?.hasAttribute("inert");',
             [$modalSelector]
         ));
 

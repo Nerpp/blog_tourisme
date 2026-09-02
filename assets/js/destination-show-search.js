@@ -58,6 +58,7 @@ export function initDestinationShowSearch() {
   const closeSuggestions = () => {
     suggestions.hidden = true;
     suggestions.innerHTML = '';
+    input.setAttribute('aria-expanded', 'false');
   };
 
   const updateUrlState = () => {
@@ -132,6 +133,7 @@ export function initDestinationShowSearch() {
     });
 
     suggestions.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
   };
 
   const updateSections = () => {
@@ -182,6 +184,7 @@ export function initDestinationShowSearch() {
   const filter = () => {
     const query = normalize(input.value);
     const hasQuery = query.length > 0;
+    const hasActiveFilter = hasQuery || currentFilter !== 'all' || currentDepartment !== '';
     const matches = [];
 
     items.forEach((item) => {
@@ -201,7 +204,7 @@ export function initDestinationShowSearch() {
     }
 
     if (emptyMessage) {
-      emptyMessage.hidden = matches.length > 0;
+      emptyMessage.hidden = !hasActiveFilter || matches.length > 0;
     }
 
     if (hasQuery) {

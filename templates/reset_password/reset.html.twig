@@ -1,13 +1,13 @@
 {% extends 'layouts/auth.html.twig' %}
 
-{% block title %}Nouveau mot de passe - Blog Tourisme{% endblock %}
+{% block title %}Nouveau mot de passe | {{ site_name }}{% endblock %}
 
 {% block body %}
     <main class="login-page auth-reset-page auth-reset-page--new-password">
         <section class="login-shell auth-reset-shell" aria-labelledby="reset-password-title">
             <aside class="login-hero auth-reset-hero" aria-label="Nouveau mot de passe">
                 <div class="login-hero__content auth-reset-hero__content">
-                    <a class="login-brand" href="{{ path('app_home') }}">Blog Tourisme</a>
+                    <a class="login-brand" href="{{ path('app_home') }}">{{ site_name }}</a>
                     <p class="login-eyebrow">Sécurité du compte</p>
                     <h1 id="reset-password-title" class="auth-reset-title">Créer un nouveau mot de passe</h1>
                     <p class="login-hero__text auth-reset-subtitle">

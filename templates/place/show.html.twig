@@ -2,10 +2,8 @@
 
 {% set has_related_articles = place.articleLinks|filter(link => link.article and link.article.status.value == 'published')|length > 0 %}
 
-{% block title %}{{ place.seoTitle ?: place.name }} - Carnet de lieux{% endblock %}
-{% block meta_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
-{% block open_graph_title %}{{ place.seoTitle ?: place.name }}{% endblock %}
-{% block open_graph_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Repérage prive pour preparer les contenus publics de Blog Tourisme.' }}{% endblock %}
+{% block title %}{{ place.seoTitle ?: place.name }} | {{ site_name }}{% endblock %}
+{% block meta_description %}{{ place.seoDescription ?: place.shortDescription ?: 'Lieu repéré pour préparer les découvertes publiques d’Estela Exploration.' }}{% endblock %}
 
 {% block page_stylesheets %}
     {% if has_related_articles %}
@@ -66,14 +64,14 @@
                     {% if place.destination %}
                         <div><dt>Destination</dt><dd><a href="{{ path('app_destination_show', { slug: place.destination.slug }) }}">{{ place.destination.name }}</a></dd></div>
                     {% endif %}
-                    {% if place.category %}<div><dt>Categorie</dt><dd>{{ place.category.name }}</dd></div>{% endif %}
+                    {% if place.category %}<div><dt>Catégorie</dt><dd>{{ place.category.name }}</dd></div>{% endif %}
                     {% if place.address %}<div><dt>Adresse</dt><dd>{{ place.address }}</dd></div>{% endif %}
-                    {% if place.visitDurationMinutes %}<div><dt>Duree</dt><dd>{{ place.visitDurationMinutes }} min</dd></div>{% endif %}
-                    {% if place.difficulty %}<div><dt>Difficulte</dt><dd>{{ place.difficulty.value }}</dd></div>{% endif %}
+                    {% if place.visitDurationMinutes %}<div><dt>Durée</dt><dd>{{ place.visitDurationMinutes }} min</dd></div>{% endif %}
+                    {% if place.difficulty %}<div><dt>Difficulté</dt><dd>{{ place.difficulty.value }}</dd></div>{% endif %}
                     {% if place.priceType %}<div><dt>Prix</dt><dd>{{ place.priceType.value }}</dd></div>{% endif %}
                     {% if place.latitude is not null and place.longitude is not null %}
                         <div>
-                            <dt>Coordonnees</dt>
+                            <dt>Coordonnées</dt>
                             <dd>
                                 {{ place.latitude }}, {{ place.longitude }}
                                 {% include 'partials/_google_maps_link.html.twig' with { place: place } only %}
