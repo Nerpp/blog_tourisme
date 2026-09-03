@@ -206,6 +206,45 @@ final class HikeControllerTest extends FunctionalTestCase
         self::assertGreaterThanOrEqual(1, $crawler->filter('.article-list-card__visual > picture')->count());
     }
 
+    public function testHikeIndexListsAllSevenPublicHikesDespiteJoinedMediaRows(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $token = $this->uniqueToken('seven-public-hikes');
+        $expectedTitles = [];
+
+        for ($hikeIndex = 1; $hikeIndex <= 7; ++$hikeIndex) {
+            $hike = $this->createPublishedHike($admin);
+            $title = sprintf('Randonnée liste %s %d', $token, $hikeIndex);
+            $hike
+                ->setTitle($title)
+                ->setFinishedAt(new \DateTimeImmutable(sprintf('-%d minutes', $hikeIndex)));
+            $this->persistAndFlush($hike);
+            $expectedTitles[] = $title;
+
+            for ($mediaIndex = 0; $mediaIndex < 4; ++$mediaIndex) {
+                $this->linkHikeMedia(
+                    $hike,
+                    $this->createImageMedia(sprintf('Média %s %d-%d', $token, $hikeIndex, $mediaIndex)),
+                    $mediaIndex === 0 ? MediaRole::Cover : MediaRole::Gallery,
+                    $mediaIndex,
+                );
+            }
+        }
+
+        $crawler = $client->request('GET', '/randonnees?q='.rawurlencode($token));
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(7, $crawler->filter('[data-public-list-card][data-public-content-type="hike"]'));
+        self::assertSelectorTextSame('[data-public-list-count]', '7 randonnées');
+
+        $listedTitles = [];
+        foreach ($crawler->filter('[data-public-list-card][data-public-content-type="hike"] h3 > a') as $titleNode) {
+            $listedTitles[] = trim($titleNode->textContent);
+        }
+        self::assertEqualsCanonicalizing($expectedTitles, $listedTitles);
+    }
+
     public function testHikeIndexSearchFiltersByTitleAndKeepsQuery(): void
     {
         $client = static::createClient();
