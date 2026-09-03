@@ -21,8 +21,6 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 )]
 final class LighthouseUrlsCommand extends Command
 {
-    private const int MAX_PUBLIC_ENTITIES = PHP_INT_MAX;
-
     /** @var list<string> */
     private const array DYNAMIC_TYPES = ['destination', 'article', 'hike', 'city-visit', 'place'];
 
@@ -158,28 +156,28 @@ final class LighthouseUrlsCommand extends Command
             );
         }
 
-        foreach ($this->articleRepository->findPublishedForListing(null, self::MAX_PUBLIC_ENTITIES) as $article) {
+        foreach ($this->articleRepository->findPublishedForListing() as $article) {
             $slug = $article->getSlug();
             if ($slug !== null && $slug !== '') {
                 $this->addUrl($urls, 'article-'.$slug, 'article', (string) $article->getTitle(), 'app_article_show', ['slug' => $slug]);
             }
         }
 
-        foreach ($this->hikeDraftRepository->findPublicForListing(null, self::MAX_PUBLIC_ENTITIES) as $hike) {
+        foreach ($this->hikeDraftRepository->findPublicForListing() as $hike) {
             $slug = $hike->getSlug();
             if ($slug !== null && $slug !== '') {
                 $this->addUrl($urls, 'hike-'.$slug, 'hike', (string) $hike->getTitle(), 'app_hike_show', ['slug' => $slug]);
             }
         }
 
-        foreach ($this->cityVisitDraftRepository->findPublicForListing(null, self::MAX_PUBLIC_ENTITIES) as $cityVisit) {
+        foreach ($this->cityVisitDraftRepository->findPublicForListing() as $cityVisit) {
             $slug = $cityVisit->getSlug();
             if ($slug !== null && $slug !== '') {
                 $this->addUrl($urls, 'city-visit-'.$slug, 'city-visit', (string) $cityVisit->getTitle(), 'app_city_visit_show', ['slug' => $slug]);
             }
         }
 
-        foreach ($this->placeRepository->findPublished(limit: self::MAX_PUBLIC_ENTITIES) as $place) {
+        foreach ($this->placeRepository->findPublished() as $place) {
             $slug = $place->getSlug();
             if ($slug !== null && $slug !== '') {
                 $this->addUrl($urls, 'place-'.$slug, 'place', (string) $place->getName(), 'app_place_show', ['slug' => $slug]);

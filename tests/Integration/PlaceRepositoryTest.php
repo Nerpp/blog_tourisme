@@ -36,7 +36,7 @@ final class PlaceRepositoryTest extends IntegrationTestCase
         $this->linkTag($this->place('Mauvais tag', $destination, $category, ContentStatus::Published, new \DateTimeImmutable('2035-01-03')), $otherTag);
         $this->flushAndClear();
 
-        $results = $this->repository()->findPublished($destination, $category, $tag, 10);
+        $results = $this->repository()->findPublished($destination, $category, $tag);
 
         self::assertSame(
             [$newer->getId(), $older->getId()],
@@ -73,6 +73,8 @@ final class PlaceRepositoryTest extends IntegrationTestCase
         $destination = $this->destination('Destination vedette');
         $latest = $this->place('Vedette récente', $destination, status: ContentStatus::Published, publishedAt: new \DateTimeImmutable('2099-03-03'));
         $second = $this->place('Vedette seconde', $destination, status: ContentStatus::Published, publishedAt: new \DateTimeImmutable('2099-03-02'));
+        $this->linkMedia($latest, $this->media(MediaType::Image), 0);
+        $this->linkMedia($latest, $this->media(MediaType::Image), 1);
         $this->place('Vedette ancienne', $destination, status: ContentStatus::Published, publishedAt: new \DateTimeImmutable('2099-03-01'));
         $this->place('Brouillon plus récent', $destination, publishedAt: new \DateTimeImmutable('2099-03-04'));
         $this->flushAndClear();

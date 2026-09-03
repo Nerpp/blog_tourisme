@@ -11,13 +11,15 @@ use App\Service\HomepageLatestContentProvider;
 
 final class HomeController extends AbstractController
 {
+    private const int DESTINATION_LIMIT = 6;
+
     #[Route('/', name: 'app_home', methods: ['GET'])]
     public function __invoke(
         DestinationRepository $destinationRepository,
         HomepageLatestContentProvider $homepageLatestContentProvider,
         HomepageDestinationMediaResolver $destinationMediaResolver,
     ): Response {
-        $destinations = $destinationRepository->findDiscoverableDestinations(6);
+        $destinations = $destinationRepository->findFeaturedDiscoverableDestinations(self::DESTINATION_LIMIT);
         $destinationCards = array_map(
             static fn ($destination): array => [
                 'destination' => $destination,

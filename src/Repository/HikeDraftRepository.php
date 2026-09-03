@@ -144,11 +144,10 @@ class HikeDraftRepository extends ServiceEntityRepository
     }
 
     /** @return list<HikeDraft> */
-    public function findPublicForListing(?string $query = null, int $limit = 24): array
+    public function findPublicForListing(?string $query = null): array
     {
         /** @var list<HikeDraft> $drafts */
         $drafts = $this->applyPublicSearch($this->createPublicListingQueryBuilder(), $query)
-            ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
 
@@ -156,7 +155,7 @@ class HikeDraftRepository extends ServiceEntityRepository
     }
 
     /** @return list<HikeDraft> */
-    public function findPublicSuggestions(string $query, int $limit = 8): array
+    public function findPublicSuggestions(string $query, int $limit): array
     {
         /** @var list<HikeDraft> $drafts */
         $drafts = $this->applyPublicSearch(

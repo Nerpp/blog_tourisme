@@ -110,6 +110,35 @@ final class DestinationRepositoryIntegrationTest extends IntegrationTestCase
         self::assertSame(1, $counts[(int) $country->getId()]['articles'] ?? null);
     }
 
+    public function testDiscoverableDestinationsAreExhaustiveWhileHomepageSelectionLimitsUniqueDestinations(): void
+    {
+        $expectedDestinations = [];
+
+        for ($index = 1; $index <= 21; ++$index) {
+            $destination = $this->destination(sprintf('Destination découvrable %02d', $index), DestinationType::Area);
+            $hike = $this->hike(sprintf('Randonnée découvrable %02d', $index), $destination);
+            $hike->setFinishedAt(new \DateTimeImmutable(sprintf('2099-01-%02d 12:00:00', $index)));
+            $expectedDestinations[] = $destination;
+        }
+
+        $this->entityManager->flush();
+        $expectedIds = array_map(static fn (Destination $destination): ?int => $destination->getId(), $expectedDestinations);
+        $this->entityManager->clear();
+
+        $allIds = array_map(
+            static fn (Destination $destination): ?int => $destination->getId(),
+            $this->repository()->findDiscoverableDestinations(),
+        );
+        $featuredIds = array_map(
+            static fn (Destination $destination): ?int => $destination->getId(),
+            $this->repository()->findFeaturedDiscoverableDestinations(6),
+        );
+
+        self::assertSame([], array_diff($expectedIds, $allIds));
+        self::assertCount(6, $featuredIds);
+        self::assertSame(array_reverse(array_slice($expectedIds, -6)), $featuredIds);
+    }
+
     private function destination(
         string $name,
         DestinationType $type,

@@ -16,7 +16,6 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class HikeController extends AbstractController
 {
-    private const int LIST_LIMIT = 24;
     private const int SUGGESTION_LIMIT = 8;
     private const int SUGGESTION_MIN_LENGTH = 2;
     private const int QUERY_MAX_LENGTH = 80;
@@ -27,7 +26,7 @@ final class HikeController extends AbstractController
         $query = $this->searchQuery($request);
 
         return $this->render('hike/index.html.twig', [
-            'hikes' => $hikeDraftRepository->findPublicForListing($query, self::LIST_LIMIT),
+            'hikes' => $hikeDraftRepository->findPublicForListing($query),
             'search_query' => $query,
         ]);
     }

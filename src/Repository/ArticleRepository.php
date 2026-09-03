@@ -22,9 +22,9 @@ class ArticleRepository extends ServiceEntityRepository
     }
 
     /** @return list<Article> */
-    public function findPublished(int $limit = 24): array
+    public function findPublished(): array
     {
-        return $this->findPublishedForListing(null, $limit);
+        return $this->findPublishedForListing();
     }
 
     /** @return list<Article> */
@@ -45,20 +45,12 @@ class ArticleRepository extends ServiceEntityRepository
     }
 
     /** @return list<Article> */
-    public function findPublishedForListing(?string $query = null, ?int $limit = null, ?string $categorySlug = null): array
+    public function findPublishedForListing(?string $query = null, ?string $categorySlug = null): array
     {
-        if ($limit !== null && $limit <= 0) {
-            return [];
-        }
-
         $idQueryBuilder = $this->applyCategoryFilter(
             $this->applySearch($this->createPublicListingIdQueryBuilder(), $query),
             $categorySlug,
         );
-
-        if ($limit !== null) {
-            $idQueryBuilder->setMaxResults($limit);
-        }
 
         /** @var list<array{id: int|string}> $rows */
         $rows = $idQueryBuilder
@@ -95,7 +87,7 @@ class ArticleRepository extends ServiceEntityRepository
     }
 
     /** @return list<Article> */
-    public function findPublishedSuggestions(string $query, int $limit = 8): array
+    public function findPublishedSuggestions(string $query, int $limit): array
     {
         $queryBuilder = $this->createQueryBuilder('a')
             ->addSelect('category')

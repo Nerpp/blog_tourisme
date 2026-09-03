@@ -14,7 +14,6 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class CityVisitController extends AbstractController
 {
-    private const int LIST_LIMIT = 24;
     private const int SUGGESTION_LIMIT = 8;
     private const int SUGGESTION_MIN_LENGTH = 2;
     private const int QUERY_MAX_LENGTH = 80;
@@ -25,7 +24,7 @@ final class CityVisitController extends AbstractController
         $query = $this->searchQuery($request);
 
         return $this->render('city_visit/index.html.twig', [
-            'city_visits' => $cityVisitDraftRepository->findPublicForListing($query, self::LIST_LIMIT),
+            'city_visits' => $cityVisitDraftRepository->findPublicForListing($query),
             'search_query' => $query,
         ]);
     }

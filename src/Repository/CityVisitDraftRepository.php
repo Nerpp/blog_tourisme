@@ -144,11 +144,10 @@ class CityVisitDraftRepository extends ServiceEntityRepository
     }
 
     /** @return list<CityVisitDraft> */
-    public function findPublicForListing(?string $query = null, int $limit = 24): array
+    public function findPublicForListing(?string $query = null): array
     {
         /** @var list<CityVisitDraft> $drafts */
         $drafts = $this->applyPublicSearch($this->createPublicListingQueryBuilder(), $query)
-            ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
 
@@ -156,7 +155,7 @@ class CityVisitDraftRepository extends ServiceEntityRepository
     }
 
     /** @return list<CityVisitDraft> */
-    public function findPublicSuggestions(string $query, int $limit = 8): array
+    public function findPublicSuggestions(string $query, int $limit): array
     {
         /** @var list<CityVisitDraft> $drafts */
         $drafts = $this->applyPublicSearch(
