@@ -32,6 +32,7 @@ use App\Service\Media\PublicMediaMasterCleanupService;
 use App\Service\Media\VideoThumbnailGenerator;
 use App\Service\Geography\LocationDraftHydrationException;
 use App\Service\Geography\LocationDraftHydrator;
+use App\Service\Hike\GoogleMapsHikeRouteUrlGenerator;
 use App\Service\OrphanLocationCleanupService;
 use App\Service\PublicationNotificationMailer;
 use App\Service\Social\PreparedSocialPublications;
@@ -80,6 +81,7 @@ final class HikeStudioController extends AbstractController
         private readonly LocationDraftHydrator $locationDraftHydrator,
         private readonly InstagramPublicationScheduler $instagramPublicationScheduler,
         private readonly SocialPublicationCoordinator $socialPublicationCoordinator,
+        private readonly GoogleMapsHikeRouteUrlGenerator $googleMapsHikeRouteUrlGenerator,
     ) {}
 
     #[Route('/hikes/{id}/edit', name: 'admin_studio_hike_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -551,7 +553,7 @@ final class HikeStudioController extends AbstractController
             'current_destination_edit' => $this->currentDestinationEditData($hikeDraft),
             'location_picker_data' => $this->locationPickerData($hikeDraft),
             'current_location_point' => $this->currentLocationPoint($hikeDraft),
-            'google_maps_url' => $this->generateGoogleMapsUrl($hikeDraft),
+            'google_maps_url' => $this->googleMapsHikeRouteUrlGenerator->generate($hikeDraft),
             'media_links' => $generalMediaLinks,
             'photo_links' => $photoLinks,
             'cover_photo_links' => array_values(array_filter($photoLinks, static fn(HikeDraftMedia $link): bool => $link->getRole() === MediaRole::Cover)),
@@ -1132,33 +1134,6 @@ final class HikeStudioController extends AbstractController
         }
 
         return $maxPosition + 1;
-    }
-
-    private function generateGoogleMapsUrl(HikeDraft $hikeDraft): ?string
-    {
-        $points = array_values(array_filter(
-            $this->sortedPoints($hikeDraft),
-            fn (HikePoint $point): bool => $this->hasValidPointCoordinates($point),
-        ));
-
-        if ($points === []) {
-            return null;
-        }
-
-        $coordinates = array_map(static fn(HikePoint $point): string => $point->getLatitude() . ',' . $point->getLongitude(), $points);
-        if (count($coordinates) === 1) {
-            return 'https://www.google.com/maps/search/?api=1&query=' . $coordinates[0];
-        }
-
-        $origin = array_shift($coordinates);
-        $destination = array_pop($coordinates);
-        $url = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=' . rawurlencode((string) $origin) . '&destination=' . rawurlencode((string) $destination);
-
-        if ($coordinates !== []) {
-            $url .= '&waypoints=' . rawurlencode(implode('|', $coordinates));
-        }
-
-        return $url;
     }
 
     /** @return array<int|string, string> */
