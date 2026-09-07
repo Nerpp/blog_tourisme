@@ -53,6 +53,28 @@ final class HikeStudioControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testHikeEditorKeepsTheOrderedWalkingGoogleMapsRouteUrl(): void
+    {
+        $client = static::createClient();
+        $admin = $this->createVerifiedAdmin();
+        $hike = $this->createHikeDraft($admin);
+        $this->createHikePoint($hike, 42.7080, 2.9120, 3);
+        $this->createHikePoint($hike, 42.7000, 2.9000, 1);
+        $this->createHikePoint($hike, 42.7040, 2.9060, 2);
+        $client->loginUser($admin);
+
+        $crawler = $client->request('GET', sprintf('/admin/studio/hikes/%d/edit', $hike->getId()));
+
+        self::assertResponseIsSuccessful();
+        $expectedUrl = 'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=42.7%2C2.9&destination=42.708%2C2.912&waypoints=42.704%2C2.906';
+        $links = $crawler->filter(sprintf('a[href="%s"]', $expectedUrl));
+        self::assertCount(2, $links);
+        self::assertSame('Google Maps', trim($links->eq(0)->text()));
+        self::assertSame('Ouvrir l’itinéraire', trim($links->eq(1)->text()));
+        self::assertSame('_blank', $links->eq(1)->attr('target'));
+        self::assertSame('noopener noreferrer', $links->eq(1)->attr('rel'));
+    }
+
     public function testHikeStudioIndexExposesPreviewLinksForDraftAndPublishedContents(): void
     {
         $client = static::createClient();

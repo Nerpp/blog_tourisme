@@ -381,6 +381,27 @@ final class HikeControllerTest extends FunctionalTestCase
         }
     }
 
+    public function testPublishedHikeWithSeveralGpsPointsShowsGoogleMapsRouteLink(): void
+    {
+        $client = static::createClient();
+        $hike = $this->createPublishedHike($this->createVerifiedAdmin());
+        $this->createHikePoint($hike, 42.7080, 2.9120, 3);
+        $this->createHikePoint($hike, 42.7000, 2.9000, 1);
+        $this->createHikePoint($hike, 42.7040, 2.9060, 2);
+
+        $crawler = $client->request('GET', sprintf('/randonnees/%s', $hike->getSlug()));
+
+        self::assertResponseIsSuccessful();
+        $link = $crawler->filter('a:contains("Ouvrir l’itinéraire sur Google Maps")');
+        self::assertCount(1, $link);
+        self::assertSame(
+            'https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=42.7%2C2.9&destination=42.708%2C2.912&waypoints=42.704%2C2.906',
+            $link->attr('href'),
+        );
+        self::assertSame('_blank', $link->attr('target'));
+        self::assertSame('noopener noreferrer', $link->attr('rel'));
+    }
+
     public function testPublishedHikeWithOneGpsPointShowsMapWithoutRouteWarning(): void
     {
         $client = static::createClient();
@@ -412,6 +433,7 @@ final class HikeControllerTest extends FunctionalTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextNotContains('body', 'Voir le parcours');
         self::assertSelectorTextNotContains('body', 'Télécharger le GPX');
+        self::assertCount(0, $crawler->filter('a:contains("Ouvrir l’itinéraire sur Google Maps")'));
         self::assertSelectorTextNotContains('body', 'Parcours Google Maps');
         self::assertSelectorTextContains('body', 'Aucune étape détaillée pour le moment.');
         self::assertCount(0, $crawler->filter('[data-public-hike-map]'));
@@ -572,7 +594,9 @@ final class HikeControllerTest extends FunctionalTestCase
 
         self::assertResponseIsSuccessful();
         self::assertCount(1, $crawler->filter('[data-public-hike-map]'));
+        self::assertCount(1, $crawler->filter('a:contains("Ouvrir l’itinéraire sur Google Maps")'));
         self::assertCount(0, $crawler->filter(sprintf('a[href="/randonnees/%s/gpx"]', $hike->getSlug())));
+        self::assertSame('noindex, nofollow, noarchive', $client->getResponse()->headers->get('X-Robots-Tag'));
     }
 
     public function testAdminViewingPublishedHikeDoesNotEnterPreviewMode(): void
