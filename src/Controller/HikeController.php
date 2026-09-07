@@ -6,6 +6,7 @@ use App\Entity\HikeDraft;
 use App\Repository\HikeDraftRepository;
 use App\Security\Voter\AdminAccessVoter;
 use App\Service\CommentSectionProvider;
+use App\Service\Hike\GoogleMapsHikeRouteUrlGenerator;
 use App\Service\Hike\HikeGpxExporter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -60,6 +61,7 @@ final class HikeController extends AbstractController
         Request $request,
         HikeDraftRepository $hikeDraftRepository,
         CommentSectionProvider $commentSectionProvider,
+        GoogleMapsHikeRouteUrlGenerator $googleMapsHikeRouteUrlGenerator,
     ): Response
     {
         $hike = $hikeDraftRepository->findOneBySlugWithRelations($slug);
@@ -76,6 +78,7 @@ final class HikeController extends AbstractController
         $response = $this->render('hike/show.html.twig', [
             'hike' => $hike,
             'is_preview' => $isPreview,
+            'google_maps_url' => $googleMapsHikeRouteUrlGenerator->generate($hike),
             'comment_section' => $isPreview
                 ? null
                 : $commentSectionProvider->provide($hike, $request, $this->getUser()),

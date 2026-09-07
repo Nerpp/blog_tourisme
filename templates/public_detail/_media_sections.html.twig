@@ -4,6 +4,7 @@
 {% set panorama_media_links = [] %}
 {% set immersive_gallery_links = [] %}
 {% set gps_point_type = gps_point_type|default(null) %}
+{% set google_maps_url = google_maps_url|default(null) %}
 {% set is_preview = is_preview|default(false) %}
 {% set valid_gps_points = [] %}
 {% set hike_map_points = [] %}
@@ -565,6 +566,17 @@
                     >
                         Voir le parcours
                     </a>
+
+                    {% if google_maps_url %}
+                        <a
+                            class="public-point-gps__button public-point-gps__button--secondary"
+                            href="{{ google_maps_url }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Ouvrir l’itinéraire sur Google Maps
+                        </a>
+                    {% endif %}
 
                     {% if valid_gps_points|length > 1 and not is_preview %}
                         <a
