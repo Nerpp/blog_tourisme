@@ -1,0 +1,302 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+: "${GH_LOG:?}"
+: "${STATE_DIR:?}"
+: "${SCENARIO:?}"
+: "${FAKE_DEV_SHA:?}"
+: "${FAKE_MAIN_SHA:?}"
+
+command_name="${1:-}"
+shift || true
+
+{
+    printf '%s' "$command_name"
+    printf ' %s' "$@"
+    printf '\n'
+} >> "$GH_LOG"
+
+has_argument() {
+    local expected="$1"
+    shift
+    local argument
+
+    for argument in "$@"; do
+        [[ "$argument" == "$expected" ]] && return 0
+    done
+
+    return 1
+}
+
+option_value() {
+    local option="$1"
+    shift
+
+    while (( $# > 0 )); do
+        if [[ "$1" == "$option" ]]; then
+            [[ $# -ge 2 ]] || exit 91
+            printf '%s\n' "$2"
+            return 0
+        fi
+        shift
+    done
+
+    return 1
+}
+
+next_count() {
+    local name="$1"
+    local counter_file="$STATE_DIR/$name"
+    local count=0
+
+    if [[ -f "$counter_file" ]]; then
+        read -r count < "$counter_file"
+    fi
+
+    count=$((count + 1))
+    printf '%s\n' "$count" > "$counter_file"
+    printf '%s\n' "$count"
+}
+
+emit_run() {
+    local run_id="$1"
+    local workflow="$2"
+    local event="$3"
+    local branch="$4"
+    local sha="$5"
+    local status="$6"
+    local conclusion="$7"
+
+    printf '%s\t%s\t%s\t%s\t%s\thttps://example.test/runs/%s\t%s\t%s\n' \
+        "$run_id" "$workflow" "$event" "$branch" "$sha" "$run_id" "$status" "$conclusion"
+}
+
+run_list() {
+    local workflow
+    local event
+    local branch
+
+    workflow="$(option_value --workflow "$@")"
+    event="$(option_value --event "$@")"
+    branch="$(option_value --branch "$@")"
+
+    case "$workflow:$event:$branch" in
+        'CI:push:dev')
+            emit_run 101 CI push dev "$FAKE_DEV_SHA" in_progress ''
+            ;;
+        'Promote dev to main:workflow_run:dev')
+            emit_run 201 'Promote dev to main' workflow_run dev "$FAKE_DEV_SHA" completed success
+            ;;
+        'CI:pull_request:dev')
+            emit_run 401 CI pull_request dev "$FAKE_DEV_SHA" completed success
+            ;;
+        'CI:push:main')
+            emit_run 501 CI push main "$FAKE_MAIN_SHA" completed success
+            ;;
+        *)
+            printf 'Appel run list inattendu : %s:%s:%s\n' "$workflow" "$event" "$branch" >&2
+            exit 92
+            ;;
+    esac
+}
+
+run_watch() {
+    local run_id="$1"
+    local count
+
+    count="$(next_count "watch-$run_id")"
+    if [[ "$run_id" != 101 ]]; then
+        return 0
+    fi
+
+    case "$SCENARIO" in
+        watch_nonzero_in_progress)
+            return 1
+            ;;
+        queued)
+            (( count == 1 )) && return 1
+            return 0
+            ;;
+        watch_zero_in_progress)
+            return 0
+            ;;
+        required_checks_nonzero)
+            return 0
+            ;;
+        failure|cancelled|timed_out|log_unavailable|mismatch|local_timeout)
+            return 1
+            ;;
+        signal)
+            exec sleep 30
+            ;;
+        *)
+            printf 'Scénario inattendu : %s\n' "$SCENARIO" >&2
+            exit 93
+            ;;
+    esac
+}
+
+run_status_view() {
+    local run_id="$1"
+    local count
+    local workflow='CI'
+    local event='push'
+    local branch='dev'
+    local sha="$FAKE_DEV_SHA"
+    local status='completed'
+    local conclusion='success'
+
+    count="$(next_count "view-$run_id")"
+
+    case "$run_id" in
+        101)
+            case "$SCENARIO" in
+                watch_nonzero_in_progress|watch_zero_in_progress)
+                    if (( count == 1 )); then
+                        status='in_progress'
+                        conclusion=''
+                    fi
+                    ;;
+                queued)
+                    if (( count == 1 )); then
+                        status='queued'
+                        conclusion=''
+                    fi
+                    ;;
+                failure|log_unavailable)
+                    conclusion='failure'
+                    ;;
+                cancelled)
+                    conclusion='cancelled'
+                    ;;
+                timed_out)
+                    conclusion='timed_out'
+                    ;;
+                local_timeout)
+                    status='in_progress'
+                    conclusion=''
+                    ;;
+                mismatch)
+                    case "${MISMATCH_FIELD:-}" in
+                        workflow) workflow='Other workflow' ;;
+                        event) event='schedule' ;;
+                        branch) branch='other' ;;
+                        sha) sha='9999999999999999999999999999999999999999' ;;
+                        *) exit 94 ;;
+                    esac
+                    ;;
+            esac
+            ;;
+        201)
+            workflow='Promote dev to main'
+            event='workflow_run'
+            ;;
+        401)
+            event='pull_request'
+            ;;
+        501)
+            branch='main'
+            sha="$FAKE_MAIN_SHA"
+            ;;
+        *)
+            exit 95
+            ;;
+    esac
+
+    printf '%s\t%s\t%s\t%s\thttps://example.test/runs/%s\t%s\t%s\n' \
+        "$workflow" "$event" "$branch" "$sha" "$run_id" "$status" "$conclusion"
+}
+
+run_view() {
+    local run_id="$1"
+    shift
+    local json_fields
+
+    if has_argument --log-failed "$@"; then
+        if [[ "$SCENARIO" == log_unavailable ]]; then
+            printf 'logs unavailable\n' >&2
+            return 1
+        fi
+        printf 'simulated failed step log\n'
+        return 0
+    fi
+
+    json_fields="$(option_value --json "$@")"
+    if [[ "$json_fields" == jobs ]]; then
+        printf '701\tDeploy production\tcompleted\tsuccess\thttps://example.test/jobs/701\n'
+        return 0
+    fi
+
+    run_status_view "$run_id"
+}
+
+pr_list() {
+    printf '301\thttps://example.test/pulls/301\tOPEN\tfalse\tmain\tdev\t%s\tfalse\n' "$FAKE_DEV_SHA"
+}
+
+pr_view() {
+    local json_fields
+
+    shift
+    json_fields="$(option_value --json "$@")"
+
+    if [[ "$json_fields" == number,* ]]; then
+        printf '301\thttps://example.test/pulls/301\tOPEN\tfalse\tmain\tdev\t%s\tfalse\n' "$FAKE_DEV_SHA"
+        return 0
+    fi
+
+    if [[ "$json_fields" == state,*mergeCommit* ]]; then
+        printf 'MERGED\tmain\tdev\t%s\t%s\n' "$FAKE_DEV_SHA" "$FAKE_MAIN_SHA"
+        return 0
+    fi
+
+    exit 96
+}
+
+case "$command_name" in
+    auth)
+        [[ "${1:-}" == status ]] || exit 97
+        ;;
+    repo)
+        [[ "${1:-}" == view ]] || exit 98
+        printf 'Nerpp/blog_tourisme\n'
+        ;;
+    api)
+        if [[ "${1:-}" == */git/ref/heads/dev || "${1:-}" == */commits/* ]]; then
+            printf '%s\n' "$FAKE_DEV_SHA"
+        else
+            exit 99
+        fi
+        ;;
+    run)
+        subcommand="${1:-}"
+        shift
+        case "$subcommand" in
+            list) run_list "$@" ;;
+            watch) run_watch "$@" ;;
+            view) run_view "$@" ;;
+            *) exit 100 ;;
+        esac
+        ;;
+    pr)
+        subcommand="${1:-}"
+        shift
+        case "$subcommand" in
+            list) pr_list "$@" ;;
+            view) pr_view "$@" ;;
+            checks)
+                if has_argument --json "$@"; then
+                    printf '1\n'
+                elif [[ "$SCENARIO" == required_checks_nonzero ]] \
+                    && has_argument --watch "$@"; then
+                    exit 1
+                fi
+                ;;
+            *) exit 101 ;;
+        esac
+        ;;
+    *)
+        exit 102
+        ;;
+esac
