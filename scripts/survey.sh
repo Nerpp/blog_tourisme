@@ -117,7 +117,7 @@ run_with_deadline() {
 show_failed_logs() {
     local run_id="$1"
 
-    printf '\nLogs des étapes en échec pour le run %s :\n' "$run_id" >&2
+    printf '\nLogs des étapes non réussies pour le run %s :\n' "$run_id" >&2
     if ! gh run view "$run_id" \
         --repo "$REPOSITORY" \
         --log-failed
@@ -256,7 +256,11 @@ wait_for_run() {
     done
 }
 
-verify_run_success() {
+VERIFIED_RUN_URL=''
+VERIFIED_RUN_STATUS=''
+VERIFIED_RUN_CONCLUSION=''
+
+read_verified_run() {
     local run_id="$1"
     local workflow="$2"
     local event="$3"
@@ -268,9 +272,9 @@ verify_run_success() {
     local actual_event
     local actual_branch
     local actual_sha
-    local actual_url
-    local actual_status
-    local actual_conclusion
+    local actual_url=''
+    local actual_status=''
+    local actual_conclusion=''
 
     if ! record="$(
         gh run view "$run_id" \
@@ -296,10 +300,18 @@ verify_run_success() {
         && "$actual_sha" == "$sha" ]] \
         || fail "$description ne correspond plus au workflow, à l’événement, à la branche et au SHA attendus."
 
-    [[ "$actual_status" == completed && "$actual_conclusion" == success ]] \
-        || fail "$description n’est pas terminé avec succès (${actual_status}:${actual_conclusion:-inconnue})."
+    VERIFIED_RUN_URL="$actual_url"
+    VERIFIED_RUN_STATUS="$actual_status"
+    VERIFIED_RUN_CONCLUSION="$actual_conclusion"
+}
 
-    printf '%s réussi : %s\n' "$description" "$actual_url"
+verify_run_success() {
+    local description="$1"
+
+    [[ "$VERIFIED_RUN_STATUS" == completed && "$VERIFIED_RUN_CONCLUSION" == success ]] \
+        || fail "$description n’est pas terminé avec succès (${VERIFIED_RUN_STATUS}:${VERIFIED_RUN_CONCLUSION:-inconnue})."
+
+    printf '%s réussi : %s\n' "$description" "$VERIFIED_RUN_URL"
 }
 
 watch_run() {
@@ -311,29 +323,49 @@ watch_run() {
     local description="$6"
     local watch_status
 
-    if run_with_deadline \
-        "le suivi de $description" \
-        gh run watch "$run_id" \
-            --repo "$REPOSITORY" \
-            --exit-status \
-            --compact \
-            --interval "$SURVEY_INTERVAL"
-    then
-        watch_status=0
-    else
-        watch_status=$?
-    fi
+    while true; do
+        if run_with_deadline \
+            "le suivi de $description" \
+            gh run watch "$run_id" \
+                --repo "$REPOSITORY" \
+                --exit-status \
+                --compact \
+                --interval "$SURVEY_INTERVAL"
+        then
+            watch_status=0
+        else
+            watch_status=$?
+        fi
 
-    if (( watch_status == 124 )); then
-        fail "délai maximal de ${SURVEY_TIMEOUT}s atteint pendant le suivi de $description."
-    fi
+        if (( watch_status == 124 )); then
+            fail "délai maximal de ${SURVEY_TIMEOUT}s atteint pendant le suivi de $description."
+        fi
 
-    if (( watch_status != 0 )); then
+        read_verified_run "$run_id" "$workflow" "$event" "$branch" "$sha" "$description"
+
+        if [[ "$VERIFIED_RUN_STATUS" != completed ]]; then
+            if (( watch_status == 0 )); then
+                printf '%s est encore %s après le suivi interactif ; reprise de la surveillance.\n' \
+                    "$description" "${VERIFIED_RUN_STATUS:-dans un état inconnu}"
+            else
+                printf 'Le suivi interactif de %s s’est interrompu (code %s), mais le run est encore %s ; reprise de la surveillance.\n' \
+                    "$description" "$watch_status" "${VERIFIED_RUN_STATUS:-dans un état inconnu}"
+            fi
+
+            poll_sleep "le suivi de $description"
+            continue
+        fi
+
+        if [[ "$VERIFIED_RUN_CONCLUSION" == success ]]; then
+            verify_run_success "$description"
+            return 0
+        fi
+
+        printf '%s terminé avec conclusion %s.\n' \
+            "$description" "${VERIFIED_RUN_CONCLUSION:-inconnue}" >&2
         show_failed_logs "$run_id"
-        fail "$description a échoué."
-    fi
-
-    verify_run_success "$run_id" "$workflow" "$event" "$branch" "$sha" "$description"
+        fail "$description est terminé sans succès (${VERIFIED_RUN_STATUS}:${VERIFIED_RUN_CONCLUSION:-inconnue})."
+    done
 }
 
 PROMOTION_PR_NUMBER=''
@@ -516,12 +548,14 @@ wait_for_required_checks() {
     fi
 
     if (( watch_status != 0 )); then
-        show_failed_logs "$pr_ci_run_id"
-        fail "un contrôle obligatoire de la PR #$PROMOTION_PR_NUMBER a échoué."
+        printf 'Le suivi interactif des contrôles obligatoires s’est interrompu (code %s) ; l’état du run CI %s sera vérifié explicitement.\n' \
+            "$watch_status" "$pr_ci_run_id"
     fi
 
     verify_pr_identity
-    printf 'Contrôles obligatoires réussis pour %s\n' "$PROMOTION_PR_URL"
+    if (( watch_status == 0 )); then
+        printf 'Contrôles obligatoires réussis pour %s\n' "$PROMOTION_PR_URL"
+    fi
 }
 
 MAIN_MERGE_SHA=''
