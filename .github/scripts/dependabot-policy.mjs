@@ -39,6 +39,10 @@ function parseSemver(value) {
   return match ? match.slice(1, 4).map((part) => Number(part ?? 0)) : null;
 }
 
+function normalizeVersionReference(value) {
+  return String(value ?? '').trim().replace(/^v(?=\d)/, '');
+}
+
 function levelFromVersions(previousVersion, newVersion) {
   if (!previousVersion || !newVersion || previousVersion === newVersion) return null;
   const previous = parseSemver(previousVersion);
@@ -246,9 +250,11 @@ function verifyDeclarativeVersions(ecosystem, changedFiles, metadataChanges, err
 
 function verifyLockedVersions(metadataChanges, lockChanges, errors) {
   for (const metadataChange of metadataChanges) {
+    const metadataPreviousVersion = normalizeVersionReference(metadataChange.previousVersion);
+    const metadataNewVersion = normalizeVersionReference(metadataChange.newVersion);
     const exactMatches = lockChanges.filter((lockChange) => lockChange.name === metadataChange.name
-      && lockChange.previousVersion === metadataChange.previousVersion
-      && lockChange.newVersion === metadataChange.newVersion);
+      && normalizeVersionReference(lockChange.previousVersion) === metadataPreviousVersion
+      && normalizeVersionReference(lockChange.newVersion) === metadataNewVersion);
     if (exactMatches.length === 0) {
       errors.push(`manifest or lockfile versions disagree with metadata for ${metadataChange.name}`);
       continue;
