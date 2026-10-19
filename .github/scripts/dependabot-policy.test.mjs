@@ -175,6 +175,22 @@ test('direct Composer patch is valid and auto-merge eligible', () => {
   }), {globalUpdateType: 'patch', autoMergeEligible: true});
 });
 
+test('Composer v-prefixed lock versions match unprefixed Dependabot metadata', () => {
+  const dependency = versionUpdate('symfony/console', '8.1.6', '8.1.8', 'patch');
+  const files = composerFiles([dependency]);
+  const baseLock = JSON.parse(files.base['composer.lock']);
+  const headLock = JSON.parse(files.head['composer.lock']);
+  baseLock.packages[0].version = 'v8.1.6';
+  headLock.packages[0].version = 'v8.1.8';
+  files.base['composer.lock'] = JSON.stringify(baseLock);
+  files.head['composer.lock'] = JSON.stringify(headLock);
+
+  expectClassification(makeInput({
+    dependencies: [dependency],
+    files,
+  }), {globalUpdateType: 'patch', autoMergeEligible: true});
+});
+
 test('direct npm patch is valid and auto-merge eligible', () => {
   expectClassification(makeInput({
     ecosystem: 'npm_and_yarn',
